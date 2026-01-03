@@ -98,17 +98,89 @@ Please create a commit with all changes following our commit message format:
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 ```
 
+## Security Review
+
+### Comprehensive Security Check
+
+```
+Please perform a comprehensive security review of this project:
+1. Check SECURITY_GUIDELINES.md for all applicable security requirements
+2. Verify no hardcoded API keys, passwords, or secrets
+3. Ensure all user input is validated and sanitized
+4. Check for SQL injection vulnerabilities (parameterized queries)
+5. Verify XSS prevention is implemented
+6. Review authentication and authorization logic
+7. Check that error messages don't leak sensitive information
+8. Scan dependencies with npm audit or pip-audit
+9. Review against OWASP Top 10:2025
+10. Update the Security Review section in CHECKLIST.md
+```
+
+### Check for Hardcoded Secrets
+
+```
+Please scan the entire project for hardcoded secrets:
+- Search for patterns like API_KEY, PASSWORD, SECRET, TOKEN
+- Check for hardcoded URLs with credentials
+- Verify all sensitive values are in environment variables
+- Ensure .env is in .gitignore
+- Confirm .env.example is provided without real secrets
+```
+
+### OWASP Top 10:2025 Review
+
+```
+Review this project against OWASP Top 10:2025:
+1. Broken Access Control - Are authorization checks in place?
+2. Security Misconfiguration - Is debug mode disabled? Headers secure?
+3. Software Supply Chain - Dependencies scanned and up to date?
+4. Cryptographic Failures - Passwords hashed properly? HTTPS used?
+5. Injection - SQL queries parameterized? Input sanitized?
+6. Insecure Design - Security considered in architecture?
+7. Authentication Failures - Strong password policy? Rate limiting?
+8. Data Integrity - Code signing? Integrity checks?
+9. Logging Failures - Security events logged? Sensitive data not logged?
+10. SSRF - External URLs validated and whitelisted?
+
+Report any vulnerabilities and suggest fixes.
+```
+
+### Dependency Security Scan
+
+```
+Please scan dependencies for security vulnerabilities:
+1. Run npm audit or pip-audit
+2. Report any critical or high severity issues
+3. Suggest updates or fixes
+4. Check if all dependencies are actively maintained
+5. Identify any unnecessary dependencies to remove
+```
+
+### Input Validation Review
+
+```
+Review all user input handling in this project:
+1. List all endpoints/functions that accept user input
+2. Verify each has proper validation
+3. Check for whitelist validation (not just blacklist)
+4. Ensure type checking and bounds validation
+5. Verify SQL injection prevention
+6. Check XSS prevention
+7. Validate file upload restrictions (if applicable)
+```
+
 ## Completion Phase
 
 ### Final Review
 
 ```
 This project is ready for completion. Please:
-1. Verify all items in CHECKLIST.md are done
+1. Verify all items in CHECKLIST.md are done (including Security Review)
 2. Review README.md for completeness
 3. Ensure no TODO comments in code
 4. Check all documentation is accurate
-5. Update the main portfolio README with this project
+5. Confirm SECURITY_GUIDELINES.md requirements are met
+6. Update the main portfolio README with this project
 ```
 
 ### Create GitHub Issue

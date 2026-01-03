@@ -36,6 +36,39 @@ Use this checklist to ensure you follow all portfolio standards.
   <optional detailed description>
   ```
 
+## Security Review
+
+⚠️ **CRITICAL**: Review [SECURITY_GUIDELINES.md](../SECURITY_GUIDELINES.md) before deployment
+
+- [ ] **Secrets Management**
+  - [ ] No hardcoded API keys, passwords, or secrets in code
+  - [ ] All sensitive config in environment variables
+  - [ ] `.env.example` provided (without actual secrets)
+  - [ ] `.env` file in `.gitignore`
+  - [ ] No secrets in git history
+- [ ] **Input Validation**
+  - [ ] All user input validated and sanitized
+  - [ ] SQL queries use parameterized statements (if applicable)
+  - [ ] XSS prevention implemented for user-generated content
+  - [ ] File uploads restricted to safe types (if applicable)
+- [ ] **Authentication & Authorization**
+  - [ ] Passwords hashed with bcrypt/argon2 (if applicable)
+  - [ ] Authorization checks on protected routes
+  - [ ] Rate limiting on sensitive endpoints
+  - [ ] Session management is secure (if applicable)
+- [ ] **Error Handling**
+  - [ ] Error messages don't leak sensitive information
+  - [ ] Stack traces not exposed to users
+  - [ ] Debug mode disabled for production
+- [ ] **Dependencies**
+  - [ ] Run `npm audit` or `pip-audit` with no critical issues
+  - [ ] Dependencies up to date
+  - [ ] Lock files committed (package-lock.json, requirements.txt)
+- [ ] **OWASP Top 10:2025**
+  - [ ] Reviewed applicable vulnerabilities for this project
+  - [ ] Broken Access Control mitigated
+  - [ ] Security Misconfiguration checked
+
 ## Documentation Phase
 
 - [ ] README.md is complete with:
