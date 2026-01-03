@@ -5,14 +5,29 @@ A collection of technical proof-of-concepts demonstrating product thinking, tech
 ## About
 
 This repository showcases my journey building technical skills relevant to Technical Product Management, including:
+
 - API integrations and system design
 - Data analysis and product metrics
 - Automation and workflow optimization
 - Full-stack development awareness
 
+## Quick Start
+
+**Starting a new project?** Run:
+
+```bash
+./new-project.sh
+```
+
+Then tell Claude Code:
+
+> "Let's work on [project-name]. Please follow the guidelines in `.claude-instructions.md` and use `CHECKLIST.md` to track our progress."
+
+**Full setup guide**: See [SETUP_GUIDE.md](SETUP_GUIDE.md)
+
 ## Projects
 
-*Projects will be added here as they are completed*
+_Projects will be added here as they are completed_
 
 ## Tech Stack
 
@@ -24,6 +39,7 @@ This repository showcases my journey building technical skills relevant to Techn
 ## Goals
 
 Build 5+ substantial POCs over 6 months demonstrating:
+
 1. Technical depth and breadth
 2. Product thinking and problem-solving
 3. Ability to ship working prototypes
@@ -31,4 +47,4 @@ Build 5+ substantial POCs over 6 months demonstrating:
 
 ---
 
-*Last updated: January 2026*
+_Last updated: January 2026_
