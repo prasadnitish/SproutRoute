@@ -18,11 +18,15 @@ dist/
 build/
 
 # IDE
-.vscode/
 .idea/
 *.swp
 *.swo
 *~
+# Allow VS Code workspace settings but ignore local user settings
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/extensions.json
 
 # OS
 .DS_Store

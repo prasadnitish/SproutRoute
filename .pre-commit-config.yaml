@@ -14,6 +14,7 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=1000']
       - id: check-json
+        exclude: '^\.vscode/.*\.json$'  # VS Code config files use JSONC (JSON with comments)
       - id: check-merge-conflict
       - id: detect-private-key
 
@@ -37,3 +38,4 @@ repos:
     hooks:
       - id: prettier
         types_or: [javascript, jsx, ts, tsx, json, css, markdown]
+        exclude: '^\.vscode/.*\.json$'  # VS Code config files use JSONC
