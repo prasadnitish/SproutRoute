@@ -1,4 +1,4 @@
-# TPM Portfolio Projects
+# Technical Product Manager Portfolio Projects
 
 A collection of technical proof-of-concepts demonstrating product thinking, technical understanding, and execution skills.
 
