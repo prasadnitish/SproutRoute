@@ -42,6 +42,27 @@ Please review the code changes against CHECKLIST.md before we commit:
 - Code is formatted
 ```
 
+**With TuringMind AI Review (Recommended):**
+
+```
+/turingmind:review
+```
+
+This runs a quick AI-powered code review checking for:
+
+- Bugs & logic errors (null access, off-by-one, race conditions)
+- Security vulnerabilities (SQL injection, XSS, hardcoded secrets)
+- Architecture violations
+- Project-specific compliance
+
+**For Pull Requests:**
+
+```
+/turingmind:deep-review
+```
+
+Comprehensive analysis with architecture and impact assessment.
+
 ### Documentation Review
 
 ```

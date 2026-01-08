@@ -25,6 +25,15 @@ Then tell Claude Code:
 
 **Full setup guide**: See [SETUP_GUIDE.md](SETUP_GUIDE.md)
 
+## Development Tools
+
+This portfolio uses AI-assisted development with quality checks:
+
+- **Claude Code** - AI pair programming with specialized agents
+- **TuringMind Code Review** - AI-powered bug and security detection ([Setup Guide](TURINGMIND_SETUP.md))
+- **Pre-commit Hooks** - Automated formatting and secret detection
+- **Security Guidelines** - [SECURITY_GUIDELINES.md](SECURITY_GUIDELINES.md)
+
 ## Projects
 
 _Projects will be added here as they are completed_
