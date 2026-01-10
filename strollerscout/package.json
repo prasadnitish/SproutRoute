@@ -1,18 +1,27 @@
 {
-  "name": "project-name",
+  "name": "strollerscout",
   "version": "1.0.0",
-  "description": "Project description",
-  "main": "src/index.js",
+  "description": "AI-powered trip planning tool for parents - generates smart, weather-appropriate packing lists",
+  "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
-    "test": "jest",
-    "lint": "eslint src/",
-    "format": "prettier --write src/"
+    "dev:frontend": "cd src/frontend && npm run dev",
+    "dev:backend": "cd src/backend && npm run dev",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "build": "cd src/frontend && npm run build",
+    "start": "cd src/backend && npm start",
+    "install:all": "npm install && cd src/frontend && npm install && cd ../backend && npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "ai",
+    "packing-list",
+    "travel",
+    "parenting",
+    "weather"
+  ],
+  "author": "Nitish Prasad",
   "license": "MIT",
-  "dependencies": {},
-  "devDependencies": {}
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
 }
