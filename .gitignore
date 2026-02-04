@@ -27,6 +27,11 @@ build/
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/extensions.json
+# Obsidian — workspace state is per-session, not shared
+.obsidian/workspace.json
+
+# Binary docs — store as Markdown; binaries can't be diffed
+*.docx
 
 # OS
 .DS_Store
