@@ -37,18 +37,21 @@
 ## Setup & Installation
 
 ### Prerequisites
+
 - [e.g., Python 3.9+, Node.js 18+]
 - [Other requirements]
 
 ### Installation Steps
 
 1. Clone the repository
+
 ```bash
-git clone https://github.com/nitishprasad-bot/tpm-portfolio.git
+git clone https://github.com/prasadnitish/tpm-portfolio.git
 cd tpm-portfolio/[project-folder]
 ```
 
 2. Install dependencies
+
 ```bash
 # For Python projects
 pip install -r requirements.txt
@@ -58,12 +61,14 @@ npm install
 ```
 
 3. Set up environment variables
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 4. Run the application
+
 ```bash
 # Add your run command here
 ```
@@ -73,11 +78,13 @@ cp .env.example .env
 [Provide examples of how to use the application]
 
 ### Example 1
+
 ```bash
 # Command or API call example
 ```
 
 ### Example 2
+
 [Screenshots or code examples]
 
 ## Demo
@@ -89,16 +96,19 @@ cp .env.example .env
 ## Project Learnings
 
 ### Technical Skills Demonstrated
+
 - [e.g., RESTful API design]
 - [e.g., Data modeling and database design]
 - [e.g., Frontend state management]
 
 ### Product/TPM Skills Demonstrated
+
 - [e.g., User story definition and prioritization]
 - [e.g., Technical documentation]
 - [e.g., System design thinking]
 
 ### Challenges & Solutions
+
 **Challenge 1:** [Description]
 **Solution:** [How you solved it]
 

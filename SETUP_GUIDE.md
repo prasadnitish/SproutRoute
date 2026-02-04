@@ -35,6 +35,7 @@ cd your-new-project-name
 ### 2. Customize the README
 
 Edit `README.md` with your project details:
+
 - Project name and overview
 - Problem statement and solution
 - Tech stack
@@ -43,6 +44,7 @@ Edit `README.md` with your project details:
 ### 3. Fill Out the PRD
 
 Edit `docs/PRD.md` to plan your project:
+
 - Define user stories
 - Set success metrics
 - List requirements
@@ -57,7 +59,8 @@ Edit `docs/PRD.md` to plan your project:
 ### 5. Track Progress with GitHub Issues
 
 Create a project issue using the "New Project" template:
-- Go to [Issues](https://github.com/nitishprasad-bot/tpm-portfolio/issues/new/choose)
+
+- Go to [Issues](https://github.com/prasadnitish/tpm-portfolio/issues/new/choose)
 - Choose "New Project" template
 - Fill in project details
 - Use issue checkboxes to track progress
@@ -82,6 +85,7 @@ pre-commit run --all-files
 ```
 
 **What it checks:**
+
 - Trailing whitespace
 - File formatting (Python, JavaScript, JSON, YAML)
 - Large files
@@ -107,6 +111,7 @@ Use these to plan and track work:
 ### Labels (Create these in GitHub)
 
 Suggested labels for your issues:
+
 - `project` - New project planning
 - `bug` - Bug fixes
 - `enhancement` - New features
@@ -115,6 +120,7 @@ Suggested labels for your issues:
 - `completed` - Finished
 
 **To add labels:**
+
 1. Go to your repo's Issues tab
 2. Click "Labels"
 3. Create the labels above
@@ -122,6 +128,7 @@ Suggested labels for your issues:
 ### GitHub Projects (Optional)
 
 Create a project board to visualize your progress:
+
 1. Go to Projects tab in your repo
 2. Create a new project (Board view)
 3. Add columns: Backlog, In Progress, Completed
@@ -132,21 +139,25 @@ Create a project board to visualize your progress:
 ### For Each New Project:
 
 1. **Plan** (Week 1)
+
    - Create GitHub issue using "New Project" template
    - Fill out PRD.md
    - Research and list technical requirements
 
 2. **Design** (Week 1-2)
+
    - Sketch architecture in ARCHITECTURE.md
    - Design data models
    - Plan API endpoints or user flows
 
 3. **Build MVP** (Week 2-3)
+
    - Implement core functionality
    - Focus on working prototype
    - Commit frequently with clear messages
 
 4. **Polish** (Week 3-4)
+
    - Add error handling
    - Write tests
    - Complete documentation
@@ -162,16 +173,19 @@ Create a project board to visualize your progress:
 ### What Recruiters Look For:
 
 1. **Clear Documentation**
+
    - Problem statements
    - Solution approaches
    - Technical decisions explained
 
 2. **Product Thinking**
+
    - User stories
    - Success metrics
    - Prioritization rationale
 
 3. **Technical Depth**
+
    - Working code
    - System design
    - API understanding
@@ -190,6 +204,7 @@ Create a project board to visualize your progress:
 ### Showcase Different Skills
 
 Vary your projects to show:
+
 - Backend APIs
 - Frontend development
 - Data analysis
@@ -206,6 +221,7 @@ Vary your projects to show:
 ## Next Steps
 
 Ready to start? Choose one of these projects:
+
 1. API Integration Dashboard
 2. Feature Flag System
 3. Product Analytics Simulator

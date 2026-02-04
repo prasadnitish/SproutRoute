@@ -2,7 +2,7 @@
 
 ## Your Portfolio is Ready!
 
-Repository: https://github.com/nitishprasad-bot/tpm-portfolio
+Repository: [github.com/prasadnitish/tpm-portfolio](https://github.com/prasadnitish/tpm-portfolio)
 
 ## What You Have Now
 
@@ -25,13 +25,15 @@ cd api-dashboard
 ### 2. Plan Your Project
 
 Create a GitHub issue:
-- Go to: https://github.com/nitishprasad-bot/tpm-portfolio/issues/new/choose
+
+- Go to: [New Issue](https://github.com/prasadnitish/tpm-portfolio/issues/new/choose)
 - Choose "New Project"
 - Fill in the details for your first project
 
 ### 3. Start Building
 
 Edit the files:
+
 - `README.md` - Project overview
 - `docs/PRD.md` - Requirements and user stories
 - `docs/ARCHITECTURE.md` - Technical design
@@ -42,12 +44,14 @@ Edit the files:
 **Goal:** Build a dashboard that pulls data from multiple public APIs
 
 **Why it's good for TPM:**
+
 - Shows API understanding
 - Demonstrates system integration
 - Data visualization
 - Full-stack awareness
 
 **Tech Stack:**
+
 - Backend: Python + Flask or Node.js + Express
 - Frontend: HTML/CSS/JavaScript (or React)
 - APIs: Weather API, News API, Stock API (all free)
@@ -55,6 +59,7 @@ Edit the files:
 **Time: 1-2 weeks**
 
 ### Steps:
+
 1. Research free APIs (weatherapi.com, newsapi.org, etc.)
 2. Build backend to fetch and aggregate data
 3. Create simple frontend to display it
@@ -75,6 +80,7 @@ pre-commit install
 ## Track Your Progress
 
 Use GitHub Issues to:
+
 - Plan projects (New Project template)
 - Track bugs (Bug Report template)
 - Add features (Feature Enhancement template)

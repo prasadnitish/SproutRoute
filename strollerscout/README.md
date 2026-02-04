@@ -54,7 +54,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 1. **Clone the repository**
 
 ```bash
-git clone https://github.com/nitishprasad-bot/tpm-portfolio.git
+git clone https://github.com/prasadnitish/tpm-portfolio.git
 cd tpm-portfolio/strollerscout
 ```
 
@@ -196,9 +196,9 @@ MIT License
 
 ## Contact
 
-**Nitish Prasad** - [GitHub](https://github.com/nitishprasad-bot)
+**Nitish Prasad** - [GitHub](https://github.com/prasadnitish)
 
-Questions or feedback? Open an issue in the [portfolio repository](https://github.com/nitishprasad-bot/tpm-portfolio/issues).
+Questions or feedback? Open an issue in the [portfolio repository](https://github.com/prasadnitish/tpm-portfolio/issues).
 
 ---
 
