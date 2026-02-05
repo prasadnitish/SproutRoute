@@ -1,12 +1,20 @@
+// Backend entry point: Express server that orchestrates location, weather, and AI calls.
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
-import { geocodeLocation } from "./services/geocoding.js";
+import {
+  geocodeLocation,
+  resolveDestinationQuery,
+} from "./services/geocoding.js";
 import { getWeatherForecast } from "./services/weather.js";
 import { generatePackingList } from "./services/packingListAI.js";
 import { generateTripPlan } from "./services/tripPlanAI.js";
-import { sanitizeTripData, validateTripData } from "./utils/sanitize.js";
+import {
+  sanitizeString,
+  sanitizeTripData,
+  validateTripData,
+} from "./utils/sanitize.js";
 
 dotenv.config();
 
@@ -17,7 +25,12 @@ if (!process.env.ANTHROPIC_API_KEY) {
   console.warn("⚠️  WARNING: ANTHROPIC_API_KEY is not set in .env file");
 }
 
-// CORS configuration with allowed origins
+// Pipeline-step logs are dev-only; avoids noise in production.
+const devLog = (...args) => {
+  if (process.env.NODE_ENV !== "production") console.log(...args);
+};
+
+// CORS configuration: allow local dev origins, restrict in production.
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
@@ -30,8 +43,12 @@ const allowedOrigins =
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin) return callback(null, true);
+      // No-origin requests (Postman, curl) are fine in dev; block in production.
+      if (!origin) {
+        return process.env.NODE_ENV === "production"
+          ? callback(new Error("Origin required in production"))
+          : callback(null, true);
+      }
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -45,7 +62,7 @@ app.use(
 
 app.use(express.json());
 
-// Security headers
+// Basic security headers for common browser hardening.
 app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -59,7 +76,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Request logging
+// Request logging (dev only) for easier debugging.
 app.use((req, res, next) => {
   if (process.env.NODE_ENV !== "production") {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
@@ -67,7 +84,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting for expensive API endpoints
+// Rate limiting to protect external API usage (Claude + Weather).
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 10, // 10 requests per window per IP
@@ -92,13 +109,32 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+app.post("/api/resolve-destination", apiLimiter, async (req, res) => {
+  try {
+    const rawQuery = sanitizeString(req.body?.query || "", 120);
+    if (!rawQuery) {
+      return res.status(400).json({ error: "Destination query is required" });
+    }
+
+    const result = await resolveDestinationQuery(rawQuery);
+    return res.json(result);
+  } catch (error) {
+    console.error("Error in /api/resolve-destination:", error);
+    return res.status(500).json({
+      error: "Failed to resolve destination. Please try again.",
+      details:
+        process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+});
+
 app.post("/api/trip-plan", apiLimiter, async (req, res) => {
   try {
-    // Sanitize user input
     const sanitizedData = sanitizeTripData(req.body);
 
-    // Validate input
-    const validationErrors = validateTripData(sanitizedData);
+    const validationErrors = validateTripData(sanitizedData, {
+      requireActivities: false,
+    });
     if (validationErrors.length > 0) {
       return res.status(400).json({
         error: validationErrors.join(", "),
@@ -107,6 +143,11 @@ app.post("/api/trip-plan", apiLimiter, async (req, res) => {
 
     const { destination, startDate, endDate, activities, children } =
       sanitizedData;
+    // If user hasn't picked activities yet, use neutral defaults for the plan.
+    const safeActivities =
+      Array.isArray(activities) && activities.length > 0
+        ? activities
+        : ["family-friendly", "parks", "city"];
 
     if (
       !process.env.ANTHROPIC_API_KEY ||
@@ -118,20 +159,22 @@ app.post("/api/trip-plan", apiLimiter, async (req, res) => {
       });
     }
 
-    console.log(`Generating trip plan for ${destination}...`);
+    devLog(`Generating trip plan for ${destination}...`);
 
     const coords = await geocodeLocation(destination);
-    console.log(`Geocoded to: ${coords.lat}, ${coords.lon}`);
+    devLog(`Geocoded to: ${coords.lat}, ${coords.lon}`);
 
     const weather = await getWeatherForecast(coords.lat, coords.lon);
-    console.log(`Weather fetched: ${weather.summary}`);
+    devLog(`Weather fetched: ${weather.summary}`);
 
     const tripPlan = await generateTripPlan(
-      { destination, startDate, endDate, activities, children },
+      { destination, startDate, endDate, activities: safeActivities, children },
       weather,
     );
-    console.log(
-      `Trip plan generated with ${tripPlan.suggestedActivities.length} activities`,
+    devLog(
+      `Trip plan generated with ${
+        tripPlan?.suggestedActivities?.length ?? 0
+      } activities`,
     );
 
     const tripDuration = Math.ceil(
@@ -144,7 +187,7 @@ app.post("/api/trip-plan", apiLimiter, async (req, res) => {
         startDate,
         endDate,
         duration: tripDuration,
-        activities,
+        activities: safeActivities,
         children,
       },
       weather,
@@ -186,11 +229,11 @@ app.post("/api/trip-plan", apiLimiter, async (req, res) => {
 
 app.post("/api/generate", apiLimiter, async (req, res) => {
   try {
-    // Sanitize user input
     const sanitizedData = sanitizeTripData(req.body);
 
-    // Validate input
-    const validationErrors = validateTripData(sanitizedData);
+    const validationErrors = validateTripData(sanitizedData, {
+      requireActivities: true,
+    });
     if (validationErrors.length > 0) {
       return res.status(400).json({
         error: validationErrors.join(", "),
@@ -210,20 +253,22 @@ app.post("/api/generate", apiLimiter, async (req, res) => {
       });
     }
 
-    console.log(`Generating packing list for ${destination}...`);
+    devLog(`Generating packing list for ${destination}...`);
 
     const coords = await geocodeLocation(destination);
-    console.log(`Geocoded to: ${coords.lat}, ${coords.lon}`);
+    devLog(`Geocoded to: ${coords.lat}, ${coords.lon}`);
 
     const weather = await getWeatherForecast(coords.lat, coords.lon);
-    console.log(`Weather fetched: ${weather.summary}`);
+    devLog(`Weather fetched: ${weather.summary}`);
 
     const packingList = await generatePackingList(
       { destination, startDate, endDate, activities, children },
       weather,
     );
-    console.log(
-      `Packing list generated with ${packingList.categories.length} categories`,
+    devLog(
+      `Packing list generated with ${
+        packingList?.categories?.length ?? 0
+      } categories`,
     );
 
     const tripDuration = Math.ceil(
