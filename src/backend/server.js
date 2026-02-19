@@ -22,8 +22,6 @@ import {
 
 dotenv.config();
 
-const DEFAULT_PORT = process.env.PORT || 8080;
-
 // Validate required environment variables at startup
 function validateEnvironmentVariables() {
   if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your_api_key_here") {
@@ -399,14 +397,14 @@ export function createApp(deps = {}) {
   return app;
 }
 
-export function startServer(port = DEFAULT_PORT, deps = {}) {
+export function startServer(port, deps = {}) {
   // Runtime entrypoint used by local dev/prod boot while reusing createApp().
   // Validate environment before attempting to start the app
   validateEnvironmentVariables();
   validateProductionEnvironment();
   
   const app = createApp(deps);
-  const PORT = port || process.env.PORT || 8080;
+  const PORT = Number(port ?? process.env.PORT ?? 8080);
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on port ${PORT}`);
   });
