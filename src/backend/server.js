@@ -22,7 +22,7 @@ import {
 
 dotenv.config();
 
-const DEFAULT_PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = process.env.PORT || 8080;
 
 // Validate required environment variables at startup
 function validateEnvironmentVariables() {
@@ -406,12 +406,9 @@ export function startServer(port = DEFAULT_PORT, deps = {}) {
   validateProductionEnvironment();
   
   const app = createApp(deps);
-  const server = app.listen(port, () => {
-    console.log(`StrollerScout API server running on http://localhost:${port}`);
-    console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
-    console.log(
-      `API Key configured: ${process.env.ANTHROPIC_API_KEY ? "Yes" : "No"}`,
-    );
+  const PORT = port || process.env.PORT || 8080;
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server listening on port ${PORT}`);
   });
   return { app, server };
 }
