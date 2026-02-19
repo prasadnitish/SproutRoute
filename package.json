@@ -1,30 +1,30 @@
 {
-  "name": "strollerscout",
-  "version": "1.0.0",
-  "description": "AI-powered trip planning tool for parents - generates smart, weather-appropriate packing lists",
-  "type": "module",
-  "scripts": {
-    "dev:frontend": "cd src/frontend && npm run dev",
-    "dev:backend": "cd src/backend && npm run dev",
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-        "build": "cd src/frontend && npm install && npm run build",
-    "start": "cd src/backend && npm start",
-    "install:all": "npm install && cd src/frontend && npm install && cd ../backend && npm install",
-    "test": "node --test tests/**/*.test.js"
-  },
-  "keywords": [
-    "ai",
-    "packing-list",
-    "travel",
-    "parenting",
-    "weather"
-  ],
-  "author": "Nitish Prasad",
-  "license": "MIT",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+    "name": "strollerscout",
+    "version": "1.0.0",
+    "description": "AI-powered trip planning tool for parents - generates smart, weather-appropriate packing lists",
+    "type": "module",
+    "scripts": {
+          "dev:frontend": "cd src/frontend && npm run dev",
+          "dev:backend": "cd src/backend && npm run dev",
+          "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+          "build": "cd src/backend && npm install && cd ../frontend && npm install && npm run build",
+          "start": "cd src/backend && npm start",
+          "install:all": "npm install && cd src/frontend && npm install && cd ../backend && npm install",
+          "test": "node --test tests/**/*.test.js"
+    },
+    "keywords": [
+          "ai",
+          "packing-list",
+          "travel",
+          "parenting",
+          "weather"
+    ],
+    "author": "Nitish Prasad",
+    "license": "MIT",
+    "engines": {
+          "node": ">=20.0.0"
+    },
+    "devDependencies": {
+          "concurrently": "^8.2.2"
+    }
 }
