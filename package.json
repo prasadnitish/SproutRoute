@@ -7,7 +7,7 @@
     "dev:frontend": "cd src/frontend && npm run dev",
     "dev:backend": "cd src/backend && npm run dev",
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "build": "cd src/frontend && npm run build",
+        "build": "cd src/frontend && npm install && npm run build",
     "start": "cd src/backend && npm start",
     "install:all": "npm install && cd src/frontend && npm install && cd ../backend && npm install",
     "test": "node --test tests/**/*.test.js"
