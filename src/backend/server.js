@@ -80,9 +80,7 @@ export function createApp(deps = {}) {
     cors({
       origin: (origin, callback) => {
         if (!origin) {
-          return process.env.NODE_ENV === "production"
-            ? callback(new Error("Origin required in production"))
-            : callback(null, true);
+          return callback(null, true);
         }
 
         if (allowedOrigins.includes(origin)) {
