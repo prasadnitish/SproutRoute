@@ -380,7 +380,7 @@ export function createApp(deps = {}) {
   // Serve the built Vite frontend in production.
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const frontendDist = path.join(__dirname, "../../frontend/dist");
+  const frontendDist = path.join(__dirname, "../frontend/dist");
 
   if (process.env.NODE_ENV === "production") {
     app.use(express.static(frontendDist));
