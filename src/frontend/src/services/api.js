@@ -3,16 +3,11 @@
 // - Normalizes timeout/network errors into user-friendly messages.
 // - Keeps request/response contracts in one place.
 
-// Base URL for the backend API (local by default).
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
-
-// Validate API URL is available in production
-if (import.meta.env.PROD && !import.meta.env.VITE_API_URL) {
-  throw new Error(
-    "FATAL: VITE_API_URL is not configured. The app cannot connect to the backend API. " +
-    "Please ensure VITE_API_URL environment variable is set to your backend URL."
-  );
-}
+// Base URL for the backend API.
+// In production (Option A: Express serves frontend), use relative URLs so the
+// frontend hits the same origin as the page — no CORS, no env var needed.
+// In local dev, fall back to the Vite proxy target.
+const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:3000");
 
 /**
  * Fetch helper with timeout support so the UI doesn't hang forever.

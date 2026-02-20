@@ -31,20 +31,9 @@ function validateEnvironmentVariables() {
   }
 }
 
-function validateProductionEnvironment() {
-  if (process.env.NODE_ENV !== "production") return;
-  
-  const allowedOrigins = (process.env.ALLOWED_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
-  if (allowedOrigins.length === 0) {
-    console.error("FATAL: ALLOWED_ORIGINS is empty in production mode.");
-    console.error("Please set ALLOWED_ORIGINS to your frontend domain(s) in your deployment environment.");
-    console.error("Example: ALLOWED_ORIGINS=https://myapp.cloudflare.app,https://www.myapp.com");
-    process.exit(1);
-  }
-}
-
 function buildAllowedOrigins() {
-  // Keeps local dev friction low while enforcing explicit allow-lists in production.
+  // In production (Option A), frontend is same-origin so CORS isn't triggered.
+  // ALLOWED_ORIGINS can optionally allow external callers; defaults to empty (same-origin only).
   return process.env.NODE_ENV === "production"
     ? (process.env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean)
     : [
@@ -388,9 +377,22 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.use((req, res) => {
-    res.status(404).json({ error: "Endpoint not found" });
-  });
+  // Serve the built Vite frontend in production.
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+  const frontendDist = path.join(__dirname, "../../frontend/dist");
+
+  if (process.env.NODE_ENV === "production") {
+    app.use(express.static(frontendDist));
+    // SPA fallback: any non-API route returns index.html
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(frontendDist, "index.html"));
+    });
+  } else {
+    app.use((req, res) => {
+      res.status(404).json({ error: "Endpoint not found" });
+    });
+  }
 
   return app;
 }
@@ -399,8 +401,7 @@ export function startServer(port, deps = {}) {
   // Runtime entrypoint used by local dev/prod boot while reusing createApp().
   // Validate environment before attempting to start the app
   validateEnvironmentVariables();
-  validateProductionEnvironment();
-  
+
   const app = createApp(deps);
   const PORT = Number(port ?? process.env.PORT ?? 8080);
   const server = app.listen(PORT, "0.0.0.0", () => {
