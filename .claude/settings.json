@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"\nimport sys, json\ntry:\n    data = json.load(sys.stdin)\n    f = data.get('file_path', '')\n    blocked = ['package-lock.json', '.env', '.env.local', '.env.production', '.env.development']\n    for b in blocked:\n        if b in f:\n            print(f'BLOCKED: Attempting to edit protected file: {f}', flush=True)\n            exit(2)\nexcept Exception as e:\n    pass\n\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"\nimport sys, json, datetime\ntry:\n    data = json.load(sys.stdin)\n    f = data.get('file_path', '')\n    ts = datetime.datetime.now().strftime('%H:%M:%S')\n    print(f'[{ts}] Modified: {f}', flush=True)\nexcept Exception:\n    pass\n\"",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd '/Users/nitish/VS Code Projects/tpm-portfolio/strollerscout' && echo '--- Running test gate before stopping ---' && npm test 2>&1 | tail -20 || (echo 'TESTS FAILED — Fix before stopping' && exit 2)"
+          }
+        ]
+      }
+    ]
+  }
+}

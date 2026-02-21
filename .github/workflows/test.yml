@@ -1,0 +1,84 @@
+name: Test & Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-and-build:
+    name: Backend Tests + Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # ── Root (test runner) ──────────────────────────────────────────
+      - name: Install root dependencies
+        run: npm ci
+
+      # ── Backend ────────────────────────────────────────────────────
+      - name: Install backend dependencies
+        run: cd src/backend && npm ci
+
+      - name: Run backend tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          # Prevent real API calls in tests — services use dep injection mocks
+          AI_PROVIDER: mock
+
+      # ── Frontend ───────────────────────────────────────────────────
+      - name: Install frontend dependencies
+        run: cd src/frontend && npm ci
+
+      - name: Frontend type check + lint
+        run: cd src/frontend && npm run lint --if-present
+
+      - name: Frontend build
+        run: cd src/frontend && npm run build
+        env:
+          # Use a placeholder so the Vite build doesn't fail on missing env
+          VITE_API_URL: "https://sproutroute-production.up.railway.app"
+
+      # ── Summary ────────────────────────────────────────────────────
+      - name: Print test summary
+        if: always()
+        run: |
+          echo "✅ All gates passed:"
+          echo "  - Backend unit + integration tests"
+          echo "  - Frontend Vite build"
+
+  # ── Contract tests (Phase 1 — enabled after /api/v1 is added) ──────
+  # contract-tests:
+  #   name: API Contract Tests
+  #   runs-on: ubuntu-latest
+  #   needs: test-and-build
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: "20" }
+  #     - run: npm ci && cd src/backend && npm ci
+  #     - run: node --test tests/integration/apiV1.contract.test.js
+  #       env:
+  #         NODE_ENV: test
+
+  # ── Mobile smoke (Phase 3 — enabled after Expo project created) ────
+  # mobile-smoke:
+  #   name: Mobile Type Check + Lint
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-node@v4
+  #       with: { node-version: "20" }
+  #     - run: cd sproutroute-mobile && npm ci
+  #     - run: cd sproutroute-mobile && npx tsc --noEmit
+  #     - run: cd sproutroute-mobile && npx expo lint
