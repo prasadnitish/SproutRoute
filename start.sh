@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "🚀 Starting StrollerScout..."
+echo "🚀 Starting SproutRoute..."
 echo ""
 
 if [ ! -f "src/backend/.env" ]; then

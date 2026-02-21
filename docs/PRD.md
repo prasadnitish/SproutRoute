@@ -1,6 +1,6 @@
-# Product Requirements Document: StrollerScout (Web MVP)
+# Product Requirements Document: SproutRoute (Web MVP)
 
-**Project Name:** StrollerScout
+**Project Name:** SproutRoute
 **Version:** 1.0 (Web MVP)
 **Author:** Nitish Prasad
 **Date:** February 2026
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-StrollerScout is an AI-powered trip planning tool for parents that transforms trip intent into a detailed itinerary and weather-appropriate packing list. This web-based MVP demonstrates API integration, AI orchestration, and product thinking for a TPM portfolio.
+SproutRoute is an AI-powered trip planning tool for parents that transforms trip intent into a detailed itinerary and weather-appropriate packing list. This web-based MVP demonstrates API integration, AI orchestration, and product thinking for a TPM portfolio.
 
 ---
 
@@ -252,7 +252,7 @@ Parents planning trips with children face decision fatigue when packing:
 
 ```text
 ┌──────────────────────────────────────────────────────────────┐
-│ StrollerScout                                                 │
+│ SproutRoute                                                 │
 │ Smart packing, minus the chaos                                │
 ├───────────────────────────────┬──────────────────────────────┤
 │                               │ Your plan                    │
@@ -444,7 +444,7 @@ Error contracts:
 
 #### TAM / SAM / SOM model (planning assumptions)
 
-Because StrollerScout is a pre-trip planning and packing workflow (not a booking engine), this PRD sizes opportunity by **households served**, with a secondary spend context.
+Because SproutRoute is a pre-trip planning and packing workflow (not a booking engine), this PRD sizes opportunity by **households served**, with a secondary spend context.
 
 - **TAM (households):** 13.337M US families with own children under 6
 - **SAM (serviceable digital segment):** 4.7M to 8.0M households
@@ -454,13 +454,13 @@ Because StrollerScout is a pre-trip planning and packing workflow (not a booking
 
 #### Monetization scenario framing (for roadmap decisions)
 
-If StrollerScout captures 33K to 133K households, with 1.5 planning cycles per household per year and $3 to $8 blended revenue per cycle (subscription, affiliate, or premium features), modeled annual revenue ranges from roughly **$149K to $1.6M**.
+If SproutRoute captures 33K to 133K households, with 1.5 planning cycles per household per year and $3 to $8 blended revenue per cycle (subscription, affiliate, or premium features), modeled annual revenue ranges from roughly **$149K to $1.6M**.
 
 These are planning scenarios, not forecasts; they should be refined after MVP retention and conversion data.
 
 ### Top Players (Direct and Adjacent)
 
-| Player | Evidence of Scale | Core Offer | Gap / Takeaway vs StrollerScout |
+| Player | Evidence of Scale | Core Offer | Gap / Takeaway vs SproutRoute |
 | ------ | ------ | ------ | ------ |
 | **TripIt** | 22M+ users (TripIt 20-year milestone) and 5M+ Android downloads | Itinerary aggregation from booking confirmations | Strong itinerary lock-in; less child-specific packing intelligence |
 | **Wanderlog** | 1M+ Android downloads | Collaborative trip planning, maps, route planning | Strong planning collaboration; less focused on weather+kids packing workflow |
@@ -468,7 +468,7 @@ These are planning scenarios, not forecasts; they should be refined after MVP re
 | **PackPoint** | 1M+ Android downloads; states 2M+ packing lists created yearly | Weather/activity-based packing lists | Most direct feature overlap; opportunity is richer family context + itinerary linkage |
 | **BabyQuip (adjacent)** | 425K+ reservations, 2,000+ cities | Family travel gear rental marketplace | Potential partner/channel rather than pure feature competitor |
 
-### SWOT Analysis: StrollerScout (MVP)
+### SWOT Analysis: SproutRoute (MVP)
 
 | Category | Details |
 | ------ | ------ |

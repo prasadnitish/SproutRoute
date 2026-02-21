@@ -1,4 +1,4 @@
-# StrollerScout - Deployment Readiness Checklist
+# SproutRoute - Deployment Readiness Checklist
 
 **Status:** ✅ READY FOR PRODUCTION  
 **Test Suite:** ✅ ALL 20 TESTS PASSING  
@@ -23,7 +23,7 @@ PORT=3000  (Railway will override this, but ensure it's set)
 
 **Important:** Replace `YOUR-CLOUDFLARE-PAGES-URL` with your actual Cloudflare Pages domain.
 
-Example: `ALLOWED_ORIGINS=https://strollerscout.pages.dev`
+Example: `ALLOWED_ORIGINS=https://sproutroute.pages.dev`
 
 ### Step 2: Deploy to Railway
 
@@ -37,7 +37,7 @@ railway up
 - ✅ If `ANTHROPIC_API_KEY` is missing → server exits immediately with clear error
 - ✅ If `ALLOWED_ORIGINS` is empty → server exits immediately with clear error
 - ✅ Server starts successfully if both are set
-- ✅ Logs will show: "StrollerScout API server running on http://localhost:3000"
+- ✅ Logs will show: "SproutRoute API server running on http://localhost:3000"
 
 ---
 
@@ -51,7 +51,7 @@ In Cloudflare Pages project settings → Environment variables:
 VITE_API_URL=https://YOUR-RAILWAY-API-URL.railway.app
 ```
 
-Example: `VITE_API_URL=https://strollerscout-api.railway.app`
+Example: `VITE_API_URL=https://sproutroute-api.railway.app`
 
 ### Step 2: Build Command
 
@@ -103,7 +103,7 @@ curl https://YOUR-RAILWAY-API-URL.railway.app/api/health
 ```json
 {
   "status": "ok",
-  "message": "StrollerScout API is running",
+  "message": "SproutRoute API is running",
   "timestamp": "2026-02-18T..."
 }
 ```
@@ -162,7 +162,7 @@ railway logs
 ```
 
 Look for:
-- ✅ `StrollerScout API server running` = healthy startup
+- ✅ `SproutRoute API server running` = healthy startup
 - ❌ `FATAL: ANTHROPIC_API_KEY` = missing API key, won't start
 - ❌ `FATAL: ALLOWED_ORIGINS` = CORS not configured
 

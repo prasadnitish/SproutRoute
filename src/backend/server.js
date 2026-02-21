@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
 import {
   geocodeLocation,
   resolveDestinationQuery,
@@ -128,7 +129,7 @@ export function createApp(deps = {}) {
     // Fast liveness probe for local dev and hosting health checks.
     res.json({
       status: "ok",
-      message: "StrollerScout API is running",
+      message: "SproutRoute API is running",
       timestamp: new Date().toISOString(),
     });
   });
@@ -377,7 +378,306 @@ export function createApp(deps = {}) {
     }
   });
 
-  // Serve the built Vite frontend in production.
+  // ── /api/v1 Versioned Endpoints ─────────────────────────────────────────
+  // All v1 routes use a standard error envelope and include requestId in every response.
+  // Standard error envelope: { code, message, category, retryable, requestId, details? }
+  // Legacy routes (/api/*) are preserved as aliases for one release cycle.
+
+  // Helper: build a standard v1 error response
+  function v1Error(res, statusCode, { code, message, category, retryable, requestId, details }) {
+    return res.status(statusCode).json({
+      code,
+      message,
+      category,
+      retryable,
+      requestId,
+      ...(details ? { details } : {}),
+    });
+  }
+
+  // GET /api/v1/meta/capabilities
+  // Returns feature flags, supported countries, weather providers, safety modes.
+  app.get("/api/v1/meta/capabilities", (req, res) => {
+    const requestId = crypto.randomUUID();
+    const client = req.query?.client || req.body?.client || "web";
+
+    const payload = {
+      requestId,
+      schemaVersion: "1",
+      supportedCountries: ["US"], // Phase 4 adds: "CA", "GB", "AU"
+      weatherProviders: {
+        US: "weathergov",
+        other: "openweathermap", // Phase 4
+      },
+      safetyModes: {
+        US: "us_state_law",
+        CA: "country_general", // Phase 4
+        GB: "country_general", // Phase 4
+        AU: "country_general", // Phase 4
+      },
+      featureFlags: {
+        shareLinks: false,   // Phase 2
+        customItems: false,  // Phase 2
+        darkMode: false,     // Phase 2
+        pwa: false,          // Phase 2
+      },
+    };
+
+    // iOS-specific feature flags (Phase 3b)
+    if (client === "ios") {
+      payload.ios26Features = {
+        liquidGlass: false,         // Phase 3b
+        weatherKitFastPath: false,  // Phase 3b
+        foundationModelRecap: false, // Phase 3b
+        appIntents: false,          // Phase 3b
+      };
+    }
+
+    res.json(payload);
+  });
+
+  // POST /api/v1/trip/resolve
+  app.post("/api/v1/trip/resolve", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const rawQuery = sanitizeString(req.body?.query || "", 120);
+      if (!rawQuery) {
+        return v1Error(res, 400, {
+          code: "MISSING_QUERY",
+          message: "Destination query is required.",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const result = await resolveDestinationQueryFn(rawQuery);
+      return res.json({ ...result, requestId });
+    } catch (error) {
+      devLog("Error in /api/v1/trip/resolve:", error);
+      return v1Error(res, 500, {
+        code: "RESOLVE_FAILED",
+        message: "Failed to resolve destination. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // POST /api/v1/trip/plan
+  app.post("/api/v1/trip/plan", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const sanitizedData = sanitizeTripData(req.body);
+      const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
+      if (validationErrors.length > 0) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: validationErrors.join("; "),
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const safeActivities =
+        Array.isArray(activities) && activities.length > 0
+          ? activities
+          : ["family-friendly", "parks", "city"];
+
+      devLog("v1/trip/plan: geocoding...");
+      const coords = await geocodeLocationFn(destination);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon);
+      const tripPlan = await generateTripPlanFn(
+        { destination, startDate, endDate, activities: safeActivities, children },
+        weather,
+      );
+
+      const tripDuration = Math.ceil(
+        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
+      );
+
+      return res.json({
+        requestId,
+        trip: {
+          destination: coords.displayName || destination,
+          jurisdictionCode: coords.stateCode || null,
+          jurisdictionName: coords.stateName || null,
+          startDate,
+          endDate,
+          duration: tripDuration,
+          activities: safeActivities,
+          children,
+          // v1 extended fields
+          countryCode: req.body?.countryCode || "US",
+          unitSystem: req.body?.unitSystem || "imperial",
+          client: req.body?.client || "web",
+          schemaVersion: req.body?.schemaVersion || "1",
+        },
+        weather,
+        tripPlan,
+      });
+    } catch (error) {
+      devLog("Error in /api/v1/trip/plan:", error);
+      if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
+        return v1Error(res, 422, {
+          code: "LOCATION_NOT_FOUND",
+          message: "Could not find that location. Please try a more specific address.",
+          category: "geocoding",
+          retryable: false,
+          requestId,
+        });
+      }
+      if (error.message?.includes("Weather service")) {
+        return v1Error(res, 422, {
+          code: "WEATHER_UNAVAILABLE",
+          message: "Weather data is temporarily unavailable. Please try again in a moment.",
+          category: "weather",
+          retryable: true,
+          requestId,
+        });
+      }
+      return v1Error(res, 500, {
+        code: "PLAN_FAILED",
+        message: "Failed to generate trip plan. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // POST /api/v1/trip/packing
+  app.post("/api/v1/trip/packing", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const sanitizedData = sanitizeTripData(req.body);
+      const validationErrors = validateTripData(sanitizedData, { requireActivities: true });
+      if (validationErrors.length > 0) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: validationErrors.join("; "),
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const { destination, startDate, endDate, activities, children } = sanitizedData;
+
+      devLog("v1/trip/packing: geocoding...");
+      const coords = await geocodeLocationFn(destination);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon);
+      const packingList = await generatePackingListFn(
+        { destination, startDate, endDate, activities, children },
+        weather,
+      );
+
+      const tripDuration = Math.ceil(
+        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
+      );
+
+      return res.json({
+        requestId,
+        trip: {
+          destination: coords.displayName || destination,
+          jurisdictionCode: coords.stateCode || null,
+          jurisdictionName: coords.stateName || null,
+          startDate,
+          endDate,
+          duration: tripDuration,
+          activities,
+          children,
+          countryCode: req.body?.countryCode || "US",
+          unitSystem: req.body?.unitSystem || "imperial",
+          client: req.body?.client || "web",
+          schemaVersion: req.body?.schemaVersion || "1",
+        },
+        weather,
+        packingList,
+      });
+    } catch (error) {
+      devLog("Error in /api/v1/trip/packing:", error);
+      if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
+        return v1Error(res, 422, {
+          code: "LOCATION_NOT_FOUND",
+          message: "Could not find that location. Please try a more specific address.",
+          category: "geocoding",
+          retryable: false,
+          requestId,
+        });
+      }
+      if (error.message?.includes("Weather service")) {
+        return v1Error(res, 422, {
+          code: "WEATHER_UNAVAILABLE",
+          message: "Weather data is temporarily unavailable. Please try again in a moment.",
+          category: "weather",
+          retryable: true,
+          requestId,
+        });
+      }
+      return v1Error(res, 500, {
+        code: "PACKING_FAILED",
+        message: "Failed to generate packing list. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // POST /api/v1/safety/car-seat-check
+  app.post("/api/v1/safety/car-seat-check", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const destination = sanitizeString(req.body?.destination || "", 120);
+      const jurisdictionCode = sanitizeString(req.body?.jurisdictionCode || "", 2).toUpperCase();
+      const tripDate = sanitizeString(req.body?.tripDate || "", 20);
+      const countryCode = sanitizeString(req.body?.countryCode || "US", 2).toUpperCase();
+      const children = sanitizeChildren(req.body?.children, 10);
+
+      if (children.length === 0) {
+        return v1Error(res, 400, {
+          code: "MISSING_CHILDREN",
+          message: "At least one child profile is required for car seat guidance.",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const guidance = await Promise.resolve(
+        getCarSeatGuidanceFn({ destination, jurisdictionCode, tripDate, children }),
+      );
+
+      // Ensure guidanceMode is always present in v1 responses
+      const guidanceMode = guidance.guidanceMode ||
+        (countryCode === "US" ? "us_state_law" : "country_general");
+
+      return res.json({
+        requestId,
+        ...guidance,
+        guidanceMode,
+        // v1 required fields with defaults if not provided by service
+        confidence: guidance.confidence || "medium",
+        sourceAuthority: guidance.sourceAuthority || "Official state regulations",
+        lastReviewed: guidance.lastReviewed || new Date().toISOString().split("T")[0],
+      });
+    } catch (error) {
+      devLog("Error in /api/v1/safety/car-seat-check:", error);
+      return v1Error(res, 500, {
+        code: "SAFETY_CHECK_FAILED",
+        message: "Failed to retrieve car seat guidance. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // ── Serve the built Vite frontend in production.
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
   const frontendDist = path.join(__dirname, "../frontend/dist");

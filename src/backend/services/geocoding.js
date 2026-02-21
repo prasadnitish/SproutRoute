@@ -89,7 +89,7 @@ export async function geocodeLocation(locationString) {
       `https://nominatim.openstreetmap.org/search?q=${encodedLocation}&format=json&addressdetails=1&limit=1&countrycodes=us`,
       {
         headers: {
-          "User-Agent": "StrollerScout/1.0",
+          "User-Agent": "SproutRoute/1.0",
         },
       },
       NOMINATIM_TIMEOUT_MS,
@@ -251,7 +251,7 @@ async function getNearbyCities(lat, lon, radiusMiles) {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "StrollerScout/1.0",
+        "User-Agent": "SproutRoute/1.0",
       },
       body: `data=${encodeURIComponent(query)}`,
     },

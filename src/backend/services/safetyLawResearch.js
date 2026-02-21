@@ -86,7 +86,7 @@ async function fetchSourceText(sourceUrl, fetchFn = fetch) {
     const response = await fetchFn(sourceUrl, {
       method: "GET",
       headers: {
-        "User-Agent": "StrollerScout/1.0",
+        "User-Agent": "SproutRoute/1.0",
       },
       signal: controller.signal,
     });
