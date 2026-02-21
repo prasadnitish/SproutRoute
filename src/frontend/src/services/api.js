@@ -1,137 +1,187 @@
-// Frontend API client:
-// - Centralizes backend calls so UI components stay focused on state/rendering.
-// - Normalizes timeout/network errors into user-friendly messages.
-// - Keeps request/response contracts in one place.
+// Frontend API client — Phase 2 reliability upgrade
+// Fixes:
+//   #2: response.json() crash on non-JSON 502 HTML bodies → parseSafeResponse
+//   #3: no retry on transient failures → fetchWithRetry with exponential backoff
+//   #4: no rate-limit awareness → RateLimit-Reset header read + rateLimitReset on errors
 
-// Base URL for the backend API.
-// In production (Option A: Express serves frontend), use relative URLs so the
-// frontend hits the same origin as the page — no CORS, no env var needed.
-// In local dev, fall back to the Vite proxy target.
-const API_BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:3000");
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? "" : "http://localhost:3000");
+
+// ── Human-readable status messages ──────────────────────────────────────────
+
+export const HTTP_STATUS_MESSAGES = {
+  400: "The request was invalid. Please check your inputs.",
+  422: "Your destination could not be processed. Please try a different location.",
+  429: "Too many requests — please wait a moment before trying again.",
+  500: "Server error. Please try again shortly.",
+  502: "Server temporarily unavailable. Please try again in a few seconds.",
+  503: "Service temporarily unavailable. Please try again in a few seconds.",
+  504: "Server timed out. Please try again.",
+};
+
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+
+// ── parseSafeResponse ────────────────────────────────────────────────────────
 
 /**
- * Fetch helper with timeout support so the UI doesn't hang forever.
+ * Safely parse a fetch Response — never throws SyntaxError on non-JSON bodies.
+ * Throws an Error with { status, retryable, rateLimitReset? } on failure.
  */
-async function fetchWithTimeout(url, options = {}, timeout = 30000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    if (error.name === "AbortError") {
-      throw new Error(
-        "Request timeout - the server is taking too long. Please try again.",
+async function parseSafeResponse(response) {
+  if (response.ok) {
+    try {
+      return await response.json();
+    } catch {
+      throw Object.assign(
+        new Error("Server returned an unexpected response. Please try again."),
+        { status: response.status, retryable: false },
       );
     }
-    if (error.message.includes("Failed to fetch")) {
-      throw new Error(
-        "Network error - please check your connection and try again.",
-      );
-    }
-    throw error;
   }
+
+  const status = response.status;
+  const retryable = RETRYABLE_STATUSES.has(status);
+
+  // Read rate limit reset header for countdown UI (fix #4)
+  let rateLimitReset;
+  try {
+    const resetHeader = response.headers?.get?.("RateLimit-Reset");
+    if (resetHeader) rateLimitReset = Number(resetHeader);
+  } catch { /* ignore */ }
+
+  // Try to get message from body
+  let bodyMessage = null;
+  try {
+    const json = await response.json();
+    bodyMessage = json?.message || json?.error || null;
+  } catch {
+    try {
+      const text = await response.text();
+      if (text && !text.trim().startsWith("<")) {
+        bodyMessage = text.trim().substring(0, 200);
+      }
+    } catch { /* ignore */ }
+  }
+
+  const humanMessage =
+    bodyMessage && bodyMessage.length > 5 && !bodyMessage.includes("<html")
+      ? bodyMessage
+      : HTTP_STATUS_MESSAGES[status] || `Request failed (${status}). Please try again.`;
+
+  const err = new Error(humanMessage);
+  err.status = status;
+  err.retryable = retryable;
+  if (rateLimitReset !== undefined) err.rateLimitReset = rateLimitReset;
+  throw err;
 }
 
-// Generate the trip itinerary.
-export const generateTripPlan = async (tripData) => {
-  const response = await fetchWithTimeout(
+// ── fetchWithRetry ───────────────────────────────────────────────────────────
+
+/**
+ * Fetch with exponential backoff retry for transient failures.
+ *
+ * @param {string} url
+ * @param {RequestInit} options
+ * @param {object} config - { maxRetries, retryableStatuses, timeoutMs, onRetry }
+ * @returns {Promise<any>} Parsed JSON
+ */
+async function fetchWithRetry(url, options = {}, config = {}) {
+  const {
+    maxRetries = 2,
+    retryableStatuses = [429, 502, 503, 504],
+    timeoutMs = 30000,
+    onRetry, // optional: (attempt, err) => void — for "Retrying..." UI
+  } = config;
+
+  const retryableSet = new Set(retryableStatuses);
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeoutId);
+      return await parseSafeResponse(response);
+    } catch (err) {
+      clearTimeout(timeoutId);
+
+      if (err.name === "AbortError") {
+        lastError = Object.assign(
+          new Error("Request timed out — the server is taking too long. Please try again."),
+          { status: 0, retryable: true },
+        );
+      } else if (!err.status && err.message?.includes("Failed to fetch")) {
+        lastError = Object.assign(
+          new Error("Network error — please check your connection and try again."),
+          { status: 0, retryable: true },
+        );
+      } else {
+        lastError = err;
+      }
+
+      const isRetryable = lastError.retryable || retryableSet.has(lastError.status);
+      if (!isRetryable || attempt >= maxRetries) throw lastError;
+
+      const delay = 1000 * (2 ** attempt); // 1s, 2s, 4s
+      if (onRetry) onRetry(attempt + 1, lastError);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+// ── Public API functions ─────────────────────────────────────────────────────
+
+const POST_OPTS = (body) => ({
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+
+/** Generate the trip itinerary + weather. */
+export const generateTripPlan = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
     `${API_BASE_URL}/api/trip-plan`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(tripData),
-    },
-    30000, // 30 second timeout
+    POST_OPTS(tripData),
+    { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to generate trip plan");
-  }
-
-  return response.json();
-};
-
-// Generate the packing list (uses selected activities).
-export const generatePackingList = async (tripData) => {
-  const response = await fetchWithTimeout(
+/** Generate the packing list (uses selected activities). */
+export const generatePackingList = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
     `${API_BASE_URL}/api/generate`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(tripData),
-    },
-    30000, // 30 second timeout
+    POST_OPTS(tripData),
+    { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to generate packing list");
-  }
-
-  return response.json();
-};
-
-// Resolve natural-language destination queries into suggestions.
-export const resolveDestination = async (query) => {
-  const response = await fetchWithTimeout(
+/** Resolve natural-language destination queries into suggestions. */
+export const resolveDestination = async (query, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
     `${API_BASE_URL}/api/resolve-destination`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query }),
-    },
-    20000,
+    POST_OPTS({ query }),
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to resolve destination");
-  }
+/** Health check. */
+export const checkHealth = async () =>
+  fetchWithRetry(`${API_BASE_URL}/api/health`, {}, { maxRetries: 0, timeoutMs: 5000 });
 
-  return response.json();
-};
-
-// Health check for the backend.
-export const checkHealth = async () => {
-  const response = await fetchWithTimeout(`${API_BASE_URL}/api/health`, {}, 5000);
-  if (!response.ok) {
-    throw new Error("API is not available");
-  }
-  return response.json();
-};
-
-// Evaluate car seat and booster guidance by jurisdiction.
-export const getCarSeatGuidance = async (payload) => {
-  const response = await fetchWithTimeout(
+/** Car seat guidance by jurisdiction. */
+export const getCarSeatGuidance = async (payload, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
     `${API_BASE_URL}/api/safety/car-seat-check`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    },
-    20000,
+    POST_OPTS(payload),
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || "Failed to evaluate car seat guidance");
-  }
-
-  return response.json();
-};
+/** Fetch /api/v1/meta/capabilities for feature flags. */
+export const getCapabilities = async (client = "web") =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/meta/capabilities?client=${client}`,
+    {},
+    { maxRetries: 0, timeoutMs: 5000 },
+  );

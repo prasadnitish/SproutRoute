@@ -2,6 +2,7 @@
 // - Summarizes jurisdiction-level car seat guidance.
 // - Surfaces per-child recommendation status with source transparency metadata.
 // - Emphasizes that output is informational, not legal advice.
+// - NEVER shows developer-facing text like "Not found in repo" to users.
 function statusStyles(status) {
   // Visual severity mapping for quick scanning of confidence/availability.
   if (status === "Verified") {
@@ -18,9 +19,16 @@ function statusStyles(status) {
     };
   }
 
+  if (status === "General guidelines") {
+    return {
+      badge: "bg-sky-light text-sky-dark border border-sky-light",
+      card: "border-sky-light bg-sky-light/30",
+    };
+  }
+
   return {
-    badge: "bg-red-50 text-red-700 border border-red-200",
-    card: "border-red-100 bg-red-50/50",
+    badge: "bg-sun/20 text-earth border border-sun/50",
+    card: "border-sun/30 bg-sun/10",
   };
 }
 
@@ -32,10 +40,11 @@ function prettySeatPosition(seatPosition) {
     rear_seat_required_under_13: "Rear seat required for children under 13",
     rear_seat_recommended: "Rear seat recommended",
     rear_seat_preferred: "Rear seat preferred",
-    not_found: "Not found in repo",
+    not_specified: "Check local requirements",
+    not_found: "Check local requirements",
   };
 
-  return labels[seatPosition] || seatPosition;
+  return labels[seatPosition] || "Check local requirements";
 }
 
 export default function TravelSafetyCard({ safetyGuidance }) {
@@ -56,6 +65,10 @@ export default function TravelSafetyCard({ safetyGuidance }) {
   } = safetyGuidance;
 
   const overallStyles = statusStyles(status);
+  const displayStatus = status || "General guidelines";
+  const displayJurisdiction = jurisdictionName && jurisdictionName !== "Not found in repo"
+    ? jurisdictionName
+    : "Your destination";
 
   return (
     <div className="space-y-4 rounded-2xl border border-earth/20 bg-white shadow-soft p-6">
@@ -69,14 +82,16 @@ export default function TravelSafetyCard({ safetyGuidance }) {
             Car seat &amp; booster guidance
           </h3>
           <p className="text-sm text-muted mt-1">
-            {jurisdictionName || "Not found in repo"}
-            {jurisdictionCode ? ` (${jurisdictionCode})` : ""}
+            {displayJurisdiction}
+            {jurisdictionCode && jurisdictionCode !== displayJurisdiction
+              ? ` (${jurisdictionCode})`
+              : ""}
           </p>
         </div>
         <span
           className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${overallStyles.badge}`}
         >
-          {status || "Unavailable"}
+          {displayStatus}
         </span>
       </div>
 
@@ -92,6 +107,10 @@ export default function TravelSafetyCard({ safetyGuidance }) {
         <div className="space-y-3">
           {results.map((result) => {
             const styles = statusStyles(result.status);
+            const childLabel = result.requiredRestraintLabel &&
+              result.requiredRestraintLabel !== "Not found in repo"
+              ? result.requiredRestraintLabel
+              : "See AAP recommendations";
             return (
               <article
                 key={result.childId}
@@ -104,16 +123,16 @@ export default function TravelSafetyCard({ safetyGuidance }) {
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${styles.badge}`}
                   >
-                    {result.status}
+                    {result.status || "General guidelines"}
                   </span>
                 </div>
 
                 <p className="mt-2 text-base font-semibold text-slate-text">
-                  {result.requiredRestraintLabel || "Not found in repo"}
+                  {childLabel}
                 </p>
 
                 <p className="mt-1 text-sm text-muted">
-                  {prettySeatPosition(result.seatPosition || "not_found")}
+                  {prettySeatPosition(result.seatPosition)}
                 </p>
 
                 {typeof result.ageYears === "number" && (
@@ -137,8 +156,12 @@ export default function TravelSafetyCard({ safetyGuidance }) {
 
       {/* Source metadata */}
       <div className="rounded-xl border border-earth/15 bg-earth/5 px-4 py-3 text-xs text-muted space-y-1">
-        <p>Effective date: {effectiveDate || "Not found in repo"}</p>
-        <p>Last updated: {lastUpdated || "Not found in repo"}</p>
+        {effectiveDate && effectiveDate !== "Not found in repo" && (
+          <p>Effective date: {effectiveDate}</p>
+        )}
+        {lastUpdated && lastUpdated !== "Not found in repo" && (
+          <p>Last updated: {lastUpdated}</p>
+        )}
         {sourceUrl ? (
           <a
             href={sourceUrl}
@@ -149,7 +172,14 @@ export default function TravelSafetyCard({ safetyGuidance }) {
             Official source →
           </a>
         ) : (
-          <p>Official source: Not found in repo</p>
+          <a
+            href="https://www.seatcheck.org/"
+            target="_blank"
+            rel="noreferrer"
+            className="text-sky-dark underline hover:text-sprout-dark transition-colors"
+          >
+            Find a certified seat check technician →
+          </a>
         )}
         <p className="font-medium text-earth/80 mt-1">
           ⚠️ Informational only. Verify legal requirements before travel.

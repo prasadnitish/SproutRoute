@@ -1,13 +1,12 @@
 // AI service: generates a structured trip itinerary in JSON.
-import Anthropic from "@anthropic-ai/sdk";
+// Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
+import { callModel } from "../utils/aiClient.js";
 import {
   MAX_RETRIES,
-  getTextContent,
   requestWithRetry,
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MODEL_ID = "claude-haiku-4-5-20251001";
 const MAX_TOKENS = 4096;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 
@@ -36,20 +35,9 @@ function parseTripPlanResponse(responseText) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
-async function requestTripPlan(anthropic, { system, user }) {
-  // Shared model-call wrapper; uses system parameter to isolate instructions from user data.
-  const message = await anthropic.messages.create({
-    model: MODEL_ID,
-    system,
-    temperature: 0,
-    max_tokens: MAX_TOKENS,
-    messages: [{ role: "user", content: user }],
-  });
-
-  return {
-    responseText: getTextContent(message),
-    stopReason: message.stop_reason || null,
-  };
+async function requestTripPlan({ system, user }, deps) {
+  // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0 }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -93,25 +81,15 @@ Rules:
   };
 }
 
-async function repairTripPlanJson(anthropic, brokenText) {
-  // Last-resort recovery path for malformed JSON responses.
+async function repairTripPlanJson(brokenText, deps) {
+  // Last-resort recovery path — uses the same aiClient abstraction.
   const { system, user } = buildRepairPrompt(brokenText);
-  const message = await anthropic.messages.create({
-    model: MODEL_ID,
-    system,
-    temperature: 0,
-    max_tokens: MAX_TOKENS,
-    messages: [{ role: "user", content: user }],
-  });
-
-  return {
-    responseText: getTextContent(message),
-    stopReason: message.stop_reason || null,
-  };
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0 }, deps);
 }
 
-export async function generateTripPlan(tripData, weatherForecast) {
-  // Resilient generation path: normal prompt -> compact retry -> repair fallback.
+export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
+  // Resilient generation path: normal prompt → compact retry → repair fallback.
+  // deps: passed through to callModel for dependency injection in tests.
   const { destination, startDate, endDate, activities, children } = tripData;
 
   const primaryPrompt = buildTripPlanPrompt(
@@ -125,12 +103,8 @@ export async function generateTripPlan(tripData, weatherForecast) {
   );
 
   try {
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
     const firstAttempt = await requestWithRetry(
-      () => requestTripPlan(anthropic, primaryPrompt),
+      () => requestTripPlan(primaryPrompt, deps),
       MAX_RETRIES,
     );
 
@@ -155,7 +129,7 @@ export async function generateTripPlan(tripData, weatherForecast) {
       );
 
       const secondAttempt = await requestWithRetry(
-        () => requestTripPlan(anthropic, retryPrompt),
+        () => requestTripPlan(retryPrompt, deps),
         MAX_RETRIES,
       );
 
@@ -170,7 +144,7 @@ export async function generateTripPlan(tripData, weatherForecast) {
         }
 
         const repairSource = secondAttempt.responseText || firstAttempt.responseText;
-        const repairAttempt = await repairTripPlanJson(anthropic, repairSource);
+        const repairAttempt = await repairTripPlanJson(repairSource, deps);
 
         try {
           return parseTripPlanResponse(repairAttempt.responseText);

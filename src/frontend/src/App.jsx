@@ -1,5 +1,5 @@
 // Main app: handles the step-by-step wizard, API calls, and result screens.
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { format, addDays, differenceInDays } from "date-fns";
 import TripPlanDisplay from "./components/TripPlanDisplay";
 import PackingChecklist from "./components/PackingChecklist";
@@ -78,7 +78,18 @@ function App() {
   const [safetyGuidance, setSafetyGuidance] = useState(null);
   const [showCustomize, setShowCustomize] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  // loadingPhase drives the multi-step progress indicator during plan generation.
+  // null = not loading; each value maps to a human label in LOADING_PHASES below.
+  const [loadingPhase, setLoadingPhase] = useState(null);
   const [error, setError] = useState(null);
+  const [showResetModal, setShowResetModal] = useState(false);
+  // Rate limit countdown: Unix timestamp (seconds) when the limit resets.
+  // Set when a 429 response includes rateLimitReset. Drives the countdown banner.
+  const [rateLimitResetAt, setRateLimitResetAt] = useState(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(null);
+  const countdownIntervalRef = useRef(null);
+  // Low-rate-limit warning: shown when < 5 requests remain in the current window.
+  const [rateLimitRemaining, setRateLimitRemaining] = useState(null);
 
   // Wizard input state.
   const [destinationQuery, setDestinationQuery] = useState("");
@@ -184,6 +195,40 @@ function App() {
     }
   }, []);
 
+  // Rate limit countdown: ticks every second when rateLimitResetAt is set.
+  // Clears itself once the countdown reaches zero.
+  useEffect(() => {
+    if (!rateLimitResetAt) {
+      setRateLimitCountdown(null);
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const tick = () => {
+      const secondsLeft = Math.max(0, rateLimitResetAt - Math.floor(Date.now() / 1000));
+      setRateLimitCountdown(secondsLeft);
+      if (secondsLeft <= 0) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+        setRateLimitResetAt(null);
+        setRateLimitCountdown(null);
+      }
+    };
+
+    tick(); // run immediately
+    countdownIntervalRef.current = setInterval(tick, 1000);
+
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [rateLimitResetAt]);
+
   // Step 1: resolve destination intent into a concrete city or suggestions.
   const handleResolveDestination = async () => {
     if (!destinationQuery.trim()) {
@@ -194,7 +239,9 @@ function App() {
     setError(null);
 
     try {
-      const result = await resolveDestination(destinationQuery.trim());
+      const result = await resolveDestination(destinationQuery.trim(), {
+        onRateLimitInfo: ({ remaining }) => setRateLimitRemaining(remaining),
+      });
       if (result.mode === "suggestions") {
         setDestinationSuggestions(result.suggestions || []);
         setWizardStep("suggestions");
@@ -204,6 +251,7 @@ function App() {
       }
     } catch (err) {
       setError(err.message || "Failed to resolve destination");
+      if (err.rateLimitReset) setRateLimitResetAt(err.rateLimitReset);
     } finally {
       setIsLoading(false);
     }
@@ -237,9 +285,18 @@ function App() {
     setWizardStep("kids");
   };
 
+  // Loading phase labels — shown in the progress indicator during plan generation.
+  const LOADING_PHASES = {
+    resolving: { label: "Finding your destination...", icon: "🗺️", step: 1 },
+    weather: { label: "Checking the weather...", icon: "🌤", step: 2 },
+    planning: { label: "Building your itinerary...", icon: "📋", step: 3 },
+    packing: { label: "Crafting your packing list...", icon: "🎒", step: 4 },
+  };
+
   // Step 3: generate trip plan + packing list together.
   const handleGeneratePlan = async () => {
     setIsLoading(true);
+    setLoadingPhase("resolving");
     setError(null);
 
     const children = buildChildrenPayload();
@@ -252,7 +309,13 @@ function App() {
     };
 
     try {
-      const result = await generateTripPlan(formData);
+      // Phase 1+2: trip plan includes weather — server fetches them together
+      setLoadingPhase("weather");
+      const onRateLimitInfo = ({ remaining }) => setRateLimitRemaining(remaining);
+      const result = await generateTripPlan(formData, {
+        onRetry: () => setLoadingPhase("weather"),
+        onRateLimitInfo,
+      });
       setTripData(result.trip || formData);
       setTripPlan(result.tripPlan);
       setWeather(result.weather);
@@ -268,24 +331,28 @@ function App() {
               tripDate: result.trip.startDate || startDate,
               children: safeChildren,
             }).catch(() => ({
-              status: "Unavailable",
+              status: "General guidelines",
               jurisdictionCode: result.trip.jurisdictionCode || null,
               jurisdictionName:
-                result.trip.jurisdictionName || "Not found in repo",
+                result.trip.jurisdictionName || "Your destination",
               message:
-                "Safety guidance is unavailable right now. Please verify rules manually.",
-              sourceUrl: null,
-              effectiveDate: "Not found in repo",
-              lastUpdated: "Not found in repo",
+                "We couldn't load specific rules for this location. Showing AAP general recommendations. Verify at seatcheck.org before your trip.",
+              sourceUrl: "https://www.seatcheck.org/",
+              effectiveDate: null,
+              lastUpdated: null,
               results: safeChildren.map((_, index) => ({
                 childId: `child-${index + 1}`,
-                status: "Unavailable",
-                requiredRestraintLabel: "Not found in repo",
-                seatPosition: "not_found",
-                rationale: "Safety guidance unavailable.",
+                status: "General guidelines",
+                requiredRestraintLabel: "See AAP recommendations",
+                seatPosition: "not_specified",
+                rationale:
+                  "Use the most restrictive restraint appropriate for your child's age and size.",
               })),
             }))
           : Promise.resolve(null);
+
+      // Phase 3: planning (visual indicator only — server already ran this above)
+      setLoadingPhase("planning");
 
       const packingData = {
         ...(result.trip || formData),
@@ -296,8 +363,10 @@ function App() {
         weather: result.weather,
       };
 
+      // Phase 4: packing list generation
+      setLoadingPhase("packing");
       const [packingResult, safetyResolved] = await Promise.all([
-        generatePackingList(packingData),
+        generatePackingList(packingData, { onRetry: () => setLoadingPhase("packing"), onRateLimitInfo }),
         safetyResult,
       ]);
 
@@ -316,8 +385,10 @@ function App() {
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
     } catch (err) {
       setError(err.message || "Failed to generate trip plan");
+      if (err.rateLimitReset) setRateLimitResetAt(err.rateLimitReset);
     } finally {
       setIsLoading(false);
+      setLoadingPhase(null);
     }
   };
 
@@ -361,13 +432,17 @@ function App() {
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
     } catch (err) {
       setError(err.message || "Failed to generate packing list");
+      if (err.rateLimitReset) setRateLimitResetAt(err.rateLimitReset);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Clear state and localStorage for a fresh start.
-  const handleReset = () => {
+  // Show confirmation modal before destroying trip data.
+  const handleReset = () => setShowResetModal(true);
+
+  // Actually execute the reset — only called after user confirms in the modal.
+  const confirmReset = () => {
     setStep("wizard");
     setWizardStep("destination");
     setTripData(null);
@@ -387,6 +462,8 @@ function App() {
     setChildHeights([""]);
     localStorage.removeItem("sproutroute_trip");
     localStorage.removeItem("sproutroute_checked");
+    localStorage.removeItem("sproutroute_custom_items");
+    setShowResetModal(false);
   };
 
   // Wizard back navigation.
@@ -431,11 +508,31 @@ function App() {
         <main className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Main panel ──────────────────────────────────────── */}
           <section className="min-h-[60vh] rounded-2xl border border-sprout-light bg-white shadow-soft p-8">
+            {/* Rate limit low-remaining warning (shown when < 5 requests remain) */}
+            {rateLimitRemaining !== null && rateLimitRemaining < 5 && rateLimitRemaining > 0 && !error && (
+              <div className="mb-4 rounded-xl border border-sun/40 bg-sun/10 px-4 py-2 text-sm text-earth flex items-center gap-2" role="status">
+                <span aria-hidden="true">⏳</span>
+                <span>
+                  You have {rateLimitRemaining} request{rateLimitRemaining !== 1 ? "s" : ""} remaining this window.
+                </span>
+              </div>
+            )}
+
             {/* Error banner */}
             {error && (
-              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
-                <span className="text-base">⚠️</span>
-                <span>{error}</span>
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2" role="alert">
+                <span className="text-base" aria-hidden="true">⚠️</span>
+                <div className="flex-1">
+                  <span>{error}</span>
+                  {rateLimitCountdown !== null && rateLimitCountdown > 0 && (
+                    <div className="mt-1 font-medium text-red-800">
+                      ⏱ Try again in{" "}
+                      {rateLimitCountdown >= 60
+                        ? `${Math.ceil(rateLimitCountdown / 60)} min`
+                        : `${rateLimitCountdown}s`}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -620,12 +717,12 @@ function App() {
                       <input
                         type="number"
                         value={numChildren}
-                        min="0"
+                        min="1"
                         max="10"
                         onChange={(e) => {
                           const value = Math.max(
-                            0,
-                            Math.min(10, parseInt(e.target.value) || 0),
+                            1,
+                            Math.min(10, parseInt(e.target.value) || 1),
                           );
                           setNumChildren(value);
                           setChildAges((prev) =>
@@ -685,7 +782,8 @@ function App() {
                               </label>
                               <div className="grid gap-3 md:grid-cols-2">
                                 <label className="block text-sm font-medium text-slate-text">
-                                  Weight (lb, optional)
+                                  Weight (lb)
+                                  <span className="block text-xs text-muted font-normal">For car seat safety recommendations</span>
                                   <input
                                     type="number"
                                     min="2"
@@ -705,7 +803,8 @@ function App() {
                                   />
                                 </label>
                                 <label className="block text-sm font-medium text-slate-text">
-                                  Height (in, optional)
+                                  Height (in)
+                                  <span className="block text-xs text-muted font-normal">For car seat safety recommendations</span>
                                   <input
                                     type="number"
                                     min="10"
@@ -729,22 +828,41 @@ function App() {
                           ))}
                       </div>
                     )}
+                    {/* Multi-phase loading indicator */}
+                    {isLoading && loadingPhase && (
+                      <div className="rounded-xl border border-sky-light bg-sky-light/40 px-5 py-4 space-y-3">
+                        <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
+                          <span className="text-xl animate-spin">{LOADING_PHASES[loadingPhase]?.icon}</span>
+                          <span>{LOADING_PHASES[loadingPhase]?.label}</span>
+                        </div>
+                        {/* Progress bar */}
+                        <div className="w-full bg-sky-light rounded-full h-1.5">
+                          <div
+                            className="bg-sky-base h-1.5 rounded-full transition-all duration-700"
+                            style={{ width: `${(LOADING_PHASES[loadingPhase]?.step / 4) * 100}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted">
+                          Step {LOADING_PHASES[loadingPhase]?.step} of 4 · This usually takes 20–30 seconds
+                        </p>
+                      </div>
+                    )}
                     <div className="flex items-center gap-4">
                       <button
                         onClick={handleGeneratePlan}
                         disabled={isLoading}
                         className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
                       >
-                        {isLoading
-                          ? "Building your plan... 🌍"
-                          : "Generate plan 🚀"}
+                        {isLoading ? "Building plan..." : "Generate plan 🚀"}
                       </button>
-                      <button
-                        onClick={handleBack}
-                        className="text-sm text-muted hover:text-slate-text transition-colors"
-                      >
-                        ← Back
-                      </button>
+                      {!isLoading && (
+                        <button
+                          onClick={handleBack}
+                          className="text-sm text-muted hover:text-slate-text transition-colors"
+                        >
+                          ← Back
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -764,8 +882,9 @@ function App() {
                       {tripData.destination}
                     </h2>
                     <p className="text-sm text-muted">
-                      {tripData.startDate} → {tripData.endDate} ·{" "}
-                      {tripData.duration} days
+                      {format(new Date(tripData.startDate + "T12:00:00"), "MMM d")} →{" "}
+                      {format(new Date(tripData.endDate + "T12:00:00"), "MMM d, yyyy")} ·{" "}
+                      {tripData.duration} day{tripData.duration !== 1 ? "s" : ""}
                     </p>
                     {weather?.summary && (
                       <p className="text-xs text-muted mt-1 flex items-center gap-1">
@@ -781,11 +900,27 @@ function App() {
                   </button>
                 </div>
 
-                {/* Loading state */}
+                {/* Multi-phase loading state on results screen (packing list regen) */}
                 {isLoading && (
-                  <div className="rounded-xl border border-sky-light bg-sky-light/50 px-5 py-6 text-sm text-sky-dark flex items-center gap-3">
-                    <span className="text-xl animate-spin">🌍</span>
-                    Building your itinerary and packing list...
+                  <div className="rounded-xl border border-sky-light bg-sky-light/40 px-5 py-5 space-y-3">
+                    <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
+                      <span className="text-xl animate-spin">
+                        {loadingPhase ? LOADING_PHASES[loadingPhase]?.icon : "🎒"}
+                      </span>
+                      <span>
+                        {loadingPhase
+                          ? LOADING_PHASES[loadingPhase]?.label
+                          : "Updating your packing list..."}
+                      </span>
+                    </div>
+                    {loadingPhase && (
+                      <div className="w-full bg-sky-light rounded-full h-1.5">
+                        <div
+                          className="bg-sky-base h-1.5 rounded-full transition-all duration-700"
+                          style={{ width: `${(LOADING_PHASES[loadingPhase]?.step / 4) * 100}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -828,9 +963,9 @@ function App() {
                 <p className="text-base font-semibold text-slate-text mt-0.5">
                   {startDate && endDate ? (
                     <>
-                      {startDate}
+                      {format(new Date(startDate + "T12:00:00"), "MMM d")}
                       <span className="text-muted mx-1">→</span>
-                      {endDate}
+                      {format(new Date(endDate + "T12:00:00"), "MMM d, yyyy")}
                     </>
                   ) : (
                     <span className="text-muted italic">Not set yet</span>
@@ -878,6 +1013,39 @@ function App() {
           {" · "}Built with React, Vite &amp; Weather.gov
         </footer>
       </div>
+
+      {/* ── Start Over confirmation modal ──────────────────── */}
+      {showResetModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-modal-title"
+        >
+          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 border border-sprout-light">
+            <h2 id="reset-modal-title" className="font-heading text-xl font-bold text-sprout-dark mb-2">
+              Start over?
+            </h2>
+            <p className="text-sm text-muted mb-6">
+              This will clear your current trip plan, packing list, and all saved data. This can&rsquo;t be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={confirmReset}
+                className="flex-1 rounded-xl bg-red-500 text-white py-2.5 font-semibold text-sm hover:bg-red-600 transition-colors"
+              >
+                Start Fresh
+              </button>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="flex-1 rounded-xl border border-sprout-light text-sprout-dark py-2.5 font-semibold text-sm hover:bg-sprout-light transition-colors"
+              >
+                Keep My Trip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { useState, useEffect } from "react";
 export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisible }) {
   const [selectedActivities, setSelectedActivities] = useState(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isItineraryOpen, setIsItineraryOpen] = useState(false);
+  // Open by default so users see the itinerary immediately on first load.
+  const [isItineraryOpen, setIsItineraryOpen] = useState(true);
 
   // Initialize selected activities whenever a new plan arrives.
   useEffect(() => {
@@ -87,7 +88,104 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
         <p className="text-sm text-muted mt-1">{tripPlan.overview}</p>
       </div>
 
-      {/* Collapsible detailed itinerary */}
+      {/* Activity customizer — rendered ABOVE itinerary so users see it first */}
+      {isVisible && (
+        <div className="rounded-xl border border-sky-light bg-sky-light/20 p-5 space-y-4">
+          <div>
+            <h4 className="font-heading text-lg font-bold text-sprout-dark">
+              Customize activities
+              <span className="text-sm font-normal text-muted ml-2">
+                ({selectedActivities.size} selected)
+              </span>
+            </h4>
+            <p className="text-sm text-muted mt-1">
+              Select the activities you want — we'll update the packing list to match.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {tripPlan.suggestedActivities.map((activity) => {
+              const isSelected = selectedActivities.has(activity.id);
+
+              return (
+                <label
+                  key={activity.id}
+                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                    isSelected
+                      ? "border-sprout-base bg-sprout-light/60 shadow-soft"
+                      : "border-gray-200 bg-white hover:border-sprout-light hover:bg-sprout-light/20"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleActivity(activity.id)}
+                      className="mt-1 h-5 w-5 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-xs font-semibold text-muted">
+                            {getCategoryLabel(activity.category)}
+                          </span>
+                          <h5 className="font-semibold text-slate-text">
+                            {activity.name}
+                          </h5>
+                        </div>
+                        {activity.kidFriendly && (
+                          <span className="text-xs bg-sprout-light text-sprout-dark px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                            🌱 Kid-friendly
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted mt-1.5">
+                        {activity.description}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted">
+                        <span>⏱ {activity.duration}</span>
+                        {activity.weatherDependent && (
+                          <span className="bg-sky-light text-sky-dark px-2 py-0.5 rounded-full font-medium">
+                            Weather-dependent
+                          </span>
+                        )}
+                      </div>
+                      {activity.bestDays && activity.bestDays.length > 0 && (
+                        <p className="text-xs text-muted mt-1">
+                          Best: {activity.bestDays.join(", ")}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted mt-1.5 italic">
+                        {activity.reason}
+                      </p>
+                    </div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              onClick={handleApprove}
+              disabled={selectedActivities.size === 0 || isSubmitting}
+              className="flex-1 rounded-xl bg-sprout-dark text-white py-3 px-6 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
+            >
+              {isSubmitting
+                ? "Updating packing list..."
+                : `Update packing list (${selectedActivities.size} activities)`}
+            </button>
+          </div>
+
+          {selectedActivities.size === 0 && (
+            <p className="text-sm text-red-600 text-center">
+              Please select at least one activity to continue.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Collapsible detailed itinerary — open by default */}
       <div>
         <button
           onClick={() => setIsItineraryOpen((prev) => !prev)}
@@ -170,106 +268,6 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
           </div>
         )}
       </div>
-
-      {/* Activity customizer */}
-      {isVisible && (
-        <div>
-          <h4 className="font-heading text-lg font-bold text-sprout-dark">
-            Customize activities
-            <span className="text-sm font-normal text-muted ml-2">
-              ({selectedActivities.size} selected)
-            </span>
-          </h4>
-          <p className="text-sm text-muted mt-1 mb-4">
-            Select the activities you want to include — we'll regenerate the
-            packing list to match.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {tripPlan.suggestedActivities.map((activity) => {
-              const isSelected = selectedActivities.has(activity.id);
-
-              return (
-                <label
-                  key={activity.id}
-                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
-                    isSelected
-                      ? "border-sprout-base bg-sprout-light/60 shadow-soft"
-                      : "border-gray-200 bg-white hover:border-sprout-light hover:bg-sprout-light/20"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleActivity(activity.id)}
-                      className="mt-1 h-5 w-5 rounded"
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <span className="text-xs font-semibold text-muted">
-                            {getCategoryLabel(activity.category)}
-                          </span>
-                          <h5 className="font-semibold text-slate-text">
-                            {activity.name}
-                          </h5>
-                        </div>
-                        {activity.kidFriendly && (
-                          <span className="text-xs bg-sprout-light text-sprout-dark px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
-                            🌱 Kid-friendly
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted mt-1.5">
-                        {activity.description}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted">
-                        <span>⏱ {activity.duration}</span>
-                        {activity.weatherDependent && (
-                          <span className="bg-sky-light text-sky-dark px-2 py-0.5 rounded-full font-medium">
-                            Weather-dependent
-                          </span>
-                        )}
-                      </div>
-                      {activity.bestDays && activity.bestDays.length > 0 && (
-                        <p className="text-xs text-muted mt-1">
-                          Best: {activity.bestDays.join(", ")}
-                        </p>
-                      )}
-                      <p className="text-xs text-muted mt-1.5 italic">
-                        {activity.reason}
-                      </p>
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {isVisible && (
-        <>
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={handleApprove}
-              disabled={selectedActivities.size === 0 || isSubmitting}
-              className="flex-1 rounded-xl bg-sprout-dark text-white py-3 px-6 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
-            >
-              {isSubmitting
-                ? "Updating packing list..."
-                : `Update packing list (${selectedActivities.size} activities)`}
-            </button>
-          </div>
-
-          {selectedActivities.size === 0 && (
-            <p className="text-sm text-red-600 text-center">
-              Please select at least one activity to continue.
-            </p>
-          )}
-        </>
-      )}
     </div>
   );
 }
