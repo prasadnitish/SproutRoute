@@ -6,6 +6,7 @@ import PackingChecklist from "./components/PackingChecklist";
 import TravelSafetyCard from "./components/TravelSafetyCard";
 import {
   generateTripPlan,
+  replanTrip,
   generatePackingList,
   getCarSeatGuidance,
   resolveDestination,
@@ -395,6 +396,7 @@ function App() {
   // Optional: regenerate packing list based on selected activities.
   const handleApprovePlan = async (approvedActivities) => {
     setIsLoading(true);
+    setLoadingPhase("planning");
     setError(null);
 
     try {
@@ -403,10 +405,15 @@ function App() {
         ...tripData,
         activities: activityCategories,
       };
-      const updatedTripPlan = buildCustomizedTripPlan(
-        tripPlan,
+
+      // Regenerate the full trip plan with only approved activities so that
+      // day notes, meals, and activity details don't reference removed activities.
+      // Use replanTrip (passes cached weather) to skip the geocode+weather fetch.
+      const tripPlanData = {
+        ...updatedTripData,
+        weather,   // cached weather from initial plan — skips geocode + weather fetch
         approvedActivities,
-      );
+      };
 
       const packingData = {
         ...updatedTripData,
@@ -414,27 +421,41 @@ function App() {
         approvedActivities,
       };
 
-      const result = await generatePackingList(packingData);
+      // Run both in parallel — trip plan regeneration and packing list regeneration.
+      setLoadingPhase("packing");
+      const [tripPlanResult, packingResult] = await Promise.all([
+        replanTrip(tripPlanData, {
+          onRetry: () => setLoadingPhase("planning"),
+          onRateLimitInfo,
+        }),
+        generatePackingList(packingData, {
+          onRetry: () => setLoadingPhase("packing"),
+          onRateLimitInfo,
+        }),
+      ]);
+
+      const updatedTripPlan = tripPlanResult.tripPlan;
 
       setTripData(updatedTripData);
       setTripPlan(updatedTripPlan);
-      setPackingList(result.packingList);
+      setPackingList(packingResult.packingList);
       setShowCustomize(false);
 
       const dataToSave = {
         trip: updatedTripData,
         weather,
         tripPlan: updatedTripPlan,
-        packingList: result.packingList,
+        packingList: packingResult.packingList,
         safetyGuidance,
         lastModified: new Date().toISOString(),
       };
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
     } catch (err) {
-      setError(err.message || "Failed to generate packing list");
+      setError(err.message || "Failed to update trip plan");
       if (err.rateLimitReset) setRateLimitResetAt(err.rateLimitReset);
     } finally {
       setIsLoading(false);
+      setLoadingPhase(null);
     }
   };
 

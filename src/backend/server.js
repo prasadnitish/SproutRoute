@@ -553,6 +553,58 @@ export function createApp(deps = {}) {
     }
   });
 
+  // POST /api/v1/trip/replan
+  // Regenerates ONLY the trip itinerary (no geocoding or weather fetch).
+  // Used when the user customizes activities after the initial plan is generated.
+  // Requires: destination, startDate, endDate, activities, children, weather (cached).
+  app.post("/api/v1/trip/replan", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const sanitizedData = sanitizeTripData(req.body);
+      const validationErrors = validateTripData(sanitizedData, { requireActivities: true });
+      if (validationErrors.length > 0) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: validationErrors.join("; "),
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const { destination, startDate, endDate, activities, children } = sanitizedData;
+
+      // weather must be provided by the client — we skip geocoding and weather fetch.
+      const weather = req.body.weather;
+      if (!weather || !Array.isArray(weather.forecast)) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "weather object with forecast array is required for replan",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      devLog("v1/trip/replan: regenerating itinerary with activities:", activities);
+      const tripPlan = await generateTripPlanFn(
+        { destination, startDate, endDate, activities, children },
+        weather,
+      );
+
+      return res.json({ requestId, tripPlan });
+    } catch (error) {
+      devLog("Error in /api/v1/trip/replan:", error);
+      return v1Error(res, 500, {
+        code: "REPLAN_FAILED",
+        message: "Failed to regenerate trip plan. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
   // POST /api/v1/trip/packing
   app.post("/api/v1/trip/packing", apiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();

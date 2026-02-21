@@ -172,8 +172,8 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
               className="flex-1 rounded-xl bg-sprout-dark text-white py-3 px-6 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
             >
               {isSubmitting
-                ? "Updating packing list..."
-                : `Update packing list (${selectedActivities.size} activities)`}
+                ? "Regenerating plan & packing list..."
+                : `Apply changes (${selectedActivities.size} activities)`}
             </button>
           </div>
 
