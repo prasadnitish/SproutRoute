@@ -3,24 +3,24 @@
 // - Persists progress to localStorage across refreshes.
 // - Prunes stale saved IDs whenever a regenerated list changes item identity.
 import { useState, useEffect, useMemo } from "react";
-import {
-  filterCheckedItems,
-  getPackingItemIds,
-} from "../utils/checklist";
+import { filterCheckedItems, getPackingItemIds } from "../utils/checklist";
 
 export default function PackingChecklist({ packingList, onUpdate }) {
   const [checkedItems, setCheckedItems] = useState(new Set());
   const [collapsedCategories, setCollapsedCategories] = useState(new Set());
-  const validItemIds = useMemo(() => getPackingItemIds(packingList), [packingList]);
+  const validItemIds = useMemo(
+    () => getPackingItemIds(packingList),
+    [packingList],
+  );
 
   useEffect(() => {
     // Reload saved checks and drop IDs that no longer exist in the current list version.
-    const saved = localStorage.getItem("strollerscout_checked");
+    const saved = localStorage.getItem("sproutroute_checked");
     if (saved) {
       try {
         const filtered = filterCheckedItems(JSON.parse(saved), validItemIds);
         setCheckedItems(new Set(filtered));
-        localStorage.setItem("strollerscout_checked", JSON.stringify(filtered));
+        localStorage.setItem("sproutroute_checked", JSON.stringify(filtered));
       } catch (err) {
         console.error("Failed to load checked items:", err);
       }
@@ -37,7 +37,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
     }
     setCheckedItems(newChecked);
     localStorage.setItem(
-      "strollerscout_checked",
+      "sproutroute_checked",
       JSON.stringify([...newChecked]),
     );
     if (onUpdate) onUpdate(newChecked);
@@ -64,7 +64,8 @@ export default function PackingChecklist({ packingList, onUpdate }) {
 
   const getCheckedCount = () => {
     // Guard against stale IDs so percent complete reflects only current list items.
-    return [...checkedItems].filter((itemId) => validItemIds.has(itemId)).length;
+    return [...checkedItems].filter((itemId) => validItemIds.has(itemId))
+      .length;
   };
 
   const getProgress = () => {
@@ -187,7 +188,6 @@ export default function PackingChecklist({ packingList, onUpdate }) {
           );
         })}
       </div>
-
     </div>
   );
 }

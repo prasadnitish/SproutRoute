@@ -1,7 +1,7 @@
 {
-  "name": "strollerscout-backend",
+  "name": "sproutroute-backend",
   "version": "1.0.0",
-  "description": "Backend API for StrollerScout",
+  "description": "Backend API for SproutRoute",
   "type": "module",
   "main": "server.js",
   "scripts": {

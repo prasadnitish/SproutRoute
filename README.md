@@ -1,4 +1,4 @@
-# StrollerScout 🧳
+# SproutRoute 🌱
 
 ## Overview
 
@@ -6,6 +6,7 @@
 
 Build a reliable, explainable family-trip planner that converts fuzzy trip intent
 into actionable outputs:
+
 - A concrete destination
 - A weather-aware itinerary
 - A practical packing checklist
@@ -18,7 +19,7 @@ external services fail, and maintainable modules that are easy to test.
 Parents planning trips with young children face decision fatigue when packing - uncertain weather, activity-specific needs, and the constant worry of forgetting essential items.
 
 **Solution:**
-StrollerScout is an AI-powered trip planning tool that generates smart, weather-appropriate packing lists for parents. It combines real-time weather forecasts with AI-generated recommendations to create personalized checklists.
+SproutRoute is an AI-powered trip planning tool that generates smart, weather-appropriate packing lists for parents. It combines real-time weather forecasts with AI-generated recommendations to create personalized checklists.
 
 **Target Audience:**
 Parents with young children (0-5 years) planning domestic trips within the United States.
@@ -71,7 +72,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 
 ```bash
 git clone https://github.com/prasadnitish/tpm-portfolio.git
-cd tpm-portfolio/strollerscout
+cd tpm-portfolio/sproutroute
 ```
 
 2. **Install dependencies**

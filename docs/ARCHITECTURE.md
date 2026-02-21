@@ -1,8 +1,8 @@
-# Architecture Documentation: StrollerScout (Web MVP)
+# Architecture Documentation: SproutRoute (Web MVP)
 
 ## System Overview
 
-StrollerScout is a **client-server web application** that helps parents transform trip intent into a detailed itinerary and AI-powered, weather-appropriate packing list. The system consists of:
+SproutRoute is a **client-server web application** that helps parents transform trip intent into a detailed itinerary and AI-powered, weather-appropriate packing list. The system consists of:
 
 - **Frontend (React/Vite):** Single-page application for user interaction
 - **Backend (Node.js/Express):** API server that orchestrates external API calls
@@ -227,7 +227,7 @@ StrollerScout is a **client-server web application** that helps parents transfor
 ```json
 {
   "status": "ok",
-  "message": "StrollerScout API is running",
+  "message": "SproutRoute API is running",
   "timestamp": "2026-02-15T10:00:00.000Z"
 }
 ```
@@ -453,7 +453,7 @@ interface PackingCategory {
 
 ```json
 {
-  "strollerscout_trip": {
+  "sproutroute_trip": {
     "trip": { "destination": "...", "startDate": "...", "endDate": "...", "children": [...], "jurisdictionCode": "WA", "jurisdictionName": "Washington", "duration": 5 },
     "weather": { "forecast": [...], "summary": "..." },
     "tripPlan": { "overview": "...", "suggestedActivities": [...], "dailyItinerary": [...], "tips": [...] },
@@ -461,7 +461,7 @@ interface PackingCategory {
     "safetyGuidance": { "status": "Needs review", "results": [...] },
     "lastModified": "2026-05-10T14:32:00Z"
   },
-  "strollerscout_checked": ["Clothing-0-0", "Clothing-0-1", ...]
+  "sproutroute_checked": ["Clothing-0-0", "Clothing-0-1", ...]
 }
 ```
 
@@ -540,17 +540,17 @@ interface PackingCategory {
 
 ### MVP vs Future Vision
 
-| Feature              | MVP (Web)     | Future V2 (Mobile)  |
-| -------------------- | ------------- | ------------------- |
-| Platform             | Web (React)   | React Native        |
-| Storage              | Local storage | Cloud database      |
-| Weather              | US-only       | International       |
-| Packing list         | AI-generated  | + User templates    |
-| Car seat guidance    | 5 states + AI fallback | All 50 states |
-| Shopping             | Not included  | Amazon integration  |
-| Offline              | No            | Yes (cached data)   |
-| Cross-device sync    | No            | Yes (user accounts) |
-| **Development time** | **1-2 weeks** | **4-6 weeks**       |
+| Feature              | MVP (Web)              | Future V2 (Mobile)  |
+| -------------------- | ---------------------- | ------------------- |
+| Platform             | Web (React)            | React Native        |
+| Storage              | Local storage          | Cloud database      |
+| Weather              | US-only                | International       |
+| Packing list         | AI-generated           | + User templates    |
+| Car seat guidance    | 5 states + AI fallback | All 50 states       |
+| Shopping             | Not included           | Amazon integration  |
+| Offline              | No                     | Yes (cached data)   |
+| Cross-device sync    | No                     | Yes (user accounts) |
+| **Development time** | **1-2 weeks**          | **4-6 weeks**       |
 
 ### Technical Debt Accepted for Speed
 
@@ -590,12 +590,12 @@ interface PackingCategory {
 
 **Environment variables required:**
 
-| Variable | Where | Value |
-| -------- | ----- | ----- |
-| `ANTHROPIC_API_KEY` | Railway | Live key from console.anthropic.com |
-| `NODE_ENV` | Railway | `production` |
-| `ALLOWED_ORIGINS` | Railway | Your Cloudflare Pages URL |
-| `VITE_API_URL` | Cloudflare Pages | Your Railway backend URL |
+| Variable            | Where            | Value                               |
+| ------------------- | ---------------- | ----------------------------------- |
+| `ANTHROPIC_API_KEY` | Railway          | Live key from console.anthropic.com |
+| `NODE_ENV`          | Railway          | `production`                        |
+| `ALLOWED_ORIGINS`   | Railway          | Your Cloudflare Pages URL           |
+| `VITE_API_URL`      | Cloudflare Pages | Your Railway backend URL            |
 
 ---
 
@@ -631,15 +631,15 @@ When scaling to mobile app + full features:
 
 ### Technology Stack Summary
 
-| Layer    | Technology        | Rationale                       |
-| -------- | ----------------- | ------------------------------- |
-| Frontend | React 18 + Vite   | Fast dev experience, modern     |
-| Backend  | Node.js + Express | Simple, widely understood       |
-| AI       | Anthropic API     | Best for structured JSON output |
-| Weather  | Weather.gov       | Free, reliable, unlimited       |
-| Storage  | Local Storage     | Simple, no hosting needed       |
+| Layer    | Technology                 | Rationale                                              |
+| -------- | -------------------------- | ------------------------------------------------------ |
+| Frontend | React 18 + Vite            | Fast dev experience, modern                            |
+| Backend  | Node.js + Express          | Simple, widely understood                              |
+| AI       | Anthropic API              | Best for structured JSON output                        |
+| Weather  | Weather.gov                | Free, reliable, unlimited                              |
+| Storage  | Local Storage              | Simple, no hosting needed                              |
 | Hosting  | Railway + Cloudflare Pages | Railway for Node; Cloudflare Pages for static frontend |
-| Styling  | Tailwind CSS      | Rapid UI development            |
+| Styling  | Tailwind CSS               | Rapid UI development                                   |
 
 ### External Dependencies
 

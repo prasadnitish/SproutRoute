@@ -12,7 +12,10 @@ async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), WEATHER_TIMEOUT_MS);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
     return response;
   } catch (error) {
     if (error.name === "AbortError") {
@@ -81,7 +84,7 @@ export async function getWeatherForecast(lat, lon) {
       `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`,
       {
         headers: {
-          "User-Agent": "StrollerScout/1.0 (contact@strollerscout.app)",
+          "User-Agent": "SproutRoute/1.0 (contact@sproutroute.app)",
         },
       },
     );
@@ -97,7 +100,7 @@ export async function getWeatherForecast(lat, lon) {
 
     const forecastResponse = await fetchWithTimeout(forecastUrl, {
       headers: {
-        "User-Agent": "StrollerScout/1.0 (contact@strollerscout.app)",
+        "User-Agent": "SproutRoute/1.0 (contact@sproutroute.app)",
       },
     });
 

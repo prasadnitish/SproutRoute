@@ -85,7 +85,7 @@ function App() {
   // Restore previous trip from localStorage, subject to a 7-day TTL.
   const SAVED_TRIP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   useEffect(() => {
-    const savedData = localStorage.getItem("strollerscout_trip");
+    const savedData = localStorage.getItem("sproutroute_trip");
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
@@ -94,8 +94,8 @@ function App() {
         if (parsed.lastModified) {
           const ageMs = Date.now() - new Date(parsed.lastModified).getTime();
           if (ageMs > SAVED_TRIP_TTL_MS) {
-            localStorage.removeItem("strollerscout_trip");
-            localStorage.removeItem("strollerscout_checked");
+            localStorage.removeItem("sproutroute_trip");
+            localStorage.removeItem("sproutroute_checked");
             return;
           }
         }
@@ -125,7 +125,7 @@ function App() {
           setStep("results");
         } else if (parsed.packingList) {
           // Legacy format missing trip metadata — clear so it stops re-triggering.
-          localStorage.removeItem("strollerscout_trip");
+          localStorage.removeItem("sproutroute_trip");
         }
       } catch (err) {
         console.error("Failed to load saved trip:", err);
@@ -241,7 +241,8 @@ function App() {
             }).catch(() => ({
               status: "Unavailable",
               jurisdictionCode: result.trip.jurisdictionCode || null,
-              jurisdictionName: result.trip.jurisdictionName || "Not found in repo",
+              jurisdictionName:
+                result.trip.jurisdictionName || "Not found in repo",
               message:
                 "Safety guidance is unavailable right now. Please verify rules manually.",
               sourceUrl: null,
@@ -271,7 +272,7 @@ function App() {
         safetyGuidance: safetyResult,
         lastModified: new Date().toISOString(),
       };
-      localStorage.setItem("strollerscout_trip", JSON.stringify(dataToSave));
+      localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
     } catch (err) {
       setError(err.message || "Failed to generate trip plan");
     } finally {
@@ -290,7 +291,10 @@ function App() {
         ...tripData,
         activities: activityCategories,
       };
-      const updatedTripPlan = buildCustomizedTripPlan(tripPlan, approvedActivities);
+      const updatedTripPlan = buildCustomizedTripPlan(
+        tripPlan,
+        approvedActivities,
+      );
 
       const packingData = {
         ...updatedTripData,
@@ -313,7 +317,7 @@ function App() {
         safetyGuidance,
         lastModified: new Date().toISOString(),
       };
-      localStorage.setItem("strollerscout_trip", JSON.stringify(dataToSave));
+      localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
     } catch (err) {
       setError(err.message || "Failed to generate packing list");
     } finally {
@@ -340,8 +344,8 @@ function App() {
     setChildAges([2]);
     setChildWeights([""]);
     setChildHeights([""]);
-    localStorage.removeItem("strollerscout_trip");
-    localStorage.removeItem("strollerscout_checked");
+    localStorage.removeItem("sproutroute_trip");
+    localStorage.removeItem("sproutroute_checked");
   };
 
   // Wizard back navigation.
@@ -583,7 +587,10 @@ function App() {
                                   onChange={(e) => {
                                     const value = Math.max(
                                       0,
-                                      Math.min(18, parseInt(e.target.value) || 0),
+                                      Math.min(
+                                        18,
+                                        parseInt(e.target.value) || 0,
+                                      ),
                                     );
                                     setChildAges((prev) => {
                                       const next = [...prev];
