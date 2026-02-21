@@ -142,10 +142,22 @@ const POST_OPTS = (body) => ({
   body: JSON.stringify(body),
 });
 
-/** Generate the trip itinerary + weather. */
+/** Generate the trip itinerary + weather (full plan from scratch). */
 export const generateTripPlan = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/trip-plan`,
+    POST_OPTS(tripData),
+    { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
+  );
+
+/**
+ * Regenerate ONLY the trip itinerary using cached weather (no geocoding round-trip).
+ * Used when the user customizes activities after the initial plan is generated.
+ * Requires tripData to include a `weather` field with the cached forecast.
+ */
+export const replanTrip = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/trip/replan`,
     POST_OPTS(tripData),
     { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
