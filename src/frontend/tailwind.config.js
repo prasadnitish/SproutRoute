@@ -4,21 +4,38 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Space Grotesk", "sans-serif"],
-        serif: ["Fraunces", "serif"],
+        sans: ["Inter", "sans-serif"],
+        heading: ["Nunito", "sans-serif"],
       },
       colors: {
-        ink: "#0b0b0c",
-        paper: "#f6f4ef",
-        muted: "#a7a29b",
-        accent: "#e7d3a0",
-        primary: {
-          50: "#fef9ed",
-          100: "#fdf0cf",
-          500: "#e7d3a0",
-          600: "#cfb67c",
-          700: "#b59a5c",
+        // Primary — Greens (Growth / Nature)
+        sprout: {
+          light: "#E8F5E9",
+          base: "#81C784",
+          dark: "#2E7D32",
         },
+        // Secondary — Blues (Sky / Water / Path)
+        sky: {
+          light: "#E1F5FE",
+          base: "#4FC3F7",
+          dark: "#0277BD",
+        },
+        // Accents — Earth & Sun
+        earth: "#795548",
+        sun: "#FFCA28",
+        // Neutrals
+        paper: "#FDFDFD",
+        "slate-text": "#334155",
+        muted: "#64748B",
+      },
+      boxShadow: {
+        soft: "0 4px 20px -2px rgba(46, 125, 50, 0.08)",
+        card: "0 2px 12px -2px rgba(46, 125, 50, 0.06)",
+      },
+      borderRadius: {
+        xl: "1rem",
+        "2xl": "1.5rem",
+        "3xl": "2rem",
       },
     },
   },

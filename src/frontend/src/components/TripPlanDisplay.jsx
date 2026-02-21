@@ -48,113 +48,119 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
   const getCategoryLabel = (category) => {
     // Friendly labels keep category taxonomy readable without exposing raw keys.
     const labels = {
-      beach: "Beach",
-      hiking: "Hiking",
-      city: "City",
-      museums: "Museums",
-      parks: "Parks",
-      dining: "Dining",
-      shopping: "Shopping",
-      sports: "Sports",
-      water: "Water",
-      wildlife: "Wildlife",
-      theme_park: "Theme park",
-      camping: "Camping",
+      beach: "🏖 Beach",
+      hiking: "🥾 Hiking",
+      city: "🏙 City",
+      museums: "🏛 Museums",
+      parks: "🌳 Parks",
+      dining: "🍽 Dining",
+      shopping: "🛍 Shopping",
+      sports: "⚽ Sports",
+      water: "🌊 Water",
+      wildlife: "🦁 Wildlife",
+      theme_park: "🎢 Theme park",
+      camping: "⛺ Camping",
     };
-    return labels[category] || "Activity";
+    return labels[category] || "🗺 Activity";
+  };
+
+  const getWeatherIcon = (condition = "") => {
+    const c = condition.toLowerCase();
+    if (c.includes("sun") || c.includes("clear")) return "☀️";
+    if (c.includes("cloud")) return "⛅";
+    if (c.includes("rain") || c.includes("shower")) return "🌧";
+    if (c.includes("snow")) return "❄️";
+    if (c.includes("storm") || c.includes("thunder")) return "⛈";
+    return "🌤";
   };
 
   return (
-    <div className="space-y-6 rounded-3xl border border-white/10 bg-white/5 p-6">
+    <div className="space-y-5 rounded-2xl border border-sprout-light bg-white shadow-soft p-6">
+      {/* Header */}
       <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-muted">
-          Trip plan
+        <p className="text-xs font-bold uppercase tracking-wider text-muted">
+          🗓 Trip plan
         </p>
-        <h3 className="text-xl font-semibold text-paper mt-2">
+        <h3 className="font-heading text-xl font-bold text-sprout-dark mt-1">
           Your itinerary
         </h3>
-        <p className="text-sm text-muted">{tripPlan.overview}</p>
+        <p className="text-sm text-muted mt-1">{tripPlan.overview}</p>
       </div>
 
+      {/* Collapsible detailed itinerary */}
       <div>
         <button
           onClick={() => setIsItineraryOpen((prev) => !prev)}
-          className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm uppercase tracking-[0.2em] text-muted transition hover:border-white/30"
+          className="flex w-full items-center justify-between rounded-xl border border-sprout-light bg-sprout-light/50 px-4 py-3 text-left text-sm font-semibold text-sprout-dark transition hover:bg-sprout-light"
         >
-          <span>Detailed itinerary</span>
-          <span className="text-xs text-muted">
-            {isItineraryOpen ? "Hide" : "Show"}
+          <span>📋 Detailed itinerary</span>
+          <span className="text-xs font-normal text-muted">
+            {isItineraryOpen ? "▲ Hide" : "▼ Show"}
           </span>
         </button>
 
         {isItineraryOpen && (
           <div className="mt-4 space-y-3">
             {tripPlan.dailyItinerary && tripPlan.dailyItinerary.length > 0 && (
-              <div>
-                <h4 className="text-lg font-semibold text-paper mb-3">
-                  Suggested Itinerary
-                </h4>
-                <div className="space-y-3">
-                  {tripPlan.dailyItinerary.map((day, index) => (
-                    <div
-                      key={index}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                    >
-                      <h5 className="font-semibold text-paper mb-2">
-                        {day.day}
-                      </h5>
-                      {day.activities && day.activities.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-sm text-muted">
-                            {day.activities
-                              .map((id) => activityNameMap[id] || id)
-                              .join(", ")}
-                          </p>
-                        </div>
-                      )}
-                      {day.meals && (
-                        <p className="text-sm text-muted">
-                          Meals: {day.meals}
-                        </p>
-                      )}
-                      {day.notes && (
-                        <p className="text-xs text-muted mt-2 italic">
-                          {day.notes}
-                        </p>
-                      )}
-                      {weather?.forecast?.[index] && (
-                        // UI pairs itinerary day and forecast by index from generated outputs.
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted mt-3 pt-2 border-t border-white/10">
-                          <span className="text-paper font-medium">
-                            {weather.forecast[index].high}° /{" "}
-                            {weather.forecast[index].low}°
+              <div className="space-y-3">
+                {tripPlan.dailyItinerary.map((day, index) => (
+                  <div
+                    key={index}
+                    className="rounded-xl border border-sprout-light bg-sprout-light/30 p-4"
+                  >
+                    <h5 className="font-semibold text-sprout-dark">
+                      {day.day}
+                    </h5>
+                    {day.activities && day.activities.length > 0 && (
+                      <p className="text-sm text-slate-text mt-1">
+                        {day.activities
+                          .map((id) => activityNameMap[id] || id)
+                          .join(" · ")}
+                      </p>
+                    )}
+                    {day.meals && (
+                      <p className="text-sm text-muted mt-1">🍽 {day.meals}</p>
+                    )}
+                    {day.notes && (
+                      <p className="text-xs text-muted mt-1 italic">
+                        {day.notes}
+                      </p>
+                    )}
+                    {weather?.forecast?.[index] && (
+                      // UI pairs itinerary day and forecast by index from generated outputs.
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted mt-3 pt-2 border-t border-sprout-light">
+                        <span>
+                          {getWeatherIcon(weather.forecast[index].condition)}
+                        </span>
+                        <span className="font-semibold text-slate-text">
+                          {weather.forecast[index].high}° /{" "}
+                          {weather.forecast[index].low}°
+                        </span>
+                        <span>{weather.forecast[index].condition}</span>
+                        {weather.forecast[index].precipitation > 0 && (
+                          <span className="bg-sky-light text-sky-dark px-2 py-0.5 rounded-full font-medium">
+                            {weather.forecast[index].precipitation}% rain
                           </span>
-                          <span>{weather.forecast[index].condition}</span>
-                          {weather.forecast[index].precipitation > 0 && (
-                            <span className="text-sky-200">
-                              {weather.forecast[index].precipitation}% rain
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 
             {tripPlan.tips && tripPlan.tips.length > 0 && (
-              <div>
-                <h4 className="text-lg font-semibold text-paper mb-3">
-                  Helpful Tips
+              <div className="rounded-xl border border-sun/40 bg-sun/10 p-4">
+                <h4 className="text-sm font-bold text-earth mb-2">
+                  💡 Helpful tips
                 </h4>
-                <ul className="space-y-2">
+                <ul className="space-y-1.5">
                   {tripPlan.tips.map((tip, index) => (
                     <li
                       key={index}
-                      className="flex items-start gap-2 text-sm text-muted"
+                      className="flex items-start gap-2 text-sm text-slate-text"
                     >
-                      <span className="text-primary-500">●</span>
+                      <span className="text-sprout-base mt-0.5">●</span>
                       <span>{tip}</span>
                     </li>
                   ))}
@@ -165,30 +171,31 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
         )}
       </div>
 
+      {/* Activity customizer */}
       {isVisible && (
         <div>
-          <h4 className="text-lg font-semibold text-paper mb-4">
+          <h4 className="font-heading text-lg font-bold text-sprout-dark">
             Customize activities
             <span className="text-sm font-normal text-muted ml-2">
               ({selectedActivities.size} selected)
             </span>
           </h4>
-          <p className="text-sm text-muted mb-4">
-            Select the activities you want to include. We'll regenerate the
-            packing list based on your picks.
+          <p className="text-sm text-muted mt-1 mb-4">
+            Select the activities you want to include — we'll regenerate the
+            packing list to match.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {tripPlan.suggestedActivities.map((activity) => {
               const isSelected = selectedActivities.has(activity.id);
 
               return (
                 <label
                   key={activity.id}
-                  className={`cursor-pointer border rounded-2xl p-4 transition-all ${
+                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
-                      ? "border-primary-500 bg-primary-500/10"
-                      : "border-white/10 bg-white/5 hover:border-white/30"
+                      ? "border-sprout-base bg-sprout-light/60 shadow-soft"
+                      : "border-gray-200 bg-white hover:border-sprout-light hover:bg-sprout-light/20"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -196,31 +203,31 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleActivity(activity.id)}
-                      className="mt-1 h-5 w-5 text-primary-500 rounded focus:ring-2 focus:ring-primary-500"
+                      className="mt-1 h-5 w-5 rounded"
                     />
                     <div className="flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs uppercase tracking-[0.2em] text-muted">
+                        <div>
+                          <span className="text-xs font-semibold text-muted">
                             {getCategoryLabel(activity.category)}
                           </span>
-                          <h5 className="font-semibold text-paper">
+                          <h5 className="font-semibold text-slate-text">
                             {activity.name}
                           </h5>
                         </div>
                         {activity.kidFriendly && (
-                          <span className="text-xs bg-emerald-400/20 text-emerald-200 px-2 py-1 rounded-full">
-                            Kid-Friendly
+                          <span className="text-xs bg-sprout-light text-sprout-dark px-2 py-0.5 rounded-full font-semibold whitespace-nowrap">
+                            🌱 Kid-friendly
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-muted mt-2">
+                      <p className="text-sm text-muted mt-1.5">
                         {activity.description}
                       </p>
                       <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-muted">
-                        <span>{activity.duration}</span>
+                        <span>⏱ {activity.duration}</span>
                         {activity.weatherDependent && (
-                          <span className="bg-sky-500/20 text-sky-100 px-2 py-0.5 rounded-full">
+                          <span className="bg-sky-light text-sky-dark px-2 py-0.5 rounded-full font-medium">
                             Weather-dependent
                           </span>
                         )}
@@ -230,7 +237,7 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
                           Best: {activity.bestDays.join(", ")}
                         </p>
                       )}
-                      <p className="text-xs text-muted mt-2 italic">
+                      <p className="text-xs text-muted mt-1.5 italic">
                         {activity.reason}
                       </p>
                     </div>
@@ -244,21 +251,21 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
 
       {isVisible && (
         <>
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2">
             <button
               onClick={handleApprove}
               disabled={selectedActivities.size === 0 || isSubmitting}
-              className="flex-1 rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-primary-600 disabled:opacity-60"
+              className="flex-1 rounded-xl bg-sprout-dark text-white py-3 px-6 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
             >
               {isSubmitting
-                ? "Generating Packing List..."
-                : `Update Packing List (${selectedActivities.size} activities)`}
+                ? "Updating packing list..."
+                : `Update packing list (${selectedActivities.size} activities)`}
             </button>
           </div>
 
           {selectedActivities.size === 0 && (
-            <p className="text-sm text-red-200 text-center">
-              Please select at least one activity to continue
+            <p className="text-sm text-red-600 text-center">
+              Please select at least one activity to continue.
             </p>
           )}
         </>

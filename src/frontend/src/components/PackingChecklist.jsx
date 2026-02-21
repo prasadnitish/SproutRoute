@@ -82,65 +82,106 @@ export default function PackingChecklist({ packingList, onUpdate }) {
     return null;
   }
 
+  const progress = getProgress();
+  const checkedCount = getCheckedCount();
+  const totalItems = getTotalItems();
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-4">
+    <div className="rounded-2xl border border-sprout-light bg-white shadow-soft p-6">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-5">
         <div>
-          <h3 className="text-lg font-semibold text-paper">Packing List</h3>
-          <p className="text-sm text-muted">
-            {getCheckedCount()} of {getTotalItems()} items packed
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">
+            🎒 Packing list
+          </p>
+          <h3 className="font-heading text-xl font-bold text-sprout-dark mt-1">
+            What to pack
+          </h3>
+          <p className="text-sm text-muted mt-0.5">
+            {checkedCount} of {totalItems} items packed
           </p>
         </div>
         <button
           onClick={handlePrint}
-          className="px-4 py-2 text-xs uppercase tracking-[0.2em] border border-white/20 rounded-full hover:border-primary-500 print:hidden"
+          className="px-4 py-2 text-xs font-semibold uppercase tracking-wider border border-sprout-light text-sprout-dark rounded-xl hover:bg-sprout-light transition-colors print:hidden"
         >
-          Print
+          🖨 Print
         </button>
       </div>
 
-      <div className="mb-4">
-        <div className="w-full bg-white/10 rounded-full h-2">
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
           <div
-            className="bg-primary-500 h-2 rounded-full transition-all duration-300"
-            style={{ width: `${getProgress()}%` }}
-          ></div>
+            className="h-3 rounded-full transition-all duration-500"
+            style={{
+              width: `${progress}%`,
+              background:
+                progress === 100
+                  ? "#2E7D32"
+                  : "linear-gradient(90deg, #4FC3F7, #81C784)",
+            }}
+          />
         </div>
-        <p className="text-xs text-muted mt-1 text-right">
-          {getProgress()}% complete
-        </p>
+        <div className="flex items-center justify-between mt-1.5">
+          <span className="text-xs text-muted">
+            {progress === 100 ? "🎉 All packed!" : "Keep going!"}
+          </span>
+          <span className="text-xs font-semibold text-sprout-dark">
+            {progress}%
+          </span>
+        </div>
       </div>
 
-      <div className="space-y-4">
+      {/* Categories — two-column grid on desktop */}
+      <div className="grid gap-4 md:grid-cols-2">
         {packingList.categories.map((category, catIndex) => {
           const categoryId = `${category.name}-${catIndex}`;
           const isCollapsed = collapsedCategories.has(category.name);
           const categoryChecked = category.items.filter((item, idx) =>
             checkedItems.has(`${categoryId}-${idx}`),
           ).length;
+          const categoryTotal = category.items.length;
+          const categoryDone = categoryChecked === categoryTotal;
 
           return (
             <div
               key={catIndex}
-              className="rounded-2xl border border-white/10 overflow-hidden bg-white/5"
+              className="rounded-xl border border-sprout-light overflow-hidden"
             >
+              {/* Category header */}
               <button
                 onClick={() => toggleCategory(category.name)}
-                className="w-full px-4 py-3 bg-white/5 hover:bg-white/10 flex justify-between items-center print:bg-white print:pointer-events-none"
+                className={`w-full px-4 py-3 flex justify-between items-center transition-colors print:pointer-events-none ${
+                  categoryDone
+                    ? "bg-sprout-dark text-white"
+                    : "bg-sprout-light hover:bg-sprout-base/20"
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  <span className="text-xl print:hidden text-muted">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm print:hidden">
                     {isCollapsed ? "▶" : "▼"}
                   </span>
-                  <h4 className="font-semibold text-paper">{category.name}</h4>
-                  <span className="text-sm text-muted">
-                    ({categoryChecked}/{category.items.length})
-                  </span>
+                  <h4
+                    className={`font-semibold text-sm ${categoryDone ? "text-white" : "text-sprout-dark"}`}
+                  >
+                    {category.name}
+                  </h4>
                 </div>
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    categoryDone
+                      ? "bg-white/20 text-white"
+                      : "bg-white text-sprout-dark"
+                  }`}
+                >
+                  {categoryChecked}/{categoryTotal}
+                </span>
               </button>
 
+              {/* Items */}
               {!isCollapsed && (
-                <div className="p-4 space-y-2">
+                <div className="p-3 space-y-1.5 bg-white">
                   {category.items.map((item, itemIndex) => {
                     const itemId = `${categoryId}-${itemIndex}`;
                     const isChecked = checkedItems.has(itemId);
@@ -148,33 +189,35 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                     return (
                       <label
                         key={itemIndex}
-                        className={`flex items-start gap-3 p-3 rounded-xl hover:bg-white/10 cursor-pointer transition-all ${
-                          isChecked ? "bg-emerald-500/10" : ""
+                        className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
+                          isChecked
+                            ? "bg-sprout-light/60"
+                            : "hover:bg-gray-50"
                         }`}
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => toggleItem(itemId)}
-                          className="mt-1 h-5 w-5 text-primary-500 rounded focus:ring-2 focus:ring-primary-500"
+                          className="mt-0.5 h-4 w-4 rounded"
                         />
-                        <div className="flex-1">
-                          <div className="flex items-baseline gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-1.5">
                             <span
-                              className={`font-medium ${
+                              className={`text-sm font-medium ${
                                 isChecked
                                   ? "line-through text-muted"
-                                  : "text-paper"
+                                  : "text-slate-text"
                               }`}
                             >
                               {item.name}
                             </span>
-                            <span className="text-sm text-muted">
-                              ({item.quantity})
+                            <span className="text-xs text-muted shrink-0">
+                              ×{item.quantity}
                             </span>
                           </div>
                           {item.reason && (
-                            <p className="text-sm text-muted mt-1">
+                            <p className="text-xs text-muted mt-0.5">
                               {item.reason}
                             </p>
                           )}

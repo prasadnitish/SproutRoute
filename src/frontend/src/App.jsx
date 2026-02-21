@@ -11,6 +11,57 @@ import {
   resolveDestination,
 } from "./services/api";
 
+// Shield + compass logo mark matching the SproutRoute brand asset
+function LogoMark() {
+  return (
+    <svg
+      width="36"
+      height="36"
+      viewBox="0 0 36 36"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      {/* Shield */}
+      <path
+        d="M18 2L4 8v10c0 8.4 5.9 15.5 14 17 8.1-1.5 14-8.6 14-17V8L18 2z"
+        fill="#2E7D32"
+        stroke="#C8A84B"
+        strokeWidth="1.5"
+      />
+      {/* Sky band */}
+      <path
+        d="M6 14v4c0 .6.02 1.2.06 1.8h23.88c.04-.6.06-1.2.06-1.8v-4H6z"
+        fill="#4FC3F7"
+        opacity="0.5"
+      />
+      {/* Green hills */}
+      <ellipse cx="10" cy="22" rx="7" ry="4" fill="#43A047" opacity="0.7" />
+      <ellipse cx="26" cy="22" rx="7" ry="4" fill="#43A047" opacity="0.7" />
+      {/* Winding road */}
+      <path
+        d="M18 30 C16 27 14 24 16 20 C18 16 20 18 18 14"
+        stroke="#C8A84B"
+        strokeWidth="2"
+        strokeLinecap="round"
+        fill="none"
+        opacity="0.9"
+      />
+      {/* Compass rose — 4 points */}
+      <g transform="translate(18,22)">
+        <polygon points="0,-4 1,-1 0,0 -1,-1" fill="#C8A84B" />
+        <polygon points="0,4 1,1 0,0 -1,1" fill="#795548" />
+        <polygon points="-4,0 -1,-1 0,0 -1,1" fill="#C8A84B" />
+        <polygon points="4,0 1,-1 0,0 1,1" fill="#795548" />
+        <circle cx="0" cy="0" r="1" fill="#FDFDFD" />
+      </g>
+      {/* Sun */}
+      <circle cx="10" cy="12" r="2.5" fill="#FFCA28" />
+      <circle cx="10" cy="12" r="1.5" fill="#FFD54F" />
+    </svg>
+  );
+}
+
 function App() {
   // Single orchestrator component for MVP:
   // keeps wizard flow, API lifecycle, and local persistence in one predictable place.
@@ -158,32 +209,27 @@ function App() {
     }
   };
 
-  // If suggestions are shown, pick one to continue.
-  const handleSelectSuggestion = (suggestion) => {
-    setResolvedDestination(suggestion.displayName || suggestion.name);
-    setDestinationSuggestions([]);
+  const handleSelectSuggestion = (place) => {
+    setResolvedDestination(place.displayName || place.name);
     setWizardStep("dates");
   };
 
-  // Allow user to keep their original input without picking a suggestion.
   const handleUseOriginalDestination = () => {
     setResolvedDestination(destinationQuery.trim());
-    setDestinationSuggestions([]);
     setWizardStep("dates");
   };
 
-  // Step 2: validate date range before moving forward.
   const handleNextDates = () => {
     if (!startDate || !endDate) {
-      setError("Please select a start and end date.");
+      setError("Please select both dates.");
       return;
     }
-    const duration = differenceInDays(new Date(endDate), new Date(startDate));
-    if (duration <= 0) {
-      setError("Trip must be at least 1 day.");
+    if (endDate <= startDate) {
+      setError("End date must be after start date.");
       return;
     }
-    if (duration > 14) {
+    const days = differenceInDays(new Date(endDate), new Date(startDate));
+    if (days > 14) {
       setError("Trip duration cannot exceed 14 days.");
       return;
     }
@@ -191,47 +237,30 @@ function App() {
     setWizardStep("kids");
   };
 
-  // Step 3: generate itinerary + packing list in one shot.
+  // Step 3: generate trip plan + packing list together.
   const handleGeneratePlan = async () => {
     setIsLoading(true);
     setError(null);
 
+    const children = buildChildrenPayload();
+    const formData = {
+      destination: resolvedDestination,
+      startDate,
+      endDate,
+      duration: differenceInDays(new Date(endDate), new Date(startDate)),
+      children,
+    };
+
     try {
-      const children = buildChildrenPayload();
-      const formData = {
-        destination: resolvedDestination,
-        startDate,
-        endDate,
-        activities: [],
-        children,
-      };
-
       const result = await generateTripPlan(formData);
-
       setTripData(result.trip || formData);
-      setWeather(result.weather);
       setTripPlan(result.tripPlan);
-      setStep("results");
+      setWeather(result.weather);
 
-      const rawCategories = Array.from(
-        new Set(
-          (result.tripPlan?.suggestedActivities || []).map((a) => a.category),
-        ),
+      const safeChildren = (result.trip?.children || children).filter(
+        (c) => Number.isFinite(c.weightLb) || Number.isFinite(c.heightIn),
       );
-      // Fall back to the same defaults the server uses when no activities are provided.
-      const activityCategories =
-        rawCategories.length > 0
-          ? rawCategories
-          : ["family-friendly", "parks", "city"];
-
-      const safeChildren = result.trip.children || children;
-
-      const [packingResult, safetyResult] = await Promise.all([
-        generatePackingList({
-          ...result.trip,
-          activities: activityCategories,
-          children: safeChildren,
-        }),
+      const safetyResult =
         safeChildren.length > 0
           ? getCarSeatGuidance({
               destination: result.trip.destination || formData.destination,
@@ -251,25 +280,37 @@ function App() {
               results: safeChildren.map((_, index) => ({
                 childId: `child-${index + 1}`,
                 status: "Unavailable",
-                requiredRestraint: "not_found",
                 requiredRestraintLabel: "Not found in repo",
                 seatPosition: "not_found",
-                rationale: "Safety guidance request failed.",
+                rationale: "Safety guidance unavailable.",
               })),
             }))
-          : Promise.resolve(null),
+          : Promise.resolve(null);
+
+      const packingData = {
+        ...(result.trip || formData),
+        activities: result.tripPlan?.suggestedActivities?.map(
+          (a) => a.category,
+        ),
+        approvedActivities: result.tripPlan?.suggestedActivities,
+        weather: result.weather,
+      };
+
+      const [packingResult, safetyResolved] = await Promise.all([
+        generatePackingList(packingData),
+        safetyResult,
       ]);
 
       setPackingList(packingResult.packingList);
-      setSafetyGuidance(safetyResult);
-      setShowCustomize(false);
+      setSafetyGuidance(safetyResolved);
+      setStep("results");
 
       const dataToSave = {
         trip: result.trip || formData,
         weather: result.weather,
         tripPlan: result.tripPlan,
         packingList: packingResult.packingList,
-        safetyGuidance: safetyResult,
+        safetyGuidance: safetyResolved,
         lastModified: new Date().toISOString(),
       };
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
@@ -355,96 +396,130 @@ function App() {
     if (wizardStep === "suggestions") setWizardStep("destination");
   };
 
+  // Wizard progress — 3 steps
+  const wizardStepIndex = { destination: 1, suggestions: 1, dates: 2, kids: 3 };
+  const currentStepNum = wizardStepIndex[wizardStep] || 1;
+
   return (
-    <div className="min-h-screen bg-ink text-paper relative overflow-hidden">
-      <div className="pointer-events-none absolute -top-32 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-primary-500/10 blur-3xl"></div>
-      <div className="pointer-events-none absolute bottom-0 right-0 h-80 w-80 translate-x-1/3 translate-y-1/3 rounded-full bg-white/5 blur-3xl"></div>
-      <div className="mx-auto max-w-6xl px-6 py-10 relative">
-        <header className="flex items-center justify-between">
-          <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-muted">
-              StrollerScout
-            </p>
-            <h1 className="text-3xl md:text-4xl font-serif font-semibold">
-              Smart packing, minus the chaos
-            </h1>
+    <div className="min-h-screen bg-paper text-slate-text relative overflow-hidden">
+      {/* ── Top nav ───────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-sprout-light shadow-soft">
+        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <LogoMark />
+            <div>
+              <span className="font-heading text-xl font-bold text-earth leading-none">
+                SproutRoute
+              </span>
+              <p className="text-xs text-muted leading-none mt-0.5 hidden sm:block">
+                Growing little explorers, one trip at a time.
+              </p>
+            </div>
           </div>
           {step === "results" && (
             <button
               onClick={handleReset}
-              className="text-xs uppercase tracking-[0.2em] text-muted hover:text-paper"
+              className="text-xs font-semibold uppercase tracking-wider text-muted hover:text-sprout-dark transition-colors px-3 py-1.5 rounded-xl hover:bg-sprout-light"
             >
-              Start Over
+              ↩ Start Over
             </button>
           )}
-        </header>
+        </div>
+      </header>
 
-        <main className="mt-10 grid gap-10 lg:grid-cols-[1.7fr_0.8fr]">
-          <section className="min-h-[60vh] rounded-3xl border border-white/10 bg-white/5 p-8 shadow-[0_30px_80px_-60px_rgba(0,0,0,0.8)]">
+      <div className="mx-auto max-w-6xl px-6 py-8 relative z-10">
+        <main className="grid gap-6 lg:grid-cols-[1fr_280px]">
+          {/* ── Main panel ──────────────────────────────────────── */}
+          <section className="min-h-[60vh] rounded-2xl border border-sprout-light bg-white shadow-soft p-8">
+            {/* Error banner */}
             {error && (
-              <div className="mb-6 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {error}
+              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2">
+                <span className="text-base">⚠️</span>
+                <span>{error}</span>
               </div>
             )}
 
+            {/* ── WIZARD ──────────────────────────────────────── */}
             {step === "wizard" && (
               <div
                 key={wizardStep}
                 className="wizard-step flex min-h-[48vh] flex-col justify-center gap-6"
               >
+                {/* Progress dots */}
+                <div className="flex items-center gap-2">
+                  {[1, 2, 3].map((n) => (
+                    <div
+                      key={n}
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        n < currentStepNum
+                          ? "w-8 bg-sprout-dark"
+                          : n === currentStepNum
+                            ? "w-8 bg-sky-base"
+                            : "w-4 bg-sprout-light"
+                      }`}
+                    />
+                  ))}
+                  <span className="text-xs text-muted ml-1">
+                    Step {currentStepNum} of 3
+                  </span>
+                </div>
+
+                {/* ── Step 1: Destination ── */}
                 {wizardStep === "destination" && (
                   <>
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted">
-                      Step 1
-                    </p>
-                    <h2 className="text-3xl md:text-4xl font-semibold">
-                      Where do you want to go?
-                    </h2>
-                    <p className="text-sm text-muted">
-                      Try a city like "Seattle, WA" or "2 hour drive from
-                      Seattle."
-                    </p>
+                    <div>
+                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
+                        Where are you headed? 🗺️
+                      </h2>
+                      <p className="text-muted mt-2">
+                        Try "Seattle, WA" or "2 hour drive from Seattle."
+                      </p>
+                    </div>
                     <input
                       type="text"
                       value={destinationQuery}
                       onChange={(e) => setDestinationQuery(e.target.value)}
-                      placeholder="Type your destination intent"
-                      className="w-full border-b border-white/20 bg-transparent py-4 text-xl text-paper placeholder:text-muted focus:border-primary-500 focus:outline-none"
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleResolveDestination()
+                      }
+                      placeholder="Type your destination..."
+                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-xl text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                     />
-                    <div className="flex items-center gap-4">
+                    <div>
                       <button
                         onClick={handleResolveDestination}
                         disabled={isLoading}
-                        className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-primary-600 disabled:opacity-60"
+                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
                       >
-                        {isLoading ? "Finding places..." : "Continue"}
+                        {isLoading ? "Finding places..." : "Continue →"}
                       </button>
                     </div>
                   </>
                 )}
 
+                {/* ── Step 1b: Suggestions ── */}
                 {wizardStep === "suggestions" && (
                   <>
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted">
-                      Step 1
-                    </p>
-                    <h2 className="text-3xl md:text-4xl font-semibold">
-                      Pick a destination
-                    </h2>
-                    <p className="text-sm text-muted">
-                      These places fit your request. Choose one to keep going.
-                    </p>
+                    <div>
+                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
+                        Pick a destination 📍
+                      </h2>
+                      <p className="text-muted mt-2">
+                        These places match your request — choose one to
+                        continue.
+                      </p>
+                    </div>
                     <div className="space-y-3">
                       {destinationSuggestions.map((place) => (
                         <button
                           key={`${place.displayName}-${place.distanceMiles}`}
                           onClick={() => handleSelectSuggestion(place)}
-                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-left transition hover:border-primary-500"
+                          className="w-full rounded-xl border border-sprout-light bg-white px-5 py-4 text-left transition hover:border-sprout-base hover:shadow-soft group"
                         >
-                          <div className="text-lg font-semibold">
+                          <div className="text-base font-semibold text-slate-text group-hover:text-sprout-dark">
                             {place.displayName || place.name}
                           </div>
-                          <div className="text-xs text-muted">
+                          <div className="text-xs text-muted mt-0.5">
                             About {place.distanceMiles} miles away
                           </div>
                         </button>
@@ -453,30 +528,33 @@ function App() {
                     <div className="flex flex-wrap items-center gap-4">
                       <button
                         onClick={handleUseOriginalDestination}
-                        className="text-xs uppercase tracking-[0.2em] text-paper hover:text-primary-500"
+                        className="text-sm font-semibold text-sprout-dark hover:text-sprout-base transition-colors"
                       >
-                        Use my original input
+                        Use my original input instead
                       </button>
                       <button
                         onClick={handleBack}
-                        className="text-xs uppercase tracking-[0.2em] text-muted hover:text-paper"
+                        className="text-sm text-muted hover:text-slate-text transition-colors"
                       >
-                        Back
+                        ← Back
                       </button>
                     </div>
                   </>
                 )}
 
+                {/* ── Step 2: Dates ── */}
                 {wizardStep === "dates" && (
                   <>
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted">
-                      Step 2
-                    </p>
-                    <h2 className="text-3xl md:text-4xl font-semibold">
-                      When are you traveling?
-                    </h2>
+                    <div>
+                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
+                        When are you going? 📅
+                      </h2>
+                      <p className="text-muted mt-2">
+                        Select your trip start and end dates (max 14 days).
+                      </p>
+                    </div>
                     <div className="grid gap-4 md:grid-cols-2">
-                      <label className="text-sm text-muted">
+                      <label className="block text-sm font-medium text-slate-text">
                         Start date
                         <input
                           type="date"
@@ -494,46 +572,50 @@ function App() {
                             }
                           }}
                           min={today}
-                          className="mt-2 w-full border-b border-white/20 bg-transparent py-3 text-lg text-paper focus:border-primary-500 focus:outline-none"
+                          className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                         />
                       </label>
-                      <label className="text-sm text-muted">
+                      <label className="block text-sm font-medium text-slate-text">
                         End date
                         <input
                           type="date"
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           min={startDate}
-                          className="mt-2 w-full border-b border-white/20 bg-transparent py-3 text-lg text-paper focus:border-primary-500 focus:outline-none"
+                          className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                         />
                       </label>
                     </div>
                     <div className="flex items-center gap-4">
                       <button
                         onClick={handleNextDates}
-                        className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-primary-600"
+                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors shadow-soft"
                       >
-                        Continue
+                        Continue →
                       </button>
                       <button
                         onClick={handleBack}
-                        className="text-xs uppercase tracking-[0.2em] text-muted hover:text-paper"
+                        className="text-sm text-muted hover:text-slate-text transition-colors"
                       >
-                        Back
+                        ← Back
                       </button>
                     </div>
                   </>
                 )}
 
+                {/* ── Step 3: Kids ── */}
                 {wizardStep === "kids" && (
                   <>
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted">
-                      Step 3
-                    </p>
-                    <h2 className="text-3xl md:text-4xl font-semibold">
-                      Who is traveling?
-                    </h2>
-                    <label className="text-sm text-muted">
+                    <div>
+                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
+                        Who's coming along? 👧🧒
+                      </h2>
+                      <p className="text-muted mt-2">
+                        Add your little explorers so we can tailor the
+                        itinerary.
+                      </p>
+                    </div>
+                    <label className="block text-sm font-medium text-slate-text">
                       Number of children
                       <input
                         type="number"
@@ -562,7 +644,7 @@ function App() {
                               .map((_, i) => prev[i] || ""),
                           );
                         }}
-                        className="mt-2 w-full border-b border-white/20 bg-transparent py-3 text-lg text-paper focus:border-primary-500 focus:outline-none"
+                        className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                       />
                     </label>
                     {numChildren > 0 && (
@@ -572,12 +654,12 @@ function App() {
                           .map((_, index) => (
                             <div
                               key={`child-${index}`}
-                              className="rounded-2xl border border-white/10 bg-white/5 p-4 space-y-3"
+                              className="rounded-2xl border border-sprout-light bg-sprout-light/40 p-4 space-y-3"
                             >
-                              <p className="text-xs uppercase tracking-[0.2em] text-muted">
-                                Child {index + 1}
+                              <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark">
+                                🌱 Child {index + 1}
                               </p>
-                              <label className="text-sm text-muted block">
+                              <label className="block text-sm font-medium text-slate-text">
                                 Age (years)
                                 <input
                                   type="number"
@@ -598,11 +680,11 @@ function App() {
                                       return next;
                                     });
                                   }}
-                                  className="mt-1 w-full border-b border-white/20 bg-transparent py-2 text-lg text-paper focus:border-primary-500 focus:outline-none"
+                                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                                 />
                               </label>
                               <div className="grid gap-3 md:grid-cols-2">
-                                <label className="text-sm text-muted block">
+                                <label className="block text-sm font-medium text-slate-text">
                                   Weight (lb, optional)
                                   <input
                                     type="number"
@@ -619,10 +701,10 @@ function App() {
                                       });
                                     }}
                                     placeholder="Not set"
-                                    className="mt-1 w-full border-b border-white/20 bg-transparent py-2 text-sm text-paper placeholder:text-muted focus:border-primary-500 focus:outline-none"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                                   />
                                 </label>
-                                <label className="text-sm text-muted block">
+                                <label className="block text-sm font-medium text-slate-text">
                                   Height (in, optional)
                                   <input
                                     type="number"
@@ -639,7 +721,7 @@ function App() {
                                       });
                                     }}
                                     placeholder="Not set"
-                                    className="mt-1 w-full border-b border-white/20 bg-transparent py-2 text-sm text-paper placeholder:text-muted focus:border-primary-500 focus:outline-none"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
                                   />
                                 </label>
                               </div>
@@ -651,15 +733,17 @@ function App() {
                       <button
                         onClick={handleGeneratePlan}
                         disabled={isLoading}
-                        className="rounded-full bg-primary-500 px-6 py-3 text-sm font-semibold text-ink transition hover:bg-primary-600 disabled:opacity-60"
+                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
                       >
-                        {isLoading ? "Building your plan..." : "Generate plan"}
+                        {isLoading
+                          ? "Building your plan... 🌍"
+                          : "Generate plan 🚀"}
                       </button>
                       <button
                         onClick={handleBack}
-                        className="text-xs uppercase tracking-[0.2em] text-muted hover:text-paper"
+                        className="text-sm text-muted hover:text-slate-text transition-colors"
                       >
-                        Back
+                        ← Back
                       </button>
                     </div>
                   </>
@@ -667,36 +751,40 @@ function App() {
               </div>
             )}
 
+            {/* ── RESULTS ─────────────────────────────────────── */}
             {step === "results" && (
               <div className="space-y-8">
+                {/* Trip header */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.3em] text-muted">
-                      Trip overview
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted">
+                      🗺️ Trip overview
                     </p>
-                    <h2 className="text-3xl font-semibold">
+                    <h2 className="font-heading text-3xl font-bold text-sprout-dark mt-1">
                       {tripData.destination}
                     </h2>
                     <p className="text-sm text-muted">
-                      {tripData.startDate} to {tripData.endDate} ·{" "}
+                      {tripData.startDate} → {tripData.endDate} ·{" "}
                       {tripData.duration} days
                     </p>
                     {weather?.summary && (
-                      <p className="text-xs text-muted mt-1">
-                        {weather.summary}
+                      <p className="text-xs text-muted mt-1 flex items-center gap-1">
+                        <span>🌤</span> {weather.summary}
                       </p>
                     )}
                   </div>
                   <button
                     onClick={() => setShowCustomize((prev) => !prev)}
-                    className="rounded-full border border-white/20 px-5 py-2 text-xs uppercase tracking-[0.2em] text-paper transition hover:border-primary-500"
+                    className="rounded-xl border border-sprout-light px-5 py-2 text-sm font-semibold text-sprout-dark transition hover:bg-sprout-light"
                   >
-                    {showCustomize ? "Hide activity picker" : "Customize"}
+                    {showCustomize ? "Hide activities" : "✏️ Customize"}
                   </button>
                 </div>
 
+                {/* Loading state */}
                 {isLoading && (
-                  <div className="rounded-2xl border border-white/10 bg-white/5 px-5 py-6 text-sm text-muted">
+                  <div className="rounded-xl border border-sky-light bg-sky-light/50 px-5 py-6 text-sm text-sky-dark flex items-center gap-3">
+                    <span className="text-xl animate-spin">🌍</span>
                     Building your itinerary and packing list...
                   </div>
                 )}
@@ -721,53 +809,73 @@ function App() {
             )}
           </section>
 
-          <aside className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-muted">
-              Your plan
+          {/* ── Sidebar ─────────────────────────────────────────── */}
+          <aside className="rounded-2xl border border-sprout-light bg-white shadow-soft p-6 h-fit">
+            <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark mb-4">
+              🧭 Your trip
             </p>
-            <div className="mt-4 space-y-4 text-sm">
+            <div className="space-y-4 text-sm">
               <div>
-                <p className="text-muted">Destination</p>
-                <p className="text-base text-paper">
-                  {resolvedDestination || "Not set yet"}
+                <p className="text-xs text-muted font-medium">Destination</p>
+                <p className="text-base font-semibold text-slate-text mt-0.5">
+                  {resolvedDestination || (
+                    <span className="text-muted italic">Not set yet</span>
+                  )}
                 </p>
               </div>
-              <div>
-                <p className="text-muted">Dates</p>
-                <p className="text-base text-paper">
-                  {startDate && endDate
-                    ? `${startDate} → ${endDate}`
-                    : "Not set yet"}
+              <div className="border-t border-sprout-light pt-4">
+                <p className="text-xs text-muted font-medium">Dates</p>
+                <p className="text-base font-semibold text-slate-text mt-0.5">
+                  {startDate && endDate ? (
+                    <>
+                      {startDate}
+                      <span className="text-muted mx-1">→</span>
+                      {endDate}
+                    </>
+                  ) : (
+                    <span className="text-muted italic">Not set yet</span>
+                  )}
                 </p>
               </div>
-              <div>
-                <p className="text-muted">Kids</p>
-                <p className="text-base text-paper">
+              <div className="border-t border-sprout-light pt-4">
+                <p className="text-xs text-muted font-medium">Travelers</p>
+                <p className="text-base font-semibold text-slate-text mt-0.5">
                   {numChildren} child{numChildren === 1 ? "" : "ren"}
                 </p>
               </div>
-              {numChildren > 0 && (
-                <div>
-                  <p className="text-muted">Ages</p>
-                  <p className="text-base text-paper">
-                    {childAges.slice(0, numChildren).join(", ")}
-                  </p>
+              {numChildren > 0 && childAges.slice(0, numChildren).length > 0 && (
+                <div className="border-t border-sprout-light pt-4">
+                  <p className="text-xs text-muted font-medium">Ages</p>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {childAges.slice(0, numChildren).map((age, i) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sprout-light text-sprout-dark"
+                      >
+                        🌱 {age}y
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
               {step === "results" && (
-                <button
-                  onClick={handleReset}
-                  className="mt-6 w-full rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-paper hover:border-primary-500"
-                >
-                  Start over
-                </button>
+                <div className="border-t border-sprout-light pt-4">
+                  <button
+                    onClick={handleReset}
+                    className="w-full rounded-xl border border-sprout-light px-4 py-2.5 text-sm font-semibold text-sprout-dark hover:bg-sprout-light transition-colors"
+                  >
+                    ↩ Start over
+                  </button>
+                </div>
               )}
             </div>
           </aside>
         </main>
 
-        <footer className="mt-12 text-center text-xs uppercase tracking-[0.2em] text-muted">
-          Built with React, Vite, and Weather.gov
+        {/* ── Footer ──────────────────────────────────────────── */}
+        <footer className="mt-12 text-center text-xs text-muted">
+          <span className="font-heading font-bold text-earth">SproutRoute</span>
+          {" · "}Built with React, Vite &amp; Weather.gov
         </footer>
       </div>
     </div>

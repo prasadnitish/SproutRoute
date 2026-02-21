@@ -2,17 +2,26 @@
 // - Summarizes jurisdiction-level car seat guidance.
 // - Surfaces per-child recommendation status with source transparency metadata.
 // - Emphasizes that output is informational, not legal advice.
-function statusClasses(status) {
+function statusStyles(status) {
   // Visual severity mapping for quick scanning of confidence/availability.
   if (status === "Verified") {
-    return "border-emerald-400/40 bg-emerald-500/10 text-emerald-100";
+    return {
+      badge: "bg-sprout-light text-sprout-dark border border-sprout-base/40",
+      card: "border-sprout-light bg-sprout-light/30",
+    };
   }
 
   if (status === "Needs review") {
-    return "border-amber-400/40 bg-amber-500/10 text-amber-100";
+    return {
+      badge: "bg-sun/20 text-earth border border-sun/50",
+      card: "border-sun/30 bg-sun/10",
+    };
   }
 
-  return "border-red-400/40 bg-red-500/10 text-red-100";
+  return {
+    badge: "bg-red-50 text-red-700 border border-red-200",
+    card: "border-red-100 bg-red-50/50",
+  };
 }
 
 function prettySeatPosition(seatPosition) {
@@ -46,83 +55,88 @@ export default function TravelSafetyCard({ safetyGuidance }) {
     results = [],
   } = safetyGuidance;
 
+  const overallStyles = statusStyles(status);
+
   return (
-    <div className="space-y-5 rounded-3xl border border-white/10 bg-white/5 p-6">
+    <div className="space-y-4 rounded-2xl border border-earth/20 bg-white shadow-soft p-6">
+      {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-muted">
-            Travel safety
+          <p className="text-xs font-bold uppercase tracking-wider text-muted">
+            🛡 Travel safety
           </p>
-          <h3 className="text-xl font-semibold text-paper mt-2">
-            Car seat and booster guidance
+          <h3 className="font-heading text-xl font-bold text-earth mt-1">
+            Car seat &amp; booster guidance
           </h3>
           <p className="text-sm text-muted mt-1">
-            Jurisdiction: {jurisdictionName || "Not found in repo"}
+            {jurisdictionName || "Not found in repo"}
             {jurisdictionCode ? ` (${jurisdictionCode})` : ""}
           </p>
         </div>
         <span
-          className={`rounded-full border px-3 py-1 text-xs uppercase tracking-[0.2em] ${statusClasses(
-            status,
-          )}`}
+          className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${overallStyles.badge}`}
         >
           {status || "Unavailable"}
         </span>
       </div>
 
+      {/* Message */}
       {message && (
-        <p className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-muted">
+        <div className="rounded-xl border border-earth/15 bg-earth/5 px-4 py-3 text-sm text-slate-text">
           {message}
-        </p>
-      )}
-
-      {results.length > 0 && (
-        <div className="space-y-3">
-          {results.map((result) => (
-            <article
-              key={result.childId}
-              className="rounded-2xl border border-white/10 bg-white/5 p-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <h4 className="text-sm uppercase tracking-[0.2em] text-muted">
-                  {result.childId}
-                </h4>
-                <span
-                  className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${statusClasses(
-                    result.status,
-                  )}`}
-                >
-                  {result.status}
-                </span>
-              </div>
-
-              <p className="mt-3 text-base font-semibold text-paper">
-                {result.requiredRestraintLabel || "Not found in repo"}
-              </p>
-
-              <p className="mt-1 text-sm text-muted">
-                {prettySeatPosition(result.seatPosition || "not_found")}
-              </p>
-
-              {typeof result.ageYears === "number" && (
-                <p className="mt-1 text-xs text-muted">
-                  Age: {result.ageYears} years
-                  {Number.isFinite(result.weightLb)
-                    ? `, Weight: ${result.weightLb} lb`
-                    : ", Weight: Not found in repo"}
-                  {Number.isFinite(result.heightIn)
-                    ? `, Height: ${result.heightIn} in`
-                    : ", Height: Not found in repo"}
-                </p>
-              )}
-
-              <p className="mt-2 text-sm text-muted">{result.rationale}</p>
-            </article>
-          ))}
         </div>
       )}
 
-      <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-muted space-y-1">
+      {/* Per-child results */}
+      {results.length > 0 && (
+        <div className="space-y-3">
+          {results.map((result) => {
+            const styles = statusStyles(result.status);
+            return (
+              <article
+                key={result.childId}
+                className={`rounded-xl border p-4 ${styles.card}`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h4 className="text-sm font-bold uppercase tracking-wider text-earth">
+                    🌱 {result.childId}
+                  </h4>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${styles.badge}`}
+                  >
+                    {result.status}
+                  </span>
+                </div>
+
+                <p className="mt-2 text-base font-semibold text-slate-text">
+                  {result.requiredRestraintLabel || "Not found in repo"}
+                </p>
+
+                <p className="mt-1 text-sm text-muted">
+                  {prettySeatPosition(result.seatPosition || "not_found")}
+                </p>
+
+                {typeof result.ageYears === "number" && (
+                  <p className="mt-1 text-xs text-muted">
+                    Age: {result.ageYears}y
+                    {Number.isFinite(result.weightLb)
+                      ? ` · ${result.weightLb} lb`
+                      : ""}
+                    {Number.isFinite(result.heightIn)
+                      ? ` · ${result.heightIn} in`
+                      : ""}
+                  </p>
+                )}
+
+                <p className="mt-2 text-sm text-muted">{result.rationale}</p>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Source metadata */}
+      <div className="rounded-xl border border-earth/15 bg-earth/5 px-4 py-3 text-xs text-muted space-y-1">
         <p>Effective date: {effectiveDate || "Not found in repo"}</p>
         <p>Last updated: {lastUpdated || "Not found in repo"}</p>
         {sourceUrl ? (
@@ -130,16 +144,15 @@ export default function TravelSafetyCard({ safetyGuidance }) {
             href={sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-primary-500 hover:text-primary-400"
+            className="text-sky-dark underline hover:text-sprout-dark transition-colors"
           >
-            Official source
+            Official source →
           </a>
         ) : (
           <p>Official source: Not found in repo</p>
         )}
-        <p>
-          This is informational guidance. Verify legal requirements before
-          travel.
+        <p className="font-medium text-earth/80 mt-1">
+          ⚠️ Informational only. Verify legal requirements before travel.
         </p>
       </div>
     </div>
