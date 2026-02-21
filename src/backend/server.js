@@ -115,12 +115,16 @@ export function createApp(deps = {}) {
     message: {
       error: "Too many requests from this IP, please try again in 15 minutes.",
     },
-    standardHeaders: true,
+    standardHeaders: true,  // Sends RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, RateLimit-Policy
     legacyHeaders: false,
     handler: (req, res) => {
+      // Include reset timestamp in body so frontend can show a countdown timer
+      // even if it can't read headers directly (e.g. browser CORS restrictions)
+      const resetAt = Math.ceil(Date.now() / 1000) + 15 * 60;
       res.status(429).json({
         error: "Too many requests. Please try again in 15 minutes.",
         retryAfter: "15 minutes",
+        rateLimitReset: resetAt,  // Unix timestamp (seconds) for frontend countdown
       });
     },
   });

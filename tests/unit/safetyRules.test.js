@@ -68,16 +68,20 @@ test("getCarSeatGuidance falls back to age-based status when metrics are missing
 });
 
 test("getCarSeatGuidance can use AI fallback for unsupported jurisdictions", async () => {
+  // Use a fictitious jurisdiction code "XX" which is not in CAR_SEAT_RULES,
+  // so the AI research fallback path is exercised.
   const result = await getCarSeatGuidance(
     {
-      destination: "Portland, OR",
+      // Supply explicit jurisdictionCode so the resolver doesn't need to infer from destination text
+      destination: "Test City, XX",
+      jurisdictionCode: "XX",
       children: [{ id: "child-1", age: 6, weightLb: 46, heightIn: 46 }],
     },
     {
-      sourceRegistry: { OR: "https://example.gov/official" },
+      sourceRegistry: { XX: "https://example.gov/official" },
       researchFn: async () => ({
-        jurisdictionCode: "OR",
-        jurisdictionName: "Oregon",
+        jurisdictionCode: "XX",
+        jurisdictionName: "Test State",
         sourceUrl: "https://example.gov",
         effectiveDate: "Not found in repo",
         lastUpdated: "2026-02-15",
@@ -100,7 +104,7 @@ test("getCarSeatGuidance can use AI fallback for unsupported jurisdictions", asy
     },
   );
 
-  assert.equal(result.jurisdictionCode, "OR");
+  assert.equal(result.jurisdictionCode, "XX");
   assert.equal(result.status, "Needs review");
   assert.equal(result.results[0].requiredRestraint, "booster");
 });

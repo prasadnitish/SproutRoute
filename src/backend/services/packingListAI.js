@@ -1,13 +1,12 @@
 // AI service: generates a structured packing list in JSON.
-import Anthropic from "@anthropic-ai/sdk";
+// Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
+import { callModel } from "../utils/aiClient.js";
 import {
   MAX_RETRIES,
-  getTextContent,
   requestWithRetry,
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MODEL_ID = "claude-haiku-4-5-20251001";
 const MAX_TOKENS = 4096;
 const REPAIR_INPUT_MAX_CHARS = 24000;
 
@@ -31,20 +30,9 @@ function parsePackingListResponse(responseText) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
-async function requestPackingList(anthropic, { system, user }) {
-  // Single model call wrapper; uses system parameter to isolate instructions from user data.
-  const message = await anthropic.messages.create({
-    model: MODEL_ID,
-    system,
-    temperature: 0,
-    max_tokens: MAX_TOKENS,
-    messages: [{ role: "user", content: user }],
-  });
-
-  return {
-    responseText: getTextContent(message),
-    stopReason: message.stop_reason || null,
-  };
+async function requestPackingList({ system, user }, deps) {
+  // Single model call wrapper — delegates to aiClient for provider-agnostic model calls.
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0 }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -76,25 +64,15 @@ Rules:
   };
 }
 
-async function repairPackingListJson(anthropic, brokenText) {
-  // Third-stage fallback: ask model to repair invalid JSON instead of regenerating content.
+async function repairPackingListJson(brokenText, deps) {
+  // Third-stage fallback — uses same aiClient abstraction for provider-agnostic repair.
   const { system, user } = buildRepairPrompt(brokenText);
-  const message = await anthropic.messages.create({
-    model: MODEL_ID,
-    system,
-    temperature: 0,
-    max_tokens: MAX_TOKENS,
-    messages: [{ role: "user", content: user }],
-  });
-
-  return {
-    responseText: getTextContent(message),
-    stopReason: message.stop_reason || null,
-  };
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0 }, deps);
 }
 
-export async function generatePackingList(tripData, weatherForecast) {
-  // Orchestrates resilient generation: full prompt -> compact retry -> JSON repair fallback.
+export async function generatePackingList(tripData, weatherForecast, deps = {}) {
+  // Orchestrates resilient generation: full prompt → compact retry → JSON repair fallback.
+  // deps: passed through to callModel for dependency injection in tests.
   const { destination, startDate, endDate, activities, children } = tripData;
 
   const primaryPrompt = buildPrompt(
@@ -108,12 +86,8 @@ export async function generatePackingList(tripData, weatherForecast) {
   );
 
   try {
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
-    });
-
     const firstAttempt = await requestWithRetry(
-      () => requestPackingList(anthropic, primaryPrompt),
+      () => requestPackingList(primaryPrompt, deps),
       MAX_RETRIES,
     );
 
@@ -138,7 +112,7 @@ export async function generatePackingList(tripData, weatherForecast) {
       );
 
       const secondAttempt = await requestWithRetry(
-        () => requestPackingList(anthropic, retryPrompt),
+        () => requestPackingList(retryPrompt, deps),
         MAX_RETRIES,
       );
 
@@ -153,7 +127,7 @@ export async function generatePackingList(tripData, weatherForecast) {
         }
 
         const repairSource = secondAttempt.responseText || firstAttempt.responseText;
-        const repairAttempt = await repairPackingListJson(anthropic, repairSource);
+        const repairAttempt = await repairPackingListJson(repairSource, deps);
 
         try {
           return parsePackingListResponse(repairAttempt.responseText);

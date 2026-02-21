@@ -1,16 +1,28 @@
 // Packing checklist presenter:
 // - Tracks check/uncheck state for packing progress.
 // - Persists progress to localStorage across refreshes.
-// - Prunes stale saved IDs whenever a regenerated list changes item identity.
+// - Uses content-hash item IDs so check state survives list regeneration.
+// - Lets users add custom items per category (stored in localStorage).
 import { useState, useEffect, useMemo } from "react";
-import { filterCheckedItems, getPackingItemIds } from "../utils/checklist";
+import {
+  filterCheckedItems,
+  getPackingItemIds,
+  makeItemId,
+  loadCustomItems,
+  saveCustomItems,
+} from "../utils/checklist";
 
 export default function PackingChecklist({ packingList, onUpdate }) {
   const [checkedItems, setCheckedItems] = useState(new Set());
   const [collapsedCategories, setCollapsedCategories] = useState(new Set());
+  // customItems: { [categoryName]: Array<{ name, quantity, reason, source: "custom" }> }
+  const [customItems, setCustomItems] = useState(() => loadCustomItems());
+  // Per-category "add item" input state
+  const [addInputs, setAddInputs] = useState({});
+
   const validItemIds = useMemo(
-    () => getPackingItemIds(packingList),
-    [packingList],
+    () => getPackingItemIds(packingList, customItems),
+    [packingList, customItems],
   );
 
   useEffect(() => {
@@ -54,12 +66,37 @@ export default function PackingChecklist({ packingList, onUpdate }) {
     setCollapsedCategories(newCollapsed);
   };
 
+  const handleAddCustomItem = (categoryName) => {
+    const raw = (addInputs[categoryName] || "").trim();
+    if (!raw) return;
+
+    const newItem = { name: raw, quantity: "1", reason: "Added by you", source: "custom" };
+    const updated = {
+      ...customItems,
+      [categoryName]: [...(customItems[categoryName] || []), newItem],
+    };
+    setCustomItems(updated);
+    saveCustomItems(updated);
+    setAddInputs((prev) => ({ ...prev, [categoryName]: "" }));
+  };
+
+  const handleRemoveCustomItem = (categoryName, itemName) => {
+    const updated = {
+      ...customItems,
+      [categoryName]: (customItems[categoryName] || []).filter(
+        (i) => i.name !== itemName,
+      ),
+    };
+    setCustomItems(updated);
+    saveCustomItems(updated);
+  };
+
+  // Count all items including custom items.
   const getTotalItems = () => {
-    // Used by both progress bar width and summary text.
-    return packingList.categories.reduce(
-      (sum, cat) => sum + cat.items.length,
-      0,
-    );
+    return packingList.categories.reduce((sum, cat) => {
+      const customs = (customItems[cat.name] || []).length;
+      return sum + cat.items.length + customs;
+    }, 0);
   };
 
   const getCheckedCount = () => {
@@ -136,13 +173,17 @@ export default function PackingChecklist({ packingList, onUpdate }) {
       {/* Categories — two-column grid on desktop */}
       <div className="grid gap-4 md:grid-cols-2">
         {packingList.categories.map((category, catIndex) => {
-          const categoryId = `${category.name}-${catIndex}`;
           const isCollapsed = collapsedCategories.has(category.name);
-          const categoryChecked = category.items.filter((item, idx) =>
-            checkedItems.has(`${categoryId}-${idx}`),
+          const catCustoms = customItems[category.name] || [];
+          const allItems = [
+            ...category.items.map((item) => ({ ...item, source: "ai" })),
+            ...catCustoms,
+          ];
+          const categoryChecked = allItems.filter((item) =>
+            checkedItems.has(makeItemId(category.name, item.name, item.quantity)),
           ).length;
-          const categoryTotal = category.items.length;
-          const categoryDone = categoryChecked === categoryTotal;
+          const categoryTotal = allItems.length;
+          const categoryDone = categoryChecked === categoryTotal && categoryTotal > 0;
 
           return (
             <div
@@ -182,13 +223,14 @@ export default function PackingChecklist({ packingList, onUpdate }) {
               {/* Items */}
               {!isCollapsed && (
                 <div className="p-3 space-y-1.5 bg-white">
-                  {category.items.map((item, itemIndex) => {
-                    const itemId = `${categoryId}-${itemIndex}`;
+                  {allItems.map((item) => {
+                    const itemId = makeItemId(category.name, item.name, item.quantity);
                     const isChecked = checkedItems.has(itemId);
+                    const isCustom = item.source === "custom";
 
                     return (
                       <label
-                        key={itemIndex}
+                        key={itemId}
                         className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
                           isChecked
                             ? "bg-sprout-light/60"
@@ -202,7 +244,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                           className="mt-0.5 h-4 w-4 rounded"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-1.5">
+                          <div className="flex items-baseline gap-1.5 flex-wrap">
                             <span
                               className={`text-sm font-medium ${
                                 isChecked
@@ -215,6 +257,11 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                             <span className="text-xs text-muted shrink-0">
                               ×{item.quantity}
                             </span>
+                            {isCustom && (
+                              <span className="text-xs bg-sun/20 text-earth px-1.5 py-0 rounded-full font-semibold">
+                                Custom
+                              </span>
+                            )}
                           </div>
                           {item.reason && (
                             <p className="text-xs text-muted mt-0.5">
@@ -222,9 +269,47 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                             </p>
                           )}
                         </div>
+                        {isCustom && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleRemoveCustomItem(category.name, item.name);
+                            }}
+                            className="text-muted hover:text-red-500 transition-colors text-xs shrink-0 mt-0.5"
+                            aria-label={`Remove ${item.name}`}
+                          >
+                            ✕
+                          </button>
+                        )}
                       </label>
                     );
                   })}
+
+                  {/* Add custom item input */}
+                  <div className="flex gap-2 pt-2 print:hidden">
+                    <input
+                      type="text"
+                      value={addInputs[category.name] || ""}
+                      onChange={(e) =>
+                        setAddInputs((prev) => ({
+                          ...prev,
+                          [category.name]: e.target.value,
+                        }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddCustomItem(category.name);
+                      }}
+                      placeholder={`Add item to ${category.name}…`}
+                      className="flex-1 text-xs rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-1 focus:ring-sprout-light focus:outline-none transition"
+                    />
+                    <button
+                      onClick={() => handleAddCustomItem(category.name)}
+                      disabled={!(addInputs[category.name] || "").trim()}
+                      className="text-xs rounded-lg border border-sprout-light px-2.5 py-1.5 text-sprout-dark font-semibold hover:bg-sprout-light transition-colors disabled:opacity-40"
+                    >
+                      + Add
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
