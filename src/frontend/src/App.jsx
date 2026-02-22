@@ -1,5 +1,5 @@
 // Main app: handles the step-by-step wizard, API calls, and result screens.
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { format, addDays, differenceInDays } from "date-fns";
 import TripPlanDisplay from "./components/TripPlanDisplay";
 import PackingChecklist from "./components/PackingChecklist";
@@ -63,9 +63,39 @@ function LogoMark() {
   );
 }
 
+// useTheme: reads localStorage preference, falls back to system prefers-color-scheme.
+// Applies/removes the 'dark' class on <html> so Tailwind darkMode:'class' works globally.
+function useTheme() {
+  const getInitial = () => {
+    const stored = localStorage.getItem("sproutroute-theme");
+    if (stored === "dark" || stored === "light") return stored;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  };
+
+  const [theme, setTheme] = useState(getInitial);
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("sproutroute-theme", theme);
+  }, [theme]);
+
+  const toggle = useCallback(
+    () => setTheme((t) => (t === "dark" ? "light" : "dark")),
+    [],
+  );
+  return { theme, toggle };
+}
+
 function App() {
   // Single orchestrator component for MVP:
   // keeps wizard flow, API lifecycle, and local persistence in one predictable place.
+  const { theme, toggle: toggleTheme } = useTheme();
   const today = format(new Date(), "yyyy-MM-dd");
   const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
 
@@ -209,7 +239,10 @@ function App() {
     }
 
     const tick = () => {
-      const secondsLeft = Math.max(0, rateLimitResetAt - Math.floor(Date.now() / 1000));
+      const secondsLeft = Math.max(
+        0,
+        rateLimitResetAt - Math.floor(Date.now() / 1000),
+      );
       setRateLimitCountdown(secondsLeft);
       if (secondsLeft <= 0) {
         clearInterval(countdownIntervalRef.current);
@@ -312,7 +345,8 @@ function App() {
     try {
       // Phase 1+2: trip plan includes weather — server fetches them together
       setLoadingPhase("weather");
-      const onRateLimitInfo = ({ remaining }) => setRateLimitRemaining(remaining);
+      const onRateLimitInfo = ({ remaining }) =>
+        setRateLimitRemaining(remaining);
       const result = await generateTripPlan(formData, {
         onRetry: () => setLoadingPhase("weather"),
         onRateLimitInfo,
@@ -367,7 +401,10 @@ function App() {
       // Phase 4: packing list generation
       setLoadingPhase("packing");
       const [packingResult, safetyResolved] = await Promise.all([
-        generatePackingList(packingData, { onRetry: () => setLoadingPhase("packing"), onRateLimitInfo }),
+        generatePackingList(packingData, {
+          onRetry: () => setLoadingPhase("packing"),
+          onRateLimitInfo,
+        }),
         safetyResult,
       ]);
 
@@ -411,7 +448,7 @@ function App() {
       // Use replanTrip (passes cached weather) to skip the geocode+weather fetch.
       const tripPlanData = {
         ...updatedTripData,
-        weather,   // cached weather from initial plan — skips geocode + weather fetch
+        weather, // cached weather from initial plan — skips geocode + weather fetch
         approvedActivities,
       };
 
@@ -499,9 +536,9 @@ function App() {
   const currentStepNum = wizardStepIndex[wizardStep] || 1;
 
   return (
-    <div className="min-h-screen bg-paper text-slate-text relative overflow-hidden">
+    <div className="min-h-screen bg-paper dark:bg-dark-bg text-slate-text dark:text-dark-text relative overflow-hidden">
       {/* ── Top nav ───────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-sprout-light shadow-soft">
+      <header className="sticky top-0 z-20 bg-white/95 dark:bg-dark-card/95 backdrop-blur-sm border-b border-sprout-light dark:border-dark-border shadow-soft dark:shadow-soft-dark">
         <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <LogoMark />
@@ -509,40 +546,67 @@ function App() {
               <span className="font-heading text-xl font-bold text-earth leading-none">
                 SproutRoute
               </span>
-              <p className="text-xs text-muted leading-none mt-0.5 hidden sm:block">
+              <p className="text-xs text-muted dark:text-dark-muted leading-none mt-0.5 hidden sm:block">
                 Growing little explorers, one trip at a time.
               </p>
             </div>
           </div>
-          {step === "results" && (
+          <div className="flex items-center gap-2">
+            {/* Theme toggle */}
             <button
-              onClick={handleReset}
-              className="text-xs font-semibold uppercase tracking-wider text-muted hover:text-sprout-dark transition-colors px-3 py-1.5 rounded-xl hover:bg-sprout-light"
+              onClick={toggleTheme}
+              className="text-base px-2.5 py-1.5 rounded-xl text-muted dark:text-dark-muted hover:bg-sprout-light dark:hover:bg-dark-border transition-colors"
+              aria-label={
+                theme === "dark"
+                  ? "Switch to light mode"
+                  : "Switch to dark mode"
+              }
+              title={theme === "dark" ? "Light mode" : "Dark mode"}
             >
-              ↩ Start Over
+              {theme === "dark" ? "☀️" : "🌙"}
             </button>
-          )}
+            {step === "results" && (
+              <button
+                onClick={handleReset}
+                className="text-xs font-semibold uppercase tracking-wider text-muted dark:text-dark-muted hover:text-sprout-dark dark:hover:text-dark-sprout transition-colors px-3 py-1.5 rounded-xl hover:bg-sprout-light dark:hover:bg-dark-border"
+              >
+                ↩ Start Over
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-6 py-8 relative z-10">
         <main className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Main panel ──────────────────────────────────────── */}
-          <section className="min-h-[60vh] rounded-2xl border border-sprout-light bg-white shadow-soft p-8">
+          <section className="min-h-[60vh] rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-8">
             {/* Rate limit low-remaining warning (shown when < 5 requests remain) */}
-            {rateLimitRemaining !== null && rateLimitRemaining < 5 && rateLimitRemaining > 0 && !error && (
-              <div className="mb-4 rounded-xl border border-sun/40 bg-sun/10 px-4 py-2 text-sm text-earth flex items-center gap-2" role="status">
-                <span aria-hidden="true">⏳</span>
-                <span>
-                  You have {rateLimitRemaining} request{rateLimitRemaining !== 1 ? "s" : ""} remaining this window.
-                </span>
-              </div>
-            )}
+            {rateLimitRemaining !== null &&
+              rateLimitRemaining < 5 &&
+              rateLimitRemaining > 0 &&
+              !error && (
+                <div
+                  className="mb-4 rounded-xl border border-sun/40 bg-sun/10 dark:bg-sun/5 px-4 py-2 text-sm text-earth flex items-center gap-2"
+                  role="status"
+                >
+                  <span aria-hidden="true">⏳</span>
+                  <span>
+                    You have {rateLimitRemaining} request
+                    {rateLimitRemaining !== 1 ? "s" : ""} remaining this window.
+                  </span>
+                </div>
+              )}
 
             {/* Error banner */}
             {error && (
-              <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex items-start gap-2" role="alert">
-                <span className="text-base" aria-hidden="true">⚠️</span>
+              <div
+                className="mb-6 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-2"
+                role="alert"
+              >
+                <span className="text-base" aria-hidden="true">
+                  ⚠️
+                </span>
                 <div className="flex-1">
                   <span>{error}</span>
                   {rateLimitCountdown !== null && rateLimitCountdown > 0 && (
@@ -601,7 +665,7 @@ function App() {
                         e.key === "Enter" && handleResolveDestination()
                       }
                       placeholder="Type your destination..."
-                      className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-xl text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                      className="w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-4 text-xl text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                     />
                     <div>
                       <button
@@ -632,12 +696,12 @@ function App() {
                         <button
                           key={`${place.displayName}-${place.distanceMiles}`}
                           onClick={() => handleSelectSuggestion(place)}
-                          className="w-full rounded-xl border border-sprout-light bg-white px-5 py-4 text-left transition hover:border-sprout-base hover:shadow-soft group"
+                          className="w-full rounded-xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-bg px-5 py-4 text-left transition hover:border-sprout-base hover:shadow-soft dark:hover:border-dark-sprout group"
                         >
-                          <div className="text-base font-semibold text-slate-text group-hover:text-sprout-dark">
+                          <div className="text-base font-semibold text-slate-text dark:text-dark-text group-hover:text-sprout-dark dark:group-hover:text-dark-sprout">
                             {place.displayName || place.name}
                           </div>
-                          <div className="text-xs text-muted mt-0.5">
+                          <div className="text-xs text-muted dark:text-dark-muted mt-0.5">
                             About {place.distanceMiles} miles away
                           </div>
                         </button>
@@ -690,7 +754,7 @@ function App() {
                             }
                           }}
                           min={today}
-                          className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                          className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                         />
                       </label>
                       <label className="block text-sm font-medium text-slate-text">
@@ -700,7 +764,7 @@ function App() {
                           value={endDate}
                           onChange={(e) => setEndDate(e.target.value)}
                           min={startDate}
-                          className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                          className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                         />
                       </label>
                     </div>
@@ -762,7 +826,7 @@ function App() {
                               .map((_, i) => prev[i] || ""),
                           );
                         }}
-                        className="mt-2 w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                        className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                       />
                     </label>
                     {numChildren > 0 && (
@@ -772,7 +836,7 @@ function App() {
                           .map((_, index) => (
                             <div
                               key={`child-${index}`}
-                              className="rounded-2xl border border-sprout-light bg-sprout-light/40 p-4 space-y-3"
+                              className="rounded-2xl border border-sprout-light dark:border-dark-border bg-sprout-light/40 dark:bg-dark-bg p-4 space-y-3"
                             >
                               <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark">
                                 🌱 Child {index + 1}
@@ -798,13 +862,15 @@ function App() {
                                       return next;
                                     });
                                   }}
-                                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-slate-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                                  className="mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg px-3 py-2 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                                 />
                               </label>
                               <div className="grid gap-3 md:grid-cols-2">
                                 <label className="block text-sm font-medium text-slate-text">
                                   Weight (lb)
-                                  <span className="block text-xs text-muted font-normal">For car seat safety recommendations</span>
+                                  <span className="block text-xs text-muted font-normal">
+                                    For car seat safety recommendations
+                                  </span>
                                   <input
                                     type="number"
                                     min="2"
@@ -820,12 +886,14 @@ function App() {
                                       });
                                     }}
                                     placeholder="Not set"
-                                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg px-3 py-2 text-sm text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                                   />
                                 </label>
                                 <label className="block text-sm font-medium text-slate-text">
                                   Height (in)
-                                  <span className="block text-xs text-muted font-normal">For car seat safety recommendations</span>
+                                  <span className="block text-xs text-muted font-normal">
+                                    For car seat safety recommendations
+                                  </span>
                                   <input
                                     type="number"
                                     min="10"
@@ -841,7 +909,7 @@ function App() {
                                       });
                                     }}
                                     placeholder="Not set"
-                                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light focus:outline-none transition"
+                                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg px-3 py-2 text-sm text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                                   />
                                 </label>
                               </div>
@@ -853,18 +921,25 @@ function App() {
                     {isLoading && loadingPhase && (
                       <div className="rounded-xl border border-sky-light bg-sky-light/40 px-5 py-4 space-y-3">
                         <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
-                          <span className="text-xl animate-spin">{LOADING_PHASES[loadingPhase]?.icon}</span>
+                          <span className="text-xl animate-spin">
+                            {LOADING_PHASES[loadingPhase]?.icon}
+                          </span>
                           <span>{LOADING_PHASES[loadingPhase]?.label}</span>
                         </div>
                         {/* Progress bar */}
                         <div className="w-full bg-sky-light rounded-full h-1.5">
                           <div
                             className="bg-sky-base h-1.5 rounded-full transition-all duration-700"
-                            style={{ width: `${(LOADING_PHASES[loadingPhase]?.step / 4) * 100}%` }}
+                            style={{
+                              width: `${
+                                (LOADING_PHASES[loadingPhase]?.step / 4) * 100
+                              }%`,
+                            }}
                           />
                         </div>
                         <p className="text-xs text-muted">
-                          Step {LOADING_PHASES[loadingPhase]?.step} of 4 · This usually takes 20–30 seconds
+                          Step {LOADING_PHASES[loadingPhase]?.step} of 4 · This
+                          usually takes 20–30 seconds
                         </p>
                       </div>
                     )}
@@ -903,9 +978,17 @@ function App() {
                       {tripData.destination}
                     </h2>
                     <p className="text-sm text-muted">
-                      {format(new Date(tripData.startDate + "T12:00:00"), "MMM d")} →{" "}
-                      {format(new Date(tripData.endDate + "T12:00:00"), "MMM d, yyyy")} ·{" "}
-                      {tripData.duration} day{tripData.duration !== 1 ? "s" : ""}
+                      {format(
+                        new Date(tripData.startDate + "T12:00:00"),
+                        "MMM d",
+                      )}{" "}
+                      →{" "}
+                      {format(
+                        new Date(tripData.endDate + "T12:00:00"),
+                        "MMM d, yyyy",
+                      )}{" "}
+                      · {tripData.duration} day
+                      {tripData.duration !== 1 ? "s" : ""}
                     </p>
                     {weather?.summary && (
                       <p className="text-xs text-muted mt-1 flex items-center gap-1">
@@ -926,7 +1009,9 @@ function App() {
                   <div className="rounded-xl border border-sky-light bg-sky-light/40 px-5 py-5 space-y-3">
                     <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
                       <span className="text-xl animate-spin">
-                        {loadingPhase ? LOADING_PHASES[loadingPhase]?.icon : "🎒"}
+                        {loadingPhase
+                          ? LOADING_PHASES[loadingPhase]?.icon
+                          : "🎒"}
                       </span>
                       <span>
                         {loadingPhase
@@ -938,7 +1023,11 @@ function App() {
                       <div className="w-full bg-sky-light rounded-full h-1.5">
                         <div
                           className="bg-sky-base h-1.5 rounded-full transition-all duration-700"
-                          style={{ width: `${(LOADING_PHASES[loadingPhase]?.step / 4) * 100}%` }}
+                          style={{
+                            width: `${
+                              (LOADING_PHASES[loadingPhase]?.step / 4) * 100
+                            }%`,
+                          }}
                         />
                       </div>
                     )}
@@ -966,7 +1055,7 @@ function App() {
           </section>
 
           {/* ── Sidebar ─────────────────────────────────────────── */}
-          <aside className="rounded-2xl border border-sprout-light bg-white shadow-soft p-6 h-fit">
+          <aside className="rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6 h-fit">
             <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark mb-4">
               🧭 Your trip
             </p>
@@ -999,23 +1088,24 @@ function App() {
                   {numChildren} child{numChildren === 1 ? "" : "ren"}
                 </p>
               </div>
-              {numChildren > 0 && childAges.slice(0, numChildren).length > 0 && (
-                <div className="border-t border-sprout-light pt-4">
-                  <p className="text-xs text-muted font-medium">Ages</p>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {childAges.slice(0, numChildren).map((age, i) => (
-                      <span
-                        key={i}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sprout-light text-sprout-dark"
-                      >
-                        🌱 {age}y
-                      </span>
-                    ))}
+              {numChildren > 0 &&
+                childAges.slice(0, numChildren).length > 0 && (
+                  <div className="border-t border-sprout-light dark:border-dark-border pt-4">
+                    <p className="text-xs text-muted font-medium">Ages</p>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {childAges.slice(0, numChildren).map((age, i) => (
+                        <span
+                          key={i}
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sprout-light text-sprout-dark"
+                        >
+                          🌱 {age}y
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
               {step === "results" && (
-                <div className="border-t border-sprout-light pt-4">
+                <div className="border-t border-sprout-light dark:border-dark-border pt-4">
                   <button
                     onClick={handleReset}
                     className="w-full rounded-xl border border-sprout-light px-4 py-2.5 text-sm font-semibold text-sprout-dark hover:bg-sprout-light transition-colors"
@@ -1029,7 +1119,7 @@ function App() {
         </main>
 
         {/* ── Footer ──────────────────────────────────────────── */}
-        <footer className="mt-12 text-center text-xs text-muted">
+        <footer className="mt-12 text-center text-xs text-muted dark:text-dark-muted">
           <span className="font-heading font-bold text-earth">SproutRoute</span>
           {" · "}Built with React, Vite &amp; Weather.gov
         </footer>
@@ -1043,12 +1133,16 @@ function App() {
           aria-modal="true"
           aria-labelledby="reset-modal-title"
         >
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 border border-sprout-light">
-            <h2 id="reset-modal-title" className="font-heading text-xl font-bold text-sprout-dark mb-2">
+          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 border border-sprout-light dark:border-dark-border">
+            <h2
+              id="reset-modal-title"
+              className="font-heading text-xl font-bold text-sprout-dark dark:text-dark-sprout mb-2"
+            >
               Start over?
             </h2>
-            <p className="text-sm text-muted mb-6">
-              This will clear your current trip plan, packing list, and all saved data. This can&rsquo;t be undone.
+            <p className="text-sm text-muted dark:text-dark-muted mb-6">
+              This will clear your current trip plan, packing list, and all
+              saved data. This can&rsquo;t be undone.
             </p>
             <div className="flex gap-3">
               <button
@@ -1059,7 +1153,7 @@ function App() {
               </button>
               <button
                 onClick={() => setShowResetModal(false)}
-                className="flex-1 rounded-xl border border-sprout-light text-sprout-dark py-2.5 font-semibold text-sm hover:bg-sprout-light transition-colors"
+                className="flex-1 rounded-xl border border-sprout-light dark:border-dark-border text-sprout-dark dark:text-dark-sprout py-2.5 font-semibold text-sm hover:bg-sprout-light dark:hover:bg-dark-border transition-colors"
               >
                 Keep My Trip
               </button>

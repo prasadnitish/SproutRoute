@@ -4,7 +4,12 @@
 // - Keeps selection state local so parent page only handles final approval.
 import { useState, useEffect } from "react";
 
-export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisible }) {
+export default function TripPlanDisplay({
+  tripPlan,
+  weather,
+  onApprove,
+  isVisible,
+}) {
   const [selectedActivities, setSelectedActivities] = useState(new Set());
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Open by default so users see the itinerary immediately on first load.
@@ -13,7 +18,9 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
   // Initialize selected activities whenever a new plan arrives.
   useEffect(() => {
     if (tripPlan?.suggestedActivities) {
-      setSelectedActivities(new Set(tripPlan.suggestedActivities.map((a) => a.id)));
+      setSelectedActivities(
+        new Set(tripPlan.suggestedActivities.map((a) => a.id)),
+      );
     }
   }, [tripPlan]);
 
@@ -76,21 +83,23 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
   };
 
   return (
-    <div className="space-y-5 rounded-2xl border border-sprout-light bg-white shadow-soft p-6">
+    <div className="space-y-5 rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6">
       {/* Header */}
       <div>
-        <p className="text-xs font-bold uppercase tracking-wider text-muted">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted dark:text-dark-muted">
           🗓 Trip plan
         </p>
-        <h3 className="font-heading text-xl font-bold text-sprout-dark mt-1">
+        <h3 className="font-heading text-xl font-bold text-sprout-dark dark:text-dark-sprout mt-1">
           Your itinerary
         </h3>
-        <p className="text-sm text-muted mt-1">{tripPlan.overview}</p>
+        <p className="text-sm text-muted dark:text-dark-muted mt-1">
+          {tripPlan.overview}
+        </p>
       </div>
 
       {/* Activity customizer — rendered ABOVE itinerary so users see it first */}
       {isVisible && (
-        <div className="rounded-xl border border-sky-light bg-sky-light/20 p-5 space-y-4">
+        <div className="rounded-xl border border-sky-light dark:border-dark-border bg-sky-light/20 dark:bg-dark-bg p-5 space-y-4">
           <div>
             <h4 className="font-heading text-lg font-bold text-sprout-dark">
               Customize activities
@@ -99,7 +108,8 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
               </span>
             </h4>
             <p className="text-sm text-muted mt-1">
-              Select the activities you want — we'll update the packing list to match.
+              Select the activities you want — we'll update the packing list to
+              match.
             </p>
           </div>
 
@@ -112,8 +122,8 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
                   key={activity.id}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
-                      ? "border-sprout-base bg-sprout-light/60 shadow-soft"
-                      : "border-gray-200 bg-white hover:border-sprout-light hover:bg-sprout-light/20"
+                      ? "border-sprout-base bg-sprout-light/60 dark:bg-dark-card shadow-soft"
+                      : "border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg hover:border-sprout-light hover:bg-sprout-light/20 dark:hover:border-dark-sprout"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -189,7 +199,7 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
       <div>
         <button
           onClick={() => setIsItineraryOpen((prev) => !prev)}
-          className="flex w-full items-center justify-between rounded-xl border border-sprout-light bg-sprout-light/50 px-4 py-3 text-left text-sm font-semibold text-sprout-dark transition hover:bg-sprout-light"
+          className="flex w-full items-center justify-between rounded-xl border border-sprout-light dark:border-dark-border bg-sprout-light/50 dark:bg-dark-bg px-4 py-3 text-left text-sm font-semibold text-sprout-dark dark:text-dark-sprout transition hover:bg-sprout-light dark:hover:bg-dark-border"
         >
           <span>📋 Detailed itinerary</span>
           <span className="text-xs font-normal text-muted">
@@ -204,9 +214,9 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
                 {tripPlan.dailyItinerary.map((day, index) => (
                   <div
                     key={index}
-                    className="rounded-xl border border-sprout-light bg-sprout-light/30 p-4"
+                    className="rounded-xl border border-sprout-light dark:border-dark-border bg-sprout-light/30 dark:bg-dark-bg p-4"
                   >
-                    <h5 className="font-semibold text-sprout-dark">
+                    <h5 className="font-semibold text-sprout-dark dark:text-dark-sprout">
                       {day.day}
                     </h5>
                     {day.activities && day.activities.length > 0 && (
@@ -248,7 +258,7 @@ export default function TripPlanDisplay({ tripPlan, weather, onApprove, isVisibl
             )}
 
             {tripPlan.tips && tripPlan.tips.length > 0 && (
-              <div className="rounded-xl border border-sun/40 bg-sun/10 p-4">
+              <div className="rounded-xl border border-sun/40 bg-sun/10 dark:bg-sun/5 p-4">
                 <h4 className="text-sm font-bold text-earth mb-2">
                   💡 Helpful tips
                 </h4>

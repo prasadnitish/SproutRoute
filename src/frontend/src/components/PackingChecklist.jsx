@@ -70,7 +70,12 @@ export default function PackingChecklist({ packingList, onUpdate }) {
     const raw = (addInputs[categoryName] || "").trim();
     if (!raw) return;
 
-    const newItem = { name: raw, quantity: "1", reason: "Added by you", source: "custom" };
+    const newItem = {
+      name: raw,
+      quantity: "1",
+      reason: "Added by you",
+      source: "custom",
+    };
     const updated = {
       ...customItems,
       [categoryName]: [...(customItems[categoryName] || []), newItem],
@@ -124,7 +129,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
   const totalItems = getTotalItems();
 
   return (
-    <div className="rounded-2xl border border-sprout-light bg-white shadow-soft p-6">
+    <div className="rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6">
       {/* Header */}
       <div className="flex justify-between items-start mb-5">
         <div>
@@ -148,7 +153,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
 
       {/* Progress bar */}
       <div className="mb-6">
-        <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+        <div className="w-full bg-gray-100 dark:bg-dark-bg rounded-full h-3 overflow-hidden">
           <div
             className="h-3 rounded-full transition-all duration-500"
             style={{
@@ -180,15 +185,18 @@ export default function PackingChecklist({ packingList, onUpdate }) {
             ...catCustoms,
           ];
           const categoryChecked = allItems.filter((item) =>
-            checkedItems.has(makeItemId(category.name, item.name, item.quantity)),
+            checkedItems.has(
+              makeItemId(category.name, item.name, item.quantity),
+            ),
           ).length;
           const categoryTotal = allItems.length;
-          const categoryDone = categoryChecked === categoryTotal && categoryTotal > 0;
+          const categoryDone =
+            categoryChecked === categoryTotal && categoryTotal > 0;
 
           return (
             <div
               key={catIndex}
-              className="rounded-xl border border-sprout-light overflow-hidden"
+              className="rounded-xl border border-sprout-light dark:border-dark-border overflow-hidden"
             >
               {/* Category header */}
               <button
@@ -196,7 +204,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                 className={`w-full px-4 py-3 flex justify-between items-center transition-colors print:pointer-events-none ${
                   categoryDone
                     ? "bg-sprout-dark text-white"
-                    : "bg-sprout-light hover:bg-sprout-base/20"
+                    : "bg-sprout-light dark:bg-dark-bg hover:bg-sprout-base/20 dark:hover:bg-dark-border"
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -204,7 +212,9 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                     {isCollapsed ? "▶" : "▼"}
                   </span>
                   <h4
-                    className={`font-semibold text-sm ${categoryDone ? "text-white" : "text-sprout-dark"}`}
+                    className={`font-semibold text-sm ${
+                      categoryDone ? "text-white" : "text-sprout-dark"
+                    }`}
                   >
                     {category.name}
                   </h4>
@@ -222,9 +232,13 @@ export default function PackingChecklist({ packingList, onUpdate }) {
 
               {/* Items */}
               {!isCollapsed && (
-                <div className="p-3 space-y-1.5 bg-white">
+                <div className="p-3 space-y-1.5 bg-white dark:bg-dark-card">
                   {allItems.map((item) => {
-                    const itemId = makeItemId(category.name, item.name, item.quantity);
+                    const itemId = makeItemId(
+                      category.name,
+                      item.name,
+                      item.quantity,
+                    );
                     const isChecked = checkedItems.has(itemId);
                     const isCustom = item.source === "custom";
 
@@ -233,8 +247,8 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                         key={itemId}
                         className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
                           isChecked
-                            ? "bg-sprout-light/60"
-                            : "hover:bg-gray-50"
+                            ? "bg-sprout-light/60 dark:bg-dark-border"
+                            : "hover:bg-gray-50 dark:hover:bg-dark-bg"
                         }`}
                       >
                         <input
@@ -297,15 +311,16 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                         }))
                       }
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleAddCustomItem(category.name);
+                        if (e.key === "Enter")
+                          handleAddCustomItem(category.name);
                       }}
                       placeholder={`Add item to ${category.name}…`}
-                      className="flex-1 text-xs rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-slate-text placeholder:text-muted focus:border-sprout-base focus:ring-1 focus:ring-sprout-light focus:outline-none transition"
+                      className="flex-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-3 py-1.5 text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-1 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                     />
                     <button
                       onClick={() => handleAddCustomItem(category.name)}
                       disabled={!(addInputs[category.name] || "").trim()}
-                      className="text-xs rounded-lg border border-sprout-light px-2.5 py-1.5 text-sprout-dark font-semibold hover:bg-sprout-light transition-colors disabled:opacity-40"
+                      className="text-xs rounded-lg border border-sprout-light dark:border-dark-border px-2.5 py-1.5 text-sprout-dark dark:text-dark-sprout font-semibold hover:bg-sprout-light dark:hover:bg-dark-border transition-colors disabled:opacity-40"
                     >
                       + Add
                     </button>
