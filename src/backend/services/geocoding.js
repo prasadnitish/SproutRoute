@@ -1,5 +1,5 @@
 // Geocoding + destination-intent resolver:
-// - Converts user text into concrete US coordinates (Nominatim).
+// - Converts user text into concrete coordinates worldwide (Nominatim).
 // - Expands fuzzy intents ("2 hours from X") into nearby destination suggestions (Overpass).
 // - Uses bounded caching and radius limits to stay fast and abuse-resistant.
 const NOMINATIM_TIMEOUT_MS = 8000;
@@ -58,22 +58,38 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   }
 }
 
-function extractStateCode(result) {
-  // Normalize Nominatim's varying ISO fields into a simple US two-letter code.
+function extractJurisdiction(result) {
+  // Extract country code + region code from Nominatim's ISO 3166-2 fields.
+  // Returns { countryCode, regionCode } where regionCode may be null for countries without ISO3166-2 data.
+  const countryCode = (
+    result?.address?.country_code || ""
+  ).toUpperCase() || null;
+
   const isoCode =
     result?.address?.["ISO3166-2-lvl4"] ||
     result?.address?.["ISO3166-2-lvl3"] ||
     result?.address?.["ISO3166-2-lvl2"];
 
-  if (typeof isoCode === "string" && isoCode.startsWith("US-")) {
-    return isoCode.slice(3).toUpperCase();
+  let regionCode = null;
+
+  if (typeof isoCode === "string" && isoCode.includes("-")) {
+    // "US-CA" → "CA", "CA-ON" → "ON", "GB-ENG" → "ENG", "AU-NSW" → "NSW"
+    regionCode = isoCode.split("-").pop().toUpperCase();
+  } else {
+    // Fallback for older Nominatim responses that provide state_code directly
+    const fallbackStateCode = result?.address?.state_code;
+    if (typeof fallbackStateCode === "string" && fallbackStateCode.length >= 2) {
+      regionCode = fallbackStateCode.slice(0, 2).toUpperCase();
+    }
   }
 
-  const fallbackStateCode = result?.address?.state_code;
-  if (typeof fallbackStateCode === "string" && fallbackStateCode.length >= 2) {
-    return fallbackStateCode.slice(0, 2).toUpperCase();
-  }
+  return { countryCode, regionCode };
+}
 
+function extractStateCode(result) {
+  // Backward-compatible wrapper: returns just the US two-letter state code or null.
+  const { countryCode, regionCode } = extractJurisdiction(result);
+  if (countryCode === "US" && regionCode) return regionCode;
   return null;
 }
 
@@ -86,7 +102,7 @@ export async function geocodeLocation(locationString) {
   try {
     const encodedLocation = encodeURIComponent(locationString);
     const response = await fetchWithTimeout(
-      `https://nominatim.openstreetmap.org/search?q=${encodedLocation}&format=json&addressdetails=1&limit=1&countrycodes=us`,
+      `https://nominatim.openstreetmap.org/search?q=${encodedLocation}&format=json&addressdetails=1&limit=1`,
       {
         headers: {
           "User-Agent": "SproutRoute/1.0",
@@ -102,16 +118,19 @@ export async function geocodeLocation(locationString) {
     const data = await response.json();
 
     if (!data || data.length === 0) {
-      throw new Error("Location not found. Please enter a US city.");
+      throw new Error("Location not found. Please try a different city or address.");
     }
 
     const result = data[0];
+    const jurisdiction = extractJurisdiction(result);
     const parsed = {
       lat: parseFloat(result.lat),
       lon: parseFloat(result.lon),
       displayName: result.display_name,
       stateName: result?.address?.state || null,
       stateCode: extractStateCode(result),
+      countryCode: jurisdiction.countryCode,
+      regionCode: jurisdiction.regionCode,
     };
 
     // Guard against corrupt or spoofed upstream responses before caching.

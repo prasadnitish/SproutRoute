@@ -10,6 +10,8 @@ import {
   generatePackingList,
   getCarSeatGuidance,
   resolveDestination,
+  getTravelAdvisory,
+  getNeighborhoodSafety,
 } from "./services/api";
 
 // Shield + compass logo mark matching the SproutRoute brand asset
@@ -107,6 +109,8 @@ function App() {
   const [weather, setWeather] = useState(null);
   const [packingList, setPackingList] = useState(null);
   const [safetyGuidance, setSafetyGuidance] = useState(null);
+  const [travelAdvisory, setTravelAdvisory] = useState(null);
+  const [neighborhoodSafety, setNeighborhoodSafety] = useState(null);
   const [showCustomize, setShowCustomize] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   // loadingPhase drives the multi-step progress indicator during plan generation.
@@ -199,6 +203,8 @@ function App() {
           setWeather(parsed.weather);
           setPackingList(parsed.packingList);
           setSafetyGuidance(parsed.safetyGuidance || null);
+          setTravelAdvisory(parsed.travelAdvisory || null);
+          setNeighborhoodSafety(parsed.neighborhoodSafety || null);
           setResolvedDestination(parsed.trip.destination || "");
           setStartDate(parsed.trip.startDate || today);
           setEndDate(parsed.trip.endDate || tomorrow);
@@ -398,26 +404,51 @@ function App() {
         weather: result.weather,
       };
 
-      // Phase 4: packing list generation
+      // Phase 4: packing list + international safety data (parallel)
       setLoadingPhase("packing");
-      const [packingResult, safetyResolved] = await Promise.all([
-        generatePackingList(packingData, {
-          onRetry: () => setLoadingPhase("packing"),
-          onRateLimitInfo,
-        }),
-        safetyResult,
-      ]);
+      const tripResult = result.trip || formData;
+      const countryCode = tripResult.countryCode || null;
+
+      // Fire advisory + neighborhood fetches for non-US destinations (best-effort)
+      const advisoryPromise =
+        countryCode && countryCode !== "US"
+          ? getTravelAdvisory(countryCode)
+              .then((r) => r?.advisory ?? null)
+              .catch(() => null)
+          : Promise.resolve(null);
+
+      const neighborhoodPromise =
+        result.trip?.lat != null && result.trip?.lon != null
+          ? getNeighborhoodSafety(result.trip.lat, result.trip.lon)
+              .then((r) => r?.safety ?? null)
+              .catch(() => null)
+          : Promise.resolve(null);
+
+      const [packingResult, safetyResolved, advisoryResolved, neighborhoodResolved] =
+        await Promise.all([
+          generatePackingList(packingData, {
+            onRetry: () => setLoadingPhase("packing"),
+            onRateLimitInfo,
+          }),
+          safetyResult,
+          advisoryPromise,
+          neighborhoodPromise,
+        ]);
 
       setPackingList(packingResult.packingList);
       setSafetyGuidance(safetyResolved);
+      setTravelAdvisory(advisoryResolved);
+      setNeighborhoodSafety(neighborhoodResolved);
       setStep("results");
 
       const dataToSave = {
-        trip: result.trip || formData,
+        trip: tripResult,
         weather: result.weather,
         tripPlan: result.tripPlan,
         packingList: packingResult.packingList,
         safetyGuidance: safetyResolved,
+        travelAdvisory: advisoryResolved,
+        neighborhoodSafety: neighborhoodResolved,
         lastModified: new Date().toISOString(),
       };
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
@@ -508,6 +539,8 @@ function App() {
     setWeather(null);
     setPackingList(null);
     setSafetyGuidance(null);
+    setTravelAdvisory(null);
+    setNeighborhoodSafety(null);
     setError(null);
     setDestinationQuery("");
     setResolvedDestination("");
@@ -1043,8 +1076,12 @@ function App() {
                   />
                 )}
 
-                {!isLoading && safetyGuidance && (
-                  <TravelSafetyCard safetyGuidance={safetyGuidance} />
+                {!isLoading && (safetyGuidance || travelAdvisory || neighborhoodSafety) && (
+                  <TravelSafetyCard
+                    safetyGuidance={safetyGuidance}
+                    travelAdvisory={travelAdvisory}
+                    neighborhoodSafety={neighborhoodSafety}
+                  />
                 )}
 
                 {!isLoading && packingList && (

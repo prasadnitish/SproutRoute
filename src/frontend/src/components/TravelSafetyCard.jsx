@@ -47,9 +47,106 @@ function prettySeatPosition(seatPosition) {
   return labels[seatPosition] || "Check local requirements";
 }
 
-export default function TravelSafetyCard({ safetyGuidance }) {
+function advisoryLevelBadge(level) {
+  // Color-coded badge for State Dept advisory levels 1-4.
+  const levels = {
+    1: { label: "Level 1: Normal", color: "bg-sprout-light text-sprout-dark border-sprout-base/40" },
+    2: { label: "Level 2: Increased Caution", color: "bg-sun/20 text-earth border-sun/50" },
+    3: { label: "Level 3: Reconsider Travel", color: "bg-orange-100 text-orange-800 border-orange-300" },
+    4: { label: "Level 4: Do Not Travel", color: "bg-red-100 text-red-800 border-red-300" },
+  };
+  return levels[level] || levels[2];
+}
+
+function TravelAdvisorySection({ advisory }) {
+  if (!advisory) return null;
+  const badge = advisoryLevelBadge(advisory.level);
+
+  return (
+    <div className="rounded-xl border border-earth/15 bg-earth/5 dark:bg-dark-bg p-4 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-wider text-muted">
+          🌍 Travel Advisory
+        </p>
+        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badge.color}`}>
+          {badge.label}
+        </span>
+      </div>
+      {advisory.summary && (
+        <p className="text-sm text-slate-text dark:text-dark-text">
+          {advisory.summary.length > 200
+            ? advisory.summary.slice(0, 200) + "..."
+            : advisory.summary}
+        </p>
+      )}
+      {advisory.riskCategories && advisory.riskCategories.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {advisory.riskCategories.map((cat) => (
+            <span key={cat} className="rounded-full bg-earth/10 px-2 py-0.5 text-[10px] font-medium text-muted capitalize">
+              {cat}
+            </span>
+          ))}
+        </div>
+      )}
+      {advisory.sourceUrl && (
+        <a
+          href={advisory.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-sky-dark underline hover:text-sprout-dark transition-colors"
+        >
+          Full State Dept advisory →
+        </a>
+      )}
+    </div>
+  );
+}
+
+function NeighborhoodSafetySection({ safety }) {
+  if (!safety) return null;
+  const categories = [
+    { key: "physicalHarm", label: "Physical Safety" },
+    { key: "theft", label: "Theft" },
+    { key: "healthMedical", label: "Health & Medical" },
+    { key: "womensSafety", label: "Women's Safety" },
+    { key: "lgbtqSafety", label: "LGBTQ+ Safety" },
+    { key: "politicalFreedoms", label: "Political Freedom" },
+  ];
+
+  return (
+    <div className="rounded-xl border border-earth/15 bg-earth/5 dark:bg-dark-bg p-4 space-y-2">
+      <p className="text-xs font-bold uppercase tracking-wider text-muted">
+        📊 Neighborhood Safety
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {categories.map(({ key, label }) => {
+          const score = safety.categories?.[key];
+          if (score === undefined || score === null) return null;
+          const width = Math.max(5, Math.min(100, score));
+          const color = score >= 60 ? "bg-sprout-base" : score >= 40 ? "bg-sun" : "bg-red-400";
+          return (
+            <div key={key} className="space-y-0.5">
+              <div className="flex justify-between items-baseline">
+                <span className="text-[11px] text-muted">{label}</span>
+                <span className="text-[11px] font-medium text-earth">{score}</span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-earth/10">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${width}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-muted">
+        Scores 1-100 (higher = safer). Source: GeoSure
+      </p>
+    </div>
+  );
+}
+
+export default function TravelSafetyCard({ safetyGuidance, travelAdvisory, neighborhoodSafety }) {
   // Render nothing when safety guidance is absent to avoid empty UI chrome.
-  if (!safetyGuidance) {
+  if (!safetyGuidance && !travelAdvisory && !neighborhoodSafety) {
     return null;
   }
 
@@ -62,7 +159,7 @@ export default function TravelSafetyCard({ safetyGuidance }) {
     effectiveDate,
     lastUpdated,
     results = [],
-  } = safetyGuidance;
+  } = safetyGuidance || {};
 
   const overallStyles = statusStyles(status);
   const displayStatus = status || "General guidelines";
@@ -95,6 +192,12 @@ export default function TravelSafetyCard({ safetyGuidance }) {
           {displayStatus}
         </span>
       </div>
+
+      {/* Travel Advisory (non-US destinations) */}
+      <TravelAdvisorySection advisory={travelAdvisory} />
+
+      {/* Neighborhood Safety (Amadeus/GeoSure) */}
+      <NeighborhoodSafetySection safety={neighborhoodSafety} />
 
       {/* Message */}
       {message && (

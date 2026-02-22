@@ -14,6 +14,8 @@ import { getWeatherForecast } from "./services/weather.js";
 import { generatePackingList } from "./services/packingListAI.js";
 import { generateTripPlan } from "./services/tripPlanAI.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
+import { getTravelAdvisory } from "./services/travelAdvisory.js";
+import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
 import {
   sanitizeString,
   sanitizeChildren,
@@ -53,6 +55,8 @@ export function createApp(deps = {}) {
     generatePackingListFn = generatePackingList,
     generateTripPlanFn = generateTripPlan,
     getCarSeatGuidanceFn = getCarSeatGuidance,
+    getTravelAdvisoryFn = getTravelAdvisory,
+    getNeighborhoodSafetyFn = getNeighborhoodSafety,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -185,9 +189,9 @@ export function createApp(deps = {}) {
       devLog(`Generating trip plan...`);
 
       const coords = await geocodeLocationFn(destination);
-      devLog(`Geocoded to: ${coords.lat}, ${coords.lon}`);
+      devLog(`Geocoded to: ${coords.lat}, ${coords.lon} (${coords.countryCode || "US"})`);
 
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US");
       devLog(`Weather fetched successfully`);
 
       const tripPlan = await generateTripPlanFn(
@@ -213,6 +217,8 @@ export function createApp(deps = {}) {
           destination: coords.displayName || destination,
           jurisdictionCode: coords.stateCode || null,
           jurisdictionName: coords.stateName || null,
+          countryCode: coords.countryCode || null,
+          regionCode: coords.regionCode || null,
           startDate,
           endDate,
           duration: tripDuration,
@@ -233,14 +239,14 @@ export function createApp(deps = {}) {
       ) {
         return res.status(422).json({
           error:
-            "Could not find location. Please enter a valid US city or address.",
+            "Could not find that location. Please try a different city or address.",
         });
       }
 
-      if (error.message.includes("Weather service")) {
+      if (error.message.includes("Weather service") || error.message.includes("weather")) {
         return res.status(422).json({
           error:
-            "Weather data unavailable for this location. Please try a US location.",
+            "Weather data unavailable for this location. The trip plan will still work, but weather info may be limited.",
         });
       }
 
@@ -281,7 +287,7 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       devLog(`Geocoded coordinates obtained`);
 
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US");
       devLog(`Weather fetched successfully`);
 
       const packingList = await generatePackingListFn(
@@ -301,6 +307,8 @@ export function createApp(deps = {}) {
           destination: coords.displayName || destination,
           jurisdictionCode: coords.stateCode || null,
           jurisdictionName: coords.stateName || null,
+          countryCode: coords.countryCode || null,
+          regionCode: coords.regionCode || null,
           startDate,
           endDate,
           duration: tripDuration,
@@ -321,14 +329,14 @@ export function createApp(deps = {}) {
       ) {
         return res.status(422).json({
           error:
-            "Could not find location. Please enter a valid US city or address.",
+            "Could not find that location. Please try a different city or address.",
         });
       }
 
-      if (error.message.includes("Weather service")) {
+      if (error.message.includes("Weather service") || error.message.includes("weather")) {
         return res.status(422).json({
           error:
-            "Weather data unavailable for this location. Please try a US location.",
+            "Weather data unavailable for this location. The packing list will still work, but weather items may be limited.",
         });
       }
 
@@ -408,22 +416,28 @@ export function createApp(deps = {}) {
     const payload = {
       requestId,
       schemaVersion: "1",
-      supportedCountries: ["US"], // Phase 4 adds: "CA", "GB", "AU"
+      supportedCountries: ["US", "CA", "GB", "AU"],
       weatherProviders: {
         US: "weathergov",
-        other: "openweathermap", // Phase 4
+        other: "openweathermap",
       },
       safetyModes: {
         US: "us_state_law",
-        CA: "country_general", // Phase 4
-        GB: "country_general", // Phase 4
-        AU: "country_general", // Phase 4
+        CA: "country_general",
+        GB: "country_general",
+        AU: "country_general",
+        EU: "eu_baseline",
+      },
+      safetyServices: {
+        travelAdvisory: true,
+        neighborhoodSafety: !!process.env.AMADEUS_API_KEY,
       },
       featureFlags: {
-        shareLinks: false,   // Phase 2
-        customItems: false,  // Phase 2
-        darkMode: false,     // Phase 2
-        pwa: false,          // Phase 2
+        shareLinks: false,
+        customItems: false,
+        darkMode: false,
+        pwa: false,
+        internationalSupport: true,
       },
     };
 
@@ -493,7 +507,8 @@ export function createApp(deps = {}) {
 
       devLog("v1/trip/plan: geocoding...");
       const coords = await geocodeLocationFn(destination);
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon);
+      const resolvedCountry = coords.countryCode || "US";
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
       const tripPlan = await generateTripPlanFn(
         { destination, startDate, endDate, activities: safeActivities, children },
         weather,
@@ -515,7 +530,8 @@ export function createApp(deps = {}) {
           activities: safeActivities,
           children,
           // v1 extended fields
-          countryCode: req.body?.countryCode || "US",
+          countryCode: resolvedCountry,
+          regionCode: coords.regionCode || null,
           unitSystem: req.body?.unitSystem || "imperial",
           client: req.body?.client || "web",
           schemaVersion: req.body?.schemaVersion || "1",
@@ -625,7 +641,8 @@ export function createApp(deps = {}) {
 
       devLog("v1/trip/packing: geocoding...");
       const coords = await geocodeLocationFn(destination);
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon);
+      const resolvedCountry = coords.countryCode || "US";
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
       const packingList = await generatePackingListFn(
         { destination, startDate, endDate, activities, children },
         weather,
@@ -646,7 +663,8 @@ export function createApp(deps = {}) {
           duration: tripDuration,
           activities,
           children,
-          countryCode: req.body?.countryCode || "US",
+          countryCode: resolvedCountry,
+          regionCode: coords.regionCode || null,
           unitSystem: req.body?.unitSystem || "imperial",
           client: req.body?.client || "web",
           schemaVersion: req.body?.schemaVersion || "1",
@@ -726,6 +744,68 @@ export function createApp(deps = {}) {
       return v1Error(res, 500, {
         code: "SAFETY_CHECK_FAILED",
         message: "Failed to retrieve car seat guidance. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // GET /api/v1/safety/travel-advisory/:countryCode
+  // Returns US State Dept travel advisory for a country. Graceful: returns null if unavailable.
+  app.get("/api/v1/safety/travel-advisory/:countryCode", async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const countryCode = sanitizeString(req.params.countryCode || "", 3).toUpperCase();
+      if (!countryCode || countryCode.length < 2) {
+        return v1Error(res, 400, {
+          code: "INVALID_COUNTRY_CODE",
+          message: "A valid 2-letter country code is required.",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const advisory = await getTravelAdvisoryFn(countryCode);
+      return res.json({ requestId, advisory });
+    } catch (error) {
+      devLog("Error in /api/v1/safety/travel-advisory:", error);
+      return v1Error(res, 500, {
+        code: "ADVISORY_FAILED",
+        message: "Failed to fetch travel advisory. Trip planning will continue without it.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // GET /api/v1/safety/neighborhood?lat=X&lon=Y
+  // Returns Amadeus/GeoSure neighborhood safety scores. Graceful: returns null if unavailable.
+  app.get("/api/v1/safety/neighborhood", async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const lat = parseFloat(req.query?.lat);
+      const lon = parseFloat(req.query?.lon);
+
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+        return v1Error(res, 400, {
+          code: "INVALID_COORDINATES",
+          message: "Valid lat and lon query parameters are required.",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const safety = await getNeighborhoodSafetyFn(lat, lon);
+      return res.json({ requestId, safety });
+    } catch (error) {
+      devLog("Error in /api/v1/safety/neighborhood:", error);
+      return v1Error(res, 500, {
+        code: "SAFETY_FAILED",
+        message: "Failed to fetch neighborhood safety data.",
         category: "server",
         retryable: true,
         requestId,

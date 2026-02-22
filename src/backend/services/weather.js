@@ -1,7 +1,9 @@
 // Weather service adapter:
-// - Fetches forecast data from Weather.gov.
+// - Routes weather requests by country: US → Weather.gov, other → OpenWeatherMap.
 // - Normalizes Weather.gov's day/night periods into simple daily data for UI + AI.
 // - Uses an in-memory cache to reduce latency and external API load.
+import { getOpenWeatherForecast } from "./openWeatherMap.js";
+
 const weatherCache = new Map();
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 const MAX_CACHE_SIZE = 100;
@@ -67,7 +69,19 @@ if (typeof cacheCleanupInterval.unref === "function") {
   cacheCleanupInterval.unref();
 }
 
-export async function getWeatherForecast(lat, lon) {
+/**
+ * Reset the weather cache — test helper only, no-op outside NODE_ENV=test.
+ */
+export function __resetWeatherCacheForTests() {
+  weatherCache.clear();
+}
+
+export async function getWeatherForecast(lat, lon, countryCode) {
+  // Route international requests to OpenWeatherMap; US stays on Weather.gov.
+  if (countryCode && countryCode.toUpperCase() !== "US") {
+    return getOpenWeatherForecast(lat, lon);
+  }
+
   // Coarse cache key (2dp) intentionally groups nearby points to improve hit-rate.
   const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)}`;
 

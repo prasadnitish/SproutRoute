@@ -197,3 +197,21 @@ export const getCapabilities = async (client = "web") =>
     {},
     { maxRetries: 0, timeoutMs: 5000 },
   );
+
+// --- Phase 4: International safety API calls ---
+
+/** Fetch US State Dept travel advisory for a country. Returns null for US or if unavailable. */
+export const getTravelAdvisory = async (countryCode, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/safety/travel-advisory/${encodeURIComponent(countryCode)}`,
+    {},
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
+  );
+
+/** Fetch Amadeus/GeoSure neighborhood safety scores. Returns null if unavailable. */
+export const getNeighborhoodSafety = async (lat, lon, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/safety/neighborhood?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`,
+    {},
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
+  );

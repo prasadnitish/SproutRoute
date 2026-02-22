@@ -1,3 +1,217 @@
+// --- International Car Seat Rules (Phase 4) ---
+// ⚠️ All entries have verificationStatus: "Needs review" — requires human legal review before production use.
+
+// EU countries that share the ECE R129 baseline
+const EU_MEMBER_CODES = new Set([
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
+  "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
+  "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+]);
+
+export const INTL_CAR_SEAT_RULES = {
+  // --- Canada ---
+  "CA:ON": {
+    jurisdictionCode: "CA:ON",
+    jurisdictionName: "Ontario, Canada",
+    sourceUrl: "https://www.ontario.ca/page/choosing-child-car-seat",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "Ontario follows CMVSS 213/213.1. Rear-facing until 20 lb minimum, forward-facing harness 20-65 lb, booster until 80 lb or 145 cm.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 11, maxWeightLb: 20, maxHeightIn: 26 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 12, maxAgeMonths: 47, minWeightLb: 20, maxWeightLb: 65, maxHeightIn: 48 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required_under_8", minAgeMonths: 48, maxAgeMonths: 95, minWeightLb: 40, maxWeightLb: 80, maxHeightIn: 57 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 96, minHeightIn: 57 },
+    ],
+  },
+  "CA:BC": {
+    jurisdictionCode: "CA:BC",
+    jurisdictionName: "British Columbia, Canada",
+    sourceUrl: "https://www2.gov.bc.ca/gov/content/transportation/driving-and-cycling/road-safety-rules-and-consequences/child-car-seats",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "BC requires rear-facing until at least 1 year and 20 lb. Booster required until 4'9\" (145 cm) or 9 years.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 11, maxWeightLb: 20, maxHeightIn: 26 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 12, maxAgeMonths: 47, minWeightLb: 20, maxWeightLb: 65, maxHeightIn: 48 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required_under_9", minAgeMonths: 48, maxAgeMonths: 107, minWeightLb: 40, maxWeightLb: 80, maxHeightIn: 57 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 108, minHeightIn: 57 },
+    ],
+  },
+  "CA:AB": {
+    jurisdictionCode: "CA:AB",
+    jurisdictionName: "Alberta, Canada",
+    sourceUrl: "https://www.alberta.ca/child-car-seat-safety",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "Alberta requires child restraint until 6 years or 40 lb. Booster until child meets seat belt fit test.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 11, maxWeightLb: 22, maxHeightIn: 26 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 12, maxAgeMonths: 71, minWeightLb: 22, maxWeightLb: 65, maxHeightIn: 48 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_recommended", minAgeMonths: 48, maxAgeMonths: 107, minWeightLb: 40, maxWeightLb: 80, maxHeightIn: 57 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 72, minHeightIn: 57 },
+    ],
+  },
+  "CA:QC": {
+    jurisdictionCode: "CA:QC",
+    jurisdictionName: "Quebec, Canada",
+    sourceUrl: "https://saaq.gouv.qc.ca/en/road-safety/behaviours/child-car-seat",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "Quebec requires appropriate child restraint until 145 cm (57 in) or 9 years. SAAQ recommendation is rear-facing as long as possible.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 11, maxWeightLb: 22, maxHeightIn: 26 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 12, maxAgeMonths: 47, minWeightLb: 22, maxWeightLb: 65, maxHeightIn: 48 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required_under_9", minAgeMonths: 48, maxAgeMonths: 107, minWeightLb: 40, maxWeightLb: 80, maxHeightIn: 57 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 108, minHeightIn: 57 },
+    ],
+  },
+  "CA:DEFAULT": {
+    jurisdictionCode: "CA:DEFAULT",
+    jurisdictionName: "Canada (Federal)",
+    sourceUrl: "https://tc.canada.ca/en/road-transportation/motor-vehicle-safety/child-car-seat-safety",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "Federal CMVSS 213/213.1 baseline. Provinces may impose stricter requirements. Always check province-specific laws.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 11, maxWeightLb: 22, maxHeightIn: 26 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 12, maxAgeMonths: 47, minWeightLb: 22, maxWeightLb: 65, maxHeightIn: 48 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_recommended", minAgeMonths: 48, maxAgeMonths: 95, minWeightLb: 40, maxWeightLb: 80, maxHeightIn: 57 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 96, minHeightIn: 57 },
+    ],
+  },
+
+  // --- United Kingdom ---
+  "GB:DEFAULT": {
+    jurisdictionCode: "GB:DEFAULT",
+    jurisdictionName: "United Kingdom",
+    sourceUrl: "https://www.gov.uk/child-car-seats-the-rules",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "UK follows ECE R129 (i-Size) since 2023. Height-based system: rear-facing until 15 months minimum, child seat until 150 cm or 12 years. Backless boosters allowed only for children over 125 cm and 22 kg.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 14, maxHeightIn: 41 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 15, maxAgeMonths: 47, minHeightIn: 24, maxHeightIn: 41 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_recommended", minAgeMonths: 36, maxAgeMonths: 143, minHeightIn: 39, maxHeightIn: 59 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 144, minHeightIn: 53 },
+    ],
+  },
+
+  // --- Australia ---
+  "AU:NSW": {
+    jurisdictionCode: "AU:NSW",
+    jurisdictionName: "New South Wales, Australia",
+    sourceUrl: "https://www.nsw.gov.au/driving-boating-and-transport/roads-safety-and-rules/child-car-seats",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "NSW law: rear-facing until 6 months, then rear-facing or forward-facing to 4 years, booster until 7 years. AS/NZS 1754 certified seats required.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required", minAgeMonths: 0, maxAgeMonths: 5 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required", minAgeMonths: 6, maxAgeMonths: 47 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required", minAgeMonths: 48, maxAgeMonths: 83 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 84 },
+    ],
+  },
+  "AU:VIC": {
+    jurisdictionCode: "AU:VIC",
+    jurisdictionName: "Victoria, Australia",
+    sourceUrl: "https://www.vicroads.vic.gov.au/safety-and-road-rules/vehicle-safety/child-restraints",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "Victoria follows national rules: rear-facing until 6 months, forward-facing harness to 4 years, booster to 7 years. VicRoads requires AS/NZS 1754 seats.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required", minAgeMonths: 0, maxAgeMonths: 5 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required", minAgeMonths: 6, maxAgeMonths: 47 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required", minAgeMonths: 48, maxAgeMonths: 83 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 84 },
+    ],
+  },
+  "AU:QLD": {
+    jurisdictionCode: "AU:QLD",
+    jurisdictionName: "Queensland, Australia",
+    sourceUrl: "https://www.qld.gov.au/transport/safety/children/restraints",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "QLD follows national standards: rear-facing until 6 months, forward-facing to 4, booster to 7. Strict enforcement with heavy fines.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required", minAgeMonths: 0, maxAgeMonths: 5 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required", minAgeMonths: 6, maxAgeMonths: 47 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required", minAgeMonths: 48, maxAgeMonths: 83 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 84 },
+    ],
+  },
+  "AU:DEFAULT": {
+    jurisdictionCode: "AU:DEFAULT",
+    jurisdictionName: "Australia (National)",
+    sourceUrl: "https://www.childcarseats.com.au/",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "Australian national standard: rear-facing until 6 months, then forward-facing harness to 4, booster to 7. AS/NZS 1754 certification required for all seats.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required", minAgeMonths: 0, maxAgeMonths: 5 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required", minAgeMonths: 6, maxAgeMonths: 47 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_required", minAgeMonths: 48, maxAgeMonths: 83 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 84 },
+    ],
+  },
+
+  // --- European Union (ECE R129 baseline) ---
+  "EU:DEFAULT": {
+    jurisdictionCode: "EU:DEFAULT",
+    jurisdictionName: "European Union (ECE R129)",
+    sourceUrl: "https://road-safety.transport.ec.europa.eu/eu-road-safety-policy/priorities/safe-road-use/children_en",
+    lastUpdated: "2026-02-22",
+    verificationStatus: "Needs review",
+    notes: "ECE R129 (i-Size) is height-based. Rear-facing until at least 15 months and 76 cm. Child seat required until 150 cm (approximately 12 years). Applies to all EU member states as minimum; individual countries may be stricter.",
+    rules: [
+      { priority: 1, requiredRestraint: "rear_facing", seatPosition: "rear_seat_required_if_available", minAgeMonths: 0, maxAgeMonths: 14, maxHeightIn: 30 },
+      { priority: 2, requiredRestraint: "forward_facing_harness", seatPosition: "rear_seat_required_if_available", minAgeMonths: 15, maxAgeMonths: 47, minHeightIn: 24, maxHeightIn: 41 },
+      { priority: 3, requiredRestraint: "booster", seatPosition: "rear_seat_recommended", minAgeMonths: 36, maxAgeMonths: 143, minHeightIn: 39, maxHeightIn: 59 },
+      { priority: 4, requiredRestraint: "seat_belt", seatPosition: "rear_seat_preferred", minAgeMonths: 144, minHeightIn: 53 },
+    ],
+  },
+};
+
+/**
+ * Look up car seat rules by country and region code.
+ * Fallback chain: exact match → country default → EU baseline (for EU members) → null.
+ *
+ * @param {string} countryCode - ISO 3166-1 alpha-2 (e.g. "US", "CA", "GB", "AU", "FR")
+ * @param {string | null} regionCode - ISO 3166-2 region code (e.g. "ON", "NSW", "ENG")
+ * @returns {object | null} Car seat rules object or null if no rules found
+ */
+export function lookupCarSeatRules(countryCode, regionCode) {
+  if (!countryCode) return null;
+  const cc = countryCode.toUpperCase();
+  const rc = regionCode ? regionCode.toUpperCase() : null;
+
+  // US: use the existing domestic rules
+  if (cc === "US") {
+    return rc && CAR_SEAT_RULES[rc] ? CAR_SEAT_RULES[rc] : null;
+  }
+
+  // Try exact match: "CA:ON", "AU:NSW", etc.
+  if (rc) {
+    const exactKey = `${cc}:${rc}`;
+    if (INTL_CAR_SEAT_RULES[exactKey]) {
+      return INTL_CAR_SEAT_RULES[exactKey];
+    }
+  }
+
+  // Try country default: "CA:DEFAULT", "GB:DEFAULT", "AU:DEFAULT"
+  const defaultKey = `${cc}:DEFAULT`;
+  if (INTL_CAR_SEAT_RULES[defaultKey]) {
+    return INTL_CAR_SEAT_RULES[defaultKey];
+  }
+
+  // EU member fallback: use EU:DEFAULT
+  if (EU_MEMBER_CODES.has(cc) && INTL_CAR_SEAT_RULES["EU:DEFAULT"]) {
+    return INTL_CAR_SEAT_RULES["EU:DEFAULT"];
+  }
+
+  return null;
+}
+
 export const CAR_SEAT_RULES = {
   CA: {
     jurisdictionCode: "CA",
