@@ -66,12 +66,13 @@ export default function TravelSafetyCard({ safetyGuidance }) {
 
   const overallStyles = statusStyles(status);
   const displayStatus = status || "General guidelines";
-  const displayJurisdiction = jurisdictionName && jurisdictionName !== "Not found in repo"
-    ? jurisdictionName
-    : "Your destination";
+  const displayJurisdiction =
+    jurisdictionName && jurisdictionName !== "Not found in repo"
+      ? jurisdictionName
+      : "Your destination";
 
   return (
-    <div className="space-y-4 rounded-2xl border border-earth/20 bg-white shadow-soft p-6">
+    <div className="space-y-4 rounded-2xl border border-earth/20 dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6">
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -97,7 +98,7 @@ export default function TravelSafetyCard({ safetyGuidance }) {
 
       {/* Message */}
       {message && (
-        <div className="rounded-xl border border-earth/15 bg-earth/5 px-4 py-3 text-sm text-slate-text">
+        <div className="rounded-xl border border-earth/15 bg-earth/5 dark:bg-dark-bg px-4 py-3 text-sm text-slate-text dark:text-dark-text">
           {message}
         </div>
       )}
@@ -107,10 +108,11 @@ export default function TravelSafetyCard({ safetyGuidance }) {
         <div className="space-y-3">
           {results.map((result) => {
             const styles = statusStyles(result.status);
-            const childLabel = result.requiredRestraintLabel &&
+            const childLabel =
+              result.requiredRestraintLabel &&
               result.requiredRestraintLabel !== "Not found in repo"
-              ? result.requiredRestraintLabel
-              : "See AAP recommendations";
+                ? result.requiredRestraintLabel
+                : "See AAP recommendations";
             return (
               <article
                 key={result.childId}
@@ -155,7 +157,7 @@ export default function TravelSafetyCard({ safetyGuidance }) {
       )}
 
       {/* Source metadata */}
-      <div className="rounded-xl border border-earth/15 bg-earth/5 px-4 py-3 text-xs text-muted space-y-1">
+      <div className="rounded-xl border border-earth/15 bg-earth/5 dark:bg-dark-bg px-4 py-3 text-xs text-muted dark:text-dark-muted space-y-1">
         {effectiveDate && effectiveDate !== "Not found in repo" && (
           <p>Effective date: {effectiveDate}</p>
         )}
