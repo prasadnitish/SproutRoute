@@ -4,11 +4,11 @@ import { format, addDays, differenceInDays } from "date-fns";
 import TripPlanDisplay from "./components/TripPlanDisplay";
 import PackingChecklist from "./components/PackingChecklist";
 import TravelSafetyCard from "./components/TravelSafetyCard";
+import ResultTabs from "./components/ResultTabs";
 import {
-  generateTripPlan,
+  bundleTripPlan,
   replanTrip,
   generatePackingList,
-  getCarSeatGuidance,
   resolveDestination,
   getTravelAdvisory,
   getNeighborhoodSafety,
@@ -101,9 +101,27 @@ function App() {
   const today = format(new Date(), "yyyy-MM-dd");
   const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
 
+  // Activity chips — matches mobile wizard step
+  const ACTIVITY_CHIPS = [
+    { id: "beach", label: "Beach", icon: "🏖" },
+    { id: "hiking", label: "Hiking", icon: "🥾" },
+    { id: "museums", label: "Museums", icon: "🏛" },
+    { id: "theme_parks", label: "Theme Parks", icon: "🎢" },
+    { id: "camping", label: "Camping", icon: "⛺" },
+    { id: "city", label: "City", icon: "🏙" },
+    { id: "water_parks", label: "Water Parks", icon: "💦" },
+    { id: "wildlife", label: "Wildlife", icon: "🦁" },
+    { id: "shopping", label: "Shopping", icon: "🛍" },
+    { id: "sports", label: "Sports", icon: "⚽" },
+    { id: "dining", label: "Dining", icon: "🍽" },
+    { id: "road_trip", label: "Road Trip", icon: "🚗" },
+  ];
+
   // Step state: wizard vs results, plus which wizard question is active.
   const [step, setStep] = useState("wizard");
   const [wizardStep, setWizardStep] = useState("destination");
+  const [activeResultTab, setActiveResultTab] = useState("itinerary");
+  const [selectedActivities, setSelectedActivities] = useState(new Set());
   const [tripData, setTripData] = useState(null);
   const [tripPlan, setTripPlan] = useState(null);
   const [weather, setWeather] = useState(null);
@@ -133,10 +151,10 @@ function App() {
 
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(tomorrow);
-  const [numChildren, setNumChildren] = useState(1);
-  const [childAges, setChildAges] = useState([2]);
-  const [childWeights, setChildWeights] = useState([""]);
-  const [childHeights, setChildHeights] = useState([""]);
+  const [numChildren, setNumChildren] = useState(0);
+  const [childAges, setChildAges] = useState([]);
+  const [childWeights, setChildWeights] = useState([]);
+  const [childHeights, setChildHeights] = useState([]);
 
   const buildChildrenPayload = () => {
     return childAges.slice(0, numChildren).map((age, index) => {
@@ -325,18 +343,10 @@ function App() {
     setWizardStep("kids");
   };
 
-  // Loading phase labels — shown in the progress indicator during plan generation.
-  const LOADING_PHASES = {
-    resolving: { label: "Finding your destination...", icon: "🗺️", step: 1 },
-    weather: { label: "Checking the weather...", icon: "🌤", step: 2 },
-    planning: { label: "Building your itinerary...", icon: "📋", step: 3 },
-    packing: { label: "Crafting your packing list...", icon: "🎒", step: 4 },
-  };
-
-  // Step 3: generate trip plan + packing list together.
+  // Step 3: generate trip plan via bundle API (single call).
   const handleGeneratePlan = async () => {
     setIsLoading(true);
-    setLoadingPhase("resolving");
+    setLoadingPhase("building");
     setError(null);
 
     const children = buildChildrenPayload();
@@ -346,109 +356,45 @@ function App() {
       endDate,
       duration: differenceInDays(new Date(endDate), new Date(startDate)),
       children,
+      activities: [...selectedActivities],
     };
 
     try {
-      // Phase 1+2: trip plan includes weather — server fetches them together
-      setLoadingPhase("weather");
       const onRateLimitInfo = ({ remaining }) =>
         setRateLimitRemaining(remaining);
-      const result = await generateTripPlan(formData, {
-        onRetry: () => setLoadingPhase("weather"),
+      const result = await bundleTripPlan(formData, {
+        onRetry: () => setLoadingPhase("building"),
         onRateLimitInfo,
       });
-      setTripData(result.trip || formData);
+
+      const tripResult = result.trip || formData;
+      setTripData(tripResult);
       setTripPlan(result.tripPlan);
       setWeather(result.weather);
-
-      const safeChildren = (result.trip?.children || children).filter(
-        (c) => Number.isFinite(c.weightLb) || Number.isFinite(c.heightIn),
-      );
-      const safetyResult =
-        safeChildren.length > 0
-          ? getCarSeatGuidance({
-              destination: result.trip.destination || formData.destination,
-              jurisdictionCode: result.trip.jurisdictionCode || "",
-              tripDate: result.trip.startDate || startDate,
-              children: safeChildren,
-            }).catch(() => ({
-              status: "General guidelines",
-              jurisdictionCode: result.trip.jurisdictionCode || null,
-              jurisdictionName:
-                result.trip.jurisdictionName || "Your destination",
-              message:
-                "We couldn't load specific rules for this location. Showing AAP general recommendations. Verify at seatcheck.org before your trip.",
-              sourceUrl: "https://www.seatcheck.org/",
-              effectiveDate: null,
-              lastUpdated: null,
-              results: safeChildren.map((_, index) => ({
-                childId: `child-${index + 1}`,
-                status: "General guidelines",
-                requiredRestraintLabel: "See AAP recommendations",
-                seatPosition: "not_specified",
-                rationale:
-                  "Use the most restrictive restraint appropriate for your child's age and size.",
-              })),
-            }))
-          : Promise.resolve(null);
-
-      // Phase 3: planning (visual indicator only — server already ran this above)
-      setLoadingPhase("planning");
-
-      const packingData = {
-        ...(result.trip || formData),
-        activities: result.tripPlan?.suggestedActivities?.map(
-          (a) => a.category,
-        ),
-        approvedActivities: result.tripPlan?.suggestedActivities,
-        weather: result.weather,
-      };
-
-      // Phase 4: packing list + international safety data (parallel)
-      setLoadingPhase("packing");
-      const tripResult = result.trip || formData;
-      const countryCode = tripResult.countryCode || null;
-
-      // Fire advisory + neighborhood fetches for non-US destinations (best-effort)
-      const advisoryPromise =
-        countryCode && countryCode !== "US"
-          ? getTravelAdvisory(countryCode)
-              .then((r) => r?.advisory ?? null)
-              .catch(() => null)
-          : Promise.resolve(null);
-
-      const neighborhoodPromise =
-        result.trip?.lat != null && result.trip?.lon != null
-          ? getNeighborhoodSafety(result.trip.lat, result.trip.lon)
-              .then((r) => r?.safety ?? null)
-              .catch(() => null)
-          : Promise.resolve(null);
-
-      const [packingResult, safetyResolved, advisoryResolved, neighborhoodResolved] =
-        await Promise.all([
-          generatePackingList(packingData, {
-            onRetry: () => setLoadingPhase("packing"),
-            onRateLimitInfo,
-          }),
-          safetyResult,
-          advisoryPromise,
-          neighborhoodPromise,
-        ]);
-
-      setPackingList(packingResult.packingList);
-      setSafetyGuidance(safetyResolved);
-      setTravelAdvisory(advisoryResolved);
-      setNeighborhoodSafety(neighborhoodResolved);
+      setPackingList(result.packingList);
+      setSafetyGuidance(result.safetyGuidance || null);
+      setActiveResultTab("itinerary");
       setStep("results");
+
+      // Fire advisory + neighborhood fetches in background (non-blocking)
+      const countryCode = tripResult.countryCode || null;
+      if (countryCode && countryCode !== "US") {
+        getTravelAdvisory(countryCode)
+          .then((r) => setTravelAdvisory(r?.advisory ?? null))
+          .catch(() => null);
+      }
+      if (tripResult.lat != null && tripResult.lon != null) {
+        getNeighborhoodSafety(tripResult.lat, tripResult.lon)
+          .then((r) => setNeighborhoodSafety(r?.safety ?? null))
+          .catch(() => null);
+      }
 
       const dataToSave = {
         trip: tripResult,
         weather: result.weather,
         tripPlan: result.tripPlan,
-        packingList: packingResult.packingList,
-        safetyGuidance: safetyResolved,
-        travelAdvisory: advisoryResolved,
-        neighborhoodSafety: neighborhoodResolved,
+        packingList: result.packingList,
+        safetyGuidance: result.safetyGuidance || null,
         lastModified: new Date().toISOString(),
       };
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
@@ -461,25 +407,25 @@ function App() {
     }
   };
 
-  // Optional: regenerate packing list based on selected activities.
+  // Replan: regenerate itinerary + packing with updated activities.
   const handleApprovePlan = async (approvedActivities) => {
     setIsLoading(true);
-    setLoadingPhase("planning");
+    setLoadingPhase("building");
     setError(null);
 
     try {
+      const onRateLimitInfo = ({ remaining }) =>
+        setRateLimitRemaining(remaining);
       const activityCategories = approvedActivities.map((a) => a.category);
       const updatedTripData = {
         ...tripData,
         activities: activityCategories,
       };
 
-      // Regenerate the full trip plan with only approved activities so that
-      // day notes, meals, and activity details don't reference removed activities.
-      // Use replanTrip (passes cached weather) to skip the geocode+weather fetch.
+      // Use replanTrip with cached weather to skip geocode + weather re-fetch.
       const tripPlanData = {
         ...updatedTripData,
-        weather, // cached weather from initial plan — skips geocode + weather fetch
+        weather,
         approvedActivities,
       };
 
@@ -489,17 +435,9 @@ function App() {
         approvedActivities,
       };
 
-      // Run both in parallel — trip plan regeneration and packing list regeneration.
-      setLoadingPhase("packing");
       const [tripPlanResult, packingResult] = await Promise.all([
-        replanTrip(tripPlanData, {
-          onRetry: () => setLoadingPhase("planning"),
-          onRateLimitInfo,
-        }),
-        generatePackingList(packingData, {
-          onRetry: () => setLoadingPhase("packing"),
-          onRateLimitInfo,
-        }),
+        replanTrip(tripPlanData, { onRetry: () => {}, onRateLimitInfo }),
+        generatePackingList(packingData, { onRetry: () => {}, onRateLimitInfo }),
       ]);
 
       const updatedTripPlan = tripPlanResult.tripPlan;
@@ -534,6 +472,8 @@ function App() {
   const confirmReset = () => {
     setStep("wizard");
     setWizardStep("destination");
+    setActiveResultTab("itinerary");
+    setSelectedActivities(new Set());
     setTripData(null);
     setTripPlan(null);
     setWeather(null);
@@ -547,10 +487,10 @@ function App() {
     setDestinationSuggestions([]);
     setStartDate(today);
     setEndDate(tomorrow);
-    setNumChildren(1);
-    setChildAges([2]);
-    setChildWeights([""]);
-    setChildHeights([""]);
+    setNumChildren(0);
+    setChildAges([]);
+    setChildWeights([]);
+    setChildHeights([]);
     localStorage.removeItem("sproutroute_trip");
     localStorage.removeItem("sproutroute_checked");
     localStorage.removeItem("sproutroute_custom_items");
@@ -559,14 +499,26 @@ function App() {
 
   // Wizard back navigation.
   const handleBack = () => {
-    if (wizardStep === "kids") setWizardStep("dates");
-    if (wizardStep === "dates") setWizardStep("destination");
-    if (wizardStep === "suggestions") setWizardStep("destination");
+    if (wizardStep === "activities") setWizardStep("kids");
+    else if (wizardStep === "kids") setWizardStep("dates");
+    else if (wizardStep === "dates") setWizardStep("destination");
+    else if (wizardStep === "suggestions") setWizardStep("destination");
   };
 
-  // Wizard progress — 3 steps
-  const wizardStepIndex = { destination: 1, suggestions: 1, dates: 2, kids: 3 };
+  // Toggle activity chip in wizard
+  const toggleActivityChip = (activityId) => {
+    setSelectedActivities((prev) => {
+      const next = new Set(prev);
+      if (next.has(activityId)) next.delete(activityId);
+      else next.add(activityId);
+      return next;
+    });
+  };
+
+  // Wizard progress — 4 steps
+  const wizardStepIndex = { destination: 1, suggestions: 1, dates: 2, kids: 3, activities: 4 };
   const currentStepNum = wizardStepIndex[wizardStep] || 1;
+  const totalWizardSteps = 4;
 
   return (
     <div className="min-h-screen bg-paper dark:bg-dark-bg text-slate-text dark:text-dark-text relative overflow-hidden">
@@ -662,7 +614,7 @@ function App() {
               >
                 {/* Progress dots */}
                 <div className="flex items-center gap-2">
-                  {[1, 2, 3].map((n) => (
+                  {[1, 2, 3, 4].map((n) => (
                     <div
                       key={n}
                       className={`h-2 rounded-full transition-all duration-300 ${
@@ -675,7 +627,7 @@ function App() {
                     />
                   ))}
                   <span className="text-xs text-muted ml-1">
-                    Step {currentStepNum} of 3
+                    Step {currentStepNum} of {totalWizardSteps}
                   </span>
                 </div>
 
@@ -823,11 +775,12 @@ function App() {
                   <>
                     <div>
                       <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
-                        Who's coming along? 👧🧒
+                        {numChildren > 0 ? "Who's coming along? 👧🧒" : "Traveling with kids? 👧🧒"}
                       </h2>
                       <p className="text-muted mt-2">
-                        Add your little explorers so we can tailor the
-                        itinerary.
+                        {numChildren > 0
+                          ? "Add your little explorers so we can tailor the itinerary."
+                          : "No kids? No problem — we'll plan an adults-only trip."}
                       </p>
                     </div>
                     <label className="block text-sm font-medium text-slate-text">
@@ -835,29 +788,35 @@ function App() {
                       <input
                         type="number"
                         value={numChildren}
-                        min="1"
+                        min="0"
                         max="10"
                         onChange={(e) => {
                           const value = Math.max(
-                            1,
-                            Math.min(10, parseInt(e.target.value) || 1),
+                            0,
+                            Math.min(10, parseInt(e.target.value) || 0),
                           );
                           setNumChildren(value);
-                          setChildAges((prev) =>
-                            Array(value)
-                              .fill(0)
-                              .map((_, i) => prev[i] || 2),
-                          );
-                          setChildWeights((prev) =>
-                            Array(value)
-                              .fill("")
-                              .map((_, i) => prev[i] || ""),
-                          );
-                          setChildHeights((prev) =>
-                            Array(value)
-                              .fill("")
-                              .map((_, i) => prev[i] || ""),
-                          );
+                          if (value > 0) {
+                            setChildAges((prev) =>
+                              Array(value)
+                                .fill(0)
+                                .map((_, i) => prev[i] ?? 2),
+                            );
+                            setChildWeights((prev) =>
+                              Array(value)
+                                .fill("")
+                                .map((_, i) => prev[i] ?? ""),
+                            );
+                            setChildHeights((prev) =>
+                              Array(value)
+                                .fill("")
+                                .map((_, i) => prev[i] ?? ""),
+                            );
+                          } else {
+                            setChildAges([]);
+                            setChildWeights([]);
+                            setChildHeights([]);
+                          }
                         }}
                         className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
                       />
@@ -950,29 +909,59 @@ function App() {
                           ))}
                       </div>
                     )}
-                    {/* Multi-phase loading indicator */}
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => setWizardStep("activities")}
+                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors shadow-soft"
+                      >
+                        Continue →
+                      </button>
+                      <button
+                        onClick={handleBack}
+                        className="text-sm text-muted hover:text-slate-text transition-colors"
+                      >
+                        ← Back
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* ── Step 4: Activities ── */}
+                {wizardStep === "activities" && (
+                  <>
+                    <div>
+                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
+                        {numChildren > 0 ? "What does the family enjoy? 🎯" : "What are you into? 🎯"}
+                      </h2>
+                      <p className="text-muted mt-2">
+                        Pick activities to personalize your itinerary. Select as many as you like!
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2.5">
+                      {ACTIVITY_CHIPS.map((chip) => {
+                        const isSelected = selectedActivities.has(chip.id);
+                        return (
+                          <button
+                            key={chip.id}
+                            onClick={() => toggleActivityChip(chip.id)}
+                            className={`activity-chip ${isSelected ? "selected" : "unselected"}`}
+                            aria-pressed={isSelected}
+                          >
+                            <span aria-hidden="true">{chip.icon}</span>
+                            {chip.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* Loading indicator */}
                     {isLoading && loadingPhase && (
-                      <div className="rounded-xl border border-sky-light bg-sky-light/40 px-5 py-4 space-y-3">
+                      <div className="rounded-xl border border-sky-light bg-sky-light/40 dark:bg-sky-light/10 px-5 py-4 space-y-2">
                         <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
-                          <span className="text-xl animate-spin">
-                            {LOADING_PHASES[loadingPhase]?.icon}
-                          </span>
-                          <span>{LOADING_PHASES[loadingPhase]?.label}</span>
-                        </div>
-                        {/* Progress bar */}
-                        <div className="w-full bg-sky-light rounded-full h-1.5">
-                          <div
-                            className="bg-sky-base h-1.5 rounded-full transition-all duration-700"
-                            style={{
-                              width: `${
-                                (LOADING_PHASES[loadingPhase]?.step / 4) * 100
-                              }%`,
-                            }}
-                          />
+                          <span className="text-xl animate-spin">🌍</span>
+                          <span>Building your trip plan...</span>
                         </div>
                         <p className="text-xs text-muted">
-                          Step {LOADING_PHASES[loadingPhase]?.step} of 4 · This
-                          usually takes 20–30 seconds
+                          This usually takes 5–10 seconds
                         </p>
                       </div>
                     )}
@@ -982,7 +971,7 @@ function App() {
                         disabled={isLoading}
                         className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
                       >
-                        {isLoading ? "Building plan..." : "Generate plan 🚀"}
+                        {isLoading ? "Building plan..." : "🌱 Build My Trip Plan"}
                       </button>
                       {!isLoading && (
                         <button
@@ -1000,7 +989,7 @@ function App() {
 
             {/* ── RESULTS ─────────────────────────────────────── */}
             {step === "results" && (
-              <div className="space-y-8">
+              <div className="space-y-6">
                 {/* Trip header */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
@@ -1031,61 +1020,57 @@ function App() {
                   </div>
                   <button
                     onClick={() => setShowCustomize((prev) => !prev)}
-                    className="rounded-xl border border-sprout-light px-5 py-2 text-sm font-semibold text-sprout-dark transition hover:bg-sprout-light"
+                    className="rounded-xl border border-sprout-light dark:border-dark-border px-5 py-2 text-sm font-semibold text-sprout-dark dark:text-dark-sprout transition hover:bg-sprout-light dark:hover:bg-dark-border print:hidden"
                   >
                     {showCustomize ? "Hide activities" : "✏️ Customize"}
                   </button>
                 </div>
 
-                {/* Multi-phase loading state on results screen (packing list regen) */}
+                {/* Loading state on results screen (replan) */}
                 {isLoading && (
-                  <div className="rounded-xl border border-sky-light bg-sky-light/40 px-5 py-5 space-y-3">
+                  <div className="rounded-xl border border-sky-light bg-sky-light/40 dark:bg-sky-light/10 px-5 py-5 space-y-2">
                     <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
-                      <span className="text-xl animate-spin">
-                        {loadingPhase
-                          ? LOADING_PHASES[loadingPhase]?.icon
-                          : "🎒"}
-                      </span>
-                      <span>
-                        {loadingPhase
-                          ? LOADING_PHASES[loadingPhase]?.label
-                          : "Updating your packing list..."}
-                      </span>
+                      <span className="text-xl animate-spin">🌍</span>
+                      <span>Refreshing your trip plan...</span>
                     </div>
-                    {loadingPhase && (
-                      <div className="w-full bg-sky-light rounded-full h-1.5">
-                        <div
-                          className="bg-sky-base h-1.5 rounded-full transition-all duration-700"
-                          style={{
-                            width: `${
-                              (LOADING_PHASES[loadingPhase]?.step / 4) * 100
-                            }%`,
-                          }}
-                        />
-                      </div>
-                    )}
                   </div>
                 )}
 
-                {!isLoading && tripPlan && (
-                  <TripPlanDisplay
-                    tripPlan={tripPlan}
-                    weather={weather}
-                    onApprove={handleApprovePlan}
-                    isVisible={showCustomize}
-                  />
+                {/* Tab navigation */}
+                <ResultTabs
+                  activeTab={activeResultTab}
+                  onTabChange={setActiveResultTab}
+                />
+
+                {/* Tab panels */}
+                {activeResultTab === "itinerary" && !isLoading && tripPlan && (
+                  <div id="tabpanel-itinerary" role="tabpanel" aria-labelledby="tab-itinerary">
+                    <TripPlanDisplay
+                      tripPlan={tripPlan}
+                      weather={weather}
+                      onApprove={handleApprovePlan}
+                      isVisible={showCustomize}
+                    />
+                  </div>
                 )}
 
-                {!isLoading && (safetyGuidance || travelAdvisory || neighborhoodSafety) && (
-                  <TravelSafetyCard
-                    safetyGuidance={safetyGuidance}
-                    travelAdvisory={travelAdvisory}
-                    neighborhoodSafety={neighborhoodSafety}
-                  />
+                {activeResultTab === "packing" && !isLoading && packingList && (
+                  <div id="tabpanel-packing" role="tabpanel" aria-labelledby="tab-packing">
+                    <PackingChecklist packingList={packingList} />
+                  </div>
                 )}
 
-                {!isLoading && packingList && (
-                  <PackingChecklist packingList={packingList} />
+                {activeResultTab === "safety" && !isLoading && (
+                  <div id="tabpanel-safety" role="tabpanel" aria-labelledby="tab-safety">
+                    <TravelSafetyCard
+                      safetyGuidance={safetyGuidance}
+                      travelAdvisory={travelAdvisory}
+                      neighborhoodSafety={neighborhoodSafety}
+                      hasChildren={numChildren > 0}
+                      weather={weather}
+                      tripPlan={tripPlan}
+                    />
+                  </div>
                 )}
               </div>
             )}
@@ -1122,7 +1107,9 @@ function App() {
               <div className="border-t border-sprout-light pt-4">
                 <p className="text-xs text-muted font-medium">Travelers</p>
                 <p className="text-base font-semibold text-slate-text mt-0.5">
-                  {numChildren} child{numChildren === 1 ? "" : "ren"}
+                  {numChildren > 0
+                    ? `${numChildren} child${numChildren === 1 ? "" : "ren"}`
+                    : "Adults only"}
                 </p>
               </div>
               {numChildren > 0 &&

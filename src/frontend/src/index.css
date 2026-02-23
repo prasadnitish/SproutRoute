@@ -86,12 +86,100 @@ html.dark input[type="date"] {
   color-scheme: dark;
 }
 
+/* Horizontal scroll-snap carousel */
+.scroll-carousel {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 0.25rem;
+}
+.scroll-carousel::-webkit-scrollbar {
+  display: none;
+}
+.scroll-carousel > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Page indicator dots for carousels */
+.page-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  padding-top: 0.5rem;
+}
+.page-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  transition: background 0.2s ease;
+}
+html.dark .page-dot {
+  background: #2a3a2c;
+}
+.page-dot.active {
+  background: #2e7d32;
+}
+html.dark .page-dot.active {
+  background: #81c784;
+}
+
+/* Activity chip styles (wizard step) */
+.activity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.625rem 1rem;
+  border-radius: 9999px;
+  border: 1.5px solid;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.activity-chip.selected {
+  background: rgba(46, 125, 50, 0.12);
+  border-color: #2e7d32;
+  color: #2e7d32;
+}
+html.dark .activity-chip.selected {
+  background: rgba(129, 199, 132, 0.12);
+  border-color: #81c784;
+  color: #81c784;
+}
+.activity-chip.unselected {
+  background: transparent;
+  border-color: #e0e0e0;
+  color: #64748b;
+}
+html.dark .activity-chip.unselected {
+  border-color: #2a3a2c;
+  color: #9ca3af;
+}
+.activity-chip.unselected:hover {
+  border-color: #81c784;
+  background: rgba(129, 199, 132, 0.05);
+}
+
 /* Print styles */
 @media print {
   body {
     background: white;
   }
   #root::before {
+    display: none;
+  }
+  .scroll-carousel {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .page-dots,
+  .print\\:hidden {
     display: none;
   }
 }
