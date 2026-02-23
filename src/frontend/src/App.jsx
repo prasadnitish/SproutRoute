@@ -565,7 +565,7 @@ function App() {
       <div className="mx-auto max-w-6xl px-6 py-8 relative z-10">
         <main className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Main panel ──────────────────────────────────────── */}
-          <section className="min-h-[60vh] rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-8">
+          <section className="min-h-[60vh] min-w-0 overflow-hidden rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-8">
             {/* Rate limit low-remaining warning (shown when < 5 requests remain) */}
             {rateLimitRemaining !== null &&
               rateLimitRemaining < 5 &&
@@ -1077,7 +1077,7 @@ function App() {
           </section>
 
           {/* ── Sidebar ─────────────────────────────────────────── */}
-          <aside className="rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6 h-fit">
+          <aside className="hidden lg:block rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6 h-fit min-w-0 overflow-hidden">
             <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark mb-4">
               🧭 Your trip
             </p>
