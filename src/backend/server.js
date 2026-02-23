@@ -569,6 +569,115 @@ export function createApp(deps = {}) {
     }
   });
 
+  // POST /api/v1/trip/bundle
+  // Single endpoint: geocode once → weather once → trip plan + packing list in parallel.
+  // Eliminates redundant geocoding + weather round-trip, runs AI calls concurrently.
+  app.post("/api/v1/trip/bundle", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const timings = {};
+    try {
+      const sanitizedData = sanitizeTripData(req.body);
+      const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
+      if (validationErrors.length > 0) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: validationErrors.join("; "),
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const safeActivities =
+        Array.isArray(activities) && activities.length > 0
+          ? activities
+          : ["family-friendly", "parks", "city"];
+
+      // Phase 1: Geocode
+      const geocodeStart = Date.now();
+      devLog("v1/trip/bundle: geocoding...");
+      const coords = await geocodeLocationFn(destination);
+      const resolvedCountry = coords.countryCode || "US";
+      timings.geocode = Date.now() - geocodeStart;
+
+      // Phase 2: Weather
+      const weatherStart = Date.now();
+      devLog("v1/trip/bundle: fetching weather...");
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
+      timings.weather = Date.now() - weatherStart;
+
+      // Phase 3: Trip plan + Packing list in parallel
+      const aiStart = Date.now();
+      devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
+      const tripPayload = { destination, startDate, endDate, activities: safeActivities, children };
+      const [tripPlan, packingList] = await Promise.all([
+        generateTripPlanFn(tripPayload, weather),
+        generatePackingListFn(tripPayload, weather),
+      ]);
+      timings.ai = Date.now() - aiStart;
+      timings.total = Date.now() - geocodeStart;
+
+      devLog(`v1/trip/bundle timings: geocode=${timings.geocode}ms, weather=${timings.weather}ms, ai=${timings.ai}ms, total=${timings.total}ms`);
+
+      const tripDuration = Math.ceil(
+        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
+      );
+
+      return res.json({
+        requestId,
+        trip: {
+          destination: coords.displayName || destination,
+          jurisdictionCode: coords.stateCode || null,
+          jurisdictionName: coords.stateName || null,
+          startDate,
+          endDate,
+          duration: tripDuration,
+          activities: safeActivities,
+          children,
+          countryCode: resolvedCountry,
+          regionCode: coords.regionCode || null,
+          lat: coords.lat,
+          lon: coords.lon,
+          unitSystem: req.body?.unitSystem || "imperial",
+          client: req.body?.client || "mobile",
+          schemaVersion: req.body?.schemaVersion || "1",
+        },
+        weather,
+        tripPlan,
+        packingList,
+        timings,
+      });
+    } catch (error) {
+      devLog("Error in /api/v1/trip/bundle:", error);
+      if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
+        return v1Error(res, 422, {
+          code: "LOCATION_NOT_FOUND",
+          message: "Could not find that location. Please try a more specific address.",
+          category: "geocoding",
+          retryable: false,
+          requestId,
+        });
+      }
+      if (error.message?.includes("Weather service")) {
+        return v1Error(res, 422, {
+          code: "WEATHER_UNAVAILABLE",
+          message: "Weather data is temporarily unavailable. Please try again in a moment.",
+          category: "weather",
+          retryable: true,
+          requestId,
+        });
+      }
+      return v1Error(res, 500, {
+        code: "BUNDLE_FAILED",
+        message: "Failed to generate trip plan. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
   // POST /api/v1/trip/replan
   // Regenerates ONLY the trip itinerary (no geocoding or weather fetch).
   // Used when the user customizes activities after the initial plan is generated.
