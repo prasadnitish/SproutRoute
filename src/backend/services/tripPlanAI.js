@@ -190,10 +190,10 @@ function buildTripPlanPrompt(
   // which prevents injected content in trip fields from overriding model instructions.
   const { compact = false } = options;
 
-  const childrenInfo =
-    children.length > 0
-      ? children.map((c) => `age ${c.age}`).join(", ")
-      : "no children";
+  const isAdultsOnly = children.length === 0;
+  const childrenInfo = isAdultsOnly
+    ? "Adults-only trip, no children"
+    : children.map((c) => `age ${c.age}`).join(", ");
 
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
@@ -206,7 +206,7 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 7 day objects.
 3. Keep all text concise.`;
 
-  const system = `You are a helpful travel planning assistant specialising in family trips. Generate trip itineraries as strict JSON only.
+  const system = `You are a helpful travel planning assistant${isAdultsOnly ? "" : " specialising in family trips"}. Generate trip itineraries as strict JSON only.
 
 Generate a trip plan with the following structure:
 
@@ -240,7 +240,7 @@ Generate a trip plan with the following structure:
 
 **Requirements:**
 1. Include a mix of indoor and outdoor activities based on weather
-2. Consider children's ages when recommending activities
+2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
 3. Prioritise activities that match their stated interests
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs)
 5. Be specific to the destination (not generic advice)
@@ -248,13 +248,13 @@ Generate a trip plan with the following structure:
 ${sizeGuardrail}
 Return ONLY the JSON, no additional text.`;
 
-  const user = `Generate a detailed trip itinerary for a family trip.
+  const user = `Generate a detailed trip itinerary for ${isAdultsOnly ? "an adults-only trip" : "a family trip"}.
 
 **Trip Details:**
 - Destination: ${destination}
 - Dates: ${startDate} to ${endDate}
 - Interested Activities: ${activities.join(", ")}
-- Children: ${children.length} child(ren) - ${childrenInfo}
+- ${isAdultsOnly ? "Travelers: Adults only (no children)" : `Children: ${children.length} child(ren) - ${childrenInfo}`}
 
 **Weather Forecast:**
 ${weatherForecast.summary}

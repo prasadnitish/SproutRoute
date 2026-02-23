@@ -43,3 +43,6 @@ CHECKLIST.md
 requirements.txt
 docs/screenshot.png
 AUDIT_FIXES_IMPLEMENTED.md
+
+# Mobile app (separate git repo — managed independently)
+sproutroute-mobile/
