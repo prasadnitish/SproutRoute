@@ -13,6 +13,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#E8F5E9"
     },
+    "primaryColor": "#2D5A27",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.sproutroute.app",
@@ -34,7 +35,19 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-font"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 400,
+          "resizeMode": "contain",
+          "backgroundColor": "#E8F5E9"
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     },
