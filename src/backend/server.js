@@ -62,6 +62,10 @@ export function createApp(deps = {}) {
 
   const app = express();
 
+  // Railway sits behind a reverse proxy — trust first hop so express-rate-limit
+  // reads the real client IP from X-Forwarded-For instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+  app.set("trust proxy", 1);
+
   const devLog = (...args) => {
     if (process.env.NODE_ENV !== "production" && enableRequestLogging) {
       console.log(...args);
