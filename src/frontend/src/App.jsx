@@ -1044,7 +1044,7 @@ function App() {
 
                 {/* Tab panels */}
                 {activeResultTab === "itinerary" && !isLoading && tripPlan && (
-                  <div id="tabpanel-itinerary" role="tabpanel" aria-labelledby="tab-itinerary">
+                  <div id="tabpanel-itinerary" role="tabpanel" aria-labelledby="tab-itinerary" className="overflow-hidden min-w-0">
                     <TripPlanDisplay
                       tripPlan={tripPlan}
                       weather={weather}

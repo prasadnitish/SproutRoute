@@ -114,7 +114,7 @@ export default function TripPlanDisplay({
   const forecast = weather?.forecast || [];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 overflow-hidden">
       {/* Header + overview */}
       <div className="rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6">
         <p className="text-xs font-bold uppercase tracking-wider text-muted dark:text-dark-muted">
