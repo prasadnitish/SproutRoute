@@ -293,22 +293,29 @@ export default function KidsScreen() {
     <WizardLayout
       step={3}
       totalSteps={3}
-      title="Who's coming?"
-      subtitle="Tell us about your kids so we can personalize the plan."
+      title={numChildren === 0 ? "Adults only?" : "Who's coming?"}
+      subtitle={numChildren === 0
+        ? "No kids on this trip — we'll plan an adults-only itinerary."
+        : "Tell us about your kids so we can personalize the plan."}
     >
       {/* Number of children */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Number of Children</Text>
         <Stepper
           value={numChildren}
-          min={1}
+          min={0}
           max={6}
           onChange={setNumChildren}
         />
+        {numChildren === 0 && (
+          <Text style={styles.weightHint}>
+            🧑 Adults-only trip — no car seat guidance needed.
+          </Text>
+        )}
       </View>
 
-      {/* Per-child info */}
-      {Array.from({ length: numChildren }, (_, i) => (
+      {/* Per-child info (hidden when 0 kids) */}
+      {numChildren > 0 && Array.from({ length: numChildren }, (_, i) => (
         <View key={i} style={styles.childCard}>
           <Text style={styles.childCardTitle}>Child {i + 1}</Text>
 
