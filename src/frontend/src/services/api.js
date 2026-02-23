@@ -162,6 +162,18 @@ export const replanTrip = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
     { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
 
+/**
+ * Bundle endpoint — single call for plan + packing + weather + geocoding.
+ * Replaces sequential generateTripPlan → generatePackingList flow.
+ * Returns { trip, weather, tripPlan, packingList, safetyGuidance?, timings }.
+ */
+export const bundleTripPlan = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/trip/bundle`,
+    POST_OPTS(tripData),
+    { maxRetries: 2, timeoutMs: 60000, onRetry, onRateLimitInfo },
+  );
+
 /** Generate the packing list (uses selected activities). */
 export const generatePackingList = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
