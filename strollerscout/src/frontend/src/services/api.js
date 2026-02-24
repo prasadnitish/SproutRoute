@@ -72,6 +72,25 @@ export const generatePackingList = async (tripData) => {
   return response.json();
 };
 
+export const resolveDestination = async (query) => {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/api/resolve-destination`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    },
+    15000,
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to resolve destination");
+  }
+
+  return response.json();
+};
+
 export const submitFeedback = async ({ category, message, email }) => {
   const response = await fetchWithTimeout(
     `${API_BASE_URL}/api/feedback`,

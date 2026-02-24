@@ -1,8 +1,13 @@
 // Backend entry point: Express server that orchestrates location, weather, and AI calls.
+import path from "path";
+import { fileURLToPath } from "url";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import rateLimit from "express-rate-limit";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import {
   geocodeLocation,
   resolveDestinationQuery,
@@ -105,7 +110,7 @@ const apiLimiter = rateLimit({
 app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
-    message: "StrollerScout API is running",
+    message: "SproutRoute API is running",
     timestamp: new Date().toISOString(),
   });
 });
@@ -420,13 +425,18 @@ app.post("/api/feedback", feedbackLimiter, async (req, res) => {
   }
 });
 
-app.use((req, res) => {
-  res.status(404).json({ error: "Endpoint not found" });
+// Serve the built frontend in production.
+const distPath = path.join(__dirname, "../frontend/dist");
+app.use(express.static(distPath));
+
+// SPA fallback: any non-API route serves index.html so React Router can handle it.
+app.get("*", (req, res) => {
+  res.sendFile(path.join(distPath, "index.html"));
 });
 
 app.listen(PORT, () => {
   console.log(
-    `🚀 StrollerScout API server running on http://localhost:${PORT}`,
+    `🚀 SproutRoute API server running on http://localhost:${PORT}`,
   );
   console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
   console.log(
