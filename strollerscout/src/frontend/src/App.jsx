@@ -4,6 +4,7 @@ import { format, addDays, differenceInDays } from "date-fns";
 import TripPlanDisplay from "./components/TripPlanDisplay";
 import WeatherDisplay from "./components/WeatherDisplay";
 import PackingChecklist from "./components/PackingChecklist";
+import FeedbackModal from "./components/FeedbackModal";
 import {
   generateTripPlan,
   generatePackingList,
@@ -24,6 +25,7 @@ function App() {
   const [showCustomize, setShowCustomize] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showFeedback, setShowFeedback] = useState(false);
 
   // Wizard input state.
   const [destinationQuery, setDestinationQuery] = useState("");
@@ -582,9 +584,21 @@ function App() {
           </aside>
         </main>
 
-        <footer className="mt-12 text-center text-xs uppercase tracking-[0.2em] text-muted">
-          Built with React, Vite, Weather.gov, and Claude
+        <footer className="mt-12 flex items-center justify-center gap-4 text-xs uppercase tracking-[0.2em] text-muted">
+          <span>Built with React, Vite, Weather.gov, and Claude</span>
+          <span className="text-white/20">|</span>
+          <button
+            onClick={() => setShowFeedback(true)}
+            className="hover:text-primary-500 transition"
+          >
+            Send Feedback
+          </button>
         </footer>
+
+        <FeedbackModal
+          isOpen={showFeedback}
+          onClose={() => setShowFeedback(false)}
+        />
       </div>
     </div>
   );

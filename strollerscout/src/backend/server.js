@@ -10,6 +10,7 @@ import {
 import { getWeatherForecast } from "./services/weather.js";
 import { generatePackingList } from "./services/packingListAI.js";
 import { generateTripPlan } from "./services/tripPlanAI.js";
+import nodemailer from "nodemailer";
 import {
   sanitizeString,
   sanitizeTripData,
@@ -317,6 +318,104 @@ app.post("/api/generate", apiLimiter, async (req, res) => {
       error: "Failed to generate packing list. Please try again.",
       details:
         process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+});
+
+// Feedback rate limiter (tighter: 3 per 15 min to prevent spam).
+const feedbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  message: { error: "Too many feedback submissions. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Build SMTP transporter lazily — only if env vars are configured.
+let mailTransporter = null;
+function getMailTransporter() {
+  if (mailTransporter) return mailTransporter;
+
+  const host = process.env.SMTP_HOST;
+  const port = parseInt(process.env.SMTP_PORT || "587", 10);
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) return null;
+
+  mailTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+  return mailTransporter;
+}
+
+app.post("/api/feedback", feedbackLimiter, async (req, res) => {
+  try {
+    const category = sanitizeString(req.body?.category || "", 50);
+    const message = sanitizeString(req.body?.message || "", 2000);
+    const email = sanitizeString(req.body?.email || "", 200);
+
+    if (!message || message.length < 5) {
+      return res
+        .status(400)
+        .json({ error: "Please provide a message (at least 5 characters)." });
+    }
+
+    const validCategories = ["bug", "feature", "general"];
+    const safeCategory = validCategories.includes(category)
+      ? category
+      : "general";
+
+    const feedbackEntry = {
+      category: safeCategory,
+      message,
+      email: email || null,
+      timestamp: new Date().toISOString(),
+      ip: req.ip,
+    };
+
+    // Always log feedback server-side so nothing is lost.
+    console.log("[FEEDBACK]", JSON.stringify(feedbackEntry));
+
+    // Send email if SMTP is configured; skip gracefully if not.
+    const transporter = getMailTransporter();
+    const recipient = process.env.FEEDBACK_TO_EMAIL;
+
+    if (transporter && recipient) {
+      const categoryLabel = {
+        bug: "Bug Report",
+        feature: "Feature Request",
+        general: "General Feedback",
+      }[safeCategory];
+
+      await transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: recipient,
+        subject: `[SproutRoute] ${categoryLabel}`,
+        text: [
+          `Category: ${categoryLabel}`,
+          `From: ${email || "(no email provided)"}`,
+          `Time: ${feedbackEntry.timestamp}`,
+          "",
+          message,
+        ].join("\n"),
+      });
+
+      devLog("Feedback email sent successfully");
+    } else {
+      devLog(
+        "SMTP not configured — feedback logged to console only. Set SMTP_HOST, SMTP_USER, SMTP_PASS, and FEEDBACK_TO_EMAIL to enable email delivery.",
+      );
+    }
+
+    res.json({ success: true, message: "Thank you for your feedback!" });
+  } catch (error) {
+    console.error("Error in /api/feedback:", error);
+    res.status(500).json({
+      error: "Failed to submit feedback. Please try again.",
     });
   }
 });

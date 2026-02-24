@@ -72,6 +72,25 @@ export const generatePackingList = async (tripData) => {
   return response.json();
 };
 
+export const submitFeedback = async ({ category, message, email }) => {
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}/api/feedback`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ category, message, email }),
+    },
+    10000,
+  );
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to submit feedback");
+  }
+
+  return response.json();
+};
+
 export const checkHealth = async () => {
   const response = await fetch(`${API_BASE_URL}/api/health`);
   if (!response.ok) {
