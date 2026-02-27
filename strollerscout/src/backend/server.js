@@ -36,7 +36,7 @@ const devLog = (...args) => {
   if (process.env.NODE_ENV !== "production") console.log(...args);
 };
 
-// CORS configuration: allow local dev origins, restrict in production.
+// CORS configuration: allow same-origin and configured origins.
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? (process.env.ALLOWED_ORIGINS || "").split(",").filter(Boolean)
@@ -49,14 +49,18 @@ const allowedOrigins =
 app.use(
   cors({
     origin: (origin, callback) => {
-      // No-origin requests (Postman, curl) are fine in dev; block in production.
+      // No-origin requests come from direct navigation, same-origin fetch,
+      // or server-to-server calls — always allow them.
       if (!origin) {
-        return process.env.NODE_ENV === "production"
-          ? callback(new Error("Origin required in production"))
-          : callback(null, true);
+        return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      // In production with no ALLOWED_ORIGINS set, allow any origin
+      // (the app serves its own frontend, so all requests are same-origin).
+      if (
+        allowedOrigins.length === 0 ||
+        allowedOrigins.includes(origin)
+      ) {
         callback(null, true);
       } else {
         callback(new Error("Not allowed by CORS"));
