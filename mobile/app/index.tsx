@@ -108,7 +108,7 @@ export default function HomeScreen() {
         )}
 
         <Text style={styles.legalNote}>
-          Currently supports US destinations · No account required
+          Works worldwide · No account required
         </Text>
       </View>
     </SafeAreaView>

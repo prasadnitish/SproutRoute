@@ -33,7 +33,7 @@ export default function DestinationScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<
-    Array<{ name: string; displayName: string }>
+    Array<{ name: string; displayName: string; tripType?: string; countryCode?: string; coords?: { lat: number; lon: number } }>
   >([]);
 
   const handleResolve = useCallback(async () => {
@@ -54,13 +54,22 @@ export default function DestinationScreen() {
       setState({ destinationQuery: q });
 
       if (result.mode === "direct" && result.destination) {
-        setState({ resolvedDestination: result.destination });
+        setState({
+          resolvedDestination: result.destination,
+          tripType: result.tripType || null,
+          countryCode: result.countryCode || null,
+          lat: result.coords?.lat ?? null,
+          lon: result.coords?.lon ?? null,
+        });
         router.push("/wizard/dates");
       } else if (result.mode === "suggestions" && result.suggestions?.length) {
         setSuggestions(
           result.suggestions.map((s) => ({
             name: s.name || s.displayName,
             displayName: s.displayName || s.name,
+            tripType: s.tripType,
+            countryCode: undefined,
+            coords: s.coords,
           })),
         );
       } else {
@@ -80,8 +89,15 @@ export default function DestinationScreen() {
   }, [query, router]);
 
   const handleSelectSuggestion = useCallback(
-    (name: string) => {
-      setState({ destinationQuery: name, resolvedDestination: name });
+    (suggestion: { name: string; tripType?: string; countryCode?: string; coords?: { lat: number; lon: number } }) => {
+      setState({
+        destinationQuery: suggestion.name,
+        resolvedDestination: suggestion.name,
+        tripType: suggestion.tripType || null,
+        countryCode: suggestion.countryCode || null,
+        lat: suggestion.coords?.lat ?? null,
+        lon: suggestion.coords?.lon ?? null,
+      });
       router.push("/wizard/dates");
     },
     [router],
@@ -90,7 +106,7 @@ export default function DestinationScreen() {
   return (
     <WizardLayout
       step={1}
-      totalSteps={3}
+      totalSteps={4}
       title="Where are you headed?"
       subtitle="Enter a city, park, or destination for your family trip."
       canGoBack={false}
@@ -138,7 +154,7 @@ export default function DestinationScreen() {
             <TouchableOpacity
               key={i}
               style={styles.suggestionItem}
-              onPress={() => handleSelectSuggestion(s.name)}
+              onPress={() => handleSelectSuggestion(s)}
               activeOpacity={0.7}
             >
               <Text style={styles.suggestionPin}>📍</Text>
@@ -163,10 +179,10 @@ export default function DestinationScreen() {
         </TouchableOpacity>
       ) : null}
 
-      {/* US notice */}
+      {/* Notice */}
       <View style={styles.noticeRow}>
         <Text style={styles.noticeText}>
-          🇺🇸 Currently supports US destinations only.
+          Works worldwide · No account required
         </Text>
       </View>
     </WizardLayout>
