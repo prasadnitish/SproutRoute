@@ -136,13 +136,21 @@ export interface SavedTrip {
   lastModified: string;
 }
 
+export interface GeoCoords {
+  lat: number;
+  lon: number;
+  countryCode?: string;
+  regionCode?: string;
+  displayName?: string;
+}
+
 export interface DestinationSuggestion {
   name: string;
   displayName: string;
   distanceMiles?: number;
   why?: string;
   tripType?: string;
-  coords?: { lat: number; lon: number };
+  coords?: GeoCoords;
 }
 
 export interface ResolveDestinationResponse {
@@ -151,7 +159,7 @@ export interface ResolveDestinationResponse {
   suggestions?: DestinationSuggestion[];
   tripType?: string;
   countryCode?: string;
-  coords?: { lat: number; lon: number };
+  coords?: GeoCoords;
   vibeDescription?: string;
   suggestedActivities?: string[];
 }

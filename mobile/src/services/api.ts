@@ -257,13 +257,13 @@ interface ApiOptions {
   onRateLimitInfo?: (info: RateLimitInfo) => void;
 }
 
-/** Resolve a free-text destination query into a concrete city or suggestions. */
+/** Resolve a free-text destination query via AI NLP resolver. */
 export const resolveDestination = async (
   query: string,
   opts: ApiOptions = {},
 ): Promise<ResolveDestinationResponse> =>
   fetchWithRetry(
-    `${API_BASE_URL}/api/resolve-destination`,
+    `${API_BASE_URL}/api/v1/destination/ai-resolve`,
     POST_OPTS({ query }),
     { maxRetries: 1, timeoutMs: 20000, ...opts },
   ) as Promise<ResolveDestinationResponse>;

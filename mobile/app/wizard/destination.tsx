@@ -33,7 +33,7 @@ export default function DestinationScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<
-    Array<{ name: string; displayName: string; tripType?: string; countryCode?: string; coords?: { lat: number; lon: number } }>
+    Array<{ name: string; displayName: string; why?: string; tripType?: string; countryCode?: string; coords?: { lat: number; lon: number } }>
   >([]);
 
   const handleResolve = useCallback(async () => {
@@ -57,7 +57,7 @@ export default function DestinationScreen() {
         setState({
           resolvedDestination: result.destination,
           tripType: result.tripType || null,
-          countryCode: result.countryCode || null,
+          countryCode: result.coords?.countryCode || null,
           lat: result.coords?.lat ?? null,
           lon: result.coords?.lon ?? null,
         });
@@ -65,10 +65,11 @@ export default function DestinationScreen() {
       } else if (result.mode === "suggestions" && result.suggestions?.length) {
         setSuggestions(
           result.suggestions.map((s) => ({
-            name: s.name || s.displayName,
+            name: s.name || s.displayName || "",
             displayName: s.displayName || s.name,
+            why: s.why,
             tripType: s.tripType,
-            countryCode: undefined,
+            countryCode: s.coords?.countryCode || undefined,
             coords: s.coords,
           })),
         );
@@ -89,12 +90,12 @@ export default function DestinationScreen() {
   }, [query, router]);
 
   const handleSelectSuggestion = useCallback(
-    (suggestion: { name: string; tripType?: string; countryCode?: string; coords?: { lat: number; lon: number } }) => {
+    (suggestion: { name: string; tripType?: string; countryCode?: string; coords?: { lat: number; lon: number; countryCode?: string } }) => {
       setState({
         destinationQuery: suggestion.name,
         resolvedDestination: suggestion.name,
         tripType: suggestion.tripType || null,
-        countryCode: suggestion.countryCode || null,
+        countryCode: suggestion.countryCode || suggestion.coords?.countryCode || null,
         lat: suggestion.coords?.lat ?? null,
         lon: suggestion.coords?.lon ?? null,
       });
@@ -158,7 +159,10 @@ export default function DestinationScreen() {
               activeOpacity={0.7}
             >
               <Text style={styles.suggestionPin}>📍</Text>
-              <Text style={styles.suggestionText}>{s.displayName}</Text>
+              <View style={styles.suggestionContent}>
+                <Text style={styles.suggestionText}>{s.displayName}</Text>
+                {s.why ? <Text style={styles.suggestionWhy}>{s.why}</Text> : null}
+              </View>
               <Text style={styles.suggestionArrow}>→</Text>
             </TouchableOpacity>
           ))}
@@ -259,11 +263,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginRight: Spacing[3],
   },
-  suggestionText: {
+  suggestionContent: {
     flex: 1,
+  },
+  suggestionText: {
     fontFamily: FontFamily.body,
     fontSize: FontSize.base,
     color: Colors.text,
+  },
+  suggestionWhy: {
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.xs,
+    color: Colors.muted,
+    marginTop: 2,
+    lineHeight: 16,
   },
   suggestionArrow: {
     fontSize: 16,
