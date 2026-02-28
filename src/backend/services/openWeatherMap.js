@@ -2,6 +2,8 @@
 // Returns the same { summary, forecast[] } shape as weather.js for seamless integration.
 // Uses the free-tier 5-day/3-hour forecast API, aggregating intervals into daily forecasts.
 
+import { log } from "../utils/logger.js";
+
 const owmCache = new Map();
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
 const MAX_CACHE_SIZE = 100;
@@ -237,9 +239,7 @@ export async function getOpenWeatherForecast(lat, lon, days = 7) {
     addToCache(cacheKey, result);
     return result;
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("OpenWeatherMap fetch error:", error);
-    }
+    log.error("OpenWeatherMap fetch failed", { error: error.message });
     throw new Error("Failed to fetch weather: " + error.message);
   }
 }

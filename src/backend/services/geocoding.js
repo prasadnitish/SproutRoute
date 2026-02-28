@@ -2,6 +2,8 @@
 // - Converts user text into concrete coordinates worldwide (Nominatim).
 // - Expands fuzzy intents ("2 hours from X") into nearby destination suggestions (Overpass).
 // - Uses bounded caching and radius limits to stay fast and abuse-resistant.
+import { log } from "../utils/logger.js";
+
 const NOMINATIM_TIMEOUT_MS = 8000;
 const OVERPASS_TIMEOUT_MS = 12000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -308,9 +310,7 @@ async function buildNearbyResult(parsed, baseCoords, cacheKey) {
     );
   } catch (error) {
     // Overpass failures are non-fatal — we fall back to the base city below.
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Nearby suggestions unavailable:", error.message);
-    }
+    log.warn("Nearby suggestions unavailable", { error: error.message });
   }
 
   const baseName = (baseCoords.displayName || parsed.base).toLowerCase();

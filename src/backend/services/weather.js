@@ -3,6 +3,7 @@
 // - Normalizes Weather.gov's day/night periods into simple daily data for UI + AI.
 // - Uses an in-memory cache to reduce latency and external API load.
 import { getOpenWeatherForecast } from "./openWeatherMap.js";
+import { log } from "../utils/logger.js";
 
 const weatherCache = new Map();
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour
@@ -154,9 +155,7 @@ export async function getWeatherForecast(lat, lon, countryCode) {
 
     return result;
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("Weather fetch error:", error);
-    }
+    log.error("Weather.gov fetch failed", { error: error.message, lat, lon });
     throw new Error("Failed to fetch weather: " + error.message);
   }
 }

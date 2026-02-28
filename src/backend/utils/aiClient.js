@@ -18,6 +18,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
+import { log } from "./logger.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -58,14 +59,15 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
     .map((block) => block.text)
     .join("");
 
-  // Log cache stats in dev to confirm caching is active
-  if (process.env.NODE_ENV !== "production" && cacheSystemPrompt) {
+  // Log cache stats to track prompt caching effectiveness
+  if (cacheSystemPrompt) {
     const usage = message.usage || {};
     if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
-      console.log(
-        `[aiClient] Cache stats — created: ${usage.cache_creation_input_tokens ?? 0}, ` +
-        `read: ${usage.cache_read_input_tokens ?? 0}, uncached: ${usage.input_tokens ?? 0}`,
-      );
+      log.info("AI cache stats", {
+        created: usage.cache_creation_input_tokens ?? 0,
+        read: usage.cache_read_input_tokens ?? 0,
+        uncached: usage.input_tokens ?? 0,
+      });
     }
   }
 
@@ -150,9 +152,7 @@ export async function callModel(prompt, deps = {}) {
     const client = deps.anthropicClient ?? makeAnthropicClient();
     return await callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt });
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error(`[aiClient] ${provider} error:`, error.message);
-    }
+    log.error(`AI call failed (${provider})`, { error: error.message });
     // Re-throw so callers (packingListAI, tripPlanAI) can handle with their retry logic
     throw error;
   }

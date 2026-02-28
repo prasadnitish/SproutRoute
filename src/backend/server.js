@@ -23,6 +23,7 @@ import {
   sanitizeTripData,
   validateTripData,
 } from "./utils/sanitize.js";
+import { log } from "./utils/logger.js";
 
 dotenv.config();
 
@@ -68,6 +69,7 @@ export function createApp(deps = {}) {
   // reads the real client IP from X-Forwarded-For instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
   app.set("trust proxy", 1);
 
+  // devLog kept for non-critical debug output; log.* used for production-visible logging
   const devLog = (...args) => {
     if (process.env.NODE_ENV !== "production" && enableRequestLogging) {
       console.log(...args);
@@ -112,9 +114,17 @@ export function createApp(deps = {}) {
 
   if (enableRequestLogging) {
     app.use((req, res, next) => {
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-      }
+      const start = Date.now();
+      res.on("finish", () => {
+        const duration = Date.now() - start;
+        // Log all API requests (skip static file serving)
+        if (req.path.startsWith("/api")) {
+          log.info(`${req.method} ${req.path} ${res.statusCode}`, {
+            duration: `${duration}ms`,
+            ip: req.ip,
+          });
+        }
+      });
       next();
     });
   }
@@ -128,13 +138,12 @@ export function createApp(deps = {}) {
     standardHeaders: true,  // Sends RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, RateLimit-Policy
     legacyHeaders: false,
     handler: (req, res) => {
-      // Include reset timestamp in body so frontend can show a countdown timer
-      // even if it can't read headers directly (e.g. browser CORS restrictions)
+      log.warn("Rate limit hit", { ip: req.ip, path: req.path });
       const resetAt = Math.ceil(Date.now() / 1000) + 15 * 60;
       res.status(429).json({
         error: "Too many requests. Please try again in 15 minutes.",
         retryAfter: "15 minutes",
-        rateLimitReset: resetAt,  // Unix timestamp (seconds) for frontend countdown
+        rateLimitReset: resetAt,
       });
     },
   });
@@ -178,7 +187,7 @@ export function createApp(deps = {}) {
       const result = await resolveAiDestinationFn(rawQuery);
       return res.json({ requestId, ...result });
     } catch (error) {
-      devLog("Error in /api/v1/destination/ai-resolve:", error);
+      log.error("ai-resolve failed", { requestId, error: error.message });
       return v1Error(res, 500, {
         code: "RESOLVE_FAILED",
         message: "Could not resolve destination. Please try a more specific location.",
@@ -200,9 +209,7 @@ export function createApp(deps = {}) {
       const result = await resolveDestinationQueryFn(rawQuery);
       return res.json(result);
     } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Error in /api/resolve-destination:", error);
-      }
+      log.error("resolve-destination failed", { error: error.message });
       return res.status(500).json({
         error: "Failed to resolve destination. Please try again.",
       });
@@ -276,9 +283,7 @@ export function createApp(deps = {}) {
         tripPlan,
       });
     } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Error in /api/trip-plan:", error);
-      }
+      log.error("trip-plan failed", { error: error.message });
 
       if (
         error.message.includes("Location not found") ||
@@ -366,9 +371,7 @@ export function createApp(deps = {}) {
         packingList,
       });
     } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Error in /api/generate:", error);
-      }
+      log.error("generate failed", { error: error.message });
 
       if (
         error.message.includes("Location not found") ||
@@ -435,9 +438,7 @@ export function createApp(deps = {}) {
 
       return res.json(guidance);
     } catch (error) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Error in /api/safety/car-seat-check:", error);
-      }
+      log.error("car-seat-check failed", { error: error.message });
       return res.status(500).json({
         error: "Failed to evaluate car seat guidance. Please try again.",
       });
@@ -526,7 +527,7 @@ export function createApp(deps = {}) {
       const result = await resolveDestinationQueryFn(rawQuery);
       return res.json({ ...result, requestId });
     } catch (error) {
-      devLog("Error in /api/v1/trip/resolve:", error);
+      log.error("v1/trip/resolve failed", { requestId, error: error.message });
       return v1Error(res, 500, {
         code: "RESOLVE_FAILED",
         message: "Failed to resolve destination. Please try again.",
@@ -594,7 +595,7 @@ export function createApp(deps = {}) {
         tripPlan,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/plan:", error);
+      log.error("v1/trip/plan failed", { requestId, error: error.message });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -653,22 +654,25 @@ export function createApp(deps = {}) {
       const rawTripType = req.body?.tripType;
       const tripType = VALID_TRIP_TYPES.has(rawTripType) ? rawTripType : null;
 
+      const rlog = log.withRequestId(requestId);
+
       // Phase 1: Geocode
       const geocodeStart = Date.now();
-      devLog("v1/trip/bundle: geocoding...");
+      rlog.info("bundle: geocoding", { destination });
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
       timings.geocode = Date.now() - geocodeStart;
+      rlog.info("bundle: geocoded", { lat: coords.lat, lon: coords.lon, country: resolvedCountry, ms: timings.geocode });
 
       // Phase 2: Weather
       const weatherStart = Date.now();
-      devLog("v1/trip/bundle: fetching weather...");
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
       timings.weather = Date.now() - weatherStart;
+      rlog.info("bundle: weather fetched", { ms: timings.weather });
 
       // Phase 3: Trip plan + Packing list in parallel
       const aiStart = Date.now();
-      devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
+      rlog.info("bundle: AI starting (trip + packing)");
       const tripPayload = { destination, startDate, endDate, activities: safeActivities, children, tripType, countryCode: resolvedCountry };
       const [tripPlan, packingList] = await Promise.all([
         generateTripPlanFn(tripPayload, weather),
@@ -677,7 +681,7 @@ export function createApp(deps = {}) {
       timings.ai = Date.now() - aiStart;
       timings.total = Date.now() - geocodeStart;
 
-      devLog(`v1/trip/bundle timings: geocode=${timings.geocode}ms, weather=${timings.weather}ms, ai=${timings.ai}ms, total=${timings.total}ms`);
+      rlog.info("bundle: complete", { geocode: `${timings.geocode}ms`, weather: `${timings.weather}ms`, ai: `${timings.ai}ms`, total: `${timings.total}ms` });
 
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -708,7 +712,7 @@ export function createApp(deps = {}) {
         timings,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/bundle:", error);
+      log.error("v1/trip/bundle failed", { requestId, error: error.message, timings });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -783,10 +787,14 @@ export function createApp(deps = {}) {
           ? activities
           : ["family-friendly", "parks", "city"];
 
+      const rlog = log.withRequestId(requestId);
+      const streamStart = Date.now();
+
       // Phase 1: Geocode
-      devLog("v1/trip/stream: geocoding...");
+      rlog.info("stream: geocoding", { destination });
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
+      rlog.info("stream: geocoded", { lat: coords.lat, lon: coords.lon, country: resolvedCountry, ms: Date.now() - streamStart });
       emit("destination", {
         destination: coords.displayName || destination,
         lat: coords.lat,
@@ -796,13 +804,15 @@ export function createApp(deps = {}) {
       flush();
 
       // Phase 2: Weather
-      devLog("v1/trip/stream: fetching weather...");
+      const weatherStart = Date.now();
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate);
+      rlog.info("stream: weather fetched", { ms: Date.now() - weatherStart });
       emit("weather", { weather });
       flush();
 
       // Phase 3: Trip plan + Packing list in parallel
-      devLog("v1/trip/stream: running AI (trip + packing) in parallel...");
+      const aiStart = Date.now();
+      rlog.info("stream: AI starting (trip + packing)");
       const tripPayload = {
         destination: coords.displayName || destination,
         startDate,
@@ -820,6 +830,7 @@ export function createApp(deps = {}) {
         generateTripPlanFn(tripPayload, weather),
         generatePackingListFn(tripPayload, weather),
       ]);
+      rlog.info("stream: AI complete", { ms: Date.now() - aiStart });
 
       emit("itinerary-chunk", { status: "done", tripPlan });
       flush();
@@ -853,9 +864,10 @@ export function createApp(deps = {}) {
       });
       flush();
 
+      rlog.info("stream: complete", { total: `${Date.now() - streamStart}ms` });
       res.end();
     } catch (error) {
-      devLog("Error in /api/v1/trip/stream:", error);
+      log.error("v1/trip/stream failed", { requestId, error: error.message });
       emit("error", {
         code: "STREAM_FAILED",
         message: error.message?.includes("Location not found")
@@ -910,7 +922,7 @@ export function createApp(deps = {}) {
 
       return res.json({ requestId, tripPlan });
     } catch (error) {
-      devLog("Error in /api/v1/trip/replan:", error);
+      log.error("v1/trip/replan failed", { requestId, error: error.message });
       return v1Error(res, 500, {
         code: "REPLAN_FAILED",
         message: "Failed to regenerate trip plan. Please try again.",
@@ -973,7 +985,7 @@ export function createApp(deps = {}) {
         packingList,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/packing:", error);
+      log.error("v1/trip/packing failed", { requestId, error: error.message });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -1040,7 +1052,7 @@ export function createApp(deps = {}) {
         lastReviewed: guidance.lastReviewed || new Date().toISOString().split("T")[0],
       });
     } catch (error) {
-      devLog("Error in /api/v1/safety/car-seat-check:", error);
+      log.error("v1/safety/car-seat-check failed", { requestId, error: error.message });
       return v1Error(res, 500, {
         code: "SAFETY_CHECK_FAILED",
         message: "Failed to retrieve car seat guidance. Please try again.",
@@ -1070,7 +1082,7 @@ export function createApp(deps = {}) {
       const advisory = await getTravelAdvisoryFn(countryCode);
       return res.json({ requestId, advisory });
     } catch (error) {
-      devLog("Error in /api/v1/safety/travel-advisory:", error);
+      log.error("v1/safety/travel-advisory failed", { requestId, error: error.message });
       return v1Error(res, 500, {
         code: "ADVISORY_FAILED",
         message: "Failed to fetch travel advisory. Trip planning will continue without it.",
@@ -1102,7 +1114,7 @@ export function createApp(deps = {}) {
       const safety = await getNeighborhoodSafetyFn(lat, lon);
       return res.json({ requestId, safety });
     } catch (error) {
-      devLog("Error in /api/v1/safety/neighborhood:", error);
+      log.error("v1/safety/neighborhood failed", { requestId, error: error.message });
       return v1Error(res, 500, {
         code: "SAFETY_FAILED",
         message: "Failed to fetch neighborhood safety data.",
