@@ -4,14 +4,23 @@
 //   #3: no retry on transient failures → fetchWithRetry with exponential backoff
 //   #4: no rate-limit awareness → RateLimit-Reset header read + rateLimitReset on errors
 
+const configuredApiBaseUrl = (import.meta.env.VITE_API_URL || "")
+  .trim()
+  .replace(/\/+$/, "");
+
 const API_BASE_URL =
-  import.meta.env.VITE_API_URL ||
-  (import.meta.env.PROD ? "" : "http://localhost:3000");
+  configuredApiBaseUrl || (import.meta.env.PROD ? "" : "http://localhost:3000");
+
+const API_CONFIG_ERROR =
+  import.meta.env.PROD && !configuredApiBaseUrl
+    ? "Configuration error: VITE_API_URL is not set. API requests are blocked in production."
+    : null;
 
 // ── Human-readable status messages ──────────────────────────────────────────
 
 export const HTTP_STATUS_MESSAGES = {
   400: "The request was invalid. Please check your inputs.",
+  404: "API endpoint not found. Check VITE_API_URL and backend route configuration.",
   422: "Your destination could not be processed. Please try a different location.",
   429: "Too many requests — please wait a moment before trying again.",
   500: "Server error. Please try again shortly.",
@@ -87,6 +96,13 @@ async function parseSafeResponse(response) {
  * @returns {Promise<any>} Parsed JSON
  */
 async function fetchWithRetry(url, options = {}, config = {}) {
+  if (API_CONFIG_ERROR) {
+    throw Object.assign(new Error(API_CONFIG_ERROR), {
+      status: 0,
+      retryable: false,
+    });
+  }
+
   const {
     maxRetries = 2,
     retryableStatuses = [429, 502, 503, 504],
@@ -182,10 +198,10 @@ export const generatePackingList = async (tripData, { onRetry, onRateLimitInfo }
     { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
 
-/** Resolve natural-language destination queries into suggestions. */
+/** Resolve natural-language destination queries via AI NLP resolver. */
 export const resolveDestination = async (query, { onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
-    `${API_BASE_URL}/api/resolve-destination`,
+    `${API_BASE_URL}/api/v1/destination/ai-resolve`,
     POST_OPTS({ query }),
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
@@ -227,3 +243,98 @@ export const getNeighborhoodSafety = async (lat, lon, { onRetry, onRateLimitInfo
     {},
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
+
+// ── SSE Streaming ──────────────────────────────────────────────────────────
+
+/**
+ * Stream trip plan via SSE (Server-Sent Events).
+ * Falls back to bundleTripPlan if streaming fails.
+ *
+ * @param {object} tripData - Trip request payload
+ * @param {function} onEvent - Called with { type, data } for each SSE event
+ * @param {AbortSignal} signal - Optional abort signal for cancellation
+ * @returns {Promise<object>} Accumulated result { trip, weather, tripPlan, packingList, safetyGuidance }
+ */
+export async function streamTripPlan(tripData, onEvent, signal) {
+  if (API_CONFIG_ERROR) throw new Error(API_CONFIG_ERROR);
+
+  const url = `${API_BASE_URL}/api/v1/trip/stream`;
+  const result = { trip: null, weather: null, tripPlan: null, packingList: null, safetyGuidance: null };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(tripData),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Stream failed with status ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            const type = data.type || data.event;
+
+            if (type === "destination") {
+              result.trip = data.data || data;
+              onEvent({ type: "destination", data: result.trip });
+            } else if (type === "weather") {
+              result.weather = data.data || data;
+              onEvent({ type: "weather", data: result.weather });
+            } else if (type === "itinerary-chunk" || type === "itinerary") {
+              result.tripPlan = data.data || data;
+              onEvent({ type: "itinerary", data: result.tripPlan });
+            } else if (type === "packing") {
+              result.packingList = data.data || data;
+              onEvent({ type: "packing", data: result.packingList });
+            } else if (type === "safety") {
+              result.safetyGuidance = data.data || data;
+            } else if (type === "done") {
+              if (data.data) Object.assign(result, data.data);
+              onEvent({ type: "done", data: result });
+            } else if (type === "error") {
+              throw new Error(data.message || data.error || "Stream error");
+            }
+          } catch (parseErr) {
+            if (parseErr.message === "Stream error" || parseErr.message?.startsWith("Stream")) {
+              throw parseErr;
+            }
+            // Ignore individual parse failures
+          }
+        }
+      }
+    }
+
+    return result;
+  } catch (err) {
+    if (err.name === "AbortError") throw err;
+
+    // Fallback to bundle API
+    console.warn("SSE stream failed, falling back to bundle:", err.message);
+    onEvent({ type: "fallback", data: null });
+    const bundleResult = await bundleTripPlan(tripData, {});
+    result.trip = bundleResult.trip || tripData;
+    result.weather = bundleResult.weather;
+    result.tripPlan = bundleResult.tripPlan;
+    result.packingList = bundleResult.packingList;
+    result.safetyGuidance = bundleResult.safetyGuidance || null;
+    onEvent({ type: "done", data: result });
+    return result;
+  }
+}

@@ -11,6 +11,8 @@ import type {
   Weather,
   PackingList,
   SafetyGuidance,
+  TravelAdvisory,
+  NeighborhoodSafety,
 } from "../types/trip";
 
 export interface WizardState {
@@ -24,12 +26,21 @@ export interface WizardState {
   childWeights: (string | number)[];
   childHeights: (string | number)[];
 
+  // Phase 6 inputs
+  tripType: string | null;
+  countryCode: string | null;
+  lat: number | null;
+  lon: number | null;
+  likedActivities: string[];
+
   // Results
   trip: TripData | null;
   weather: Weather | null;
   tripPlan: TripPlan | null;
   packingList: PackingList | null;
   safetyGuidance: SafetyGuidance | null;
+  travelAdvisory: TravelAdvisory | null;
+  neighborhoodSafety: NeighborhoodSafety | null;
 
   // Loading state
   loadingPhase: "resolving" | "weather" | "planning" | "packing" | null;
@@ -55,11 +66,18 @@ const defaultState: WizardState = {
   childAges: [],
   childWeights: [],
   childHeights: [],
+  tripType: null,
+  countryCode: null,
+  lat: null,
+  lon: null,
+  likedActivities: [],
   trip: null,
   weather: null,
   tripPlan: null,
   packingList: null,
   safetyGuidance: null,
+  travelAdvisory: null,
+  neighborhoodSafety: null,
   loadingPhase: null,
   error: null,
   rateLimitResetAt: null,

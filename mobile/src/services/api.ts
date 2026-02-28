@@ -16,6 +16,8 @@ import type {
   TripData,
   PackingList,
   SafetyGuidance,
+  TravelAdvisory,
+  NeighborhoodSafety,
   Child,
 } from "../types/trip";
 
@@ -137,6 +139,7 @@ interface FetchConfig {
   retryableStatuses?: number[];
   baseDelayMs?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
   onRetry?: (attempt: number, err: Error) => void;
   onRateLimitInfo?: (info: RateLimitInfo) => void;
 }
@@ -151,6 +154,7 @@ async function fetchWithRetry(
     retryableStatuses = [429, 502, 503, 504],
     baseDelayMs = 1000,
     timeoutMs = 30000,
+    signal: externalSignal,
     onRetry,
     onRateLimitInfo,
   } = config;
@@ -159,8 +163,20 @@ async function fetchWithRetry(
   let lastError: ApiError | null = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // If the caller already aborted, bail immediately
+    if (externalSignal?.aborted) {
+      const err = new Error("Request cancelled.") as ApiError;
+      err.status = 0;
+      err.retryable = false;
+      throw err;
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    // Forward external abort to internal controller
+    const onAbort = () => controller.abort();
+    externalSignal?.addEventListener("abort", onAbort);
 
     try {
       const response = await fetch(url, {
@@ -168,10 +184,20 @@ async function fetchWithRetry(
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", onAbort);
       return await parseSafeResponse(response, { onRateLimitInfo });
     } catch (rawErr) {
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", onAbort);
       const err = rawErr as ApiError;
+
+      // If external signal triggered the abort, don't retry — propagate immediately
+      if (externalSignal?.aborted) {
+        const cancelErr = new Error("Request cancelled.") as ApiError;
+        cancelErr.status = 0;
+        cancelErr.retryable = false;
+        throw cancelErr;
+      }
 
       if (err.name === "AbortError") {
         lastError = Object.assign(
@@ -226,6 +252,7 @@ export interface PackingListResponse {
 }
 
 interface ApiOptions {
+  signal?: AbortSignal;
   onRetry?: (attempt: number, err: Error) => void;
   onRateLimitInfo?: (info: RateLimitInfo) => void;
 }
@@ -270,6 +297,7 @@ export const getCarSeatGuidance = async (
     jurisdictionCode?: string;
     tripDate?: string;
     children: Child[];
+    countryCode?: string;
   },
   opts: ApiOptions = {},
 ): Promise<SafetyGuidance> =>
@@ -278,6 +306,49 @@ export const getCarSeatGuidance = async (
     POST_OPTS(payload),
     { maxRetries: 1, timeoutMs: 20000, ...opts },
   ) as Promise<SafetyGuidance>;
+
+// ── Phase 6 bundle + safety APIs ──────────────────────────────────────────────
+
+export interface BundleTripPlanResponse {
+  trip: TripData;
+  weather: Weather;
+  tripPlan: TripPlan;
+  packingList: PackingList;
+}
+
+/** Bundle trip plan — single call for itinerary + packing + weather. */
+export const bundleTripPlan = async (
+  tripData: TripRequest,
+  opts: ApiOptions = {},
+): Promise<BundleTripPlanResponse> =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/trip/bundle`,
+    POST_OPTS(tripData),
+    { maxRetries: 1, timeoutMs: 60000, ...opts },
+  ) as Promise<BundleTripPlanResponse>;
+
+/** Get travel advisory for a country. */
+export const getTravelAdvisory = async (
+  countryCode: string,
+  opts: ApiOptions = {},
+): Promise<{ advisory: TravelAdvisory }> =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/safety/travel-advisory/${countryCode}`,
+    {},
+    { maxRetries: 1, timeoutMs: 10000, ...opts },
+  ) as Promise<{ advisory: TravelAdvisory }>;
+
+/** Get neighborhood safety score for coordinates. */
+export const getNeighborhoodSafety = async (
+  lat: number,
+  lon: number,
+  opts: ApiOptions = {},
+): Promise<{ safety: NeighborhoodSafety }> =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/safety/neighborhood?lat=${lat}&lon=${lon}`,
+    {},
+    { maxRetries: 1, timeoutMs: 10000, ...opts },
+  ) as Promise<{ safety: NeighborhoodSafety }>;
 
 /** Health check — used for connectivity test on app launch. */
 export const checkHealth = async (): Promise<{ status: string }> =>

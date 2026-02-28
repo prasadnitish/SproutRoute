@@ -118,7 +118,7 @@ export default function DatesScreen() {
   return (
     <WizardLayout
       step={2}
-      totalSteps={3}
+      totalSteps={4}
       title="When are you going?"
       subtitle="Pick your travel dates — we'll tailor the plan to the weather."
     >

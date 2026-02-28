@@ -2,7 +2,7 @@
  * Step 3 — Kids
  * Number of children, ages, optional weight + height.
  * Weight/height show a helper explaining why they're needed (car seat safety).
- * Triggers the full AI pipeline on submit.
+ * Routes to activities screen on submit.
  */
 import React, { useState, useCallback, useEffect } from "react";
 import {
@@ -11,9 +11,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -21,14 +18,7 @@ import WizardLayout from "../../src/components/WizardLayout";
 import {
   getState,
   setState,
-  buildChildrenPayload,
 } from "../../src/utils/wizardStore";
-import {
-  generateTripPlan,
-  generatePackingList,
-  getCarSeatGuidance,
-} from "../../src/services/api";
-import { saveTripData } from "../../src/utils/checklist";
 import {
   Colors,
   FontFamily,
@@ -37,23 +27,6 @@ import {
   BorderRadius,
   Shadows,
 } from "../../src/constants/theme";
-
-// ── Activity Options ─────────────────────────────────────────────────────────
-
-const ACTIVITY_OPTIONS = [
-  { id: "beach", label: "🏖 Beach" },
-  { id: "hiking", label: "🥾 Hiking" },
-  { id: "museums", label: "🏛 Museums" },
-  { id: "theme parks", label: "🎢 Theme Parks" },
-  { id: "camping", label: "⛺️ Camping" },
-  { id: "city exploration", label: "🏙 City" },
-  { id: "water parks", label: "💦 Water Parks" },
-  { id: "wildlife", label: "🦁 Wildlife" },
-  { id: "shopping", label: "🛍 Shopping" },
-  { id: "sports", label: "⚽️ Sports" },
-  { id: "dining", label: "🍽 Dining" },
-  { id: "road trip", label: "🚗 Road Trip" },
-];
 
 // ── Stepper ──────────────────────────────────────────────────────────────────
 
@@ -150,13 +123,6 @@ export default function KidsScreen() {
   const [childHeights, setChildHeights] = useState<string[]>(
     initial.childHeights.map(String),
   );
-  const [selectedActivities, setSelectedActivities] = useState<string[]>([
-    "hiking",
-    "city exploration",
-  ]);
-  const [loading, setLoading] = useState(false);
-  const [loadingPhase, setLoadingPhase] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   // Sync arrays when numChildren changes
   useEffect(() => {
@@ -177,20 +143,8 @@ export default function KidsScreen() {
     });
   }, [numChildren]);
 
-  const toggleActivity = useCallback((id: string) => {
-    Haptics.selectionAsync();
-    setSelectedActivities((prev) =>
-      prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id],
-    );
-  }, []);
-
-  const handleBuildPlan = useCallback(async () => {
-    if (selectedActivities.length === 0) {
-      setError("Please select at least one activity.");
-      return;
-    }
-
-    // Persist to store
+  const handleNext = useCallback(() => {
+    // Persist kid data to store
     setState({
       numChildren,
       childAges,
@@ -198,101 +152,14 @@ export default function KidsScreen() {
       childHeights,
     });
 
-    const children = buildChildrenPayload();
-    const { resolvedDestination, startDate, endDate } = getState();
-
-    const tripData = {
-      destination: resolvedDestination,
-      startDate,
-      endDate,
-      activities: selectedActivities,
-      children,
-    };
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Phase 1: Trip plan + weather
-      setLoadingPhase("🌍 Planning your itinerary…");
-      setState({ loadingPhase: "planning" });
-      const planResult = await generateTripPlan(tripData, {
-        onRetry: () => setLoadingPhase("🔄 Retrying…"),
-      });
-
-      // Phase 2: Packing list
-      setLoadingPhase("🎒 Building packing list…");
-      setState({ loadingPhase: "packing" });
-      const packingResult = await generatePackingList(
-        {
-          ...tripData,
-          approvedActivities: planResult.tripPlan?.suggestedActivities || [],
-        },
-        {
-          onRetry: () => setLoadingPhase("🔄 Retrying…"),
-        },
-      );
-
-      // Phase 3: Car seat safety (best-effort)
-      setLoadingPhase("🚗 Checking car seat safety…");
-      let safetyGuidance = null;
-      try {
-        safetyGuidance = await getCarSeatGuidance({
-          destination: resolvedDestination,
-          tripDate: startDate,
-          children,
-        });
-      } catch {
-        // Safety is non-blocking — proceed without it
-      }
-
-      // Save everything to store + AsyncStorage
-      setState({
-        trip: planResult.trip,
-        weather: planResult.weather,
-        tripPlan: planResult.tripPlan,
-        packingList: packingResult.packingList,
-        safetyGuidance,
-        loadingPhase: null,
-        error: null,
-      });
-
-      await saveTripData({
-        trip: planResult.trip,
-        weather: planResult.weather,
-        tripPlan: planResult.tripPlan,
-        packingList: packingResult.packingList,
-        safetyGuidance,
-        lastModified: new Date().toISOString(),
-      });
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.push("/results");
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Something went wrong. Please try again.";
-      setState({ loadingPhase: null, error: msg });
-      setError(msg);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setLoading(false);
-      setLoadingPhase(null);
-    }
-  }, [
-    numChildren,
-    childAges,
-    childWeights,
-    childHeights,
-    selectedActivities,
-    router,
-  ]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push("/wizard/activities");
+  }, [numChildren, childAges, childWeights, childHeights, router]);
 
   return (
     <WizardLayout
       step={3}
-      totalSteps={3}
+      totalSteps={4}
       title={numChildren === 0 ? "Adults only?" : "Who's coming?"}
       subtitle={numChildren === 0
         ? "No kids on this trip — we'll plan an adults-only itinerary."
@@ -309,7 +176,7 @@ export default function KidsScreen() {
         />
         {numChildren === 0 && (
           <Text style={styles.weightHint}>
-            🧑 Adults-only trip — no car seat guidance needed.
+            Adults-only trip — no car seat guidance needed.
           </Text>
         )}
       </View>
@@ -372,75 +239,21 @@ export default function KidsScreen() {
             </View>
           </View>
           <Text style={styles.weightHint}>
-            🚗 Used for car seat safety recommendations
+            Used for car seat safety recommendations
           </Text>
         </View>
       ))}
 
-      {/* Activities */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Planned Activities</Text>
-        <Text style={styles.sectionSubtitle}>
-          Select all that apply — we'll tailor your plan around these.
-        </Text>
-        <View style={styles.activitiesGrid}>
-          {ACTIVITY_OPTIONS.map((act) => {
-            const active = selectedActivities.includes(act.id);
-            return (
-              <TouchableOpacity
-                key={act.id}
-                style={[
-                  styles.activityChip,
-                  active && styles.activityChipActive,
-                ]}
-                onPress={() => toggleActivity(act.id)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.activityChipText,
-                    active && styles.activityChipTextActive,
-                  ]}
-                >
-                  {act.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Error */}
-      {error ? (
-        <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
-
-      {/* Loading phase indicator */}
-      {loading && loadingPhase ? (
-        <View style={styles.loadingCard}>
-          <ActivityIndicator size="small" color={Colors.sproutDark} />
-          <Text style={styles.loadingPhaseText}>{loadingPhase}</Text>
-        </View>
-      ) : null}
-
-      {/* Submit */}
+      {/* Next button */}
       <TouchableOpacity
-        style={[styles.buildButton, loading && styles.buildButtonDisabled]}
-        onPress={handleBuildPlan}
-        disabled={loading}
+        style={styles.nextButton}
+        onPress={handleNext}
         activeOpacity={0.8}
       >
-        <Text style={styles.buildButtonText}>
-          {loading ? "Building your plan…" : "🌱 Build My Trip Plan"}
+        <Text style={styles.nextButtonText}>
+          Pick Activities →
         </Text>
       </TouchableOpacity>
-
-      <Text style={styles.buildHint}>
-        This takes 20-30 seconds — we're generating your AI-powered itinerary,
-        packing list, and safety guidance.
-      </Text>
     </WizardLayout>
   );
 }
@@ -454,13 +267,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     color: Colors.sproutDark,
     marginBottom: Spacing[3],
-  },
-  sectionSubtitle: {
-    fontFamily: FontFamily.body,
-    fontSize: FontSize.sm,
-    color: Colors.muted,
-    marginBottom: Spacing[3],
-    lineHeight: 20,
   },
   childCard: {
     backgroundColor: Colors.surface,
@@ -519,61 +325,7 @@ const styles = StyleSheet.create({
     color: Colors.muted,
     lineHeight: 16,
   },
-  activitiesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: Spacing[2],
-  },
-  activityChip: {
-    paddingHorizontal: Spacing[3],
-    paddingVertical: Spacing[2],
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.sproutBase,
-    backgroundColor: Colors.surface,
-  },
-  activityChipActive: {
-    backgroundColor: Colors.sproutDark,
-    borderColor: Colors.sproutDark,
-  },
-  activityChipText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: FontSize.sm,
-    color: Colors.sproutDark,
-  },
-  activityChipTextActive: {
-    color: Colors.white,
-  },
-  errorBanner: {
-    backgroundColor: Colors.errorLight,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    marginBottom: Spacing[3],
-  },
-  errorText: {
-    fontFamily: FontFamily.body,
-    fontSize: FontSize.sm,
-    color: Colors.error,
-    lineHeight: 20,
-  },
-  loadingCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing[3],
-    backgroundColor: Colors.sproutLight,
-    borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing[4],
-    paddingVertical: Spacing[3],
-    marginBottom: Spacing[3],
-  },
-  loadingPhaseText: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: FontSize.sm,
-    color: Colors.sproutDark,
-    flex: 1,
-  },
-  buildButton: {
+  nextButton: {
     backgroundColor: Colors.sproutDark,
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing[5],
@@ -581,22 +333,10 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[3],
     ...Shadows.md,
   },
-  buildButtonDisabled: {
-    opacity: 0.6,
-  },
-  buildButtonText: {
+  nextButtonText: {
     fontFamily: FontFamily.headingBold,
     fontSize: FontSize.lg,
     color: Colors.white,
     letterSpacing: 0.3,
-  },
-  buildHint: {
-    fontFamily: FontFamily.body,
-    fontSize: FontSize.xs,
-    color: Colors.muted,
-    textAlign: "center",
-    lineHeight: 18,
-    paddingHorizontal: Spacing[4],
-    marginBottom: Spacing[4],
   },
 });

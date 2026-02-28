@@ -15,6 +15,7 @@ export interface TripRequest {
   endDate: string;
   activities: string[];
   children: Child[];
+  tripType?: string;
 }
 
 export interface WeatherDay {
@@ -105,6 +106,23 @@ export interface TripData {
   duration: number;
   activities: string[];
   children: Child[];
+  tripType?: string;
+  countryCode?: string | null;
+  lat?: number;
+  lon?: number;
+}
+
+export interface TravelAdvisory {
+  countryCode: string;
+  level: number;
+  levelDescription: string;
+  summary: string;
+}
+
+export interface NeighborhoodSafety {
+  overallScore: number;
+  scores: Record<string, number>;
+  summary: string;
 }
 
 export interface SavedTrip {
@@ -113,6 +131,8 @@ export interface SavedTrip {
   tripPlan: TripPlan;
   packingList: PackingList;
   safetyGuidance: SafetyGuidance | null;
+  travelAdvisory?: TravelAdvisory | null;
+  neighborhoodSafety?: NeighborhoodSafety | null;
   lastModified: string;
 }
 
@@ -120,10 +140,18 @@ export interface DestinationSuggestion {
   name: string;
   displayName: string;
   distanceMiles?: number;
+  why?: string;
+  tripType?: string;
+  coords?: { lat: number; lon: number };
 }
 
 export interface ResolveDestinationResponse {
   mode: "direct" | "suggestions";
   destination?: string;
   suggestions?: DestinationSuggestion[];
+  tripType?: string;
+  countryCode?: string;
+  coords?: { lat: number; lon: number };
+  vibeDescription?: string;
+  suggestedActivities?: string[];
 }

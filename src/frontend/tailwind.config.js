@@ -48,6 +48,20 @@ export default {
         "2xl": "1.5rem",
         "3xl": "2rem",
       },
+      keyframes: {
+        fadeSlideUp: {
+          from: { opacity: "0", transform: "translateY(12px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
+      },
+      animation: {
+        "fade-slide-up": "fadeSlideUp 0.4s ease",
+        shimmer: "shimmer 1.5s ease-in-out infinite",
+      },
     },
   },
   plugins: [],
