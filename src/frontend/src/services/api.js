@@ -276,6 +276,7 @@ export async function streamTripPlan(tripData, onEvent, signal) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let currentEventType = "";
 
     while (true) {
       const { done, value } = await reader.read();
@@ -286,27 +287,35 @@ export async function streamTripPlan(tripData, onEvent, signal) {
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        if (line.startsWith("data: ")) {
+        // SSE format: "event: <type>" followed by "data: <json>"
+        if (line.startsWith("event: ")) {
+          currentEventType = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
           try {
             const data = JSON.parse(line.slice(6));
-            const type = data.type || data.event;
+            // Use the SSE event field, falling back to type inside JSON
+            const type = currentEventType || data.type || data.event;
+            currentEventType = ""; // reset for next event
 
             if (type === "destination") {
-              result.trip = data.data || data;
-              onEvent({ type: "destination", data: result.trip });
+              result.trip = data;
+              onEvent({ type: "destination", data });
             } else if (type === "weather") {
-              result.weather = data.data || data;
+              result.weather = data.weather || data;
               onEvent({ type: "weather", data: result.weather });
-            } else if (type === "itinerary-chunk" || type === "itinerary") {
-              result.tripPlan = data.data || data;
-              onEvent({ type: "itinerary", data: result.tripPlan });
+            } else if (type === "itinerary-chunk") {
+              if (data.tripPlan) {
+                result.tripPlan = data.tripPlan;
+                onEvent({ type: "itinerary", data: result.tripPlan });
+              } else {
+                onEvent({ type: "itinerary-status", data });
+              }
             } else if (type === "packing") {
-              result.packingList = data.data || data;
+              result.packingList = data.packingList || data;
               onEvent({ type: "packing", data: result.packingList });
             } else if (type === "safety") {
-              result.safetyGuidance = data.data || data;
+              result.safetyGuidance = data;
             } else if (type === "done") {
-              if (data.data) Object.assign(result, data.data);
               onEvent({ type: "done", data: result });
             } else if (type === "error") {
               throw new Error(data.message || data.error || "Stream error");
