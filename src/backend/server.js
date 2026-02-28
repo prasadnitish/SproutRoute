@@ -245,7 +245,7 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       devLog(`Geocoded to: ${coords.lat}, ${coords.lon} (${coords.countryCode || "US"})`);
 
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US");
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate, endDate);
       devLog(`Weather fetched successfully`);
 
       const tripPlan = await generateTripPlanFn(
@@ -339,7 +339,7 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       devLog(`Geocoded coordinates obtained`);
 
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US");
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate, endDate);
       devLog(`Weather fetched successfully`);
 
       const packingList = await generatePackingListFn(
@@ -563,7 +563,7 @@ export function createApp(deps = {}) {
       devLog("v1/trip/plan: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       const tripPlan = await generateTripPlanFn(
         { destination, startDate, endDate, activities: safeActivities, children },
         weather,
@@ -666,7 +666,7 @@ export function createApp(deps = {}) {
 
       // Phase 2: Weather
       const weatherStart = Date.now();
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       timings.weather = Date.now() - weatherStart;
       rlog.info("bundle: weather fetched", { ms: timings.weather });
 
@@ -805,7 +805,7 @@ export function createApp(deps = {}) {
 
       // Phase 2: Weather
       const weatherStart = Date.now();
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       rlog.info("stream: weather fetched", { ms: Date.now() - weatherStart });
       emit("weather", { weather });
       flush();
@@ -954,7 +954,7 @@ export function createApp(deps = {}) {
       devLog("v1/trip/packing: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       const packingList = await generatePackingListFn(
         { destination, startDate, endDate, activities, children },
         weather,

@@ -2,7 +2,7 @@
 // - Routes weather requests by country: US → Weather.gov, other → OpenWeatherMap.
 // - Normalizes Weather.gov's day/night periods into simple daily data for UI + AI.
 // - Uses an in-memory cache to reduce latency and external API load.
-import { getOpenWeatherForecast } from "./openWeatherMap.js";
+import { getVisualCrossingForecast } from "./visualCrossing.js";
 import { log } from "../utils/logger.js";
 
 const weatherCache = new Map();
@@ -77,10 +77,11 @@ export function __resetWeatherCacheForTests() {
   weatherCache.clear();
 }
 
-export async function getWeatherForecast(lat, lon, countryCode) {
-  // Route international requests to OpenWeatherMap; US stays on Weather.gov.
+export async function getWeatherForecast(lat, lon, countryCode, startDate, endDate) {
+  // Route international requests to Visual Crossing; US stays on Weather.gov.
+  // Visual Crossing also used for US when trip dates are provided (better date-range support).
   if (countryCode && countryCode.toUpperCase() !== "US") {
-    return getOpenWeatherForecast(lat, lon);
+    return getVisualCrossingForecast(lat, lon, { startDate, endDate });
   }
 
   // Coarse cache key (2dp) intentionally groups nearby points to improve hit-rate.

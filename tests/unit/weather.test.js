@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getOpenWeatherForecast, __resetOwmCacheForTests } from "../../src/backend/services/openWeatherMap.js";
+import { getVisualCrossingForecast, __resetVcCacheForTests } from "../../src/backend/services/visualCrossing.js";
 import { getWeatherForecast, __resetWeatherCacheForTests } from "../../src/backend/services/weather.js";
 
 const originalFetch = global.fetch;
@@ -8,167 +8,147 @@ const originalEnv = { ...process.env };
 
 test.afterEach(() => {
   global.fetch = originalFetch;
-  __resetOwmCacheForTests();
+  __resetVcCacheForTests();
   if (__resetWeatherCacheForTests) __resetWeatherCacheForTests();
   // Restore env vars
-  if (originalEnv.OPENWEATHERMAP_API_KEY !== undefined) {
-    process.env.OPENWEATHERMAP_API_KEY = originalEnv.OPENWEATHERMAP_API_KEY;
+  if (originalEnv.VISUAL_CROSSING_API_KEY !== undefined) {
+    process.env.VISUAL_CROSSING_API_KEY = originalEnv.VISUAL_CROSSING_API_KEY;
   } else {
-    delete process.env.OPENWEATHERMAP_API_KEY;
+    delete process.env.VISUAL_CROSSING_API_KEY;
   }
 });
 
-// --- OpenWeatherMap provider tests ---
+// --- Visual Crossing provider tests ---
 
-test("getOpenWeatherForecast returns forecast in standard shape", async () => {
-  process.env.OPENWEATHERMAP_API_KEY = "test-key-123";
+function mockVcResponse(days) {
+  return {
+    days: days.map((d) => ({
+      datetime: d.date,
+      tempmax: d.high,
+      tempmin: d.low,
+      precipprob: d.precipprob ?? 0,
+      conditions: d.conditions ?? "Clear",
+      icon: d.icon ?? "clear-day",
+      description: d.description ?? "Clear conditions throughout the day.",
+    })),
+  };
+}
 
-  // Mock OWM 5-day/3-hour forecast response with 2 days of data
+test("getVisualCrossingForecast returns forecast in standard shape", async () => {
+  process.env.VISUAL_CROSSING_API_KEY = "test-key-123";
+
   global.fetch = async (url) => {
     assert.ok(
-      String(url).includes("api.openweathermap.org"),
-      "Should call OpenWeatherMap API",
+      String(url).includes("weather.visualcrossing.com"),
+      "Should call Visual Crossing API",
     );
     assert.ok(
-      String(url).includes("appid=test-key-123"),
+      String(url).includes("key=test-key-123"),
       "Should include API key",
     );
 
     return new Response(
-      JSON.stringify({
-        list: [
-          // Day 1: two 3-hour intervals
-          {
-            dt: 1700000000,
-            dt_txt: "2026-03-15 09:00:00",
-            main: { temp: 290.15, temp_min: 288.15, temp_max: 292.15 },
-            weather: [{ id: 800, main: "Clear", description: "clear sky" }],
-          },
-          {
-            dt: 1700010800,
-            dt_txt: "2026-03-15 12:00:00",
-            main: { temp: 295.15, temp_min: 289.15, temp_max: 297.15 },
-            weather: [{ id: 801, main: "Clouds", description: "few clouds" }],
-          },
-          // Day 2: one 3-hour interval
-          {
-            dt: 1700100000,
-            dt_txt: "2026-03-16 09:00:00",
-            main: { temp: 285.15, temp_min: 283.15, temp_max: 287.15 },
-            weather: [{ id: 500, main: "Rain", description: "light rain" }],
-          },
-        ],
-      }),
+      JSON.stringify(
+        mockVcResponse([
+          { date: "2026-03-15", high: 75, low: 58, precipprob: 10, icon: "clear-day" },
+          { date: "2026-03-16", high: 68, low: 52, precipprob: 65, icon: "rain" },
+        ]),
+      ),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   };
 
-  const result = await getOpenWeatherForecast(43.65, -79.38);
+  const result = await getVisualCrossingForecast(43.65, -79.38);
 
-  // Verify standard shape
   assert.ok(result.summary, "Result should have a summary string");
   assert.ok(Array.isArray(result.forecast), "Result should have forecast array");
-  assert.ok(result.forecast.length >= 1, "Should have at least 1 day of forecast");
+  assert.equal(result.forecast.length, 2, "Should have 2 days of forecast");
 
-  // Verify each forecast day has required fields
   const day = result.forecast[0];
   assert.ok(day.name, "Day should have a name");
   assert.ok(typeof day.high === "number", "Day should have numeric high temp");
   assert.ok(typeof day.low === "number", "Day should have numeric low temp");
   assert.ok(typeof day.condition === "string", "Day should have condition string");
-  assert.ok(
-    typeof day.precipitation === "number",
-    "Day should have precipitation number",
-  );
+  assert.ok(typeof day.precipitation === "number", "Day should have precipitation number");
 });
 
-test("getOpenWeatherForecast converts Kelvin to Fahrenheit correctly", async () => {
-  process.env.OPENWEATHERMAP_API_KEY = "test-key-123";
+test("getVisualCrossingForecast maps icon strings to condition labels", async () => {
+  process.env.VISUAL_CROSSING_API_KEY = "test-key-123";
 
-  // Use a single interval so the high and low are clear
-  // Use unique coordinates to avoid cache collision with other tests
   global.fetch = async () =>
     new Response(
-      JSON.stringify({
-        list: [
-          {
-            dt: 1700000000,
-            dt_txt: "2026-03-15 12:00:00",
-            main: { temp: 300, temp_min: 290, temp_max: 310 },
-            weather: [{ id: 800, main: "Clear", description: "clear sky" }],
-          },
-        ],
-      }),
+      JSON.stringify(
+        mockVcResponse([
+          { date: "2026-03-15", high: 72, low: 55, icon: "rain" },
+          { date: "2026-03-16", high: 30, low: 20, icon: "snow" },
+          { date: "2026-03-17", high: 68, low: 50, icon: "cloudy" },
+          { date: "2026-03-18", high: 80, low: 65, icon: "clear-day" },
+          { date: "2026-03-19", high: 75, low: 60, icon: "thunder-rain" },
+          { date: "2026-03-20", high: 70, low: 55, icon: "partly-cloudy-day" },
+        ]),
+      ),
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
 
-  const result = await getOpenWeatherForecast(51.50, -0.12); // London
-  const day = result.forecast[0];
-
-  // 310 K -> (310 - 273.15) * 9/5 + 32 = 36.85 * 1.8 + 32 = 66.33 + 32 = 98.33 -> round to 98
-  const expectedHigh = Math.round((310 - 273.15) * (9 / 5) + 32);
-  // 290 K -> (290 - 273.15) * 9/5 + 32 = 16.85 * 1.8 + 32 = 30.33 + 32 = 62.33 -> round to 62
-  const expectedLow = Math.round((290 - 273.15) * (9 / 5) + 32);
-
-  assert.equal(day.high, expectedHigh, `High should be ${expectedHigh}°F`);
-  assert.equal(day.low, expectedLow, `Low should be ${expectedLow}°F`);
-});
-
-test("getOpenWeatherForecast maps OWM condition codes to condition strings", async () => {
-  process.env.OPENWEATHERMAP_API_KEY = "test-key-123";
-
-  // Provide multiple days each with a single interval to test different condition codes
-  global.fetch = async () =>
-    new Response(
-      JSON.stringify({
-        list: [
-          {
-            dt: 1700000000,
-            dt_txt: "2026-03-15 12:00:00",
-            main: { temp: 295, temp_min: 290, temp_max: 300 },
-            weather: [{ id: 502, main: "Rain", description: "heavy rain" }],
-          },
-          {
-            dt: 1700100000,
-            dt_txt: "2026-03-16 12:00:00",
-            main: { temp: 270, temp_min: 268, temp_max: 272 },
-            weather: [{ id: 601, main: "Snow", description: "snow" }],
-          },
-          {
-            dt: 1700200000,
-            dt_txt: "2026-03-17 12:00:00",
-            main: { temp: 295, temp_min: 290, temp_max: 300 },
-            weather: [{ id: 803, main: "Clouds", description: "broken clouds" }],
-          },
-          {
-            dt: 1700300000,
-            dt_txt: "2026-03-18 12:00:00",
-            main: { temp: 300, temp_min: 295, temp_max: 305 },
-            weather: [{ id: 800, main: "Clear", description: "clear sky" }],
-          },
-        ],
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
-
-  const result = await getOpenWeatherForecast(35.68, 139.69); // Tokyo — unique coords
+  const result = await getVisualCrossingForecast(35.68, 139.69);
 
   assert.equal(result.forecast[0].condition, "Rainy");
   assert.equal(result.forecast[1].condition, "Snowy");
   assert.equal(result.forecast[2].condition, "Cloudy");
   assert.equal(result.forecast[3].condition, "Sunny");
+  assert.equal(result.forecast[4].condition, "Stormy");
+  assert.equal(result.forecast[5].condition, "Partly Cloudy");
 });
 
-test("getOpenWeatherForecast throws when API key missing", async () => {
-  delete process.env.OPENWEATHERMAP_API_KEY;
+test("getVisualCrossingForecast uses real precipitation probability", async () => {
+  process.env.VISUAL_CROSSING_API_KEY = "test-key-123";
+
+  global.fetch = async () =>
+    new Response(
+      JSON.stringify(
+        mockVcResponse([
+          { date: "2026-03-15", high: 72, low: 55, precipprob: 85.3, icon: "rain" },
+          { date: "2026-03-16", high: 80, low: 65, precipprob: 0, icon: "clear-day" },
+        ]),
+      ),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+
+  const result = await getVisualCrossingForecast(51.50, -0.12);
+
+  assert.equal(result.forecast[0].precipitation, 85, "Should round precipitation to nearest integer");
+  assert.equal(result.forecast[1].precipitation, 0, "Zero precip should stay 0");
+});
+
+test("getVisualCrossingForecast passes date range in URL", async () => {
+  process.env.VISUAL_CROSSING_API_KEY = "test-key-123";
+
+  let calledUrl = "";
+  global.fetch = async (url) => {
+    calledUrl = String(url);
+    return new Response(
+      JSON.stringify(
+        mockVcResponse([{ date: "2026-07-01", high: 90, low: 75, icon: "clear-day" }]),
+      ),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  await getVisualCrossingForecast(15.30, 74.08, {
+    startDate: "2026-07-01",
+    endDate: "2026-07-14",
+  });
+
+  assert.ok(calledUrl.includes("2026-07-01/2026-07-14"), "URL should contain date range");
+});
+
+test("getVisualCrossingForecast throws when API key missing", async () => {
+  delete process.env.VISUAL_CROSSING_API_KEY;
 
   await assert.rejects(
-    () => getOpenWeatherForecast(43.65, -79.38),
+    () => getVisualCrossingForecast(43.65, -79.38),
     (err) => {
-      assert.ok(
-        err.message.includes("API key"),
-        "Error should mention API key",
-      );
+      assert.ok(err.message.includes("API key"), "Error should mention API key");
       return true;
     },
   );
@@ -232,10 +212,10 @@ test("getWeatherForecast routes US to Weather.gov", async () => {
   assert.ok(result.summary, "Result should have summary");
 });
 
-test("getWeatherForecast routes non-US to OpenWeatherMap", async () => {
-  process.env.OPENWEATHERMAP_API_KEY = "test-key-123";
+test("getWeatherForecast routes non-US to Visual Crossing", async () => {
+  process.env.VISUAL_CROSSING_API_KEY = "test-key-123";
 
-  let calledOwm = false;
+  let calledVc = false;
   let calledWeatherGov = false;
 
   global.fetch = async (url) => {
@@ -244,19 +224,14 @@ test("getWeatherForecast routes non-US to OpenWeatherMap", async () => {
       calledWeatherGov = true;
       throw new Error("Should not call Weather.gov for non-US");
     }
-    if (urlStr.includes("api.openweathermap.org")) {
-      calledOwm = true;
+    if (urlStr.includes("weather.visualcrossing.com")) {
+      calledVc = true;
       return new Response(
-        JSON.stringify({
-          list: [
-            {
-              dt: 1700000000,
-              dt_txt: "2026-03-15 12:00:00",
-              main: { temp: 280, temp_min: 275, temp_max: 285 },
-              weather: [{ id: 800, main: "Clear", description: "clear sky" }],
-            },
-          ],
-        }),
+        JSON.stringify(
+          mockVcResponse([
+            { date: "2026-03-15", high: 45, low: 35, icon: "cloudy" },
+          ]),
+        ),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
     }
@@ -265,7 +240,7 @@ test("getWeatherForecast routes non-US to OpenWeatherMap", async () => {
 
   const result = await getWeatherForecast(43.65, -79.38, "CA");
 
-  assert.ok(calledOwm, "Should have called OpenWeatherMap for CA");
+  assert.ok(calledVc, "Should have called Visual Crossing for CA");
   assert.ok(!calledWeatherGov, "Should NOT have called Weather.gov for CA");
   assert.ok(result.forecast, "Result should have forecast");
   assert.ok(result.summary, "Result should have summary");
