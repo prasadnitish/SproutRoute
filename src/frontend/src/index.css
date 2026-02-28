@@ -168,6 +168,84 @@ html.dark .activity-chip.unselected {
   background: rgba(129, 199, 132, 0.05);
 }
 
+/* Skeleton shimmer for loading states */
+.skeleton {
+  background: linear-gradient(90deg, #e8f5e9 25%, #f1f8f1 50%, #e8f5e9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+html.dark .skeleton {
+  background: linear-gradient(90deg, #1a2e1b 25%, #243824 50%, #1a2e1b 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Focus ring — consistent across all interactive elements */
+button:focus-visible,
+input:focus-visible,
+[role="tab"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #fdfdfd, 0 0 0 4px #81C784;
+}
+html.dark button:focus-visible,
+html.dark input:focus-visible,
+html.dark [role="tab"]:focus-visible {
+  box-shadow: 0 0 0 2px #0f1a10, 0 0 0 4px #a5d6a7;
+}
+
+/* Calendar grid styles */
+.calendar-day {
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+}
+.calendar-day:hover:not(.disabled) {
+  background: rgba(129, 199, 132, 0.15);
+}
+.calendar-day.selected {
+  background: #2E7D32;
+  color: white;
+  font-weight: 600;
+}
+html.dark .calendar-day.selected {
+  background: #a5d6a7;
+  color: #0f1a10;
+}
+.calendar-day.in-range {
+  background: rgba(129, 199, 132, 0.15);
+}
+html.dark .calendar-day.in-range {
+  background: rgba(165, 214, 167, 0.12);
+}
+.calendar-day.disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.calendar-day.today::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #2E7D32;
+}
+html.dark .calendar-day.today::after {
+  background: #a5d6a7;
+}
+
 /* Print styles */
 @media print {
   body {

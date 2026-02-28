@@ -1,72 +1,32 @@
-// Main app: handles the step-by-step wizard, API calls, and result screens.
 import { useState, useEffect, useRef, useCallback } from "react";
 import { format, addDays, differenceInDays } from "date-fns";
+import { AnimatePresence, motion } from "framer-motion";
+import Header from "./components/Header";
+import Footer from "./components/Footer";
+import Sidebar from "./components/Sidebar";
+import ResetModal from "./components/ResetModal";
+import WizardProgress from "./components/WizardProgress";
+import LoadingOverlay from "./components/LoadingOverlay";
+import ShareExport from "./components/ShareExport";
+import DestinationStep from "./components/wizard/DestinationStep";
+import DatesStep from "./components/wizard/DatesStep";
+import KidsStep from "./components/wizard/KidsStep";
+import ActivitiesStep from "./components/wizard/ActivitiesStep";
 import TripPlanDisplay from "./components/TripPlanDisplay";
 import PackingChecklist from "./components/PackingChecklist";
 import TravelSafetyCard from "./components/TravelSafetyCard";
 import ResultTabs from "./components/ResultTabs";
 import {
-  bundleTripPlan,
   replanTrip,
   generatePackingList,
   resolveDestination,
+  streamTripPlan,
   getTravelAdvisory,
   getNeighborhoodSafety,
 } from "./services/api";
 
-// Shield + compass logo mark matching the SproutRoute brand asset
-function LogoMark() {
-  return (
-    <svg
-      width="36"
-      height="36"
-      viewBox="0 0 36 36"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      {/* Shield */}
-      <path
-        d="M18 2L4 8v10c0 8.4 5.9 15.5 14 17 8.1-1.5 14-8.6 14-17V8L18 2z"
-        fill="#2E7D32"
-        stroke="#C8A84B"
-        strokeWidth="1.5"
-      />
-      {/* Sky band */}
-      <path
-        d="M6 14v4c0 .6.02 1.2.06 1.8h23.88c.04-.6.06-1.2.06-1.8v-4H6z"
-        fill="#4FC3F7"
-        opacity="0.5"
-      />
-      {/* Green hills */}
-      <ellipse cx="10" cy="22" rx="7" ry="4" fill="#43A047" opacity="0.7" />
-      <ellipse cx="26" cy="22" rx="7" ry="4" fill="#43A047" opacity="0.7" />
-      {/* Winding road */}
-      <path
-        d="M18 30 C16 27 14 24 16 20 C18 16 20 18 18 14"
-        stroke="#C8A84B"
-        strokeWidth="2"
-        strokeLinecap="round"
-        fill="none"
-        opacity="0.9"
-      />
-      {/* Compass rose — 4 points */}
-      <g transform="translate(18,22)">
-        <polygon points="0,-4 1,-1 0,0 -1,-1" fill="#C8A84B" />
-        <polygon points="0,4 1,1 0,0 -1,1" fill="#795548" />
-        <polygon points="-4,0 -1,-1 0,0 -1,1" fill="#C8A84B" />
-        <polygon points="4,0 1,-1 0,0 1,1" fill="#795548" />
-        <circle cx="0" cy="0" r="1" fill="#FDFDFD" />
-      </g>
-      {/* Sun */}
-      <circle cx="10" cy="12" r="2.5" fill="#FFCA28" />
-      <circle cx="10" cy="12" r="1.5" fill="#FFD54F" />
-    </svg>
-  );
-}
+// ── useTheme ─────────────────────────────────────────────────────────────────
 
-// useTheme: reads localStorage preference, falls back to system prefers-color-scheme.
-// Applies/removes the 'dark' class on <html> so Tailwind darkMode:'class' works globally.
 function useTheme() {
   const getInitial = () => {
     const stored = localStorage.getItem("sproutroute-theme");
@@ -94,34 +54,19 @@ function useTheme() {
   return { theme, toggle };
 }
 
+// ── App ──────────────────────────────────────────────────────────────────────
+
 function App() {
-  // Single orchestrator component for MVP:
-  // keeps wizard flow, API lifecycle, and local persistence in one predictable place.
   const { theme, toggle: toggleTheme } = useTheme();
   const today = format(new Date(), "yyyy-MM-dd");
   const tomorrow = format(addDays(new Date(), 1), "yyyy-MM-dd");
 
-  // Activity chips — matches mobile wizard step
-  const ACTIVITY_CHIPS = [
-    { id: "beach", label: "Beach", icon: "🏖" },
-    { id: "hiking", label: "Hiking", icon: "🥾" },
-    { id: "museums", label: "Museums", icon: "🏛" },
-    { id: "theme_parks", label: "Theme Parks", icon: "🎢" },
-    { id: "camping", label: "Camping", icon: "⛺" },
-    { id: "city", label: "City", icon: "🏙" },
-    { id: "water_parks", label: "Water Parks", icon: "💦" },
-    { id: "wildlife", label: "Wildlife", icon: "🦁" },
-    { id: "shopping", label: "Shopping", icon: "🛍" },
-    { id: "sports", label: "Sports", icon: "⚽" },
-    { id: "dining", label: "Dining", icon: "🍽" },
-    { id: "road_trip", label: "Road Trip", icon: "🚗" },
-  ];
+  // ── State ────────────────────────────────────────────────────────────────
 
-  // Step state: wizard vs results, plus which wizard question is active.
   const [step, setStep] = useState("wizard");
   const [wizardStep, setWizardStep] = useState("destination");
   const [activeResultTab, setActiveResultTab] = useState("itinerary");
-  const [selectedActivities, setSelectedActivities] = useState(new Set());
+  const [selectedActivities, setSelectedActivities] = useState([]);
   const [tripData, setTripData] = useState(null);
   const [tripPlan, setTripPlan] = useState(null);
   const [weather, setWeather] = useState(null);
@@ -131,23 +76,29 @@ function App() {
   const [neighborhoodSafety, setNeighborhoodSafety] = useState(null);
   const [showCustomize, setShowCustomize] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  // loadingPhase drives the multi-step progress indicator during plan generation.
-  // null = not loading; each value maps to a human label in LOADING_PHASES below.
-  const [loadingPhase, setLoadingPhase] = useState(null);
   const [error, setError] = useState(null);
   const [showResetModal, setShowResetModal] = useState(false);
-  // Rate limit countdown: Unix timestamp (seconds) when the limit resets.
-  // Set when a 429 response includes rateLimitReset. Drives the countdown banner.
+
+  // Loading overlay phases
+  const [showLoadingOverlay, setShowLoadingOverlay] = useState(false);
+  const [loadingPhases, setLoadingPhases] = useState(new Set());
+  const [loadingError, setLoadingError] = useState(null);
+  const abortControllerRef = useRef(null);
+
+  // Rate limit
   const [rateLimitResetAt, setRateLimitResetAt] = useState(null);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(null);
-  const countdownIntervalRef = useRef(null);
-  // Low-rate-limit warning: shown when < 5 requests remain in the current window.
   const [rateLimitRemaining, setRateLimitRemaining] = useState(null);
+  const countdownIntervalRef = useRef(null);
 
-  // Wizard input state.
+  // Wizard input state
   const [destinationQuery, setDestinationQuery] = useState("");
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const [resolvedDestination, setResolvedDestination] = useState("");
+  const [tripType, setTripType] = useState(null);
+  const [countryCode, setCountryCode] = useState(null);
+  const [lat, setLat] = useState(null);
+  const [lon, setLon] = useState(null);
 
   const [startDate, setStartDate] = useState(today);
   const [endDate, setEndDate] = useState(tomorrow);
@@ -156,56 +107,30 @@ function App() {
   const [childWeights, setChildWeights] = useState([]);
   const [childHeights, setChildHeights] = useState([]);
 
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
   const buildChildrenPayload = () => {
     return childAges.slice(0, numChildren).map((age, index) => {
       const child = { age };
       const weight = Number.parseFloat(childWeights[index]);
       const height = Number.parseFloat(childHeights[index]);
-
-      if (Number.isFinite(weight) && weight > 0) {
-        child.weightLb = Math.round(weight * 10) / 10;
-      }
-
-      if (Number.isFinite(height) && height > 0) {
-        child.heightIn = Math.round(height * 10) / 10;
-      }
-
+      if (Number.isFinite(weight) && weight > 0) child.weightLb = Math.round(weight * 10) / 10;
+      if (Number.isFinite(height) && height > 0) child.heightIn = Math.round(height * 10) / 10;
       return child;
     });
   };
 
-  const buildCustomizedTripPlan = (currentTripPlan, approvedActivities) => {
-    if (!currentTripPlan) return currentTripPlan;
+  const wizardStepIndex = { destination: 1, suggestions: 1, dates: 2, kids: 3, activities: 4 };
+  const currentStepNum = wizardStepIndex[wizardStep] || 1;
 
-    const selectedIds = new Set((approvedActivities || []).map((a) => a.id));
-    const filteredItinerary = (currentTripPlan.dailyItinerary || [])
-      .map((day) => ({
-        ...day,
-        activities: (day.activities || []).filter((id) => selectedIds.has(id)),
-      }))
-      .filter(
-        (day) =>
-          (day.activities && day.activities.length > 0) ||
-          (typeof day.meals === "string" && day.meals.trim().length > 0) ||
-          (typeof day.notes === "string" && day.notes.trim().length > 0),
-      );
+  // ── Restore saved trip ──────────────────────────────────────────────────
 
-    return {
-      ...currentTripPlan,
-      suggestedActivities: approvedActivities,
-      dailyItinerary: filteredItinerary,
-    };
-  };
-
-  // Restore previous trip from localStorage, subject to a 7-day TTL.
   const SAVED_TRIP_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   useEffect(() => {
     const savedData = localStorage.getItem("sproutroute_trip");
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
-
-        // Purge stale data so children's personal details don't linger indefinitely.
         if (parsed.lastModified) {
           const ageMs = Date.now() - new Date(parsed.lastModified).getTime();
           if (ageMs > SAVED_TRIP_TTL_MS) {
@@ -214,7 +139,6 @@ function App() {
             return;
           }
         }
-
         if (parsed.trip) {
           setTripData(parsed.trip);
           setTripPlan(parsed.tripPlan);
@@ -229,20 +153,9 @@ function App() {
           const savedChildren = parsed.trip.children || [];
           setNumChildren(savedChildren.length || 0);
           setChildAges(savedChildren.map((c) => c.age));
-          setChildWeights(
-            savedChildren.map((c) =>
-              Number.isFinite(c.weightLb) ? String(c.weightLb) : "",
-            ),
-          );
-          setChildHeights(
-            savedChildren.map((c) =>
-              Number.isFinite(c.heightIn) ? String(c.heightIn) : "",
-            ),
-          );
+          setChildWeights(savedChildren.map((c) => (Number.isFinite(c.weightLb) ? String(c.weightLb) : "")));
+          setChildHeights(savedChildren.map((c) => (Number.isFinite(c.heightIn) ? String(c.heightIn) : "")));
           setStep("results");
-        } else if (parsed.packingList) {
-          // Legacy format missing trip metadata — clear so it stops re-triggering.
-          localStorage.removeItem("sproutroute_trip");
         }
       } catch (err) {
         console.error("Failed to load saved trip:", err);
@@ -250,8 +163,7 @@ function App() {
     }
   }, []);
 
-  // Rate limit countdown: ticks every second when rateLimitResetAt is set.
-  // Clears itself once the countdown reaches zero.
+  // Rate limit countdown
   useEffect(() => {
     if (!rateLimitResetAt) {
       setRateLimitCountdown(null);
@@ -261,12 +173,8 @@ function App() {
       }
       return;
     }
-
     const tick = () => {
-      const secondsLeft = Math.max(
-        0,
-        rateLimitResetAt - Math.floor(Date.now() / 1000),
-      );
+      const secondsLeft = Math.max(0, rateLimitResetAt - Math.floor(Date.now() / 1000));
       setRateLimitCountdown(secondsLeft);
       if (secondsLeft <= 0) {
         clearInterval(countdownIntervalRef.current);
@@ -275,10 +183,8 @@ function App() {
         setRateLimitCountdown(null);
       }
     };
-
-    tick(); // run immediately
+    tick();
     countdownIntervalRef.current = setInterval(tick, 1000);
-
     return () => {
       if (countdownIntervalRef.current) {
         clearInterval(countdownIntervalRef.current);
@@ -287,7 +193,8 @@ function App() {
     };
   }, [rateLimitResetAt]);
 
-  // Step 1: resolve destination intent into a concrete city or suggestions.
+  // ── Handlers ─────────────────────────────────────────────────────────────
+
   const handleResolveDestination = async () => {
     if (!destinationQuery.trim()) {
       setError("Please enter a destination.");
@@ -300,6 +207,13 @@ function App() {
       const result = await resolveDestination(destinationQuery.trim(), {
         onRateLimitInfo: ({ remaining }) => setRateLimitRemaining(remaining),
       });
+      if (result.tripType) setTripType(result.tripType);
+      if (result.countryCode) setCountryCode(result.countryCode);
+      if (result.coords) {
+        setLat(result.coords.lat);
+        setLon(result.coords.lon);
+      }
+
       if (result.mode === "suggestions") {
         setDestinationSuggestions(result.suggestions || []);
         setWizardStep("suggestions");
@@ -317,6 +231,12 @@ function App() {
 
   const handleSelectSuggestion = (place) => {
     setResolvedDestination(place.displayName || place.name);
+    if (place.tripType) setTripType(place.tripType);
+    if (place.countryCode) setCountryCode(place.countryCode);
+    if (place.coords) {
+      setLat(place.coords.lat);
+      setLon(place.coords.lon);
+    }
     setWizardStep("dates");
   };
 
@@ -343,11 +263,20 @@ function App() {
     setWizardStep("kids");
   };
 
-  // Step 3: generate trip plan via bundle API (single call).
-  const handleGeneratePlan = async () => {
-    setIsLoading(true);
-    setLoadingPhase("building");
+  const handleNextKids = () => {
+    setWizardStep("activities");
+  };
+
+  // Generate trip plan with SSE streaming
+  const handleGeneratePlan = async (likedActivities) => {
+    setSelectedActivities(likedActivities);
+    setShowLoadingOverlay(true);
+    setLoadingPhases(new Set());
+    setLoadingError(null);
     setError(null);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const children = buildChildrenPayload();
     const formData = {
@@ -356,35 +285,47 @@ function App() {
       endDate,
       duration: differenceInDays(new Date(endDate), new Date(startDate)),
       children,
-      activities: [...selectedActivities],
+      activities: likedActivities,
+      tripType: tripType || undefined,
+      countryCode: countryCode || undefined,
     };
 
     try {
-      const onRateLimitInfo = ({ remaining }) =>
-        setRateLimitRemaining(remaining);
-      const result = await bundleTripPlan(formData, {
-        onRetry: () => setLoadingPhase("building"),
-        onRateLimitInfo,
-      });
+      const result = await streamTripPlan(
+        formData,
+        (event) => {
+          setLoadingPhases((prev) => new Set([...prev, event.type]));
+          if (event.type === "weather" && event.data) setWeather(event.data);
+          if (event.type === "itinerary" && event.data) setTripPlan(event.data);
+          if (event.type === "packing" && event.data) setPackingList(event.data);
+          if (event.type === "fallback") {
+            setLoadingPhases(new Set(["destination", "weather", "itinerary", "packing", "done"]));
+          }
+        },
+        controller.signal,
+      );
 
       const tripResult = result.trip || formData;
       setTripData(tripResult);
-      setTripPlan(result.tripPlan);
-      setWeather(result.weather);
-      setPackingList(result.packingList);
+      if (result.tripPlan) setTripPlan(result.tripPlan);
+      if (result.weather) setWeather(result.weather);
+      if (result.packingList) setPackingList(result.packingList);
       setSafetyGuidance(result.safetyGuidance || null);
       setActiveResultTab("itinerary");
       setStep("results");
+      setShowLoadingOverlay(false);
 
-      // Fire advisory + neighborhood fetches in background (non-blocking)
-      const countryCode = tripResult.countryCode || null;
-      if (countryCode && countryCode !== "US") {
-        getTravelAdvisory(countryCode)
+      // Fire advisory + neighborhood fetches in background
+      const cc = tripResult.countryCode || countryCode;
+      if (cc && cc !== "US") {
+        getTravelAdvisory(cc)
           .then((r) => setTravelAdvisory(r?.advisory ?? null))
           .catch(() => null);
       }
-      if (tripResult.lat != null && tripResult.lon != null) {
-        getNeighborhoodSafety(tripResult.lat, tripResult.lon)
+      const tripLat = tripResult.lat ?? lat;
+      const tripLon = tripResult.lon ?? lon;
+      if (tripLat != null && tripLon != null) {
+        getNeighborhoodSafety(tripLat, tripLon)
           .then((r) => setNeighborhoodSafety(r?.safety ?? null))
           .catch(() => null);
       }
@@ -399,81 +340,62 @@ function App() {
       };
       localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
     } catch (err) {
-      setError(err.message || "Failed to generate trip plan");
+      if (err.name === "AbortError") {
+        setShowLoadingOverlay(false);
+        return;
+      }
+      setLoadingError(err.message || "Failed to generate trip plan");
       if (err.rateLimitReset) setRateLimitResetAt(err.rateLimitReset);
-    } finally {
-      setIsLoading(false);
-      setLoadingPhase(null);
     }
   };
 
-  // Replan: regenerate itinerary + packing with updated activities.
+  const handleCancelLoading = () => {
+    if (abortControllerRef.current) abortControllerRef.current.abort();
+    setShowLoadingOverlay(false);
+  };
+
+  const handleRetryLoading = () => {
+    setShowLoadingOverlay(false);
+    handleGeneratePlan(selectedActivities);
+  };
+
   const handleApprovePlan = async (approvedActivities) => {
     setIsLoading(true);
-    setLoadingPhase("building");
     setError(null);
 
     try {
-      const onRateLimitInfo = ({ remaining }) =>
-        setRateLimitRemaining(remaining);
       const activityCategories = approvedActivities.map((a) => a.category);
-      const updatedTripData = {
-        ...tripData,
-        activities: activityCategories,
-      };
-
-      // Use replanTrip with cached weather to skip geocode + weather re-fetch.
-      const tripPlanData = {
-        ...updatedTripData,
-        weather,
-        approvedActivities,
-      };
-
-      const packingData = {
-        ...updatedTripData,
-        activities: activityCategories,
-        approvedActivities,
-      };
-
+      const updatedTripData = { ...tripData, activities: activityCategories };
       const [tripPlanResult, packingResult] = await Promise.all([
-        replanTrip(tripPlanData, { onRetry: () => {}, onRateLimitInfo }),
-        generatePackingList(packingData, { onRetry: () => {}, onRateLimitInfo }),
+        replanTrip({ ...updatedTripData, weather, approvedActivities }, { onRetry: () => {} }),
+        generatePackingList({ ...updatedTripData, activities: activityCategories, approvedActivities }, { onRetry: () => {} }),
       ]);
 
-      const updatedTripPlan = tripPlanResult.tripPlan;
-
       setTripData(updatedTripData);
-      setTripPlan(updatedTripPlan);
+      setTripPlan(tripPlanResult.tripPlan);
       setPackingList(packingResult.packingList);
       setShowCustomize(false);
 
-      const dataToSave = {
-        trip: updatedTripData,
-        weather,
-        tripPlan: updatedTripPlan,
-        packingList: packingResult.packingList,
-        safetyGuidance,
+      localStorage.setItem("sproutroute_trip", JSON.stringify({
+        trip: updatedTripData, weather, tripPlan: tripPlanResult.tripPlan,
+        packingList: packingResult.packingList, safetyGuidance,
         lastModified: new Date().toISOString(),
-      };
-      localStorage.setItem("sproutroute_trip", JSON.stringify(dataToSave));
+      }));
     } catch (err) {
       setError(err.message || "Failed to update trip plan");
       if (err.rateLimitReset) setRateLimitResetAt(err.rateLimitReset);
     } finally {
       setIsLoading(false);
-      setLoadingPhase(null);
     }
   };
 
-  // Show confirmation modal before destroying trip data.
   const handleReset = () => setShowResetModal(true);
 
-  // Actually execute the reset — only called after user confirms in the modal.
   const confirmReset = () => {
     setStep("wizard");
     setWizardStep("destination");
     setActiveResultTab("itinerary");
-    setSelectedActivities(new Set());
+    setSelectedActivities([]);
     setTripData(null);
     setTripPlan(null);
     setWeather(null);
@@ -485,6 +407,10 @@ function App() {
     setDestinationQuery("");
     setResolvedDestination("");
     setDestinationSuggestions([]);
+    setTripType(null);
+    setCountryCode(null);
+    setLat(null);
+    setLon(null);
     setStartDate(today);
     setEndDate(tomorrow);
     setNumChildren(0);
@@ -497,7 +423,6 @@ function App() {
     setShowResetModal(false);
   };
 
-  // Wizard back navigation.
   const handleBack = () => {
     if (wizardStep === "activities") setWizardStep("kids");
     else if (wizardStep === "kids") setWizardStep("dates");
@@ -505,101 +430,40 @@ function App() {
     else if (wizardStep === "suggestions") setWizardStep("destination");
   };
 
-  // Toggle activity chip in wizard
-  const toggleActivityChip = (activityId) => {
-    setSelectedActivities((prev) => {
-      const next = new Set(prev);
-      if (next.has(activityId)) next.delete(activityId);
-      else next.add(activityId);
-      return next;
-    });
-  };
-
-  // Wizard progress — 4 steps
-  const wizardStepIndex = { destination: 1, suggestions: 1, dates: 2, kids: 3, activities: 4 };
-  const currentStepNum = wizardStepIndex[wizardStep] || 1;
-  const totalWizardSteps = 4;
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <div className="min-h-screen bg-paper dark:bg-dark-bg text-slate-text dark:text-dark-text relative overflow-hidden">
-      {/* ── Top nav ───────────────────────────────────────────── */}
-      <header className="sticky top-0 z-20 bg-white/95 dark:bg-dark-card/95 backdrop-blur-sm border-b border-sprout-light dark:border-dark-border shadow-soft dark:shadow-soft-dark">
-        <div className="mx-auto max-w-6xl px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <LogoMark />
-            <div>
-              <span className="font-heading text-xl font-bold text-earth leading-none">
-                SproutRoute
-              </span>
-              <p className="text-xs text-muted dark:text-dark-muted leading-none mt-0.5 hidden sm:block">
-                Growing little explorers, one trip at a time.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Theme toggle */}
-            <button
-              onClick={toggleTheme}
-              className="text-base px-2.5 py-1.5 rounded-xl text-muted dark:text-dark-muted hover:bg-sprout-light dark:hover:bg-dark-border transition-colors"
-              aria-label={
-                theme === "dark"
-                  ? "Switch to light mode"
-                  : "Switch to dark mode"
-              }
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
-            >
-              {theme === "dark" ? "☀️" : "🌙"}
-            </button>
-            {step === "results" && (
-              <button
-                onClick={handleReset}
-                className="text-xs font-semibold uppercase tracking-wider text-muted dark:text-dark-muted hover:text-sprout-dark dark:hover:text-dark-sprout transition-colors px-3 py-1.5 rounded-xl hover:bg-sprout-light dark:hover:bg-dark-border"
-              >
-                ↩ Start Over
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
+      <Header
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        showStartOver={step === "results"}
+        onStartOver={handleReset}
+      />
 
       <div className="mx-auto max-w-6xl px-6 py-8 relative z-10">
         <main className="grid gap-6 lg:grid-cols-[1fr_280px]">
           {/* ── Main panel ──────────────────────────────────────── */}
-          <section className="min-h-[60vh] min-w-0 overflow-hidden rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-8">
-            {/* Rate limit low-remaining warning (shown when < 5 requests remain) */}
-            {rateLimitRemaining !== null &&
-              rateLimitRemaining < 5 &&
-              rateLimitRemaining > 0 &&
-              !error && (
-                <div
-                  className="mb-4 rounded-xl border border-sun/40 bg-sun/10 dark:bg-sun/5 px-4 py-2 text-sm text-earth flex items-center gap-2"
-                  role="status"
-                >
-                  <span aria-hidden="true">⏳</span>
-                  <span>
-                    You have {rateLimitRemaining} request
-                    {rateLimitRemaining !== 1 ? "s" : ""} remaining this window.
-                  </span>
-                </div>
-              )}
+          <section className="min-h-[60vh] min-w-0 overflow-hidden rounded-2xl border border-sprout-light dark:border-dark-border bg-white/80 dark:bg-dark-card/80 backdrop-blur-sm shadow-soft dark:shadow-soft-dark p-8">
+            {/* Rate limit warning */}
+            {rateLimitRemaining !== null && rateLimitRemaining < 5 && rateLimitRemaining > 0 && !error && (
+              <div className="mb-4 rounded-xl border border-sun/40 bg-sun/10 dark:bg-sun/5 px-4 py-2 text-sm text-earth flex items-center gap-2" role="status">
+                <span aria-hidden="true">⏳</span>
+                <span>
+                  You have {rateLimitRemaining} request{rateLimitRemaining !== 1 ? "s" : ""} remaining.
+                </span>
+              </div>
+            )}
 
             {/* Error banner */}
             {error && (
-              <div
-                className="mb-6 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-2"
-                role="alert"
-              >
-                <span className="text-base" aria-hidden="true">
-                  ⚠️
-                </span>
+              <div className="mb-6 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400 flex items-start gap-2" role="alert">
+                <span className="text-base" aria-hidden="true">⚠️</span>
                 <div className="flex-1">
                   <span>{error}</span>
                   {rateLimitCountdown !== null && rateLimitCountdown > 0 && (
-                    <div className="mt-1 font-medium text-red-800">
-                      ⏱ Try again in{" "}
-                      {rateLimitCountdown >= 60
-                        ? `${Math.ceil(rateLimitCountdown / 60)} min`
-                        : `${rateLimitCountdown}s`}
+                    <div className="mt-1 font-medium text-red-800 dark:text-red-300">
+                      ⏱ Try again in {rateLimitCountdown >= 60 ? `${Math.ceil(rateLimitCountdown / 60)} min` : `${rateLimitCountdown}s`}
                     </div>
                   )}
                 </div>
@@ -608,583 +472,163 @@ function App() {
 
             {/* ── WIZARD ──────────────────────────────────────── */}
             {step === "wizard" && (
-              <div
-                key={wizardStep}
-                className="wizard-step flex min-h-[48vh] flex-col justify-center gap-6"
-              >
-                {/* Progress dots */}
-                <div className="flex items-center gap-2">
-                  {[1, 2, 3, 4].map((n) => (
-                    <div
-                      key={n}
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        n < currentStepNum
-                          ? "w-8 bg-sprout-dark"
-                          : n === currentStepNum
-                            ? "w-8 bg-sky-base"
-                            : "w-4 bg-sprout-light"
-                      }`}
-                    />
-                  ))}
-                  <span className="text-xs text-muted ml-1">
-                    Step {currentStepNum} of {totalWizardSteps}
-                  </span>
-                </div>
+              <div className="flex min-h-[48vh] flex-col justify-center gap-6">
+                <WizardProgress currentStep={currentStepNum} />
 
-                {/* ── Step 1: Destination ── */}
-                {wizardStep === "destination" && (
-                  <>
-                    <div>
-                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
-                        Where are you headed? 🗺️
-                      </h2>
-                      <p className="text-muted mt-2">
-                        Try "Seattle, WA" or "2 hour drive from Seattle."
-                      </p>
-                    </div>
-                    <input
-                      type="text"
-                      value={destinationQuery}
-                      onChange={(e) => setDestinationQuery(e.target.value)}
-                      onKeyDown={(e) =>
-                        e.key === "Enter" && handleResolveDestination()
-                      }
-                      placeholder="Type your destination..."
-                      className="w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-4 text-xl text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
-                    />
-                    <div>
-                      <button
-                        onClick={handleResolveDestination}
-                        disabled={isLoading}
-                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
-                      >
-                        {isLoading ? "Finding places..." : "Continue →"}
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* ── Step 1b: Suggestions ── */}
-                {wizardStep === "suggestions" && (
-                  <>
-                    <div>
-                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
-                        Pick a destination 📍
-                      </h2>
-                      <p className="text-muted mt-2">
-                        These places match your request — choose one to
-                        continue.
-                      </p>
-                    </div>
-                    <div className="space-y-3">
-                      {destinationSuggestions.map((place) => (
-                        <button
-                          key={`${place.displayName}-${place.distanceMiles}`}
-                          onClick={() => handleSelectSuggestion(place)}
-                          className="w-full rounded-xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-bg px-5 py-4 text-left transition hover:border-sprout-base hover:shadow-soft dark:hover:border-dark-sprout group"
-                        >
-                          <div className="text-base font-semibold text-slate-text dark:text-dark-text group-hover:text-sprout-dark dark:group-hover:text-dark-sprout">
-                            {place.displayName || place.name}
-                          </div>
-                          <div className="text-xs text-muted dark:text-dark-muted mt-0.5">
-                            About {place.distanceMiles} miles away
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-4">
-                      <button
-                        onClick={handleUseOriginalDestination}
-                        className="text-sm font-semibold text-sprout-dark hover:text-sprout-base transition-colors"
-                      >
-                        Use my original input instead
-                      </button>
-                      <button
-                        onClick={handleBack}
-                        className="text-sm text-muted hover:text-slate-text transition-colors"
-                      >
-                        ← Back
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* ── Step 2: Dates ── */}
-                {wizardStep === "dates" && (
-                  <>
-                    <div>
-                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
-                        When are you going? 📅
-                      </h2>
-                      <p className="text-muted mt-2">
-                        Select your trip start and end dates (max 14 days).
-                      </p>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="block text-sm font-medium text-slate-text">
-                        Start date
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => {
-                            const newStart = e.target.value;
-                            setStartDate(newStart);
-                            if (endDate <= newStart) {
-                              setEndDate(
-                                format(
-                                  addDays(new Date(newStart), 1),
-                                  "yyyy-MM-dd",
-                                ),
-                              );
-                            }
-                          }}
-                          min={today}
-                          className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
-                        />
-                      </label>
-                      <label className="block text-sm font-medium text-slate-text">
-                        End date
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
-                          min={startDate}
-                          className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
-                        />
-                      </label>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={handleNextDates}
-                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors shadow-soft"
-                      >
-                        Continue →
-                      </button>
-                      <button
-                        onClick={handleBack}
-                        className="text-sm text-muted hover:text-slate-text transition-colors"
-                      >
-                        ← Back
-                      </button>
-                    </div>
-                  </>
-                )}
-
-                {/* ── Step 3: Kids ── */}
-                {wizardStep === "kids" && (
-                  <>
-                    <div>
-                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
-                        {numChildren > 0 ? "Who's coming along? 👧🧒" : "Traveling with kids? 👧🧒"}
-                      </h2>
-                      <p className="text-muted mt-2">
-                        {numChildren > 0
-                          ? "Add your little explorers so we can tailor the itinerary."
-                          : "No kids? No problem — we'll plan an adults-only trip."}
-                      </p>
-                    </div>
-                    <label className="block text-sm font-medium text-slate-text">
-                      Number of children
-                      <input
-                        type="number"
-                        value={numChildren}
-                        min="0"
-                        max="10"
-                        onChange={(e) => {
-                          const value = Math.max(
-                            0,
-                            Math.min(10, parseInt(e.target.value) || 0),
-                          );
-                          setNumChildren(value);
-                          if (value > 0) {
-                            setChildAges((prev) =>
-                              Array(value)
-                                .fill(0)
-                                .map((_, i) => prev[i] ?? 2),
-                            );
-                            setChildWeights((prev) =>
-                              Array(value)
-                                .fill("")
-                                .map((_, i) => prev[i] ?? ""),
-                            );
-                            setChildHeights((prev) =>
-                              Array(value)
-                                .fill("")
-                                .map((_, i) => prev[i] ?? ""),
-                            );
-                          } else {
-                            setChildAges([]);
-                            setChildWeights([]);
-                            setChildHeights([]);
-                          }
-                        }}
-                        className="mt-2 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-4 py-3 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={wizardStep}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -16 }}
+                    transition={{ duration: 0.3 }}
+                    className="flex flex-col gap-6"
+                  >
+                    {(wizardStep === "destination" || wizardStep === "suggestions") && (
+                      <DestinationStep
+                        destinationQuery={destinationQuery}
+                        onQueryChange={setDestinationQuery}
+                        onResolve={handleResolveDestination}
+                        suggestions={destinationSuggestions}
+                        onSelectSuggestion={handleSelectSuggestion}
+                        onUseOriginal={handleUseOriginalDestination}
+                        onBack={handleBack}
+                        isLoading={isLoading}
+                        showSuggestions={wizardStep === "suggestions"}
                       />
-                    </label>
-                    {numChildren > 0 && (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {Array(numChildren)
-                          .fill(0)
-                          .map((_, index) => (
-                            <div
-                              key={`child-${index}`}
-                              className="rounded-2xl border border-sprout-light dark:border-dark-border bg-sprout-light/40 dark:bg-dark-bg p-4 space-y-3"
-                            >
-                              <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark">
-                                🌱 Child {index + 1}
-                              </p>
-                              <label className="block text-sm font-medium text-slate-text">
-                                Age (years)
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="18"
-                                  value={childAges[index] || 0}
-                                  onChange={(e) => {
-                                    const value = Math.max(
-                                      0,
-                                      Math.min(
-                                        18,
-                                        parseInt(e.target.value) || 0,
-                                      ),
-                                    );
-                                    setChildAges((prev) => {
-                                      const next = [...prev];
-                                      next[index] = value;
-                                      return next;
-                                    });
-                                  }}
-                                  className="mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg px-3 py-2 text-slate-text dark:text-dark-text focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
-                                />
-                              </label>
-                              <div className="grid gap-3 md:grid-cols-2">
-                                <label className="block text-sm font-medium text-slate-text">
-                                  Weight (lb)
-                                  <span className="block text-xs text-muted font-normal">
-                                    For car seat safety recommendations
-                                  </span>
-                                  <input
-                                    type="number"
-                                    min="2"
-                                    max="300"
-                                    step="0.1"
-                                    value={childWeights[index] || ""}
-                                    onChange={(e) => {
-                                      const value = e.target.value;
-                                      setChildWeights((prev) => {
-                                        const next = [...prev];
-                                        next[index] = value;
-                                        return next;
-                                      });
-                                    }}
-                                    placeholder="Not set"
-                                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg px-3 py-2 text-sm text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
-                                  />
-                                </label>
-                                <label className="block text-sm font-medium text-slate-text">
-                                  Height (in)
-                                  <span className="block text-xs text-muted font-normal">
-                                    For car seat safety recommendations
-                                  </span>
-                                  <input
-                                    type="number"
-                                    min="10"
-                                    max="90"
-                                    step="0.1"
-                                    value={childHeights[index] || ""}
-                                    onChange={(e) => {
-                                      const value = e.target.value;
-                                      setChildHeights((prev) => {
-                                        const next = [...prev];
-                                        next[index] = value;
-                                        return next;
-                                      });
-                                    }}
-                                    placeholder="Not set"
-                                    className="mt-1 w-full rounded-xl border border-gray-200 dark:border-dark-border bg-white dark:bg-dark-bg px-3 py-2 text-sm text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
-                                  />
-                                </label>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
                     )}
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={() => setWizardStep("activities")}
-                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors shadow-soft"
-                      >
-                        Continue →
-                      </button>
-                      <button
-                        onClick={handleBack}
-                        className="text-sm text-muted hover:text-slate-text transition-colors"
-                      >
-                        ← Back
-                      </button>
-                    </div>
-                  </>
-                )}
 
-                {/* ── Step 4: Activities ── */}
-                {wizardStep === "activities" && (
-                  <>
-                    <div>
-                      <h2 className="font-heading text-3xl md:text-4xl font-bold text-sprout-dark">
-                        {numChildren > 0 ? "What does the family enjoy? 🎯" : "What are you into? 🎯"}
-                      </h2>
-                      <p className="text-muted mt-2">
-                        Pick activities to personalize your itinerary. Select as many as you like!
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2.5">
-                      {ACTIVITY_CHIPS.map((chip) => {
-                        const isSelected = selectedActivities.has(chip.id);
-                        return (
-                          <button
-                            key={chip.id}
-                            onClick={() => toggleActivityChip(chip.id)}
-                            className={`activity-chip ${isSelected ? "selected" : "unselected"}`}
-                            aria-pressed={isSelected}
-                          >
-                            <span aria-hidden="true">{chip.icon}</span>
-                            {chip.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Loading indicator */}
-                    {isLoading && loadingPhase && (
-                      <div className="rounded-xl border border-sky-light bg-sky-light/40 dark:bg-sky-light/10 px-5 py-4 space-y-2">
-                        <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
-                          <span className="text-xl animate-spin">🌍</span>
-                          <span>Building your trip plan...</span>
-                        </div>
-                        <p className="text-xs text-muted">
-                          This usually takes 5–10 seconds
-                        </p>
-                      </div>
+                    {wizardStep === "dates" && (
+                      <DatesStep
+                        startDate={startDate}
+                        endDate={endDate}
+                        onStartDateChange={setStartDate}
+                        onEndDateChange={setEndDate}
+                        onNext={handleNextDates}
+                        onBack={handleBack}
+                      />
                     )}
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={handleGeneratePlan}
-                        disabled={isLoading}
-                        className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
-                      >
-                        {isLoading ? "Building plan..." : "🌱 Build My Trip Plan"}
-                      </button>
-                      {!isLoading && (
-                        <button
-                          onClick={handleBack}
-                          className="text-sm text-muted hover:text-slate-text transition-colors"
-                        >
-                          ← Back
-                        </button>
-                      )}
-                    </div>
-                  </>
-                )}
+
+                    {wizardStep === "kids" && (
+                      <KidsStep
+                        numChildren={numChildren}
+                        onNumChildrenChange={setNumChildren}
+                        childAges={childAges}
+                        onChildAgesChange={setChildAges}
+                        childWeights={childWeights}
+                        onChildWeightsChange={setChildWeights}
+                        childHeights={childHeights}
+                        onChildHeightsChange={setChildHeights}
+                        onNext={handleNextKids}
+                        onBack={handleBack}
+                      />
+                    )}
+
+                    {wizardStep === "activities" && (
+                      <ActivitiesStep
+                        tripType={tripType}
+                        suggestedActivities={[]}
+                        onComplete={handleGeneratePlan}
+                        onBack={handleBack}
+                        numChildren={numChildren}
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
               </div>
             )}
 
             {/* ── RESULTS ─────────────────────────────────────── */}
             {step === "results" && (
-              <div className="space-y-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="space-y-6"
+              >
                 {/* Trip header */}
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wider text-muted">
+                    <p className="text-xs font-bold uppercase tracking-wider text-muted dark:text-dark-muted">
                       🗺️ Trip overview
                     </p>
-                    <h2 className="font-heading text-3xl font-bold text-sprout-dark mt-1">
-                      {tripData.destination}
+                    <h2 className="font-heading text-3xl font-bold text-sprout-dark dark:text-dark-sprout mt-1">
+                      {tripData?.destination}
                     </h2>
-                    <p className="text-sm text-muted">
-                      {format(
-                        new Date(tripData.startDate + "T12:00:00"),
-                        "MMM d",
-                      )}{" "}
-                      →{" "}
-                      {format(
-                        new Date(tripData.endDate + "T12:00:00"),
-                        "MMM d, yyyy",
-                      )}{" "}
-                      · {tripData.duration} day
-                      {tripData.duration !== 1 ? "s" : ""}
-                    </p>
+                    {tripData?.startDate && tripData?.endDate && (
+                      <p className="text-sm text-muted dark:text-dark-muted">
+                        {format(new Date(tripData.startDate + "T12:00:00"), "MMM d")}
+                        {" → "}
+                        {format(new Date(tripData.endDate + "T12:00:00"), "MMM d, yyyy")}
+                        {" · "}
+                        {tripData.duration} day{tripData.duration !== 1 ? "s" : ""}
+                      </p>
+                    )}
                     {weather?.summary && (
-                      <p className="text-xs text-muted mt-1 flex items-center gap-1">
+                      <p className="text-xs text-muted dark:text-dark-muted mt-1 flex items-center gap-1">
                         <span>🌤</span> {weather.summary}
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => setShowCustomize((prev) => !prev)}
-                    className="rounded-xl border border-sprout-light dark:border-dark-border px-5 py-2 text-sm font-semibold text-sprout-dark dark:text-dark-sprout transition hover:bg-sprout-light dark:hover:bg-dark-border print:hidden"
-                  >
-                    {showCustomize ? "Hide activities" : "✏️ Customize"}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <ShareExport tripData={tripData} isVisible={true} />
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setShowCustomize((prev) => !prev)}
+                      className="rounded-xl border border-sprout-light dark:border-dark-border px-5 py-2 text-sm font-semibold text-sprout-dark dark:text-dark-sprout transition hover:bg-sprout-light dark:hover:bg-dark-border print:hidden"
+                    >
+                      {showCustomize ? "Hide activities" : "✏️ Customize"}
+                    </motion.button>
+                  </div>
                 </div>
 
-                {/* Loading state on results screen (replan) */}
+                {/* Loading state (replan) */}
                 {isLoading && (
-                  <div className="rounded-xl border border-sky-light bg-sky-light/40 dark:bg-sky-light/10 px-5 py-5 space-y-2">
+                  <div className="rounded-xl border border-sky-light bg-sky-light/40 dark:bg-sky-light/10 px-5 py-5">
                     <div className="flex items-center gap-3 text-sm text-sky-dark font-medium">
-                      <span className="text-xl animate-spin">🌍</span>
+                      <div className="w-5 h-5 border-2 border-sky-dark/30 border-t-sky-dark rounded-full animate-spin" />
                       <span>Refreshing your trip plan...</span>
                     </div>
                   </div>
                 )}
 
-                {/* Tab navigation */}
-                <ResultTabs
-                  activeTab={activeResultTab}
-                  onTabChange={setActiveResultTab}
-                />
+                <ResultTabs activeTab={activeResultTab} onTabChange={setActiveResultTab} />
 
-                {/* Tab panels */}
-                {activeResultTab === "itinerary" && !isLoading && tripPlan && (
-                  <div id="tabpanel-itinerary" role="tabpanel" aria-labelledby="tab-itinerary" className="overflow-hidden min-w-0">
-                    <TripPlanDisplay
-                      tripPlan={tripPlan}
-                      weather={weather}
-                      onApprove={handleApprovePlan}
-                      isVisible={showCustomize}
-                    />
-                  </div>
-                )}
-
-                {activeResultTab === "packing" && !isLoading && packingList && (
-                  <div id="tabpanel-packing" role="tabpanel" aria-labelledby="tab-packing">
-                    <PackingChecklist packingList={packingList} />
-                  </div>
-                )}
-
-                {activeResultTab === "safety" && !isLoading && (
-                  <div id="tabpanel-safety" role="tabpanel" aria-labelledby="tab-safety">
-                    <TravelSafetyCard
-                      safetyGuidance={safetyGuidance}
-                      travelAdvisory={travelAdvisory}
-                      neighborhoodSafety={neighborhoodSafety}
-                      hasChildren={numChildren > 0}
-                      weather={weather}
-                      tripPlan={tripPlan}
-                    />
-                  </div>
-                )}
-              </div>
+                <AnimatePresence mode="wait">
+                  {activeResultTab === "itinerary" && !isLoading && tripPlan && (
+                    <motion.div key="itinerary" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      id="tabpanel-itinerary" role="tabpanel" className="overflow-hidden min-w-0">
+                      <TripPlanDisplay tripPlan={tripPlan} weather={weather} onApprove={handleApprovePlan} isVisible={showCustomize} startDate={tripData?.startDate} />
+                    </motion.div>
+                  )}
+                  {activeResultTab === "packing" && !isLoading && packingList && (
+                    <motion.div key="packing" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      id="tabpanel-packing" role="tabpanel">
+                      <PackingChecklist packingList={packingList} />
+                    </motion.div>
+                  )}
+                  {activeResultTab === "safety" && !isLoading && (
+                    <motion.div key="safety" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+                      id="tabpanel-safety" role="tabpanel">
+                      <TravelSafetyCard safetyGuidance={safetyGuidance} travelAdvisory={travelAdvisory} neighborhoodSafety={neighborhoodSafety}
+                        hasChildren={numChildren > 0} weather={weather} tripPlan={tripPlan} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             )}
           </section>
 
-          {/* ── Sidebar ─────────────────────────────────────────── */}
-          <aside className="hidden lg:block rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6 h-fit min-w-0 overflow-hidden">
-            <p className="text-xs font-bold uppercase tracking-wider text-sprout-dark mb-4">
-              🧭 Your trip
-            </p>
-            <div className="space-y-4 text-sm">
-              <div>
-                <p className="text-xs text-muted font-medium">Destination</p>
-                <p className="text-base font-semibold text-slate-text mt-0.5">
-                  {resolvedDestination || (
-                    <span className="text-muted italic">Not set yet</span>
-                  )}
-                </p>
-              </div>
-              <div className="border-t border-sprout-light pt-4">
-                <p className="text-xs text-muted font-medium">Dates</p>
-                <p className="text-base font-semibold text-slate-text mt-0.5">
-                  {startDate && endDate ? (
-                    <>
-                      {format(new Date(startDate + "T12:00:00"), "MMM d")}
-                      <span className="text-muted mx-1">→</span>
-                      {format(new Date(endDate + "T12:00:00"), "MMM d, yyyy")}
-                    </>
-                  ) : (
-                    <span className="text-muted italic">Not set yet</span>
-                  )}
-                </p>
-              </div>
-              <div className="border-t border-sprout-light pt-4">
-                <p className="text-xs text-muted font-medium">Travelers</p>
-                <p className="text-base font-semibold text-slate-text mt-0.5">
-                  {numChildren > 0
-                    ? `${numChildren} child${numChildren === 1 ? "" : "ren"}`
-                    : "Adults only"}
-                </p>
-              </div>
-              {numChildren > 0 &&
-                childAges.slice(0, numChildren).length > 0 && (
-                  <div className="border-t border-sprout-light dark:border-dark-border pt-4">
-                    <p className="text-xs text-muted font-medium">Ages</p>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {childAges.slice(0, numChildren).map((age, i) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sprout-light text-sprout-dark"
-                        >
-                          🌱 {age}y
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              {step === "results" && (
-                <div className="border-t border-sprout-light dark:border-dark-border pt-4">
-                  <button
-                    onClick={handleReset}
-                    className="w-full rounded-xl border border-sprout-light px-4 py-2.5 text-sm font-semibold text-sprout-dark hover:bg-sprout-light transition-colors"
-                  >
-                    ↩ Start over
-                  </button>
-                </div>
-              )}
-            </div>
-          </aside>
+          <Sidebar resolvedDestination={resolvedDestination} startDate={startDate} endDate={endDate}
+            numChildren={numChildren} childAges={childAges} showStartOver={step === "results"} onStartOver={handleReset} />
         </main>
 
-        {/* ── Footer ──────────────────────────────────────────── */}
-        <footer className="mt-12 text-center text-xs text-muted dark:text-dark-muted">
-          <span className="font-heading font-bold text-earth">SproutRoute</span>
-          {" · "}Built with React, Vite &amp; Weather.gov
-        </footer>
+        <Footer />
       </div>
 
-      {/* ── Start Over confirmation modal ──────────────────── */}
-      {showResetModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="reset-modal-title"
-        >
-          <div className="bg-white dark:bg-dark-card rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 border border-sprout-light dark:border-dark-border">
-            <h2
-              id="reset-modal-title"
-              className="font-heading text-xl font-bold text-sprout-dark dark:text-dark-sprout mb-2"
-            >
-              Start over?
-            </h2>
-            <p className="text-sm text-muted dark:text-dark-muted mb-6">
-              This will clear your current trip plan, packing list, and all
-              saved data. This can&rsquo;t be undone.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={confirmReset}
-                className="flex-1 rounded-xl bg-red-500 text-white py-2.5 font-semibold text-sm hover:bg-red-600 transition-colors"
-              >
-                Start Fresh
-              </button>
-              <button
-                onClick={() => setShowResetModal(false)}
-                className="flex-1 rounded-xl border border-sprout-light dark:border-dark-border text-sprout-dark dark:text-dark-sprout py-2.5 font-semibold text-sm hover:bg-sprout-light dark:hover:bg-dark-border transition-colors"
-              >
-                Keep My Trip
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ResetModal isOpen={showResetModal} onConfirm={confirmReset} onCancel={() => setShowResetModal(false)} />
+      <LoadingOverlay isVisible={showLoadingOverlay} completedPhases={loadingPhases} error={loadingError}
+        onCancel={handleCancelLoading} onRetry={handleRetryLoading} />
     </div>
   );
 }
