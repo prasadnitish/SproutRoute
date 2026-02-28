@@ -117,7 +117,30 @@ export async function geocodeLocation(locationString) {
       throw new Error("Geocoding service unavailable");
     }
 
-    const data = await response.json();
+    let data = await response.json();
+
+    // If no results, try progressively broader queries by dropping leading parts.
+    // "Ko Olina, Oahu, Hawaii" → "Oahu, Hawaii" → "Hawaii"
+    if ((!data || data.length === 0) && locationString.includes(",")) {
+      const parts = locationString.split(",").map((s) => s.trim());
+      for (let i = 1; i < parts.length; i++) {
+        const broader = parts.slice(i).join(", ");
+        const broaderEncoded = encodeURIComponent(broader);
+        const retryResponse = await fetchWithTimeout(
+          `https://nominatim.openstreetmap.org/search?q=${broaderEncoded}&format=json&addressdetails=1&limit=1`,
+          { headers: { "User-Agent": "SproutRoute/1.0" } },
+          NOMINATIM_TIMEOUT_MS,
+        );
+        if (retryResponse.ok) {
+          const retryData = await retryResponse.json();
+          if (retryData && retryData.length > 0) {
+            log.info("Geocoding broadened query", { original: locationString, broadened: broader });
+            data = retryData;
+            break;
+          }
+        }
+      }
+    }
 
     if (!data || data.length === 0) {
       throw new Error("Location not found. Please try a different city or address.");

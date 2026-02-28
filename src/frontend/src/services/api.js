@@ -318,13 +318,13 @@ export async function streamTripPlan(tripData, onEvent, signal) {
             } else if (type === "done") {
               onEvent({ type: "done", data: result });
             } else if (type === "error") {
-              throw new Error(data.message || data.error || "Stream error");
+              const err = new Error(data.message || data.error || "Stream error");
+              err.isStreamError = true;
+              throw err;
             }
           } catch (parseErr) {
-            if (parseErr.message === "Stream error" || parseErr.message?.startsWith("Stream")) {
-              throw parseErr;
-            }
-            // Ignore individual parse failures
+            if (parseErr.isStreamError) throw parseErr;
+            // Ignore individual JSON parse failures
           }
         }
       }
