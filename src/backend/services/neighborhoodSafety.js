@@ -1,6 +1,7 @@
 // Amadeus Safe Place API client (powered by GeoSure).
 // Returns neighborhood-level safety scores across 7 categories.
 // Graceful: returns null if API is down or quota exhausted — never blocks trip planning.
+import { log } from "../utils/logger.js";
 
 const AMADEUS_BASE_URL = "https://test.api.amadeus.com";
 const TOKEN_CACHE_TTL_MS = 29 * 60 * 1000; // 29 minutes (Amadeus tokens last 30 min)
@@ -84,9 +85,7 @@ async function getAmadeusToken() {
     );
 
     if (!response.ok) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Amadeus OAuth failed with status", response.status);
-      }
+      log.warn("Amadeus OAuth failed", { status: response.status });
       return null;
     }
 
@@ -105,9 +104,7 @@ async function getAmadeusToken() {
 
     return token;
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Amadeus OAuth error:", error.message);
-    }
+    log.warn("Amadeus OAuth error", { error: error.message });
     return null;
   }
 }
@@ -166,9 +163,7 @@ export async function getNeighborhoodSafety(lat, lon) {
     });
 
     if (!response.ok) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("Amadeus Safe Place API returned status", response.status);
-      }
+      log.warn("Amadeus Safe Place API error", { status: response.status });
       return null;
     }
 
@@ -199,9 +194,7 @@ export async function getNeighborhoodSafety(lat, lon) {
     setCached(cacheKey, result);
     return result;
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Neighborhood safety lookup failed:", error.message);
-    }
+    log.warn("Neighborhood safety lookup failed", { error: error.message });
     return null;
   }
 }

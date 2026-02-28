@@ -1,6 +1,7 @@
 // AI service: generates a structured packing list in JSON.
 // Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
 import { callModel } from "../utils/aiClient.js";
+import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import { getPackingBaseTemplate, detectClimateZone } from "./ragTemplates.js";
 import {
@@ -112,12 +113,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     try {
       return parsePackingListResponse(firstAttempt.responseText);
     } catch (firstParseError) {
-      if (process.env.NODE_ENV !== "production") {
-        console.warn(
-          "Packing list parse failed on first attempt; retrying with compact prompt:",
-          firstParseError.message,
-        );
-      }
+      log.warn("Packing-list parse failed (attempt 1), retrying compact", { error: firstParseError.message });
 
       const retryPrompt = buildPrompt(
         destination,
@@ -137,12 +133,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
       try {
         return parsePackingListResponse(secondAttempt.responseText);
       } catch (secondParseError) {
-        if (process.env.NODE_ENV !== "production") {
-          console.warn(
-            "Packing list parse failed after retry; attempting JSON repair:",
-            secondParseError.message,
-          );
-        }
+        log.warn("Packing-list parse failed (attempt 2), trying repair", { error: secondParseError.message });
 
         const repairSource = secondAttempt.responseText || firstAttempt.responseText;
         const repairAttempt = await repairPackingListJson(repairSource, deps);
@@ -150,20 +141,14 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
         try {
           return parsePackingListResponse(repairAttempt.responseText);
         } catch (repairParseError) {
-          if (process.env.NODE_ENV !== "production") {
-            console.error(
-              "Packing list parse failed after retry and repair:",
-              repairParseError,
-            );
-            console.error(
-              "Stop reasons:",
-              JSON.stringify({
-                firstAttempt: firstAttempt.stopReason || "unknown",
-                secondAttempt: secondAttempt.stopReason || "unknown",
-                repairAttempt: repairAttempt.stopReason || "unknown",
-              }),
-            );
-          }
+          log.error("Packing-list parse failed after all 3 attempts", {
+            error: repairParseError.message,
+            stopReasons: {
+              first: firstAttempt.stopReason || "unknown",
+              second: secondAttempt.stopReason || "unknown",
+              repair: repairAttempt.stopReason || "unknown",
+            },
+          });
           throw new Error(
             "AI returned invalid packing-list JSON after retry and repair. Please try again.",
           );
@@ -171,9 +156,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
       }
     }
   } catch (error) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error("AI service error:", error);
-    }
+    log.error("AI service error (packing list)", { error: error.message });
     if (error.message.includes("invalid packing-list JSON")) {
       throw error;
     }
