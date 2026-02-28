@@ -31,11 +31,22 @@ const DEFAULT_TEMPERATURE = 0;
 /**
  * Call Claude Haiku via Anthropic SDK.
  * Returns { responseText, stopReason }.
+ *
+ * When cacheSystemPrompt=true, the system prompt is sent as a typed-block array
+ * with cache_control: { type: "ephemeral" }. This tells Anthropic to cache the
+ * system prompt for ~5 minutes, eliminating redundant token processing on repeat
+ * calls with the same (or prefix-matching) system text.
  */
-async function callAnthropic(client, { system, user, maxTokens, temperature }) {
+async function callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt }) {
+  // When caching is enabled, wrap system as a typed block with cache_control.
+  // Anthropic caches the entire system prompt prefix when the text matches a prior call.
+  const systemParam = cacheSystemPrompt
+    ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
+    : system;
+
   const message = await client.messages.create({
     model: ANTHROPIC_MODEL_ID,
-    system,
+    system: systemParam,
     temperature,
     max_tokens: maxTokens,
     messages: [{ role: "user", content: user }],
@@ -46,6 +57,17 @@ async function callAnthropic(client, { system, user, maxTokens, temperature }) {
     .filter((block) => block.type === "text")
     .map((block) => block.text)
     .join("");
+
+  // Log cache stats in dev to confirm caching is active
+  if (process.env.NODE_ENV !== "production" && cacheSystemPrompt) {
+    const usage = message.usage || {};
+    if (usage.cache_read_input_tokens || usage.cache_creation_input_tokens) {
+      console.log(
+        `[aiClient] Cache stats — created: ${usage.cache_creation_input_tokens ?? 0}, ` +
+        `read: ${usage.cache_read_input_tokens ?? 0}, uncached: ${usage.input_tokens ?? 0}`,
+      );
+    }
+  }
 
   return {
     responseText,
@@ -113,6 +135,7 @@ export async function callModel(prompt, deps = {}) {
     user,
     maxTokens = DEFAULT_MAX_TOKENS,
     temperature = DEFAULT_TEMPERATURE,
+    cacheSystemPrompt = false, // Set true to enable Anthropic prompt caching on system message
   } = prompt;
 
   const provider = (process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
@@ -125,7 +148,7 @@ export async function callModel(prompt, deps = {}) {
 
     // Default: Anthropic (Claude Haiku)
     const client = deps.anthropicClient ?? makeAnthropicClient();
-    return await callAnthropic(client, { system, user, maxTokens, temperature });
+    return await callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt });
   } catch (error) {
     if (process.env.NODE_ENV !== "production") {
       console.error(`[aiClient] ${provider} error:`, error.message);

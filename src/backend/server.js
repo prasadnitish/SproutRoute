@@ -16,6 +16,7 @@ import { generateTripPlan } from "./services/tripPlanAI.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
+import { resolveAiDestination } from "./services/aiDestinationResolver.js";
 import {
   sanitizeString,
   sanitizeChildren,
@@ -51,6 +52,7 @@ export function createApp(deps = {}) {
   const {
     geocodeLocationFn = geocodeLocation,
     resolveDestinationQueryFn = resolveDestinationQuery,
+    resolveAiDestinationFn = resolveAiDestination,
     getWeatherForecastFn = getWeatherForecast,
     generatePackingListFn = generatePackingList,
     generateTripPlanFn = generateTripPlan,
@@ -144,6 +146,47 @@ export function createApp(deps = {}) {
       message: "SproutRoute API is running",
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // POST /api/v1/destination/ai-resolve
+  // AI-powered natural-language destination resolver used by the mobile app.
+  // Returns mode:"direct" for specific places or mode:"suggestions" (up to 3) for vague queries.
+  app.post("/api/v1/destination/ai-resolve", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      const rawQuery = (req.body?.query || "").trim();
+      if (!rawQuery) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "query is required",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+      if (rawQuery.length > 300) {
+        return v1Error(res, 400, {
+          code: "VALIDATION_ERROR",
+          message: "query must be 300 characters or fewer",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      devLog("v1/destination/ai-resolve:", rawQuery);
+      const result = await resolveAiDestinationFn(rawQuery);
+      return res.json({ requestId, ...result });
+    } catch (error) {
+      devLog("Error in /api/v1/destination/ai-resolve:", error);
+      return v1Error(res, 500, {
+        code: "RESOLVE_FAILED",
+        message: "Could not resolve destination. Please try a more specific location.",
+        category: "geocoding",
+        retryable: true,
+        requestId,
+      });
+    }
   });
 
   app.post("/api/resolve-destination", apiLimiter, async (req, res) => {
@@ -366,6 +409,12 @@ export function createApp(deps = {}) {
       ).toUpperCase();
       const tripDate = sanitizeString(req.body?.tripDate || "", 20);
       const children = sanitizeChildren(req.body?.children, 10);
+      // countryCode used to route non-US destinations to international guidance
+      const VALID_COUNTRY_RE = /^[A-Za-z]{2}$/;
+      const rawCountryCode = req.body?.countryCode;
+      const countryCode = VALID_COUNTRY_RE.test(rawCountryCode || "")
+        ? rawCountryCode.toUpperCase()
+        : null;
 
       if (children.length === 0) {
         return res.status(400).json({
@@ -380,6 +429,7 @@ export function createApp(deps = {}) {
           jurisdictionCode,
           tripDate,
           children,
+          countryCode,
         }),
       );
 
@@ -598,6 +648,11 @@ export function createApp(deps = {}) {
           ? activities
           : ["family-friendly", "parks", "city"];
 
+      // Extract tripType — not part of sanitizeTripData since it's not user-text; validate against allowlist
+      const VALID_TRIP_TYPES = new Set(["beach", "city", "adventure", "cruise", "international"]);
+      const rawTripType = req.body?.tripType;
+      const tripType = VALID_TRIP_TYPES.has(rawTripType) ? rawTripType : null;
+
       // Phase 1: Geocode
       const geocodeStart = Date.now();
       devLog("v1/trip/bundle: geocoding...");
@@ -614,7 +669,7 @@ export function createApp(deps = {}) {
       // Phase 3: Trip plan + Packing list in parallel
       const aiStart = Date.now();
       devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
-      const tripPayload = { destination, startDate, endDate, activities: safeActivities, children };
+      const tripPayload = { destination, startDate, endDate, activities: safeActivities, children, tripType, countryCode: resolvedCountry };
       const [tripPlan, packingList] = await Promise.all([
         generateTripPlanFn(tripPayload, weather),
         generatePackingListFn(tripPayload, weather),
@@ -679,6 +734,138 @@ export function createApp(deps = {}) {
         retryable: true,
         requestId,
       });
+    }
+  });
+
+  // POST /api/v1/trip/stream
+  // Server-Sent Events (SSE) streaming endpoint for progressive trip plan generation.
+  // Emits events: destination, weather, itinerary-chunk, packing, safety, done, error.
+  // Falls back gracefully — clients can use the bundle endpoint if SSE is unsupported.
+  app.post("/api/v1/trip/stream", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+
+    // Validate input before opening SSE connection
+    const sanitizedData = sanitizeTripData(req.body);
+    const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
+    if (validationErrors.length > 0) {
+      return res.status(400).json({
+        code: "VALIDATION_ERROR",
+        message: validationErrors.join("; "),
+        requestId,
+      });
+    }
+
+    // Open SSE stream
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "X-Request-Id": requestId,
+    });
+
+    // Helper: write a typed SSE event
+    function emit(type, payload) {
+      res.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
+    }
+
+    // Helper: flush-safe write (some proxies buffer SSE)
+    function flush() {
+      if (typeof res.flush === "function") res.flush();
+    }
+
+    try {
+      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const VALID_TRIP_TYPES = new Set(["beach", "city", "adventure", "cruise", "international"]);
+      const rawTripType = req.body?.tripType;
+      const tripType = VALID_TRIP_TYPES.has(rawTripType) ? rawTripType : null;
+      const safeActivities =
+        Array.isArray(activities) && activities.length > 0
+          ? activities
+          : ["family-friendly", "parks", "city"];
+
+      // Phase 1: Geocode
+      devLog("v1/trip/stream: geocoding...");
+      const coords = await geocodeLocationFn(destination);
+      const resolvedCountry = coords.countryCode || "US";
+      emit("destination", {
+        destination: coords.displayName || destination,
+        lat: coords.lat,
+        lon: coords.lon,
+        countryCode: resolvedCountry,
+      });
+      flush();
+
+      // Phase 2: Weather
+      devLog("v1/trip/stream: fetching weather...");
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate);
+      emit("weather", { weather });
+      flush();
+
+      // Phase 3: Trip plan + Packing list in parallel
+      devLog("v1/trip/stream: running AI (trip + packing) in parallel...");
+      const tripPayload = {
+        destination: coords.displayName || destination,
+        startDate,
+        endDate,
+        activities: safeActivities,
+        children,
+        tripType,
+        countryCode: resolvedCountry,
+      };
+
+      emit("itinerary-chunk", { status: "generating", message: "Crafting your itinerary…" });
+      flush();
+
+      const [tripPlan, packingList] = await Promise.all([
+        generateTripPlanFn(tripPayload, weather),
+        generatePackingListFn(tripPayload, weather),
+      ]);
+
+      emit("itinerary-chunk", { status: "done", tripPlan });
+      flush();
+
+      emit("packing", { packingList });
+      flush();
+
+      const tripDuration = Math.ceil(
+        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
+      );
+
+      emit("done", {
+        requestId,
+        trip: {
+          destination: coords.displayName || destination,
+          jurisdictionCode: coords.stateCode || null,
+          jurisdictionName: coords.stateName || null,
+          startDate,
+          endDate,
+          duration: tripDuration,
+          activities: safeActivities,
+          children,
+          countryCode: resolvedCountry,
+          regionCode: coords.regionCode || null,
+          lat: coords.lat,
+          lon: coords.lon,
+        },
+        weather,
+        tripPlan,
+        packingList,
+      });
+      flush();
+
+      res.end();
+    } catch (error) {
+      devLog("Error in /api/v1/trip/stream:", error);
+      emit("error", {
+        code: "STREAM_FAILED",
+        message: error.message?.includes("Location not found")
+          ? "Could not find that location. Please try a more specific address."
+          : "Failed to generate trip plan. Please try again.",
+        retryable: true,
+        requestId,
+      });
+      flush();
+      res.end();
     }
   });
 

@@ -1,13 +1,15 @@
 /**
- * /api/v1 Contract Tests — Phase 1
+ * /api/v1 Contract Tests — Phase 1 + Phase 6 extensions
  *
- * Written BEFORE implementation (TDD Red phase).
  * Tests verify:
  *   1. All /api/v1 routes exist and return correct shapes
  *   2. Standard error envelope on bad input
  *   3. Legacy aliases (/api/*) return identical responses to v1 routes
  *   4. GET /api/v1/meta/capabilities returns the capability payload shape
  *   5. Rate limit 429 uses standard error envelope
+ *   6. Bundle route passes tripType + countryCode to AI generators (Phase 6C)
+ *   7. Car-seat check passes countryCode for international routing (Phase 6C)
+ *   8. SSE streaming endpoint emits correct event types (Phase 6D)
  */
 
 import test from "node:test";
@@ -91,6 +93,7 @@ const mockGeocodeLocation = async () => ({
   displayName: "Seattle, WA",
   stateCode: "WA",
   stateName: "Washington",
+  countryCode: "US",
 });
 
 const mockWeather = async () => ({
@@ -124,7 +127,7 @@ const mockCarSeat = ({ children }) => ({
   lastReviewed: "2026-01-01",
   message: "Verify official source before travel.",
   sourceUrl: "https://example.org",
-  results: children.map((child, i) => ({
+  results: children.map((_child, i) => ({
     childId: `child-${i + 1}`,
     status: "Needs review",
     requiredRestraint: "booster",
@@ -400,4 +403,269 @@ test("POST /api/safety/car-seat-check (legacy) still works and returns 200", asy
 
   assert.strictEqual(res.statusCode, 200);
   assert.ok(res.body.status, "legacy car-seat route must still return status");
+});
+
+// ── SSE helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Create a custom app with specific dep overrides.
+ * Re-uses shared mocks as defaults, merging caller overrides on top.
+ */
+function createCustomApp(overrides = {}) {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  return createApp({
+    enableRequestLogging: false,
+    geocodeLocationFn: mockGeocodeLocation,
+    getWeatherForecastFn: mockWeather,
+    generateTripPlanFn: mockTripPlan,
+    generatePackingListFn: mockPackingList,
+    getCarSeatGuidanceFn: mockCarSeat,
+    ...overrides,
+  });
+}
+
+/**
+ * Create a mock SSE response that captures writeHead, write, and end calls.
+ */
+function createSSEMockRes() {
+  const state = { written: [], headStatus: null, headHeaders: null, ended: false };
+  const res = {
+    writeHead(status, headers) { state.headStatus = status; state.headHeaders = headers; },
+    write(chunk) { state.written.push(chunk); },
+    end() { state.ended = true; },
+    flush() {},
+    setHeader() {},
+  };
+  return { res, state };
+}
+
+/**
+ * Invoke the SSE route handler directly (bypasses rate limiter).
+ * Returns { state } with captured writeHead/write/end data.
+ */
+async function invokeSSERoute(app, body) {
+  const routeLayer = (app._router?.stack || []).find(
+    (layer) =>
+      layer.route &&
+      layer.route.path === "/api/v1/trip/stream" &&
+      layer.route.methods["post"],
+  );
+  assert.ok(routeLayer, "POST /api/v1/trip/stream route must exist");
+
+  const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+  const { res, state } = createSSEMockRes();
+  const req = { method: "POST", path: "/api/v1/trip/stream", body, headers: {}, ip: "127.0.0.1" };
+
+  await handler(req, res);
+  return state;
+}
+
+/**
+ * Parse SSE event type names from raw written chunks.
+ */
+function parseSSEEventTypes(written) {
+  const allText = written.join("");
+  const types = [];
+  for (const line of allText.split("\n")) {
+    const match = line.match(/^event: (.+)$/);
+    if (match) types.push(match[1]);
+  }
+  return types;
+}
+
+// ── POST /api/v1/trip/bundle — tripType passthrough ─────────────────────────
+
+test("POST /api/v1/trip/bundle passes tripType to AI generators", async () => {
+  let capturedTripPayload = null;
+
+  const app = createCustomApp({
+    generateTripPlanFn: async (payload) => {
+      capturedTripPayload = payload;
+      return mockTripPlan();
+    },
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/trip/bundle", {
+    destination: "Miami, FL",
+    startDate: "2026-06-01",
+    endDate: "2026-06-08",
+    activities: ["swimming"],
+    children: [{ age: 5 }],
+    tripType: "cruise",
+    client: "web",
+    schemaVersion: "1",
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(capturedTripPayload, "generateTripPlanFn must have been called");
+  assert.strictEqual(
+    capturedTripPayload.tripType,
+    "cruise",
+    "tripType must be passed through to AI generator",
+  );
+});
+
+test("POST /api/v1/trip/bundle rejects invalid tripType (not in allowlist)", async () => {
+  let capturedTripPayload = null;
+
+  const app = createCustomApp({
+    generateTripPlanFn: async (payload) => {
+      capturedTripPayload = payload;
+      return mockTripPlan();
+    },
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/trip/bundle", {
+    destination: "Seattle, WA",
+    startDate: "2026-06-01",
+    endDate: "2026-06-04",
+    activities: ["hiking"],
+    children: [{ age: 5 }],
+    tripType: "dangerous_invalid_type",
+    client: "web",
+    schemaVersion: "1",
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(capturedTripPayload, "generateTripPlanFn must still be called");
+  assert.strictEqual(
+    capturedTripPayload.tripType,
+    null,
+    "Invalid tripType should be sanitized to null",
+  );
+});
+
+test("POST /api/v1/trip/bundle passes countryCode from geocode result", async () => {
+  let capturedTripPayload = null;
+
+  const app = createCustomApp({
+    geocodeLocationFn: async () => ({
+      lat: 48.8566,
+      lon: 2.3522,
+      displayName: "Paris, France",
+      countryCode: "FR",
+    }),
+    generateTripPlanFn: async (payload) => {
+      capturedTripPayload = payload;
+      return mockTripPlan();
+    },
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/trip/bundle", {
+    destination: "Paris, France",
+    startDate: "2026-06-01",
+    endDate: "2026-06-05",
+    activities: ["culture"],
+    children: [{ age: 5 }],
+    tripType: "international",
+    client: "web",
+    schemaVersion: "1",
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.strictEqual(
+    capturedTripPayload.countryCode,
+    "FR",
+    "countryCode from geocoding must be passed to AI generators",
+  );
+});
+
+// ── POST /api/safety/car-seat-check — countryCode routing ───────────────────
+
+test("POST /api/safety/car-seat-check (legacy) passes countryCode to guidance function", async () => {
+  let capturedInput = null;
+
+  const app = createCustomApp({
+    getCarSeatGuidanceFn: (input) => {
+      capturedInput = input;
+      return {
+        status: "Needs review",
+        jurisdictionCode: "GB",
+        jurisdictionName: "United Kingdom",
+        guidanceMode: "country_general",
+        results: input.children.map((_c, i) => ({
+          childId: `child-${i + 1}`,
+          status: "Needs review",
+          requiredRestraint: "country_general",
+          requiredRestraintLabel: "Booster seat",
+          rationale: "UK rules",
+        })),
+      };
+    },
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/safety/car-seat-check", {
+    destination: "London, UK",
+    children: [{ age: 5, weightLb: 44, heightIn: 43 }],
+    countryCode: "GB",
+  });
+
+  assert.strictEqual(res.statusCode, 200);
+  assert.ok(capturedInput, "getCarSeatGuidanceFn must have been called");
+  assert.strictEqual(
+    capturedInput.countryCode,
+    "GB",
+    "countryCode must be passed through to guidance function",
+  );
+});
+
+// ── POST /api/v1/trip/stream — SSE streaming ────────────────────────────────
+
+test("POST /api/v1/trip/stream returns SSE events with correct types", async () => {
+  const app = createCustomApp();
+
+  const state = await invokeSSERoute(app, {
+    destination: "Seattle, WA",
+    startDate: "2026-06-01",
+    endDate: "2026-06-04",
+    activities: ["parks"],
+    children: [{ age: 5 }],
+  });
+
+  assert.strictEqual(state.headStatus, 200, "SSE response must start with 200");
+  assert.strictEqual(state.headHeaders["Content-Type"], "text/event-stream");
+  assert.strictEqual(state.headHeaders["Cache-Control"], "no-cache");
+  assert.ok(state.ended, "SSE stream must end");
+
+  const eventTypes = parseSSEEventTypes(state.written);
+  assert.ok(eventTypes.includes("destination"), "Must emit 'destination' event");
+  assert.ok(eventTypes.includes("weather"), "Must emit 'weather' event");
+  assert.ok(eventTypes.includes("itinerary-chunk"), "Must emit 'itinerary-chunk' event");
+  assert.ok(eventTypes.includes("packing"), "Must emit 'packing' event");
+  assert.ok(eventTypes.includes("done"), "Must emit 'done' event");
+});
+
+test("POST /api/v1/trip/stream returns validation error for missing destination", async () => {
+  const app = createCustomApp();
+
+  // Validation errors return JSON (not SSE), so invokeRoute works here
+  const res = await invokeRoute(app, "POST", "/api/v1/trip/stream", {
+    // missing destination
+    startDate: "2026-06-01",
+    endDate: "2026-06-04",
+    children: [{ age: 5 }],
+  });
+
+  assert.strictEqual(res.statusCode, 400);
+  assert.ok(res.body.code, "Validation error must have error code");
+});
+
+test("POST /api/v1/trip/stream emits error event on geocoding failure", async () => {
+  const app = createCustomApp({
+    geocodeLocationFn: async () => { throw new Error("Location not found"); },
+  });
+
+  const state = await invokeSSERoute(app, {
+    destination: "Nonexistent Place XYZ",
+    startDate: "2026-06-01",
+    endDate: "2026-06-04",
+    children: [{ age: 3 }],
+  });
+
+  const allText = state.written.join("");
+  assert.ok(allText.includes("event: error"), "Must emit error event on failure");
+  assert.ok(
+    allText.includes("location") || allText.includes("STREAM_FAILED"),
+    "Error event should mention location or stream failure",
+  );
 });

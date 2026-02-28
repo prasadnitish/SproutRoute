@@ -1,6 +1,7 @@
 // AI service: generates a structured trip itinerary in JSON.
 // Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
 import { callModel } from "../utils/aiClient.js";
+import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import {
   MAX_RETRIES,
   requestWithRetry,
@@ -35,9 +36,10 @@ function parseTripPlanResponse(responseText) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
-async function requestTripPlan({ system, user }, deps) {
+async function requestTripPlan({ system, user }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
-  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0 }, deps);
+  // cache=true enables Anthropic prompt caching on the system message (first attempt only).
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, cacheSystemPrompt: cache }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -90,7 +92,19 @@ async function repairTripPlanJson(brokenText, deps) {
 export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   // Resilient generation path: normal prompt → compact retry → repair fallback.
   // deps: passed through to callModel for dependency injection in tests.
-  const { destination, startDate, endDate, activities, children } = tripData;
+  const {
+    destination: rawDestination,
+    startDate,
+    endDate,
+    activities: rawActivities,
+    children,
+    tripType = null,
+    countryCode = "US",
+  } = tripData;
+
+  // Sanitize user-supplied fields before interpolating into AI prompts
+  const destination = sanitizeDestination(rawDestination);
+  const activities = sanitizeActivities(rawActivities);
 
   const primaryPrompt = buildTripPlanPrompt(
     destination,
@@ -99,14 +113,19 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     activities,
     children,
     weatherForecast,
-    { compact: false },
+    { compact: false, tripType, countryCode },
   );
 
   try {
     const firstAttempt = await requestWithRetry(
-      () => requestTripPlan(primaryPrompt, deps),
+      () => requestTripPlan(primaryPrompt, deps, { cache: true }),
       MAX_RETRIES,
     );
+
+    // Reject responses that look like successful prompt injection attempts
+    if (!isAiResponseSafe(firstAttempt.responseText)) {
+      throw new Error("AI response failed safety check. Please try again.");
+    }
 
     try {
       return parseTripPlanResponse(firstAttempt.responseText);
@@ -125,7 +144,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         activities,
         children,
         weatherForecast,
-        { compact: true },
+        { compact: true, tripType, countryCode },
       );
 
       const secondAttempt = await requestWithRetry(
@@ -188,8 +207,10 @@ function buildTripPlanPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false } = options;
+  const { compact = false, tripType = null, countryCode = "US" } = options;
 
+  const isCruise = tripType === "cruise";
+  const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
   const isAdultsOnly = children.length === 0;
   const childrenInfo = isAdultsOnly
     ? "Adults-only trip, no children"
@@ -206,6 +227,26 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 7 day objects.
 3. Keep all text concise.`;
 
+  // Cruise-specific itinerary format instructions
+  const cruiseInstructions = isCruise ? `
+**CRUISE FORMAT RULES (strictly required):**
+- Day 1 is embarkation day at the departure port. Label: "Day 1: Embarkation"
+- Sea days (no port): Label as "Day N: Sea Day"
+- Port days: Label as "Day N: Port — [Port City, Country]"
+- Disembarkation is the final day. Label: "Day N: Disembarkation"
+- For port days, suggest 2-3 shore excursions and note they require booking ahead
+- For sea days, suggest onboard activities: pool, spa, entertainment, specialty dining
+- Note tender ports (smaller ships required) when applicable
+- Include advice about staying near the ship for shorter port stops` : "";
+
+  // International context additions
+  const internationalContext = isInternational ? `
+**INTERNATIONAL TRAVEL CONTEXT:**
+- Mention local currency and rough USD equivalents where helpful
+- Note any entry requirements or useful language phrases if destination is non-English-speaking
+- Include a tip about local emergency number (e.g., EU 112, UK 999) in the tips array
+- Consider time zone adjustment in the first-day itinerary if cross-continental travel` : "";
+
   const system = `You are a helpful travel planning assistant${isAdultsOnly ? "" : " specialising in family trips"}. Generate trip itineraries as strict JSON only.
 
 Generate a trip plan with the following structure:
@@ -216,7 +257,7 @@ Generate a trip plan with the following structure:
     {
       "id": "unique-id",
       "name": "Activity Name",
-      "category": "one of: beach, hiking, city, museums, parks, dining, shopping, sports, water, wildlife, theme_park, camping",
+      "category": "one of: beach, hiking, city, museums, parks, dining, shopping, sports, water, wildlife, theme_park, camping${isCruise ? ", cruise, shore_excursion" : ""}",
       "description": "Brief description of the activity (1-2 sentences)",
       "duration": "Estimated duration (e.g., '2-3 hours', 'half day', 'full day')",
       "kidFriendly": true,
@@ -227,7 +268,7 @@ Generate a trip plan with the following structure:
   ],
   "dailyItinerary": [
     {
-      "day": "Day 1 (date)",
+      "day": "${isCruise ? "Day 1: Embarkation" : "Day 1 (date)"}",
       "activities": ["activity-id-1", "activity-id-2"],
       "meals": "Meal suggestions",
       "notes": "Any special notes (weather warnings, booking recommendations, etc.)"
@@ -237,7 +278,8 @@ Generate a trip plan with the following structure:
     "Helpful tips for the trip (booking advice, timing, local insights)"
   ]
 }
-
+${cruiseInstructions}
+${internationalContext}
 **Requirements:**
 1. Include a mix of indoor and outdoor activities based on weather
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
@@ -248,10 +290,11 @@ Generate a trip plan with the following structure:
 ${sizeGuardrail}
 Return ONLY the JSON, no additional text.`;
 
-  const user = `Generate a detailed trip itinerary for ${isAdultsOnly ? "an adults-only trip" : "a family trip"}.
+  const user = `Generate a detailed trip itinerary for ${isCruise ? "a cruise trip" : isAdultsOnly ? "an adults-only trip" : "a family trip"}.
 
 **Trip Details:**
-- Destination: ${destination}
+- Destination: ${destination}${isCruise ? " (cruise itinerary)" : ""}
+- Trip Type: ${tripType || "general"}
 - Dates: ${startDate} to ${endDate}
 - Interested Activities: ${activities.join(", ")}
 - ${isAdultsOnly ? "Travelers: Adults only (no children)" : `Children: ${children.length} child(ren) - ${childrenInfo}`}

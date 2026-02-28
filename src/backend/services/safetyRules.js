@@ -366,6 +366,155 @@ export function resolveJurisdictionCode({ jurisdictionCode, destination }) {
   return toStateCodeFromDestination(destination);
 }
 
+// ── International car seat guidance ─────────────────────────────────────────
+// Generic guidance for non-US countries. Families should always verify local laws.
+
+const COUNTRY_GUIDANCE = {
+  CA: {
+    name: "Canada",
+    summary: "Each province has its own car seat law, all broadly aligned with US safety standards.",
+    rules: [
+      { label: "Under 1 year / under 9 kg", guidance: "Rear-facing infant seat" },
+      { label: "1–4 years / 9–18 kg", guidance: "Rear-facing as long as possible, then forward-facing with harness" },
+      { label: "4–8 years", guidance: "Forward-facing with harness, then booster seat" },
+      { label: "8+ years or over 145 cm", guidance: "Seat belt" },
+    ],
+    sourceUrl: "https://tc.canada.ca/en/road-transportation/child-car-safety-seats",
+  },
+  GB: {
+    name: "United Kingdom",
+    summary: "Children under 12 years or 135 cm must use an approved child car seat.",
+    rules: [
+      { label: "Birth to 15 months", guidance: "Rear-facing Group 0+ or R129 i-Size seat" },
+      { label: "15 months to 4 years", guidance: "Rear-facing recommended; forward-facing Group 1 allowed" },
+      { label: "4–12 years / under 135 cm", guidance: "Booster seat with seat belt or high-back booster" },
+      { label: "12+ years or over 135 cm", guidance: "Adult seat belt" },
+    ],
+    sourceUrl: "https://www.gov.uk/child-car-seats-the-rules",
+  },
+  AU: {
+    name: "Australia",
+    summary: "Australian national standards require rear-facing until age 4, then forward-facing to age 7.",
+    rules: [
+      { label: "Under 4 years", guidance: "Rear-facing child restraint" },
+      { label: "4–7 years", guidance: "Forward-facing child restraint or approved booster seat" },
+      { label: "7+ years", guidance: "Booster seat until can fit in adult seat belt properly" },
+    ],
+    sourceUrl: "https://www.infrastructure.gov.au/roads/safety/child_restraints",
+  },
+};
+
+const EU_COUNTRIES = new Set([
+  "AT","BE","BG","HR","CY","CZ","DK","EE","FI","FR","DE","GR","HU",
+  "IE","IT","LV","LT","LU","MT","NL","PL","PT","RO","SK","SI","ES","SE",
+  // Non-EU but uses EU R129/R44 standards
+  "CH","NO","IS","LI","TR",
+]);
+
+function buildInternationalGuidance({ countryCode, children, destination, tripDate }) {
+  // Returns structured guidance for non-US destinations using country-level rules.
+  // Note: Always advise users to verify current local regulations before travel.
+  const normalizedChildren = normalizeChildren(children);
+  const countryInfo = COUNTRY_GUIDANCE[countryCode];
+  const isEU = EU_COUNTRIES.has(countryCode);
+
+  let jurisdictionName, summary, rulesList, sourceUrl, guidanceMode;
+
+  if (countryInfo) {
+    // Known country with specific guidance (CA, GB, AU)
+    jurisdictionName = countryInfo.name;
+    summary = countryInfo.summary;
+    rulesList = countryInfo.rules;
+    sourceUrl = countryInfo.sourceUrl;
+    guidanceMode = "country_general";
+  } else if (isEU) {
+    // EU/EEA countries — ECE R44/R129 (i-Size) standards
+    jurisdictionName = `International (EU/EEA — Country: ${countryCode})`;
+    summary = "EU Regulation ECE R44 or ECE R129 (i-Size) applies. Car seats must display an orange E-mark label.";
+    rulesList = [
+      { label: "Under 15 months", guidance: "Rear-facing only (mandatory under EU R129 i-Size)" },
+      { label: "15 months to 18 kg", guidance: "Rear-facing recommended; forward-facing allowed after 15 months" },
+      { label: "18–36 kg (approx. 4–10 years)", guidance: "Booster seat with seat belt (Group 2/3)" },
+      { label: "Over 135 cm", guidance: "Adult seat belt" },
+    ];
+    sourceUrl = "https://unece.org/transport/vehicle-regulations/working-party-29-wp29/regulations-annexed-1958-agreement";
+    guidanceMode = "eu_baseline";
+  } else {
+    // Generic international guidance
+    jurisdictionName = `International (Country: ${countryCode || "Unknown"})`;
+    summary = "General international child passenger safety standards recommend rear-facing seats for young children, then forward-facing with harness, then booster seats.";
+    rulesList = [
+      { label: "Under 2 years (or until seat limit)", guidance: "Rear-facing car seat — safest position for young children" },
+      { label: "2–5 years", guidance: "Forward-facing car seat with 5-point harness" },
+      { label: "5–12 years", guidance: "Booster seat with seat belt until child can fit adult seat belt properly" },
+      { label: "12+ years", guidance: "Adult seat belt in back seat recommended" },
+    ];
+    sourceUrl = "https://www.who.int/publications/i/item/9789241502047";
+    guidanceMode = "country_general";
+  }
+
+  const rationale =
+    `${summary} Always verify current ${jurisdictionName} laws before travel — regulations may have changed. ` +
+    `Rental car companies may provide car seats; book in advance and verify the seat meets local standards.`;
+
+  return {
+    status: "Needs review",
+    jurisdictionCode: countryCode || null,
+    jurisdictionName,
+    guidanceMode,
+    confidence: "general",
+    message: rationale,
+    sourceUrl,
+    effectiveDate: null,
+    lastUpdated: null,
+    tripDate: tripDate || null,
+    results: normalizedChildren.map((child) => {
+      // Match child to the most appropriate rule by age
+      const ageYears = child.ageYears;
+      let matched = rulesList[rulesList.length - 1]; // default to last (oldest)
+      if (isEU || guidanceMode === "eu_baseline") {
+        if (child.ageMonths < 15) matched = rulesList[0];
+        else if (child.weightLb != null && child.weightLb < 40) matched = rulesList[1];
+        else if (ageYears < 10) matched = rulesList[2];
+        else matched = rulesList[3];
+      } else if (countryCode === "CA") {
+        if (child.ageMonths < 12) matched = rulesList[0];
+        else if (ageYears < 4) matched = rulesList[1];
+        else if (ageYears < 8) matched = rulesList[2];
+        else matched = rulesList[3];
+      } else if (countryCode === "GB") {
+        if (child.ageMonths < 15) matched = rulesList[0];
+        else if (ageYears < 4) matched = rulesList[1];
+        else if (ageYears < 12) matched = rulesList[2];
+        else matched = rulesList[3];
+      } else if (countryCode === "AU") {
+        if (ageYears < 4) matched = rulesList[0];
+        else if (ageYears < 7) matched = rulesList[1];
+        else matched = rulesList[2];
+      } else {
+        // Generic
+        if (child.ageMonths < 24) matched = rulesList[0];
+        else if (ageYears < 5) matched = rulesList[1];
+        else if (ageYears < 12) matched = rulesList[2];
+        else matched = rulesList[3];
+      }
+
+      return {
+        childId: child.id,
+        ageYears: child.ageYears,
+        weightLb: child.weightLb,
+        heightIn: child.heightIn,
+        status: "Needs review",
+        requiredRestraint: "country_general",
+        requiredRestraintLabel: matched.guidance,
+        seatPosition: ageYears < 2 ? "rear_facing_only" : null,
+        rationale: `${matched.label}: ${matched.guidance}. Verify with local ${jurisdictionName} regulations before travel.`,
+        sourceUrl,
+      };
+    }),
+  };
+}
+
 export async function getCarSeatGuidance(input, deps = {}) {
   // Orchestrates rule lookup and optional official-source fallback research.
   const {
@@ -373,12 +522,24 @@ export async function getCarSeatGuidance(input, deps = {}) {
     researchFn = researchCarSeatRulesFromOfficialSource,
   } = deps;
 
-  const { jurisdictionCode, destination, tripDate, children } = input || {};
+  const { jurisdictionCode, destination, tripDate, children, countryCode } = input || {};
+  const normalizedChildren = normalizeChildren(children);
+
+  // Non-US country: return international guidance immediately (no state-rule lookup)
+  const effectiveCountry = countryCode || null;
+  if (effectiveCountry && effectiveCountry !== "US") {
+    return buildInternationalGuidance({
+      countryCode: effectiveCountry,
+      children,
+      destination,
+      tripDate,
+    });
+  }
+
   const resolvedJurisdictionCode = resolveJurisdictionCode({
     jurisdictionCode,
     destination,
   });
-  const normalizedChildren = normalizeChildren(children);
 
   if (!resolvedJurisdictionCode) {
     return buildUnavailableResult({
