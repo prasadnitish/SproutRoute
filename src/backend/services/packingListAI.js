@@ -1,6 +1,8 @@
 // AI service: generates a structured packing list in JSON.
 // Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
 import { callModel } from "../utils/aiClient.js";
+import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
+import { getPackingBaseTemplate, detectClimateZone } from "./ragTemplates.js";
 import {
   MAX_RETRIES,
   requestWithRetry,
@@ -30,9 +32,10 @@ function parsePackingListResponse(responseText) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
-async function requestPackingList({ system, user }, deps) {
+async function requestPackingList({ system, user }, deps, { cache = false } = {}) {
   // Single model call wrapper — delegates to aiClient for provider-agnostic model calls.
-  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0 }, deps);
+  // cache=true enables Anthropic prompt caching on the system message (first attempt only).
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, cacheSystemPrompt: cache }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -73,7 +76,18 @@ async function repairPackingListJson(brokenText, deps) {
 export async function generatePackingList(tripData, weatherForecast, deps = {}) {
   // Orchestrates resilient generation: full prompt → compact retry → JSON repair fallback.
   // deps: passed through to callModel for dependency injection in tests.
-  const { destination, startDate, endDate, activities, children } = tripData;
+  const {
+    destination: rawDestination,
+    startDate,
+    endDate,
+    activities: rawActivities,
+    children,
+    tripType = null,
+  } = tripData;
+
+  // Sanitize user-supplied fields before interpolating into AI prompts
+  const destination = sanitizeDestination(rawDestination);
+  const activities = sanitizeActivities(rawActivities);
 
   const primaryPrompt = buildPrompt(
     destination,
@@ -82,14 +96,18 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     activities,
     children,
     weatherForecast,
-    { compact: false },
+    { compact: false, tripType },
   );
 
   try {
     const firstAttempt = await requestWithRetry(
-      () => requestPackingList(primaryPrompt, deps),
+      () => requestPackingList(primaryPrompt, deps, { cache: true }),
       MAX_RETRIES,
     );
+
+    if (!isAiResponseSafe(firstAttempt.responseText)) {
+      throw new Error("AI response failed safety check. Please try again.");
+    }
 
     try {
       return parsePackingListResponse(firstAttempt.responseText);
@@ -108,7 +126,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
         activities,
         children,
         weatherForecast,
-        { compact: true },
+        { compact: true, tripType },
       );
 
       const secondAttempt = await requestWithRetry(
@@ -174,7 +192,8 @@ function buildPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false } = options;
+  const { compact = false, tripType = null } = options;
+  const isCruise = tripType === "cruise";
   const childrenInfo =
     children.length > 0
       ? children.map((c) => `age ${c.age}`).join(", ")
@@ -191,6 +210,23 @@ function buildPrompt(
 - Include 3-6 items per category.
 - Keep total items <= 36.
 - Keep each reason concise.`;
+
+  // Build strict age-based guardrails from actual child ages
+  const childAges = children.map((c) => c.age);
+  const hasInfant = childAges.some((a) => a < 1);
+  const hasToddler = childAges.some((a) => a >= 1 && a < 3);
+  const hasPreschooler = childAges.some((a) => a >= 3 && a < 5);
+  const oldestAge = childAges.length > 0 ? Math.max(...childAges) : 0;
+
+  const ageGuards = `**STRICT AGE-APPROPRIATE RULES (must follow exactly):**
+- Diapers/pull-ups: ONLY if a child is under ${hasToddler ? "3" : "— NO children under 3, DO NOT include diapers"} years old
+- Bottles/sippy cups: ONLY if a child is under 4 years old${oldestAge >= 4 ? " — DO NOT include, no child needs this" : ""}
+- Pacifiers: ONLY if a child is under 2 years old${oldestAge >= 2 ? " — DO NOT include, no child needs this" : ""}
+- Baby formula/nursing supplies: ONLY if an infant under 12 months is present${hasInfant ? "" : " — DO NOT include"}
+- Stroller: ONLY if a child is under 4 years old${oldestAge >= 4 ? " — DO NOT include; children are too old for strollers" : ""}
+- Baby monitor: ONLY for infants under 1 year${hasInfant ? "" : " — DO NOT include"}
+- Entertainment/toys: scale complexity to the OLDEST child's age (${oldestAge} years old)${oldestAge >= 6 ? "; include books, games, tablets for school-age children, NOT baby toys" : ""}
+- Swim diapers: ONLY if a child is under 3 years old and activities include water${hasToddler || hasInfant ? "" : " — DO NOT include"}`;
 
   const system = `You are a helpful travel planning assistant for parents. Generate packing lists as strict JSON only.
 
@@ -211,23 +247,44 @@ Generate a detailed packing list with the following structure:
   ]
 }
 
+${ageGuards}
+
 **Requirements:**
-1. Include categories: Clothing, Toiletries, Gear/Equipment, Documents, Medications, Entertainment, Snacks, Baby/Toddler Items (if applicable)
+1. Include categories: Clothing, Toiletries, Gear/Equipment, Documents, Medications, Entertainment, Snacks${hasInfant || hasToddler || hasPreschooler ? ", Baby/Toddler Items" : ""}${isCruise ? ", Cruise Essentials" : ""}
 2. Base clothing recommendations on weather forecast (rain gear if >40% rain, layers if cool, sun protection if hot)
-3. Include age-appropriate items for children (diapers for toddlers, activities for older kids)
+3. Include only age-appropriate items — follow the strict age rules above without exception
 4. Add activity-specific gear (beach toys, hiking boots, etc.)
 5. Each item should have a practical quantity and a brief reason
-6. Be specific and helpful but concise
+6. Be specific and helpful but concise${isCruise ? `
+7. **CRUISE-SPECIFIC ITEMS (required in "Cruise Essentials" category):**
+   - Lanyard/card holder (for cruise key card access)
+   - Motion sickness bands or medication (for sea days)
+   - Power strip without surge protector (cruise ships restrict surge protectors)
+   - Formal/smart-casual dinner attire (for specialty dining nights)
+   - Waterproof bag or dry sack (for shore excursions near water)
+   - Reusable water bottle (port stops — ship water not always available)
+   - Sunscreen (SPF 50+ for poolside and beach port stops)
+   - Small backpack or daypack (for shore excursions)
+   - Do NOT include car seat, stroller, or booster unless children are under 3` : ""}
 ${sizeGuardrail}
 Return ONLY the JSON, no additional text.`;
 
-  const user = `Generate a comprehensive packing list for a family trip.
+  // RAG base template: inject pre-built item suggestions for the detected climate+trip type.
+  // AI uses this as a starting point, removing age-inappropriate items and adding specifics.
+  const climateZone = detectClimateZone(weatherForecast.forecast);
+  const ragBase = getPackingBaseTemplate(climateZone, tripType);
+  const ragSection = ragBase
+    ? `\n\n**Base Packing Reference — ${climateZone} climate, ${tripType || "general"} trip** (expand, personalise, and remove age-inappropriate items):\n${ragBase}`
+    : "";
+
+  const user = `Generate a comprehensive packing list for a ${isCruise ? "cruise trip" : "family trip"}.
 
 **Trip Details:**
-- Destination: ${destination}
+- Destination: ${destination}${isCruise ? " (cruise)" : ""}
+- Trip Type: ${tripType || "general"}
 - Dates: ${startDate} to ${endDate}
 - Activities: ${activities.join(", ")}
-- Children: ${children.length} child(ren) - ${childrenInfo}
+- Children: ${children.length} child(ren) — ages: ${childrenInfo} (oldest is ${oldestAge} years old)
 
 **Weather Forecast:**
 ${weatherForecast.summary}
@@ -238,7 +295,7 @@ ${weatherForecast.forecast
     (f) =>
       `${f.name}: ${f.high}°F, ${f.condition}, ${f.precipitation}% rain chance`,
   )
-  .join("\n")}`;
+  .join("\n")}${ragSection}`;
 
   return { system, user };
 }

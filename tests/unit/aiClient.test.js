@@ -284,3 +284,120 @@ test("callModel applies default maxTokens and temperature when not specified", a
     `temperature must have a numeric default — got: ${capturedParams.temperature}`,
   );
 });
+
+// ── Prompt caching (cacheSystemPrompt) ───────────────────────────────────────
+// Note: These tests verify callModel's low-level cache_control wrapping.
+// tripPlanAI.test.js and packingListAI.test.js verify that caching is *enabled*
+// on first attempt at the service layer — different concern, no overlap.
+
+test("callModel with cacheSystemPrompt=true wraps system as typed block array", async () => {
+  delete process.env.AI_PROVIDER;
+
+  let capturedParams = null;
+  const mockAnthropicClient = {
+    messages: {
+      create: async (params) => {
+        capturedParams = params;
+        return {
+          content: [{ type: "text", text: "cached response" }],
+          stop_reason: "end_turn",
+          usage: { cache_creation_input_tokens: 100, input_tokens: 50 },
+        };
+      },
+    },
+  };
+
+  await callModel(
+    { system: "System prompt text", user: "Hello", cacheSystemPrompt: true },
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  assert.ok(Array.isArray(capturedParams.system), "system param must be an array when caching is enabled");
+  assert.equal(capturedParams.system.length, 1, "system array must have 1 block");
+  assert.equal(capturedParams.system[0].type, "text");
+  assert.equal(capturedParams.system[0].text, "System prompt text");
+  assert.deepEqual(
+    capturedParams.system[0].cache_control,
+    { type: "ephemeral" },
+    "cache_control must be { type: 'ephemeral' }",
+  );
+});
+
+test("callModel with cacheSystemPrompt=false passes system as plain string", async () => {
+  delete process.env.AI_PROVIDER;
+
+  let capturedParams = null;
+  const mockAnthropicClient = {
+    messages: {
+      create: async (params) => {
+        capturedParams = params;
+        return {
+          content: [{ type: "text", text: "uncached response" }],
+          stop_reason: "end_turn",
+        };
+      },
+    },
+  };
+
+  await callModel(
+    { system: "System prompt text", user: "Hello", cacheSystemPrompt: false },
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  assert.strictEqual(
+    capturedParams.system,
+    "System prompt text",
+    "system param must be a plain string when caching is disabled",
+  );
+});
+
+test("callModel defaults cacheSystemPrompt to false", async () => {
+  delete process.env.AI_PROVIDER;
+
+  let capturedParams = null;
+  const mockAnthropicClient = {
+    messages: {
+      create: async (params) => {
+        capturedParams = params;
+        return {
+          content: [{ type: "text", text: "ok" }],
+          stop_reason: "end_turn",
+        };
+      },
+    },
+  };
+
+  // No cacheSystemPrompt specified
+  await callModel(
+    { system: "System prompt text", user: "Hello" },
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  assert.strictEqual(
+    capturedParams.system,
+    "System prompt text",
+    "Without cacheSystemPrompt, system must be a plain string (default false)",
+  );
+});
+
+test("callModel with cacheSystemPrompt=true still returns responseText correctly", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const mockAnthropicClient = {
+    messages: {
+      create: async () => ({
+        content: [{ type: "text", text: "Cached response content" }],
+        stop_reason: "end_turn",
+        usage: { cache_read_input_tokens: 200, input_tokens: 10 },
+      }),
+    },
+  };
+
+  const result = await callModel(
+    { system: "s", user: "u", cacheSystemPrompt: true },
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  assert.strictEqual(result.responseText, "Cached response content");
+  assert.strictEqual(result.stopReason, "end_turn");
+});
