@@ -57,6 +57,14 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen
+            name="wizard/plan"
+            options={{ title: "Plan Your Trip", headerShown: false }}
+          />
+          <Stack.Screen
+            name="wizard/confirm"
+            options={{ title: "Confirm Trip", headerShown: false }}
+          />
+          <Stack.Screen
             name="wizard/destination"
             options={{ title: "Where are you going?", headerShown: false }}
           />
@@ -73,6 +81,10 @@ export default function RootLayout() {
             options={{ title: "Pick Activities", headerShown: false }}
           />
           <Stack.Screen name="results/index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="results/activity-detail"
+            options={{ headerShown: false, presentation: "modal" }}
+          />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

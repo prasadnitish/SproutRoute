@@ -13,6 +13,7 @@ import type {
   SafetyGuidance,
   TravelAdvisory,
   NeighborhoodSafety,
+  DestinationSuggestion,
 } from "../types/trip";
 
 export interface WizardState {
@@ -32,6 +33,11 @@ export interface WizardState {
   lat: number | null;
   lon: number | null;
   likedActivities: string[];
+
+  // AI resolver outputs
+  aiSuggestedActivities: string[];
+  aiSuggestions: DestinationSuggestion[];
+  vibeDescription: string | null;
 
   // Results
   trip: TripData | null;
@@ -71,6 +77,9 @@ const defaultState: WizardState = {
   lat: null,
   lon: null,
   likedActivities: [],
+  aiSuggestedActivities: [],
+  aiSuggestions: [],
+  vibeDescription: null,
   trip: null,
   weather: null,
   tripPlan: null,
