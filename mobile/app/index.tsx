@@ -91,7 +91,7 @@ export default function HomeScreen() {
       <View style={styles.ctaArea}>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.push("/wizard/destination")}
+          onPress={() => router.push("/wizard/plan")}
           activeOpacity={0.85}
         >
           <Text style={styles.primaryButtonText}>Plan a trip 🚀</Text>

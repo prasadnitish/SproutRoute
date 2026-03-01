@@ -158,7 +158,7 @@ export default function KidsScreen() {
 
   return (
     <WizardLayout
-      step={3}
+      step={4}
       totalSteps={4}
       title={numChildren === 0 ? "Adults only?" : "Who's coming?"}
       subtitle={numChildren === 0

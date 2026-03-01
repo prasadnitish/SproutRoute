@@ -15,10 +15,23 @@ import {
   ActivityIndicator,
   Share,
   Alert,
+  Dimensions,
+  FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
-import { getState, setState, resetWizard } from "../../src/utils/wizardStore";
+import {
+  getState,
+  setState,
+  resetWizard,
+  buildChildrenPayload,
+} from "../../src/utils/wizardStore";
+import { bundleTripPlan } from "../../src/services/api";
+import {
+  ALL_ACTIVITIES,
+  CRUISE_ACTIVITIES,
+} from "../../src/constants/activities";
 import type {
   Activity,
   ItineraryDay,
@@ -32,6 +45,7 @@ import {
   saveCheckedItems,
   loadCustomItems,
   clearAllData,
+  saveTripData,
 } from "../../src/utils/checklist";
 import {
   Colors,
@@ -48,29 +62,28 @@ type Tab = "itinerary" | "packing" | "safety";
 
 // ── Itinerary Tab ────────────────────────────────────────────────────────────
 
-function WeatherSummary() {
+const SCREEN_WIDTH = Dimensions.get("window").width;
+
+function TemperatureStrip() {
   const { weather } = getState();
-  if (!weather) return null;
+  if (!weather?.forecast?.length) return null;
 
   return (
-    <View style={itinStyles.weatherCard}>
-      <Text style={itinStyles.weatherSummary}>{weather.summary}</Text>
+    <View style={tempStyles.container}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={itinStyles.forecastScroll}
+        contentContainerStyle={tempStyles.scrollContent}
       >
         {(weather.forecast || []).slice(0, 7).map((day, i) => (
-          <View key={i} style={itinStyles.forecastDay}>
-            <Text style={itinStyles.forecastName}>{day.name?.slice(0, 3)}</Text>
-            <Text style={itinStyles.forecastTemp}>{day.high}°</Text>
-            <Text style={itinStyles.forecastCondition} numberOfLines={2}>
-              {day.condition}
+          <View key={i} style={tempStyles.dayCell}>
+            <Text style={tempStyles.dayName}>{day.name?.slice(0, 3)}</Text>
+            <Text style={tempStyles.temp}>{day.high}°</Text>
+            <Text style={tempStyles.condition} numberOfLines={1}>
+              {day.condition?.slice(0, 8)}
             </Text>
             {day.precipitation > 40 ? (
-              <Text style={itinStyles.forecastRain}>
-                💧 {day.precipitation}%
-              </Text>
+              <View style={tempStyles.rainDot} />
             ) : null}
           </View>
         ))}
@@ -167,52 +180,6 @@ function ItineraryDayCard({
 }
 
 const itinStyles = StyleSheet.create({
-  weatherCard: {
-    backgroundColor: Colors.skyLight,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing[4],
-    marginBottom: Spacing[4],
-  },
-  weatherSummary: {
-    fontFamily: FontFamily.body,
-    fontSize: FontSize.sm,
-    color: Colors.skyDark,
-    lineHeight: 20,
-    marginBottom: Spacing[3],
-  },
-  forecastScroll: { marginHorizontal: -Spacing[1] },
-  forecastDay: {
-    alignItems: "center",
-    width: 64,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.md,
-    padding: Spacing[2],
-    marginHorizontal: Spacing[1],
-  },
-  forecastName: {
-    fontFamily: FontFamily.bodySemiBold,
-    fontSize: FontSize.xs,
-    color: Colors.skyDark,
-  },
-  forecastTemp: {
-    fontFamily: FontFamily.headingBold,
-    fontSize: FontSize.lg,
-    color: Colors.sproutDark,
-    marginTop: 2,
-  },
-  forecastCondition: {
-    fontFamily: FontFamily.body,
-    fontSize: 10,
-    color: Colors.muted,
-    textAlign: "center",
-    marginTop: 2,
-  },
-  forecastRain: {
-    fontFamily: FontFamily.body,
-    fontSize: 10,
-    color: Colors.skyDark,
-    marginTop: 2,
-  },
   activityCard: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
@@ -325,6 +292,172 @@ const itinStyles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.muted,
     lineHeight: 18,
+  },
+});
+
+// ── Horizontal Day Carousel ─────────────────────────────────────────────────
+
+function DayCarousel({
+  activityMap,
+}: {
+  activityMap: Map<string, Activity>;
+}) {
+  const { tripPlan } = getState();
+  const days = tripPlan?.dailyItinerary || [];
+  if (days.length === 0) return null;
+
+  const cardWidth = SCREEN_WIDTH - Spacing[5] * 2;
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
+      if (viewableItems.length > 0 && viewableItems[0].index != null) {
+        setActiveIndex(viewableItems[0].index);
+      }
+    },
+  ).current;
+
+  return (
+    <View style={carouselStyles.wrapper}>
+      <FlatList
+        data={days}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={cardWidth + Spacing[3]}
+        decelerationRate="fast"
+        contentContainerStyle={{ paddingHorizontal: Spacing[2] }}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        keyExtractor={(_, i) => `day-${i}`}
+        renderItem={({ item: day }) => (
+          <View style={[carouselStyles.card, { width: cardWidth }]}>
+            <ItineraryDayCard day={day} activityMap={activityMap} />
+          </View>
+        )}
+      />
+      {days.length > 1 ? (
+        <View style={carouselStyles.dots}>
+          {days.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                carouselStyles.dot,
+                i === activeIndex && carouselStyles.dotActive,
+              ]}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const carouselStyles = StyleSheet.create({
+  wrapper: { marginBottom: Spacing[4] },
+  card: { marginRight: Spacing[3] },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing[1],
+    marginTop: Spacing[3],
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+  },
+  dotActive: {
+    backgroundColor: Colors.sproutDark,
+    width: 18,
+    borderRadius: 4,
+  },
+});
+
+// ── Swipable Activity Cards ─────────────────────────────────────────────────
+
+function SwipableActivityList({
+  activityMap,
+  onActivityPress,
+}: {
+  activityMap: Map<string, Activity>;
+  onActivityPress?: (activityId: string) => void;
+}) {
+  const { tripPlan } = getState();
+  const activities = tripPlan?.suggestedActivities || [];
+  if (activities.length === 0) return null;
+
+  const cardWidth = SCREEN_WIDTH * 0.75;
+
+  return (
+    <FlatList
+      data={activities}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      snapToInterval={cardWidth + Spacing[3]}
+      decelerationRate="fast"
+      contentContainerStyle={{ paddingHorizontal: Spacing[2] }}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item: activity }) => (
+        <TouchableOpacity
+          style={[swipeActStyles.card, { width: cardWidth }]}
+          activeOpacity={0.9}
+          onPress={() => onActivityPress?.(activity.id)}
+        >
+          <ActivityCard activity={activity} activityMap={activityMap} />
+        </TouchableOpacity>
+      )}
+    />
+  );
+}
+
+const swipeActStyles = StyleSheet.create({
+  card: { marginRight: Spacing[3] },
+});
+
+// ── Temperature Strip Styles ────────────────────────────────────────────────
+
+const tempStyles = StyleSheet.create({
+  container: {
+    backgroundColor: Colors.skyLight,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing[2],
+    marginBottom: Spacing[4],
+  },
+  scrollContent: { paddingHorizontal: Spacing[2] },
+  dayCell: {
+    alignItems: "center",
+    width: 56,
+    paddingVertical: Spacing[1],
+    marginHorizontal: 2,
+  },
+  dayName: {
+    fontFamily: FontFamily.bodySemiBold,
+    fontSize: 10,
+    color: Colors.skyDark,
+    textTransform: "uppercase",
+  },
+  temp: {
+    fontFamily: FontFamily.headingBold,
+    fontSize: FontSize.base,
+    color: Colors.sproutDark,
+    marginTop: 1,
+  },
+  condition: {
+    fontFamily: FontFamily.body,
+    fontSize: 9,
+    color: Colors.muted,
+    textAlign: "center",
+    marginTop: 1,
+  },
+  rainDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.skyBase,
+    marginTop: 2,
   },
 });
 
@@ -829,14 +962,185 @@ const safetyStyles = StyleSheet.create({
   },
 });
 
+// ── Customize Sheet ─────────────────────────────────────────────────────────
+
+function CustomizeSheet({
+  visible,
+  onClose,
+  onRegenerate,
+  isRegenerating,
+  currentActivities,
+  tripType,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onRegenerate: (selected: string[]) => void;
+  isRegenerating: boolean;
+  currentActivities: string[];
+  tripType?: string | null;
+}) {
+  const insets = useSafeAreaInsets();
+  const [selected, setSelected] = useState<Set<string>>(
+    new Set(currentActivities),
+  );
+
+  const allOptions =
+    tripType === "cruise"
+      ? [...ALL_ACTIVITIES, ...CRUISE_ACTIVITIES]
+      : ALL_ACTIVITIES;
+
+  useEffect(() => {
+    if (visible) setSelected(new Set(currentActivities));
+  }, [visible, currentActivities]);
+
+  if (!visible) return null;
+
+  return (
+    <View style={customizeStyles.overlay}>
+      <View
+        style={[
+          customizeStyles.sheet,
+          { paddingBottom: insets.bottom + Spacing[4] },
+        ]}
+      >
+        <View style={customizeStyles.header}>
+          <Text style={customizeStyles.title}>Customize Activities</Text>
+          <TouchableOpacity onPress={onClose} activeOpacity={0.7}>
+            <Text style={customizeStyles.closeBtn}>✕</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={customizeStyles.list}>
+          {allOptions.map((act) => {
+            const isSelected = selected.has(act.id);
+            return (
+              <TouchableOpacity
+                key={act.id}
+                style={[
+                  customizeStyles.item,
+                  isSelected && customizeStyles.itemSelected,
+                ]}
+                onPress={() => {
+                  Haptics.selectionAsync();
+                  setSelected((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(act.id)) next.delete(act.id);
+                    else next.add(act.id);
+                    return next;
+                  });
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={customizeStyles.itemEmoji}>{act.emoji}</Text>
+                <Text style={customizeStyles.itemLabel}>{act.label}</Text>
+                <Text style={customizeStyles.itemCheck}>
+                  {isSelected ? "✓" : ""}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={[
+            customizeStyles.regenerateBtn,
+            isRegenerating && { opacity: 0.6 },
+          ]}
+          onPress={() => onRegenerate([...selected])}
+          disabled={isRegenerating || selected.size === 0}
+          activeOpacity={0.8}
+        >
+          <Text style={customizeStyles.regenerateBtnText}>
+            {isRegenerating ? "Regenerating…" : "🔄 Regenerate Trip Plan"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+const customizeStyles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+    zIndex: 100,
+  },
+  sheet: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    maxHeight: "80%",
+    paddingTop: Spacing[4],
+    paddingHorizontal: Spacing[5],
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing[3],
+  },
+  title: {
+    fontFamily: FontFamily.headingBold,
+    fontSize: FontSize.lg,
+    color: Colors.sproutDark,
+  },
+  closeBtn: {
+    fontSize: FontSize.lg,
+    color: Colors.muted,
+    paddingHorizontal: Spacing[2],
+  },
+  list: { marginBottom: Spacing[3] },
+  item: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[3],
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing[1],
+  },
+  itemSelected: { backgroundColor: Colors.sproutLight },
+  itemEmoji: { fontSize: 20, width: 32, textAlign: "center" },
+  itemLabel: {
+    fontFamily: FontFamily.body,
+    fontSize: FontSize.base,
+    color: Colors.text,
+    flex: 1,
+    marginLeft: Spacing[2],
+  },
+  itemCheck: {
+    fontFamily: FontFamily.bodyBold,
+    fontSize: FontSize.base,
+    color: Colors.sproutDark,
+    width: 24,
+    textAlign: "center",
+  },
+  regenerateBtn: {
+    backgroundColor: Colors.sproutDark,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing[4],
+    alignItems: "center",
+    ...Shadows.md,
+  },
+  regenerateBtnText: {
+    fontFamily: FontFamily.headingBold,
+    fontSize: FontSize.base,
+    color: Colors.white,
+    letterSpacing: 0.3,
+  },
+});
+
 // ── Main Results Screen ──────────────────────────────────────────────────────
 
 export default function ResultsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>("itinerary");
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [showStartOver, setShowStartOver] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
 
   const { tripPlan, trip, weather, packingList } = getState();
 
@@ -873,28 +1177,88 @@ export default function ResultsScreen() {
     setRefreshing(false);
   }, []);
 
-  // Build share text
+  // Build comprehensive share text with full trip details
   const handleShare = useCallback(async () => {
     if (!trip || !tripPlan) return;
-    const lines = [
+    const { packingList, safetyGuidance } = getState();
+
+    const lines: string[] = [
       `🌱 SproutRoute Trip: ${trip.destination}`,
-      `📅 ${trip.startDate} → ${trip.endDate}`,
+      `📅 ${formatDisplayDate(trip.startDate)} → ${formatDisplayDate(trip.endDate)}`,
       "",
-      tripPlan.overview || "",
-      "",
-      "✅ Suggested Activities:",
-      ...(tripPlan.suggestedActivities || [])
-        .slice(0, 5)
-        .map((a) => `• ${a.name} (${a.duration})`),
-      "",
-      "Generated with SproutRoute — AI trip planner for families",
     ];
+
+    if (tripPlan.overview) {
+      lines.push(tripPlan.overview, "");
+    }
+
+    // Itinerary details
+    lines.push("── 🗓 ITINERARY ──", "");
+
+    if (tripPlan.suggestedActivities?.length) {
+      lines.push("Activities:");
+      tripPlan.suggestedActivities.forEach((a) => {
+        lines.push(`  • ${a.name} (${a.duration}) — ${a.description}`);
+      });
+      lines.push("");
+    }
+
+    if (tripPlan.dailyItinerary?.length) {
+      lines.push("Day-by-Day Plan:");
+      tripPlan.dailyItinerary.forEach((day) => {
+        lines.push(`\n${day.day}`);
+        (day.activities || []).forEach((actId) => {
+          const act = activityMap.get(actId);
+          if (act) lines.push(`  • ${act.name} (${act.duration})`);
+        });
+        if (day.meals) lines.push(`  🍽 Meals: ${day.meals}`);
+        if (day.notes) lines.push(`  ℹ️ ${day.notes}`);
+      });
+      lines.push("");
+    }
+
+    if (tripPlan.tips?.length) {
+      lines.push("💡 Pro Tips:");
+      tripPlan.tips.forEach((tip) => lines.push(`  • ${tip}`));
+      lines.push("");
+    }
+
+    // Packing list
+    if (packingList?.categories?.length) {
+      lines.push("── 🎒 PACKING LIST ──", "");
+      packingList.categories.forEach((cat) => {
+        lines.push(`${cat.name}:`);
+        (cat.items || []).forEach((item) => {
+          const qty = item.quantity ? ` ×${item.quantity}` : "";
+          lines.push(`  ☐ ${item.name}${qty}`);
+        });
+        lines.push("");
+      });
+    }
+
+    // Safety guidance
+    if (safetyGuidance?.results?.length) {
+      lines.push("── 🚗 SAFETY GUIDANCE ──", "");
+      if (safetyGuidance.jurisdictionName) {
+        lines.push(`Jurisdiction: ${safetyGuidance.jurisdictionName}`);
+      }
+      safetyGuidance.results.forEach((r, i) => {
+        lines.push(
+          `Child ${i + 1}: ${r.requiredRestraintLabel || r.requiredRestraint || "See guidelines"}`,
+        );
+        if (r.rationale) lines.push(`  ${r.rationale}`);
+      });
+      lines.push("");
+    }
+
+    lines.push("Generated with SproutRoute — AI trip planner for families 🌱");
+
     try {
       await Share.share({ message: lines.join("\n") });
     } catch {
       // User cancelled — no-op
     }
-  }, [trip, tripPlan]);
+  }, [trip, tripPlan, activityMap]);
 
   // Start over confirmation
   const handleStartOver = useCallback(() => {
@@ -916,6 +1280,60 @@ export default function ResultsScreen() {
     );
   }, [router]);
 
+  // Regenerate trip with updated activities
+  const handleRegenerate = useCallback(
+    async (selectedActivities: string[]) => {
+      setIsRegenerating(true);
+      try {
+        const {
+          resolvedDestination,
+          startDate,
+          endDate,
+          tripType: currentTripType,
+        } = getState();
+        const children = buildChildrenPayload();
+
+        const bundleResult = await bundleTripPlan({
+          destination: resolvedDestination,
+          startDate,
+          endDate,
+          activities: selectedActivities,
+          children,
+          ...(currentTripType ? { tripType: currentTripType } : {}),
+        });
+
+        setState({
+          tripPlan: bundleResult.tripPlan,
+          packingList: bundleResult.packingList,
+          weather: bundleResult.weather,
+          trip: bundleResult.trip,
+        });
+
+        await saveTripData({
+          trip: bundleResult.trip,
+          weather: bundleResult.weather,
+          tripPlan: bundleResult.tripPlan,
+          packingList: bundleResult.packingList,
+          safetyGuidance: getState().safetyGuidance,
+          lastModified: new Date().toISOString(),
+        });
+
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setShowCustomize(false);
+      } catch (err) {
+        Alert.alert(
+          "Error",
+          err instanceof Error
+            ? err.message
+            : "Failed to regenerate trip plan.",
+        );
+      } finally {
+        setIsRegenerating(false);
+      }
+    },
+    [],
+  );
+
   if (!trip || !tripPlan) {
     return (
       <View style={styles.loadingContainer}>
@@ -928,7 +1346,7 @@ export default function ResultsScreen() {
   return (
     <View style={styles.container}>
       {/* Hero header */}
-      <View style={styles.hero}>
+      <View style={[styles.hero, { paddingTop: insets.top + Spacing[3] }]}>
         <Text style={styles.heroDestination}>{trip.destination}</Text>
         <Text style={styles.heroDates}>
           {formatDisplayDate(trip.startDate)} →{" "}
@@ -941,6 +1359,13 @@ export default function ResultsScreen() {
             activeOpacity={0.7}
           >
             <Text style={styles.heroActionText}>↑ Share</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.heroActionBtn}
+            onPress={() => setShowCustomize(true)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.heroActionText}>✎ Customize</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.heroActionBtnDestructive}
@@ -996,6 +1421,9 @@ export default function ResultsScreen() {
       >
         {activeTab === "itinerary" ? (
           <View>
+            {/* Temperature strip */}
+            <TemperatureStrip />
+
             {/* Overview */}
             {tripPlan.overview ? (
               <View style={styles.overviewCard}>
@@ -1003,30 +1431,27 @@ export default function ResultsScreen() {
               </View>
             ) : null}
 
-            {/* Weather */}
-            <WeatherSummary />
-
-            {/* Activities */}
-            <Text style={styles.sectionTitle}>Suggested Activities</Text>
-            {(tripPlan.suggestedActivities || []).map((act) => (
-              <ActivityCard
-                key={act.id}
-                activity={act}
-                activityMap={activityMap}
-              />
-            ))}
-
-            {/* Itinerary */}
+            {/* Day-by-day carousel */}
             {(tripPlan.dailyItinerary || []).length > 0 ? (
               <>
                 <Text style={styles.sectionTitle}>Day-by-Day Itinerary</Text>
-                {(tripPlan.dailyItinerary || []).map((day, i) => (
-                  <ItineraryDayCard
-                    key={i}
-                    day={day}
-                    activityMap={activityMap}
-                  />
-                ))}
+                <DayCarousel activityMap={activityMap} />
+              </>
+            ) : null}
+
+            {/* Swipable activity cards */}
+            {(tripPlan.suggestedActivities || []).length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Activities</Text>
+                <SwipableActivityList
+                  activityMap={activityMap}
+                  onActivityPress={(activityId) =>
+                    router.push({
+                      pathname: "/results/activity-detail",
+                      params: { activityId },
+                    })
+                  }
+                />
               </>
             ) : null}
 
@@ -1048,6 +1473,18 @@ export default function ResultsScreen() {
           <SafetyTab />
         )}
       </ScrollView>
+
+      {/* Customize sheet overlay */}
+      <CustomizeSheet
+        visible={showCustomize}
+        onClose={() => setShowCustomize(false)}
+        onRegenerate={handleRegenerate}
+        isRegenerating={isRegenerating}
+        currentActivities={
+          (tripPlan.suggestedActivities || []).map((a) => a.id)
+        }
+        tripType={trip.tripType}
+      />
     </View>
   );
 }
@@ -1079,7 +1516,6 @@ const styles = StyleSheet.create({
   hero: {
     backgroundColor: Colors.sproutDark,
     paddingHorizontal: Spacing[6],
-    paddingTop: Spacing[5],
     paddingBottom: Spacing[4],
   },
   heroDestination: {
