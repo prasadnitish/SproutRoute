@@ -295,9 +295,8 @@ function FlagshipWork() {
       <div className="section-header">
         <div>
           <div className="eyebrow">Flagship Work</div>
-          <h2 className="section-title">Flagship case studies.</h2>
+          <h2 className="section-title">Three case studies that explain the scope I can own.</h2>
         </div>
-        <div className="section-note">Three case studies that explain the scope I can own.</div>
       </div>
       <AmplifyOutcomes />
       <div className="project-grid">
@@ -400,9 +399,8 @@ function Systems() {
       <div className="section-header">
         <div>
           <div className="eyebrow">Supporting Systems</div>
-          <h2 className="section-title">Supporting systems for evaluation, safety, and launch quality.</h2>
+          <h2 className="section-title">Live demos and systems for evaluation, safety, and release decisions.</h2>
         </div>
-        <div className="section-note">Live demos and technical systems for evaluation, safety, and release decisions.</div>
       </div>
 
       <div className="project-grid">
