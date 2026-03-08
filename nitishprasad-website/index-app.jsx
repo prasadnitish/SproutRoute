@@ -265,9 +265,9 @@ function AmplifyOutcomes() {
         <div className="eyebrow">Amplify</div>
         <h3>Senior Product Manager · Amazon</h3>
         <p>
-          AI seller intelligence platform built for 1,600+ account managers across North America and Europe.
-          The work covered product framing, operating-model design, multi-region constraints, and a credible path
-          into Salesforce workflows.
+          An AI seller intelligence platform serving 1,600+ account managers across North America and Europe.
+          I redefined the product scope, designed the operating model, navigated multi-region constraints, and
+          set the roadmap path toward Salesforce.
         </p>
         <div className="metric-row">
           <span className="mini-tag">AWS Bedrock</span>
@@ -334,7 +334,6 @@ function Approach() {
       <div className="split-section">
         <article className="surface-card">
           <div className="eyebrow" style={{ color: "var(--ink-soft)" }}>How I work</div>
-          <h3>The pattern in the work is pretty consistent.</h3>
           <ul className="bullet-list">
             {workingStyle.map((line) => (
               <li key={line}>{line}</li>
@@ -365,7 +364,7 @@ function ExperienceSection() {
       <div className="section-header">
         <div>
           <div className="eyebrow">Experience</div>
-          <h2 className="section-title">The operating profile behind the projects.</h2>
+          <h2 className="section-title">10 years at Amazon, across product, program, and operations.</h2>
         </div>
       </div>
 
