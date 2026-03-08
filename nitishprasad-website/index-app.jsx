@@ -109,25 +109,6 @@ const credibility = [
   }
 ];
 
-const fitCards = [
-  {
-    title: "Current focus",
-    copy: "Senior Product Manager at Amazon. Turned Amplify from a dashboard request into a platform-shaped AI product with real operating leverage."
-  },
-  {
-    title: "Sweet spot",
-    copy: "0→1 framing, customer discovery, PR-FAQ thinking, architecture pressure-testing, experimentation, and platform strategy."
-  },
-  {
-    title: "Technical range",
-    copy: "Deep enough to challenge architecture and operating-model decisions rather than treating the technical stack as a black box."
-  },
-  {
-    title: "Best interview arc",
-    copy: "Product leader who turns ambiguous bets into scaled systems while managing cost, latency, quality, adoption, and organizational buy-in."
-  }
-];
-
 const experience = [
   {
     date: "May 2025 – Present",
@@ -407,15 +388,6 @@ function ExperienceSection() {
           <div className="eyebrow">Experience</div>
           <h2 className="section-title">The operating profile behind the projects.</h2>
         </div>
-      </div>
-
-      <div className="cred-grid">
-        {fitCards.map((card) => (
-          <article className="panel-card" key={card.title}>
-            <h3>{card.title}</h3>
-            <p>{card.copy}</p>
-          </article>
-        ))}
       </div>
 
       <div className="timeline">
