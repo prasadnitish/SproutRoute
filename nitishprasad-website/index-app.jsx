@@ -32,26 +32,10 @@ const heroReads = [
 ];
 
 const proofs = [
-  {
-    stat: "1,600+",
-    label: "Amplify users across NA and EU",
-    copy: "Took the product from a narrow dashboard ask to a production AI platform used at operating scale."
-  },
-  {
-    stat: "99%",
-    label: "Infrastructure cost reduction",
-    copy: "Made a system-level operating model decision that cut annual AI infra from roughly $60K to $500."
-  },
-  {
-    stat: "<500ms",
-    label: "P95 latency target achieved",
-    copy: "Balanced speed, cost, and quality instead of optimizing for a flashy demo path."
-  },
-  {
-    stat: "45→5 min",
-    label: "Prep time saved per AM call",
-    copy: "Turned AI capability into a workflow outcome that mattered to adoption and the business."
-  }
+  { stat: "1,600+", label: "Amplify users across NA and EU" },
+  { stat: "99%",    label: "Infrastructure cost reduction" },
+  { stat: "<500ms", label: "P95 latency target achieved" },
+  { stat: "45→5 min", label: "Prep time saved per AM call" }
 ];
 
 const flagshipProjects = [
@@ -301,7 +285,6 @@ function AmplifyOutcomes() {
           <article className="proof-card" key={proof.label}>
             <strong>{proof.stat}</strong>
             <span>{proof.label}</span>
-            <p>{proof.copy}</p>
           </article>
         ))}
       </div>
