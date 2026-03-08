@@ -450,41 +450,29 @@ function Systems() {
 function Contact() {
   return (
     <section className="section" id="contact">
-      <div className="split-section">
-        <article className="panel-card">
-          <div className="eyebrow">Contact</div>
-          <h2 className="section-title" style={{ fontSize: "clamp(1.8rem, 3vw, 2.8rem)" }}>
-            If the role needs someone who can shape the product and stay close to the system, I am happy to talk.
-          </h2>
-          <p className="inline-note">
-            Email is the fastest path. LinkedIn and GitHub are here if you want the broader context.
-          </p>
-          <div className="contact-cta">
-            <a className="button primary" href={SITE.resume} target="_blank" rel="noreferrer">
-              Open Resume
-            </a>
-            <a className="contact-link" href={`mailto:${SITE.email}`}>
-              Email Nitish
-            </a>
-            <a className="contact-link" href={SITE.linkedin} target="_blank" rel="noreferrer">
-              LinkedIn
-            </a>
-            <a className="contact-link" href={SITE.github} target="_blank" rel="noreferrer">
-              GitHub
-            </a>
-          </div>
-        </article>
-
-        <article className="surface-card">
-          <h3>Project coverage</h3>
-          <ul className="bullet-list">
-            <li>Amplify covers platform strategy, operating-model choices, and business impact at scale.</li>
-            <li>SproutRoute covers 0→1 execution, shipping discipline, and end-to-end product ownership.</li>
-            <li>MathQuest covers product craft, boundaries, and first-version restraint.</li>
-            <li>The evaluation and safety tools cover launch quality, governance, and release thinking.</li>
-          </ul>
-        </article>
-      </div>
+      <article className="panel-card" style={{ maxWidth: "680px" }}>
+        <div className="eyebrow">Contact</div>
+        <h2 className="section-title" style={{ fontSize: "clamp(1.8rem, 3vw, 2.8rem)" }}>
+          If the role needs someone who can shape the product and stay close to the system, I am happy to talk.
+        </h2>
+        <p className="inline-note">
+          Email is the fastest path. LinkedIn and GitHub are here if you want the broader context.
+        </p>
+        <div className="contact-cta">
+          <a className="button primary" href={SITE.resume} target="_blank" rel="noreferrer">
+            Open Resume
+          </a>
+          <a className="contact-link" href={`mailto:${SITE.email}`}>
+            Email Nitish
+          </a>
+          <a className="contact-link" href={SITE.linkedin} target="_blank" rel="noreferrer">
+            LinkedIn
+          </a>
+          <a className="contact-link" href={SITE.github} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </div>
+      </article>
     </section>
   );
 }
