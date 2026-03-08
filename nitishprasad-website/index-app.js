@@ -16,17 +16,17 @@
     {
       href: "project-amplify.html",
       title: "Amplify",
-      copy: "Principal-level product judgment, AI platform thinking, and measurable business impact."
+      copy: "1,600+ users, 99% infra cost reduction, and a roadmap path into Salesforce \u2014 not another internal tool."
     },
     {
       href: "project-sproutroute.html",
       title: "SproutRoute",
-      copy: "0\u21921 execution range, shipping speed, and end-to-end product building."
+      copy: "Full-stack AI trip planner, shipped solo in ten weeks. React, Node, Claude API, Railway."
     },
     {
       href: "project-mathquest.html",
       title: "MathQuest Kids",
-      copy: "Product craft, constrained UX decisions, and thoughtful platform boundaries."
+      copy: "Offline-first iPad math app for kids. SwiftUI, no accounts, no analytics, 535 content templates."
     }
   ];
   const proofs = [
@@ -65,23 +65,23 @@
     }
   ];
   const workingStyle = [
-    "I usually start by reframing the problem until the wedge is clear enough to build against.",
-    "I stay close enough to the system design to challenge the operating model, not just the roadmap.",
-    "I care about day-two product reality: adoption, cost, latency, governance, and how the tool fits into an existing workflow.",
+    "I start by reframing the problem. Most first requests aren't quite the right problem yet.",
+    "I stay close enough to the system to challenge the architecture and operating model, not just the roadmap.",
+    "I care about day-two reality: adoption, cost, latency, governance, and how the tool fits into an existing workflow.",
     "I am most useful when a team needs product judgment and technical fluency in the same room."
   ];
   const credibility = [
     {
       title: "Amazon operator",
-      copy: "10+ years in a high-bar environment working across executive stakeholders, scaled systems, and operational complexity."
+      copy: "10+ years at Amazon, working across executive stakeholders, scaled systems, and organizational complexity \u2014 from individual contributor to VP-facing program ownership."
     },
     {
       title: "AI PM with technical depth",
-      copy: "RAG, Bedrock, cost-latency tradeoffs, API direction, multi-region constraints, and release-quality thinking."
+      copy: "Fluent in RAG, Bedrock, cost-latency tradeoffs, and the operating-model decisions that separate a good demo from a production system."
     },
     {
-      title: "0\u21921 to scale leader",
-      copy: "Comfortable moving from product framing into prototyping, system design, shipping, and the realities that arrive after adoption starts to matter."
+      title: "0\u21921 to scale",
+      copy: "Comfortable moving from early framing into prototyping, system design, shipping, and the adoption problems that follow launch."
     }
   ];
   const experience = [
@@ -96,14 +96,14 @@
       date: "Jun 2022 \u2013 May 2025",
       company: "Amazon",
       role: "Senior Product and Customer Insights Manager, CXBT",
-      copy: "Led strategic research across seller and vendor ecosystems. The work shaped roadmap and information-architecture decisions and fed directly into senior-leadership reviews.",
+      copy: "Led strategic research across seller and vendor ecosystems. Findings shaped product roadmaps, information architecture, and senior leadership decisions.",
       tags: ["Research", "Roadmap shaping", "Executive reviews", "Cross-geo studies"]
     },
     {
       date: "Apr 2020 \u2013 Jun 2022",
       company: "Amazon",
       role: "Senior Program Manager, PSAS Ops",
-      copy: "Led enterprise platform migration for 29 teams and 6,000+ users, built a PMO and analytics function from scratch, and owned VP-level goals for a 700-person organization.",
+      copy: "Led enterprise platform migration for 29 teams and 6,000+ users, built a PMO and analytics function from scratch, and delivered against VP-level goals for a 700-person organization.",
       tags: ["Platform migration", "Change management", "Analytics", "PMO"]
     },
     {
