@@ -30,26 +30,10 @@
     }
   ];
   const proofs = [
-    {
-      stat: "1,600+",
-      label: "Amplify users across NA and EU",
-      copy: "Took the product from a narrow dashboard ask to a production AI platform used at operating scale."
-    },
-    {
-      stat: "99%",
-      label: "Infrastructure cost reduction",
-      copy: "Made a system-level operating model decision that cut annual AI infra from roughly $60K to $500."
-    },
-    {
-      stat: "<500ms",
-      label: "P95 latency target achieved",
-      copy: "Balanced speed, cost, and quality instead of optimizing for a flashy demo path."
-    },
-    {
-      stat: "45\u21925 min",
-      label: "Prep time saved per AM call",
-      copy: "Turned AI capability into a workflow outcome that mattered to adoption and the business."
-    }
+    { stat: "1,600+", label: "Amplify users across NA and EU" },
+    { stat: "99%",    label: "Infrastructure cost reduction" },
+    { stat: "<500ms", label: "P95 latency target achieved" },
+    { stat: "45\u21925 min", label: "Prep time saved per AM call" }
   ];
   const flagshipProjects = [
     {
@@ -190,7 +174,7 @@
     return /* @__PURE__ */ React.createElement("section", { className: "hero", id: "hero" }, /* @__PURE__ */ React.createElement("div", { className: "hero-grid" }, /* @__PURE__ */ React.createElement("div", { className: "hero-copy" }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Principal-level product leader \xB7 0\u21921 and scale \xB7 Amazon"), /* @__PURE__ */ React.createElement("h1", null, SITE.headline), SITE.intro.map((paragraph) => /* @__PURE__ */ React.createElement("p", { key: paragraph }, paragraph)), /* @__PURE__ */ React.createElement("div", { className: "hero-actions" }, /* @__PURE__ */ React.createElement("a", { className: "button primary", href: "project-amplify.html" }, "View Amplify"), /* @__PURE__ */ React.createElement("a", { className: "button secondary", href: "#work" }, "View Case Studies"), /* @__PURE__ */ React.createElement("a", { className: "button secondary", href: SITE.resume, target: "_blank", rel: "noreferrer" }, "Open Resume"))), /* @__PURE__ */ React.createElement("aside", { className: "hero-aside" }, /* @__PURE__ */ React.createElement("div", { className: "aside-card" }, /* @__PURE__ */ React.createElement("span", { className: "pill accent" }, "Selected case studies"), /* @__PURE__ */ React.createElement("div", { className: "list-tight", style: { marginTop: "1rem" } }, heroReads.map((item, index) => /* @__PURE__ */ React.createElement("a", { key: item.href, className: "link-block", href: item.href }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, index + 1, ". ", item.title), /* @__PURE__ */ React.createElement("span", null, item.copy)), /* @__PURE__ */ React.createElement("span", { className: "link-arrow" }, "\u2192"))))))));
   }
   function AmplifyOutcomes() {
-    return /* @__PURE__ */ React.createElement("div", { className: "featured-outcome", "aria-label": "Amplify outcomes" }, /* @__PURE__ */ React.createElement("article", { className: "panel-card featured-outcome-intro" }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Amplify"), /* @__PURE__ */ React.createElement("h3", null, "Senior Product Manager \xB7 Amazon"), /* @__PURE__ */ React.createElement("p", null, "AI seller intelligence platform built for 1,600+ account managers across North America and Europe. The work covered product framing, operating-model design, multi-region constraints, and a credible path into Salesforce workflows."), /* @__PURE__ */ React.createElement("div", { className: "metric-row" }, /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "AWS Bedrock"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "Hybrid inference"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "RAG"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "Salesforce path"))), /* @__PURE__ */ React.createElement("div", { className: "proof-grid amplify-proof-grid" }, proofs.map((proof) => /* @__PURE__ */ React.createElement("article", { className: "proof-card", key: proof.label }, /* @__PURE__ */ React.createElement("strong", null, proof.stat), /* @__PURE__ */ React.createElement("span", null, proof.label), /* @__PURE__ */ React.createElement("p", null, proof.copy)))));
+    return /* @__PURE__ */ React.createElement("div", { className: "featured-outcome", "aria-label": "Amplify outcomes" }, /* @__PURE__ */ React.createElement("article", { className: "panel-card featured-outcome-intro" }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Amplify"), /* @__PURE__ */ React.createElement("h3", null, "Senior Product Manager \xB7 Amazon"), /* @__PURE__ */ React.createElement("p", null, "AI seller intelligence platform built for 1,600+ account managers across North America and Europe. The work covered product framing, operating-model design, multi-region constraints, and a credible path into Salesforce workflows."), /* @__PURE__ */ React.createElement("div", { className: "metric-row" }, /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "AWS Bedrock"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "Hybrid inference"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "RAG"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "Salesforce path"))), /* @__PURE__ */ React.createElement("div", { className: "proof-grid amplify-proof-grid" }, proofs.map((proof) => /* @__PURE__ */ React.createElement("article", { className: "proof-card", key: proof.label }, /* @__PURE__ */ React.createElement("strong", null, proof.stat), /* @__PURE__ */ React.createElement("span", null, proof.label)))));
   }
   function FlagshipWork() {
     return /* @__PURE__ */ React.createElement("section", { className: "section", id: "work" }, /* @__PURE__ */ React.createElement("div", { className: "section-header" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Flagship Work"), /* @__PURE__ */ React.createElement("h2", { className: "section-title" }, "Flagship case studies.")), /* @__PURE__ */ React.createElement("div", { className: "section-note" }, "Three case studies that explain the scope I can own.")), /* @__PURE__ */ React.createElement(AmplifyOutcomes, null), /* @__PURE__ */ React.createElement("div", { className: "project-grid" }, flagshipProjects.map((project, index) => /* @__PURE__ */ React.createElement("a", { className: `project-card ${index === 0 ? "primary" : ""}`, href: project.href, key: project.title }, /* @__PURE__ */ React.createElement("div", { className: "project-meta" }, /* @__PURE__ */ React.createElement("div", { className: "project-icon" }, project.icon), /* @__PURE__ */ React.createElement("span", { className: `pill ${project.badgeClass}` }, project.badge)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", null, project.title), /* @__PURE__ */ React.createElement("p", null, project.copy)), /* @__PURE__ */ React.createElement("div", { className: "metric-row" }, project.metrics.map((metric) => /* @__PURE__ */ React.createElement("span", { className: "mini-tag", key: metric }, metric))), /* @__PURE__ */ React.createElement("div", { className: "project-footer" }, /* @__PURE__ */ React.createElement("span", null, project.footer), /* @__PURE__ */ React.createElement("span", null, "\u2192"))))));
