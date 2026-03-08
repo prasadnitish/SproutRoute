@@ -7,6 +7,42 @@ const STATE_DEPT_API_URL =
 const FETCH_TIMEOUT_MS = 10000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+// ISO 3166-1 alpha-2 → FIPS 10-4 mapping for State Dept API.
+// The State Dept uses FIPS codes in its Category field, not ISO codes.
+// Only includes codes that differ between the two standards.
+const ISO_TO_FIPS = {
+  AT: "AU", // Austria
+  AU: "AS", // Australia
+  BG: "BU", // Bulgaria
+  CH: "SZ", // Switzerland (ISO CH = State Dept SR, but ISO CH conflicts with China's FIPS)
+  CL: "CI", // Chile
+  CN: "CH", // China
+  CR: "CS", // Costa Rica
+  DE: "GM", // Germany
+  DK: "DA", // Denmark
+  DO: "DR", // Dominican Republic
+  EE: "EN", // Estonia
+  ES: "SP", // Spain
+  GB: "UK", // United Kingdom
+  IE: "EI", // Ireland
+  IS: "IC", // Iceland
+  JP: "JA", // Japan
+  KR: "KS", // South Korea
+  LT: "LH", // Lithuania
+  LV: "LG", // Latvia
+  MA: "MO", // Morocco
+  PA: "PM", // Panama
+  PH: "RP", // Philippines
+  PT: "PO", // Portugal
+  RO: "RO", // Romania (same in both)
+  SE: "SW", // Sweden
+  SG: "SN", // Singapore
+  SK: "LO", // Slovakia
+  TR: "TU", // Turkey (Türkiye)
+  VN: "VM", // Vietnam
+  ZA: "SF", // South Africa
+};
+
 // Known risk keywords the State Dept uses in advisory summaries.
 const RISK_KEYWORDS = [
   "terrorism",
@@ -136,13 +172,21 @@ export async function getTravelAdvisory(countryCode) {
     return null;
   }
 
-  // Find the advisory matching the requested country code.
-  // The Category field is an array of country codes (usually one element).
+  // The State Dept API uses FIPS 10-4 codes, not ISO 3166-1.
+  // Try the FIPS equivalent first, then fall back to the raw ISO code.
+  const fipsCode = ISO_TO_FIPS[normalizedCode];
+  const codesToTry = fipsCode
+    ? [fipsCode, normalizedCode]
+    : [normalizedCode];
+
+  // Find the advisory matching any of our candidate codes.
   const entry = advisories.find(
     (advisory) =>
       Array.isArray(advisory.Category) &&
       advisory.Category.some(
-        (code) => typeof code === "string" && code.toUpperCase() === normalizedCode,
+        (code) =>
+          typeof code === "string" &&
+          codesToTry.includes(code.toUpperCase()),
       ),
   );
 
