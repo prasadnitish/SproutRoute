@@ -42,9 +42,8 @@
       badge: "Flagship",
       badgeClass: "accent",
       icon: "\u25C9",
-      copy: "Started as a dashboard request. I pushed it into an AI seller intelligence platform, chose the operating model that made the economics work, and built toward Salesforce integration instead of another disconnected tool.",
-      metrics: ["1,600+ users", "99% cost cut", "<500ms latency"],
-      footer: "Role, outcomes, and ownership first"
+      copy: "An AI seller intelligence platform serving 1,600+ account managers across NA and EU. I redefined the product scope, designed the operating model that cut infra costs 99%, and set the roadmap path toward Salesforce \u2014 not another disconnected internal tool.",
+      metrics: ["1,600+ users", "99% cost cut", "<500ms latency"]
     },
     {
       href: "project-sproutroute.html",
@@ -52,9 +51,8 @@
       badge: "Live demo",
       badgeClass: "signal",
       icon: "\u25B3",
-      copy: "A full-stack AI trip planner I shipped end to end in ten weeks. It shows how I find the product wedge, make the right tradeoffs, and get the product shipped.",
-      metrics: ["10 weeks", "167 tests", "Web + mobile"],
-      footer: "Shipping range and speed"
+      copy: "Designed, built, and shipped solo in ten weeks \u2014 React, Node, Claude API, Railway. Full end-to-end ownership: product scope, architecture, UX, and deployment.",
+      metrics: ["10 weeks", "167 tests", "Web + mobile"]
     },
     {
       href: "project-mathquest.html",
@@ -62,9 +60,8 @@
       badge: "Product craft",
       badgeClass: "success",
       icon: "\u25A1",
-      copy: "An offline-first iPad math app for kids. It shows how I handle learning UX, privacy, determinism, and first-version focus without overbuilding.",
-      metrics: ["Offline first", "535 templates", "Native SwiftUI"],
-      footer: "UX and product judgment"
+      copy: "An offline-first iPad math app for kids. Privacy-safe by design: no accounts, no analytics, no data collection. 535 content templates in native SwiftUI.",
+      metrics: ["Offline first", "535 templates", "Native SwiftUI"]
     }
   ];
   const workingStyle = [
@@ -177,7 +174,7 @@
     return /* @__PURE__ */ React.createElement("div", { className: "featured-outcome", "aria-label": "Amplify outcomes" }, /* @__PURE__ */ React.createElement("article", { className: "panel-card featured-outcome-intro" }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Amplify"), /* @__PURE__ */ React.createElement("h3", null, "Senior Product Manager \xB7 Amazon"), /* @__PURE__ */ React.createElement("p", null, "AI seller intelligence platform built for 1,600+ account managers across North America and Europe. The work covered product framing, operating-model design, multi-region constraints, and a credible path into Salesforce workflows."), /* @__PURE__ */ React.createElement("div", { className: "metric-row" }, /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "AWS Bedrock"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "Hybrid inference"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "RAG"), /* @__PURE__ */ React.createElement("span", { className: "mini-tag" }, "Salesforce path"))), /* @__PURE__ */ React.createElement("div", { className: "proof-grid amplify-proof-grid" }, proofs.map((proof) => /* @__PURE__ */ React.createElement("article", { className: "proof-card", key: proof.label }, /* @__PURE__ */ React.createElement("strong", null, proof.stat), /* @__PURE__ */ React.createElement("span", null, proof.label)))));
   }
   function FlagshipWork() {
-    return /* @__PURE__ */ React.createElement("section", { className: "section", id: "work" }, /* @__PURE__ */ React.createElement("div", { className: "section-header" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Flagship Work"), /* @__PURE__ */ React.createElement("h2", { className: "section-title" }, "Flagship case studies.")), /* @__PURE__ */ React.createElement("div", { className: "section-note" }, "Three case studies that explain the scope I can own.")), /* @__PURE__ */ React.createElement(AmplifyOutcomes, null), /* @__PURE__ */ React.createElement("div", { className: "project-grid" }, flagshipProjects.map((project, index) => /* @__PURE__ */ React.createElement("a", { className: `project-card ${index === 0 ? "primary" : ""}`, href: project.href, key: project.title }, /* @__PURE__ */ React.createElement("div", { className: "project-meta" }, /* @__PURE__ */ React.createElement("div", { className: "project-icon" }, project.icon), /* @__PURE__ */ React.createElement("span", { className: `pill ${project.badgeClass}` }, project.badge)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", null, project.title), /* @__PURE__ */ React.createElement("p", null, project.copy)), /* @__PURE__ */ React.createElement("div", { className: "metric-row" }, project.metrics.map((metric) => /* @__PURE__ */ React.createElement("span", { className: "mini-tag", key: metric }, metric))), /* @__PURE__ */ React.createElement("div", { className: "project-footer" }, /* @__PURE__ */ React.createElement("span", null, project.footer), /* @__PURE__ */ React.createElement("span", null, "\u2192"))))));
+    return /* @__PURE__ */ React.createElement("section", { className: "section", id: "work" }, /* @__PURE__ */ React.createElement("div", { className: "section-header" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "eyebrow" }, "Flagship Work"), /* @__PURE__ */ React.createElement("h2", { className: "section-title" }, "Flagship case studies.")), /* @__PURE__ */ React.createElement("div", { className: "section-note" }, "Three case studies that explain the scope I can own.")), /* @__PURE__ */ React.createElement(AmplifyOutcomes, null), /* @__PURE__ */ React.createElement("div", { className: "project-grid" }, flagshipProjects.map((project, index) => /* @__PURE__ */ React.createElement("a", { className: `project-card ${index === 0 ? "primary" : ""}`, href: project.href, key: project.title }, /* @__PURE__ */ React.createElement("div", { className: "project-meta" }, /* @__PURE__ */ React.createElement("div", { className: "project-icon" }, project.icon), /* @__PURE__ */ React.createElement("span", { className: `pill ${project.badgeClass}` }, project.badge)), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("h3", null, project.title), /* @__PURE__ */ React.createElement("p", null, project.copy)), /* @__PURE__ */ React.createElement("div", { className: "metric-row" }, project.metrics.map((metric) => /* @__PURE__ */ React.createElement("span", { className: "mini-tag", key: metric }, metric))), /* @__PURE__ */ React.createElement("div", { className: "project-footer" }, /* @__PURE__ */ React.createElement("span", null, "Read case study"), /* @__PURE__ */ React.createElement("span", null, "\u2192"))))));
   }
   function Approach() {
     return /* @__PURE__ */ React.createElement("section", { className: "section" }, /* @__PURE__ */ React.createElement("div", { className: "split-section" }, /* @__PURE__ */ React.createElement("article", { className: "surface-card" }, /* @__PURE__ */ React.createElement("div", { className: "eyebrow", style: { color: "var(--ink-soft)" } }, "How I work"), /* @__PURE__ */ React.createElement("h3", null, "The pattern in the work is pretty consistent."), /* @__PURE__ */ React.createElement("ul", { className: "bullet-list" }, workingStyle.map((line) => /* @__PURE__ */ React.createElement("li", { key: line }, line)))), /* @__PURE__ */ React.createElement("article", { className: "panel-card" }, /* @__PURE__ */ React.createElement("span", { className: "pill signal" }, "Credibility"), /* @__PURE__ */ React.createElement("div", { className: "divider" }), /* @__PURE__ */ React.createElement("div", { className: "timeline-list" }, credibility.map((item) => /* @__PURE__ */ React.createElement("div", { className: "timeline-card", key: item.title }, /* @__PURE__ */ React.createElement("strong", null, item.title), /* @__PURE__ */ React.createElement("p", null, item.copy)))))));

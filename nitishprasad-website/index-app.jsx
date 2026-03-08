@@ -45,9 +45,8 @@ const flagshipProjects = [
     badge: "Flagship",
     badgeClass: "accent",
     icon: "◉",
-    copy: "Started as a dashboard request. I pushed it into an AI seller intelligence platform, chose the operating model that made the economics work, and built toward Salesforce integration instead of another disconnected tool.",
-    metrics: ["1,600+ users", "99% cost cut", "<500ms latency"],
-    footer: "Role, outcomes, and ownership first"
+    copy: "An AI seller intelligence platform serving 1,600+ account managers across NA and EU. I redefined the product scope, designed the operating model that cut infra costs 99%, and set the roadmap path toward Salesforce — not another disconnected internal tool.",
+    metrics: ["1,600+ users", "99% cost cut", "<500ms latency"]
   },
   {
     href: "project-sproutroute.html",
@@ -55,9 +54,8 @@ const flagshipProjects = [
     badge: "Live demo",
     badgeClass: "signal",
     icon: "△",
-    copy: "A full-stack AI trip planner I shipped end to end in ten weeks. It shows how I find the product wedge, make the right tradeoffs, and get the product shipped.",
-    metrics: ["10 weeks", "167 tests", "Web + mobile"],
-    footer: "Shipping range and speed"
+    copy: "Designed, built, and shipped solo in ten weeks — React, Node, Claude API, Railway. Full end-to-end ownership: product scope, architecture, UX, and deployment.",
+    metrics: ["10 weeks", "167 tests", "Web + mobile"]
   },
   {
     href: "project-mathquest.html",
@@ -65,9 +63,8 @@ const flagshipProjects = [
     badge: "Product craft",
     badgeClass: "success",
     icon: "□",
-    copy: "An offline-first iPad math app for kids. It shows how I handle learning UX, privacy, determinism, and first-version focus without overbuilding.",
-    metrics: ["Offline first", "535 templates", "Native SwiftUI"],
-    footer: "UX and product judgment"
+    copy: "An offline-first iPad math app for kids. Privacy-safe by design: no accounts, no analytics, no data collection. 535 content templates in native SwiftUI.",
+    metrics: ["Offline first", "535 templates", "Native SwiftUI"]
   }
 ];
 
@@ -322,7 +319,7 @@ function FlagshipWork() {
               ))}
             </div>
             <div className="project-footer">
-              <span>{project.footer}</span>
+              <span>Read case study</span>
               <span>→</span>
             </div>
           </a>
