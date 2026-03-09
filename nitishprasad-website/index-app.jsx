@@ -4,6 +4,7 @@ const SITE = {
   name: "Nitish Prasad",
   headline: "I turn ambiguous 0→1 product bets into scaled systems with measurable business impact.",
   intro: [
+    "For every project here, I individually conceptualized the product, designed the system, and wrote the production code end to end.",
     "Most of my work sits where product strategy meets system design. I like the stage where the request is still fuzzy, the operating model is still unsettled, and the product needs someone to narrow the real problem.",
     "That has meant different things in different products: turning Amplify from a dashboard request into an AI seller intelligence platform, shipping SproutRoute end to end in ten weeks, and building MathQuest as a privacy-first offline iPad app for kids."
   ],
@@ -70,7 +71,7 @@ const flagshipProjects = [
 
 const workingStyle = [
   "I start by reframing the problem. Most first requests aren't quite the right problem yet.",
-  "I stay close enough to the system to challenge the architecture and operating model, not just the roadmap.",
+  "I stay close to system design so I can challenge the operating model, not just the roadmap.",
   "I care about day-two reality: adoption, cost, latency, governance, and how the tool fits into an existing workflow.",
   "I am most useful when a team needs product judgment and technical fluency in the same room."
 ];
@@ -95,7 +96,7 @@ const experience = [
     date: "May 2025 – Present",
     company: "Amazon",
     role: "Senior Product Manager, Fees",
-    copy: "Built Amplify from a dashboard request into an AI seller intelligence platform. Chose a hybrid inference model that made the economics work, drove the product path toward Salesforce integration, and shaped the product around real account-manager workflows.",
+    copy: "Built Amplify from a dashboard request into an AI seller intelligence platform. Chose a hybrid inference model that made the economics work, drove the product path toward Salesforce integration, and shaped the product around real account-manager workflows. Also own end-to-end strategy and design for US 3P seller incentive programs, managing a nine-figure annual budget and tying incentives to seller growth and P&L impact.",
     tags: ["AWS Bedrock", "RAG", "Hybrid inference", "Salesforce", "Multi-region"]
   },
   {
@@ -135,7 +136,7 @@ const supportingProjects = [
     icon: "✦",
     badge: "Live demo",
     badgeClass: "signal",
-    copy: "Evaluation infrastructure for teams that need model quality, drift, latency, and release criteria in one place."
+    copy: "Evaluation infrastructure for teams that need model quality, drift, latency, and release criteria in one place, not scattered across ad hoc dashboards."
   },
   {
     href: "project-rag-pipeline.html",
@@ -168,7 +169,7 @@ function Nav() {
     <header className="topbar">
       <div className="topbar-inner">
         <a className="brand" href="#hero" onClick={() => setMenuOpen(false)}>
-          Nitish<span className="brand-mark">.</span>
+          Nitish Prasad
         </a>
         <div className="nav-shell">
           <nav className="nav-list" aria-label="Primary">
@@ -401,6 +402,7 @@ function Systems() {
           <h2 className="section-title">Live demos and systems for evaluation, safety, and release decisions.</h2>
         </div>
       </div>
+      <p className="section-kicker" style={{ marginBottom: "1.5rem" }}>I designed the architectures and built the working implementations myself to test how these systems would behave in real release workflows.</p>
 
       <div className="project-grid">
         {supportingProjects.map((project) => (
@@ -435,6 +437,9 @@ function Contact() {
         <p className="inline-note">
           Email is the fastest path. LinkedIn and GitHub are here if you want the broader context.
         </p>
+        <p className="inline-note">
+          Open to Principal/Staff PM and AI Product Lead roles (Seattle or remote), especially where marketplace economics, AI platforms, and 0→1 to scale execution intersect.
+        </p>
         <div className="contact-cta">
           <a className="button primary" href={SITE.resume} target="_blank" rel="noreferrer">
             Open Resume
@@ -457,7 +462,7 @@ function Contact() {
 function Footer() {
   return (
     <footer className="footer page-shell">
-      Product portfolio for live case studies, demos, and shipped systems. © {new Date().getFullYear()} Nitish Prasad.
+      Product portfolio of live case studies, demos, and shipped systems. © {new Date().getFullYear()} Nitish Prasad.
     </footer>
   );
 }
