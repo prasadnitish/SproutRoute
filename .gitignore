@@ -34,6 +34,9 @@ coverage/
 # Misc
 .cache/
 
+# Git worktrees
+.worktrees/
+
 # Dev tool files (not for public repo)
 docs/CLAUDE.md
 docs/ORIGINAL_BRIEF.md
@@ -46,3 +49,4 @@ AUDIT_FIXES_IMPLEMENTED.md
 
 # Mobile app (separate git repo — managed independently)
 sproutroute-mobile/
+AuthKey_*.p8
