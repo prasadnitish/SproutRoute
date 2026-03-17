@@ -99,7 +99,7 @@ export default function DestinationStep({
           onChange={(e) => onQueryChange(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onResolve()}
           placeholder="Type your destination..."
-          className="w-full rounded-2xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-5 py-5 text-xl text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
+          className="w-full rounded-2xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-5 py-3.5 sm:py-5 text-lg sm:text-xl text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-2 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
           autoFocus
         />
         {isLoading && (
@@ -117,7 +117,7 @@ export default function DestinationStep({
           whileTap={{ scale: 0.98 }}
           onClick={onResolve}
           disabled={isLoading}
-          className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
+          className="w-full sm:w-auto rounded-xl bg-sprout-dark text-white py-3.5 px-10 font-semibold text-base hover:bg-sprout-base transition-colors disabled:opacity-60 shadow-soft"
         >
           {isLoading ? "Finding places..." : "Continue →"}
         </motion.button>
