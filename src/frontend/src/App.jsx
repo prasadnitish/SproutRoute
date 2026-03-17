@@ -91,6 +91,14 @@ function App() {
   const [rateLimitRemaining, setRateLimitRemaining] = useState(null);
   const countdownIntervalRef = useRef(null);
 
+  // Auto-dismiss errors after 8s (unless rate-limited)
+  useEffect(() => {
+    if (error && !rateLimitCountdown) {
+      const timer = setTimeout(() => setError(null), 8000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, rateLimitCountdown]);
+
   // Wizard input state
   const [destinationQuery, setDestinationQuery] = useState("");
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
@@ -423,6 +431,12 @@ function App() {
     setShowResetModal(false);
   };
 
+  const handleStepClick = (stepNum) => {
+    const stepNames = { 1: "destination", 2: "dates", 3: "kids", 4: "activities" };
+    const target = stepNames[stepNum];
+    if (target) setWizardStep(target);
+  };
+
   const handleBack = () => {
     if (wizardStep === "activities") setWizardStep("kids");
     else if (wizardStep === "kids") setWizardStep("dates");
@@ -467,13 +481,20 @@ function App() {
                     </div>
                   )}
                 </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="shrink-0 text-red-400 dark:text-red-500 hover:text-red-600 dark:hover:text-red-300 transition-colors p-0.5"
+                  aria-label="Dismiss error"
+                >
+                  ✕
+                </button>
               </div>
             )}
 
             {/* ── WIZARD ──────────────────────────────────────── */}
             {step === "wizard" && (
               <div className="flex min-h-[48vh] flex-col justify-center gap-6">
-                <WizardProgress currentStep={currentStepNum} />
+                <WizardProgress currentStep={currentStepNum} onStepClick={handleStepClick} />
 
                 <AnimatePresence mode="wait">
                   <motion.div
@@ -592,7 +613,12 @@ function App() {
                   </div>
                 )}
 
-                <ResultTabs activeTab={activeResultTab} onTabChange={setActiveResultTab} />
+                <ResultTabs
+                  activeTab={activeResultTab}
+                  onTabChange={setActiveResultTab}
+                  packingCount={packingList?.categories ? packingList.categories.reduce((sum, cat) => sum + (cat.items?.length || 0), 0) : 0}
+                  safetyAlerts={[safetyGuidance, travelAdvisory, neighborhoodSafety].filter(Boolean).length}
+                />
 
                 <AnimatePresence mode="wait">
                   {activeResultTab === "itinerary" && !isLoading && tripPlan && (

@@ -64,7 +64,7 @@ export default function Header({ theme, onToggleTheme, showStartOver, onStartOve
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onToggleTheme}
-            className="text-base px-2.5 py-1.5 rounded-xl text-muted dark:text-dark-muted hover:bg-sprout-light dark:hover:bg-dark-border transition-colors"
+            className="text-base px-2.5 py-1.5 rounded-xl text-muted dark:text-dark-muted bg-gray-100 dark:bg-dark-border hover:bg-sprout-light dark:hover:bg-dark-border/80 transition-colors"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
