@@ -6,7 +6,7 @@ const TABS = [
   { id: "safety", label: "Safety", icon: "🛡" },
 ];
 
-export default function ResultTabs({ activeTab, onTabChange }) {
+export default function ResultTabs({ activeTab, onTabChange, packingCount, safetyAlerts }) {
   return (
     <div
       className="flex border-b border-sprout-light dark:border-dark-border mb-6 print:hidden relative"
@@ -30,6 +30,16 @@ export default function ResultTabs({ activeTab, onTabChange }) {
           >
             <span aria-hidden="true">{tab.icon}</span>
             {tab.label}
+            {tab.id === "packing" && packingCount > 0 && (
+              <span className="ml-1 text-[10px] font-bold bg-sprout-light dark:bg-dark-border text-sprout-dark dark:text-dark-sprout px-1.5 py-0.5 rounded-full">
+                {packingCount}
+              </span>
+            )}
+            {tab.id === "safety" && safetyAlerts > 0 && (
+              <span className="ml-1 text-[10px] font-bold bg-sun/20 text-earth px-1.5 py-0.5 rounded-full">
+                {safetyAlerts}
+              </span>
+            )}
             {isActive && (
               <motion.div
                 layoutId="tab-underline"
