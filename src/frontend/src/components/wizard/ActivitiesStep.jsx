@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect, forwardRef } from "react";
 import { motion, useMotionValue, useTransform, animate } from "framer-motion";
 
 const ACTIVITIES = [
@@ -25,7 +25,7 @@ const CRUISE_ACTIVITIES = [
   { id: "formal_night", label: "Formal Night", icon: "🥂", desc: "Dress up for a special dinner" },
 ];
 
-function SwipeCard({ activity, onSwipe, isTop, stackIndex }) {
+const SwipeCard = forwardRef(function SwipeCard({ activity, onSwipe, isTop, stackIndex }, ref) {
   const x = useMotionValue(0);
   const rotate = useTransform(x, [-200, 200], [-15, 15]);
   const likeOpacity = useTransform(x, [0, 100], [0, 1]);
@@ -63,6 +63,14 @@ function SwipeCard({ activity, onSwipe, isTop, stackIndex }) {
 
   return (
     <motion.div
+      ref={ref}
+      tabIndex={0}
+      role="button"
+      aria-label={`${activity.label}: ${activity.desc}. Press right arrow to like, left arrow to skip.`}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowRight") { e.preventDefault(); onSwipe(true); }
+        if (e.key === "ArrowLeft") { e.preventDefault(); onSwipe(false); }
+      }}
       className="absolute inset-0 rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card p-6 flex flex-col items-center justify-center cursor-grab active:cursor-grabbing shadow-card"
       style={{ x, rotate, zIndex: 20 }}
       drag="x"
@@ -95,7 +103,7 @@ function SwipeCard({ activity, onSwipe, isTop, stackIndex }) {
       </p>
     </motion.div>
   );
-}
+});
 
 export default function ActivitiesStep({
   tripType,
@@ -112,6 +120,7 @@ export default function ActivitiesStep({
     return base;
   }, [tripType]);
 
+  const topCardRef = useRef(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [liked, setLiked] = useState(() => {
     // Pre-select suggested activities
@@ -121,6 +130,12 @@ export default function ActivitiesStep({
     return new Set();
   });
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    if (!done && topCardRef.current) {
+      topCardRef.current.focus();
+    }
+  }, [currentIndex, done]);
 
   const handleSwipe = useCallback(
     (isLike) => {
@@ -190,7 +205,7 @@ export default function ActivitiesStep({
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onComplete([...liked])}
-            className="rounded-xl bg-sprout-dark text-white py-3 px-8 font-semibold text-sm hover:bg-sprout-base transition-colors shadow-soft"
+            className="w-full sm:w-auto rounded-xl bg-sprout-dark text-white py-3.5 px-10 font-semibold text-base hover:bg-sprout-base transition-colors shadow-soft"
           >
             🌱 Build My Trip Plan
           </motion.button>
@@ -228,6 +243,7 @@ export default function ActivitiesStep({
         {visible.map((activity, i) => (
           <SwipeCard
             key={activity.id}
+            ref={i === 0 ? topCardRef : undefined}
             activity={activity}
             onSwipe={handleSwipe}
             isTop={i === 0}
