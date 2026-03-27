@@ -7,6 +7,7 @@
  */
 
 import type { V1RequestBase, GuidanceMode } from "./api.js";
+import type { Pet } from "./pet.js";
 
 // ── Children ─────────────────────────────────────────────────────────────────
 
@@ -61,6 +62,8 @@ export interface TripPlanRequest extends V1RequestBase {
   /** Activity slugs (e.g. ["parks", "hiking"]) */
   activities: string[];
   children: ChildProfile[];
+  /** Pets traveling with the family (max 5) */
+  pets?: Pet[];
 }
 
 /** A single day in the itinerary */
@@ -130,6 +133,8 @@ export interface TripPackingRequest extends V1RequestBase {
   /** Must have at least one activity */
   activities: string[];
   children: ChildProfile[];
+  /** Pets traveling with the family (max 5) */
+  pets?: Pet[];
 }
 
 /** A single packing item */
