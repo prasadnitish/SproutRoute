@@ -33,6 +33,11 @@ export function detectClimateZone(forecast) {
 // Each template provides a concise item list that the AI expands and personalises.
 // Format: { [climateZone]: { [tripType | "general"]: string } }
 
+// Each packing item should include: name, quantity, reason, searchQuery
+// Example JSON items for the AI:
+// { "name": "Reef-safe sunscreen SPF 50+", "quantity": "2", "reason": "tropical sun", "searchQuery": "reef safe sunscreen SPF 50 kids travel size" }
+// { "name": "Stroller rain cover", "quantity": "1", "reason": "rainy forecast", "searchQuery": "universal stroller rain cover clear" }
+// { "name": "Insect repellent", "quantity": "1", "reason": "tropical bugs", "searchQuery": "kids insect repellent DEET free travel" }
 const PACKING_BASE = {
   tropical: {
     general: `- Lightweight breathable clothing (moisture-wicking)
