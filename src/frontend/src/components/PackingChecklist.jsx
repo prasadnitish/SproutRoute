@@ -315,10 +315,10 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                               e.stopPropagation();
                               setExpandedShop(expandedShop === itemId ? null : itemId);
                             }}
-                            className="text-xs text-sprout-dark hover:text-sprout-base transition-colors shrink-0 mt-0.5 print:hidden"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-sprout-dark hover:bg-sprout-base rounded-lg px-2.5 py-1 transition-colors shrink-0 mt-0.5 print:hidden"
                             aria-label={`Shop for ${item.name}`}
                           >
-                            🛒
+                            <span>Shop</span>
                           </button>
                         )}
                         {isCustom && (
