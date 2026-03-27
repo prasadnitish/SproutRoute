@@ -52,6 +52,8 @@ For EACH item, also include a "searchQuery" field: a short, specific Amazon/reta
 Do NOT include brand names in searchQuery — keep it generic for best search results.
 ```
 
+**Repair prompt update:** The `buildRepairPrompt` function in `packingListAI.js` must also include `searchQuery` in its repair schema. Otherwise, packing lists that go through the repair fallback path will silently lose all `searchQuery` fields, and users will see no Shop buttons. If repair strips `searchQuery`, the server-side mapping degrades gracefully (`shopLinks: []`) but this must be tested.
+
 ### 2. Affiliate Link Builder (`affiliateLinks.js` — new file)
 
 **Location:** `src/backend/utils/affiliateLinks.js`
@@ -64,6 +66,11 @@ buildShopLinks(searchQuery) → [
 ]
 ```
 
+**Security: URL construction rules:**
+- Always use `encodeURIComponent(searchQuery)` for query parameters — never manual string concatenation
+- Sanitize `searchQuery` before URL construction: strip HTML tags, enforce max 100 chars, trim whitespace
+- This prevents URL injection from AI-echoed user input (e.g., destination containing special characters)
+
 **Affiliate tag injection:**
 - Amazon: `&tag=${AMAZON_AFFILIATE_TAG}` URL parameter (Associates program)
 - Walmart: Impact Radius link wrapping (future — search URL works day 1 without tracking)
@@ -75,6 +82,8 @@ buildShopLinks(searchQuery) → [
 - `TARGET_AFFILIATE_ID` — future
 
 Tags stored server-side only. Frontend receives pre-built URLs.
+
+**Missing env var behavior:** If `AMAZON_AFFILIATE_TAG` is not set, `buildShopLinks` omits the `&tag=` parameter entirely. Links still work (users can shop), but no commission is tracked. A warning is logged at server startup if the tag is missing. Unit test covers this case.
 
 ### 3. Backend Integration (`server.js` — packing list route)
 
@@ -89,6 +98,12 @@ const items = parsedList.items.map(item => ({
 
 This runs synchronously (URL string construction only) — no latency impact.
 
+**All packing list routes:** The `buildShopLinks` mapping must be applied in EVERY route that returns packing list data. Audit `server.js` for all calls to `generatePackingListFn` — currently this includes:
+- `POST /api/generate` (standalone packing list)
+- The combined trip-plan orchestration route (if it returns packing data)
+
+Both must apply the same `shopLinks` mapping.
+
 ### 4. Frontend: PackingChecklist.jsx
 
 **New behavior for unchecked items:**
@@ -99,6 +114,8 @@ This runs synchronously (URL string construction only) — no latency impact.
 - On check (item marked as owned): collapse and hide the Shop button
 
 **Checked items:** No Shop button, no expansion. Clean checklist.
+
+**Defensive rendering:** Use optional chaining for `shopLinks` access: `item.shopLinks?.length > 0` (not `item.shopLinks.length > 0`). Items from the repair fallback path or older cached responses may lack `shopLinks` entirely. Empty packing lists render normally with no Shop buttons and no errors.
 
 ### 5. RAG Template Update (`ragTemplates.js`)
 
@@ -183,6 +200,7 @@ User submits trip
 | `tests/unit/affiliateLinks.test.js` | **New** — URL construction tests |
 | `tests/unit/packingListAI.test.js` | Verify searchQuery in prompt schema |
 | `tests/e2e/tiles/packing-tile.spec.ts` | Shop button visibility + expand/collapse |
+| `tests/integration/api.integration.test.js` | Add test: `/api/generate` response includes `shopLinks` |
 
 ---
 
@@ -190,14 +208,22 @@ User submits trip
 
 ### Unit tests (`tests/unit/affiliateLinks.test.js` — new)
 - `buildShopLinks("reef safe sunscreen")` returns 3 store objects
-- Each URL contains the encoded search query
-- Amazon URL includes affiliate tag from env
+- Each URL contains the `encodeURIComponent`-encoded search query
+- Amazon URL includes affiliate tag from env when `AMAZON_AFFILIATE_TAG` is set
+- Amazon URL omits `&tag=` when `AMAZON_AFFILIATE_TAG` is unset
 - Empty/null query returns empty array
-- Special characters are URL-encoded
+- Special characters and HTML tags are sanitized before URL encoding
+- Query longer than 100 chars is truncated
 
 ### Unit tests (`tests/unit/packingListAI.test.js` — update)
 - AI prompt includes `searchQuery` in the item schema
 - Parsed response contains `searchQuery` on each item
+- Repair prompt schema includes `searchQuery` field
+- Items from repair fallback path degrade gracefully (shopLinks: []) when searchQuery is missing
+
+### Integration test (`tests/integration/api.integration.test.js` — update)
+- `POST /api/generate` with mocked AI response containing `searchQuery` → response items include `shopLinks` array
+- `shopLinks` contains 3 store objects with valid URLs
 
 ### E2E tests (`tests/e2e/tiles/packing-tile.spec.ts` — update)
 - Mock packing response includes `shopLinks` on items
