@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import HeroTile from "../components/mosaic/HeroTile";
 import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
@@ -9,6 +9,32 @@ const TABS = [
   { key: "plan", label: "\u{1F4C5} Plan" },
   { key: "pack", label: "\u{1F392} Pack" },
 ];
+
+// Resolve activity ID strings to full activity objects using suggestedActivities lookup
+function resolveItinerary(rawDays, suggestedActivities) {
+  if (!rawDays || rawDays.length === 0) return [];
+  const activityMap = {};
+  (suggestedActivities || []).forEach((a) => {
+    if (a.id) activityMap[a.id] = a;
+  });
+
+  return rawDays.map((day) => {
+    // If activities are already full objects, pass through
+    const rawActivities = day.activities || day.items || [];
+    const resolvedActivities = rawActivities.map((act) => {
+      if (typeof act === "string") {
+        return activityMap[act] || { name: act, description: "" };
+      }
+      return act;
+    });
+    return {
+      date: day.day || day.date || null,
+      activities: resolvedActivities,
+      meals: day.meals,
+      notes: day.notes,
+    };
+  });
+}
 
 export default function ResultsScreen({
   tripData,
@@ -23,8 +49,13 @@ export default function ResultsScreen({
   const [selectedActivity, setSelectedActivity] = useState(null);
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
-  const dailyItinerary = tripData?.itinerary?.dailyItinerary || tripData?.itinerary || [];
-  const destination = tripData?.parsed?.destination;
+  const rawItinerary = tripData?.tripPlan?.dailyItinerary || tripData?.itinerary?.dailyItinerary || tripData?.itinerary || [];
+  const suggestedActivities = tripData?.tripPlan?.suggestedActivities || [];
+  const dailyItinerary = useMemo(
+    () => resolveItinerary(rawItinerary, suggestedActivities),
+    [rawItinerary, suggestedActivities]
+  );
+  const destination = tripData?.parsed?.destination || tripData?.trip?.destination;
 
   const handleActivityTap = (activity) => {
     setSelectedActivity(activity);
