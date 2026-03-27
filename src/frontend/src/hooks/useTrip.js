@@ -105,7 +105,8 @@ export function useTrip() {
         body: JSON.stringify(formData),
       });
       if (packRes.ok) {
-        setPackingList(await packRes.json());
+        const packData = await packRes.json();
+        setPackingList(packData.packingList || packData);
       } else {
         console.warn("Packing list failed:", packRes.status);
       }
