@@ -11,22 +11,19 @@ const TABS = [
   { key: "pack", label: "\u{1F392} Pack" },
 ];
 
-// Resolve activity ID strings to full activity objects using suggestedActivities lookup
 function resolveItinerary(rawDays, suggestedActivities) {
   if (!rawDays || rawDays.length === 0) return [];
   const activityMap = {};
   (suggestedActivities || []).forEach((a) => {
     if (a.id) activityMap[a.id] = a;
   });
-
   return rawDays.map((day) => {
     const rawActivities = day.activities || day.items || [];
-    const resolvedActivities = rawActivities.map((act) => {
-      if (typeof act === "string") {
-        return activityMap[act] || { name: act, description: "" };
-      }
-      return act;
-    });
+    const resolvedActivities = rawActivities.map((act) =>
+      typeof act === "string"
+        ? activityMap[act] || { name: act, description: "" }
+        : act
+    );
     return {
       date: day.day || day.date || null,
       activities: resolvedActivities,
@@ -49,13 +46,18 @@ export default function ResultsScreen({
   const [selectedActivity, setSelectedActivity] = useState(null);
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
-  const rawItinerary = tripData?.tripPlan?.dailyItinerary || tripData?.itinerary?.dailyItinerary || tripData?.itinerary || [];
+  const rawItinerary =
+    tripData?.tripPlan?.dailyItinerary ||
+    tripData?.itinerary?.dailyItinerary ||
+    tripData?.itinerary ||
+    [];
   const suggestedActivities = tripData?.tripPlan?.suggestedActivities || [];
   const dailyItinerary = useMemo(
     () => resolveItinerary(rawItinerary, suggestedActivities),
     [rawItinerary, suggestedActivities]
   );
-  const destination = tripData?.parsed?.destination || tripData?.trip?.destination;
+  const destination =
+    tripData?.parsed?.destination || tripData?.trip?.destination;
   const lat = tripData?.trip?.lat;
   const lon = tripData?.trip?.lon;
 
@@ -72,7 +74,7 @@ export default function ResultsScreen({
     : null;
 
   return (
-    <div className="w-full max-w-6xl mx-auto">
+    <div className="w-full max-w-7xl mx-auto">
       {/* Tab bar */}
       <div className="flex gap-0 border-b border-gray-200 mb-0 px-3 sm:px-4">
         {TABS.map((tab) => (
@@ -90,40 +92,60 @@ export default function ResultsScreen({
         ))}
       </div>
 
-      {/* Plan tab — Mission Control mosaic */}
+      {/* ── Plan tab — Mission Control Mosaic ── */}
       {activeTab === "plan" && (
         <div className="p-3 sm:p-4">
-          {/* Row 1: Hero + Weather (side by side on md+) */}
-          <div className="grid grid-cols-1 md:grid-cols-[1.6fr_1fr] gap-3 mb-3">
-            <HeroTile
-              tripData={tripData}
-              parsedInput={parsedInput}
-              onEdit={onGoBack}
-            />
-            <div className="flex flex-col gap-3">
-              <WeatherTile forecast={forecast} />
-            </div>
-          </div>
+          {/*
+            Desktop (lg+): 3-column grid
+            ┌─────────────┬──────────┬──────────┐
+            │  Hero       │ Weather  │  Map     │
+            │  (spans 2r) │          │          │
+            │             ├──────────┼──────────┤
+            │             │ Safety   │          │
+            ├─────────────┴──────────┴──────────┤
+            │         Itinerary (full width)     │
+            └───────────────────────────────────┘
 
-          {/* Row 2: Itinerary + sidebar (Map + Safety) */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1.6fr_1fr] gap-3">
-            {/* Itinerary — main content */}
-            <ItineraryTile
-              dailyItinerary={dailyItinerary}
-              forecast={forecast}
-              onActivityTap={handleActivityTap}
-            />
+            Tablet (md): 2 columns
+            Mobile: single column stack
+          */}
 
-            {/* Sidebar: Map + Safety stacked */}
-            <div className="flex flex-col gap-3">
-              <MapTile
-                destination={destination}
-                lat={lat}
-                lon={lon}
+          {/* Top mosaic: Hero + info tiles */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr] gap-3 mb-3">
+            {/* Hero — spans 2 rows on lg */}
+            <div className="md:col-span-2 lg:col-span-1 lg:row-span-2">
+              <HeroTile
+                tripData={tripData}
+                parsedInput={parsedInput}
+                onEdit={onGoBack}
               />
+            </div>
+
+            {/* Weather */}
+            <div>
+              <WeatherTile
+                forecast={forecast}
+                tripStart={tripData?.parsed?.startDate || parsedInput?.startDate}
+              />
+            </div>
+
+            {/* Map */}
+            <div>
+              <MapTile destination={destination} lat={lat} lon={lon} />
+            </div>
+
+            {/* Safety — fills remaining space on lg row 2 */}
+            <div className="lg:col-span-2">
               <SafetyTile safetyData={safetyData} />
             </div>
           </div>
+
+          {/* Itinerary — full width below the mosaic */}
+          <ItineraryTile
+            dailyItinerary={dailyItinerary}
+            forecast={forecast}
+            onActivityTap={handleActivityTap}
+          />
         </div>
       )}
 
@@ -133,8 +155,8 @@ export default function ResultsScreen({
           <p className="text-4xl mb-3">{"\u{1F392}"}</p>
           <p className="font-medium">
             Packing list &mdash;{" "}
-            {packingList?.items?.length || 0} items ready when you finalize
-            your plan.
+            {packingList?.items?.length || 0} items ready when you finalize your
+            plan.
           </p>
         </div>
       )}
