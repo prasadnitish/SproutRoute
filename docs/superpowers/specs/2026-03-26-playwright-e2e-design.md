@@ -1,7 +1,7 @@
 # Playwright E2E Test Suite — Design Spec
 **Date:** 2026-03-26
 **Project:** SproutRoute
-**Status:** Approved for implementation
+**Status:** Approved for implementation (v2 — post-review fixes applied)
 
 ---
 
@@ -52,44 +52,265 @@ Existing spec files (`input-flow.spec.ts`, `results-mosaic.spec.ts`, `generic-in
 
 ## Playwright Config
 
-Two Playwright projects in `playwright.config.ts`:
+`playwright.config.ts` is updated with two explicit **projects**:
 
-**`mocked`** (default, runs in CI)
-- `testMatch`: `tiles/**`, `screens/**`, `flows/**`
+```ts
+import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+  testDir: "./tests/e2e",
+  timeout: 30000,
+  projects: [
+    {
+      name: "mocked",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: /smoke/,
+    },
+    {
+      name: "smoke",
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "https://sproutroute-production.up.railway.app",
+      },
+      testMatch: /smoke/,
+    },
+  ],
+  use: {
+    baseURL: "http://localhost:4173",
+    screenshot: "only-on-failure",
+  },
+  webServer: {
+    command: "cd src/frontend && npm run build && npm run preview -- --port 4173",
+    port: 4173,
+    reuseExistingServer: true,
+    timeout: 60000,
+  },
+});
+```
+
+**`mocked` project** — default, runs in CI
+- Covers `tiles/`, `screens/`, `flows/`
 - Browser: Chromium only
-- `baseURL`: `http://localhost:4173`
-- `webServer`: `vite build && vite preview --port 4173`
+- `baseURL`: `http://localhost:4173` (vite preview, static build, no backend process)
+- All API calls are intercepted by `mockAllApis` — backend is never started
 
-**`smoke`** (local only)
-- `testMatch`: `smoke/**`
+**`smoke` project** — local only, excluded from CI
+- Covers `smoke/` only
 - Browser: Chromium only
 - `baseURL`: `https://sproutroute-production.up.railway.app`
 - No `webServer` — hits live Railway directly
-- Excluded from CI (not in default project list)
+
+> **Important:** The vite preview server serves the static frontend only. No backend runs during mocked tests. Every test **must** call `mockAllApis(page)` before navigating. Any unintercepted route will 404. The `mockAllApis` helper must intercept all API paths the app can call.
 
 ---
 
 ## Shared Fixtures
 
 ### `fixtures/trip-data.ts`
+
 Exports typed constants matching exact backend response shapes:
 
 ```ts
-MOCK_PARSED_INPUT     // parse-input response: destination, dates, adults, childrenAges, vibe
-MOCK_TRIP_PLAN        // trip-plan response: trip, weather, tripPlan, scheduledItinerary, enrichedMap
-MOCK_PACKING_LIST     // generate response: categories with items
-MOCK_SAFETY           // safety/travel-tips response: advisory, emergency, health, family, water
-MOCK_GEO              // geo/detect response: lat, lon, region
-MOCK_DESTINATIONS     // parse-input response with null destination + suggestedDestinations[]
+// parse-input response — destination resolved
+MOCK_PARSED_INPUT = {
+  destination: "Maui, Hawaii",
+  startDate: "2026-04-12",
+  endDate: "2026-04-19",
+  adults: 2,
+  childrenAges: [4, 8],
+  vibe: "beach",
+  suggestedDestinations: [],
+  detectedRegion: null,
+}
+
+// parse-input response — vague input, no destination
+MOCK_DESTINATIONS = {
+  destination: null,
+  suggestedDestinations: [
+    { name: "Maui, Hawaii", emoji: "🌴", description: "Stunning beaches", season_note: "Perfect spring weather" },
+    { name: "Cancun, Mexico", emoji: "🏖", description: "All-inclusive resorts", season_note: "Warm and sunny" },
+    { name: "San Diego, CA", emoji: "☀️", description: "Family-friendly coast", season_note: "Mild spring temps" },
+  ],
+  startDate: "2026-04-12",
+  endDate: "2026-04-19",
+  adults: 2,
+  childrenAges: [],
+  vibe: "beach",
+  detectedRegion: null,
+}
+
+// /api/trip-plan response — includes scheduledItinerary for full tile coverage
+MOCK_TRIP_PLAN = {
+  trip: {
+    destination: "Maui, Hawaii",
+    lat: 20.7984,
+    lon: -156.3319,
+    startDate: "2026-04-12",
+    endDate: "2026-04-19",
+    countryCode: "US",
+    children: [{ age: 4 }, { age: 8 }],
+  },
+  weather: {
+    forecast: [
+      { date: "2026-04-12", name: "Saturday", high: 76, low: 68, condition: "Sunny", precipitation: 5 },
+      { date: "2026-04-13", name: "Sunday",   high: 75, low: 67, condition: "Partly cloudy", precipitation: 10 },
+    ],
+    summary: "Expect warm, sunny weather.",
+  },
+  tripPlan: {
+    overview: "A beautiful beach trip to Maui.",
+    suggestedActivities: [
+      { id: "act-1", name: "Road to Hana", category: "hiking", description: "Scenic drive with waterfalls", duration: "full day", kidFriendly: true, weatherDependent: false },
+      { id: "act-2", name: "Snorkeling at Molokini", category: "water", description: "Great for kids", duration: "3 hours", kidFriendly: true, weatherDependent: true },
+    ],
+    dailyItinerary: [
+      {
+        day: "Day 1 (2026-04-12)",
+        activities: ["act-1"],
+        meals: {
+          breakfast: { name: "Kihei Cafe", cuisine: "American", note: "Great pancakes" },
+          lunch: { name: "Mama's Fish House", cuisine: "Seafood", note: "Iconic oceanfront" },
+          dinner: { name: "Monkeypod Kitchen", cuisine: "Hawaiian", note: "Local craft beer" },
+        },
+        notes: "Start early to beat traffic on the Hana highway.",
+      },
+      {
+        day: "Day 2 (2026-04-13)",
+        activities: ["act-2"],
+        meals: {
+          breakfast: { name: "Gazebo Restaurant", cuisine: "American", note: "Oceanfront views" },
+          lunch: { name: "Leoda's Kitchen", cuisine: "Comfort Food", note: "Best pies on Maui" },
+          dinner: { name: "Merriman's Maui", cuisine: "Hawaiian Regional", note: "Farm to table" },
+        },
+        notes: null,
+      },
+    ],
+    tips: ["Book snorkeling tours in advance.", "Sunscreen is a must."],
+  },
+  // scheduledItinerary — powers all time/enrichment assertions in itinerary tile tests
+  scheduledItinerary: [
+    {
+      date: "2026-04-12",
+      scheduled: [
+        {
+          id: "act-1",
+          name: "Road to Hana",
+          category: "hiking",
+          description: "Scenic drive with waterfalls",
+          scheduledStart: "9:00 AM",
+          scheduledEnd: "5:00 PM",
+          duration: 480,
+          status: "scheduled",
+          warning: null,
+          enriched: {
+            rating: 4.8,
+            priceLevel: 1,
+            address: "Hana Hwy, Maui, HI 96713",
+            photos: ["https://example.com/photo1.jpg"],
+            mapsUrl: "https://maps.google.com/?q=Road+to+Hana",
+          },
+        },
+        {
+          name: "Closed Attraction",
+          category: "museums",
+          scheduledStart: null,
+          scheduledEnd: null,
+          duration: 120,
+          status: "closed",
+          warning: "Closed on this day — consider swapping",
+          enriched: null,
+        },
+        {
+          name: "Mama's Fish House",
+          category: "dining",
+          mealType: "dinner",
+          cuisine: "Seafood",
+          note: "Iconic oceanfront",
+          scheduledStart: "6:00 PM",
+          scheduledEnd: "7:30 PM",
+          duration: 90,
+          status: "meal",
+          isMeal: true,
+          enriched: {
+            rating: 4.7,
+            priceLevel: 3,
+            address: "799 Poho Pl, Paia, HI 96779",
+            photos: [],
+            mapsUrl: "https://maps.google.com/?q=Mamas+Fish+House",
+          },
+        },
+      ],
+      warnings: [{ activity: "Closed Attraction", type: "closed", message: "Closed Attraction is closed on this day" }],
+      notes: "Start early to beat traffic.",
+    },
+    {
+      date: "2026-04-13",
+      scheduled: [
+        {
+          id: "act-2",
+          name: "Snorkeling at Molokini",
+          category: "water",
+          description: "Great for kids",
+          scheduledStart: "9:00 AM",
+          scheduledEnd: "12:00 PM",
+          duration: 180,
+          status: "scheduled",
+          warning: null,
+          enriched: { rating: 4.6, priceLevel: 2, address: "Molokini Crater, Maui, HI", photos: [], mapsUrl: null },
+        },
+      ],
+      warnings: [],
+      notes: null,
+    },
+  ],
+  enrichedMap: {},
+}
+
+// /api/generate response
+MOCK_PACKING_LIST = {
+  categories: [
+    { name: "Beach Essentials", items: [{ name: "Sunscreen SPF 50" }, { name: "Beach towels" }, { name: "Snorkel gear" }] },
+    { name: "Kids", items: [{ name: "Life jackets" }, { name: "Sand toys" }] },
+  ],
+}
+
+// /api/safety/travel-tips response — matches travelSafety.js output shape
+MOCK_SAFETY = {
+  advisoryLevel: "low",
+  emergencyNumber: "911",
+  healthTips: ["Stay hydrated in the heat.", "Apply sunscreen every 2 hours."],
+  familyTips: ["Kids under 12 should wear life jackets when snorkeling."],
+  waterSafety: "Safe to drink tap water",
+  carSeatLaw: "Children under 4 must use a rear-facing car seat.",
+  localCustoms: ["Remove shoes before entering homes."],
+  source: "ai-generated",
+}
+
+// /api/v1/geo/detect response
+MOCK_GEO = { lat: 41.8781, lon: -87.6298, region: "Chicago, IL" }
 ```
 
-`MOCK_TRIP_PLAN` uses current backend shapes:
-- `tripPlan.dailyItinerary[].meals` as `{ breakfast: {name, cuisine, note}, lunch: {...}, dinner: {...} }`
-- `scheduledItinerary[].scheduled[]` with `scheduledStart`, `scheduledEnd`, `enriched.rating`, `enriched.photos`
-- At least one activity with `status: "closed"` and one with `warning` set
-
 ### `fixtures/mock-api.ts`
-Exports `mockAllApis(page)` — sets up all route intercepts using the constants above. Every spec calls this in `beforeEach`. Individual specs can override specific routes after calling `mockAllApis` for error-state variants.
+
+Exports `mockAllApis(page)` — intercepts **all** routes the app can call:
+
+```ts
+export async function mockAllApis(page, overrides = {}) {
+  await page.route("**/api/v1/trip/parse-input", route => route.fulfill({ ... MOCK_PARSED_INPUT }));
+  await page.route("**/api/trip-plan",           route => route.fulfill({ ... MOCK_TRIP_PLAN }));
+  await page.route("**/api/generate",            route => route.fulfill({ ... MOCK_PACKING_LIST }));
+  await page.route("**/api/safety/travel-tips",  route => route.fulfill({ ... MOCK_SAFETY }));
+  await page.route("**/api/safety/car-seat-check", route => route.fulfill({ status: 200, body: JSON.stringify({}) }));
+  await page.route("**/api/v1/geo/detect",       route => route.fulfill({ ... MOCK_GEO }));
+  await page.route("**/api/v1/places/enrich",    route => route.fulfill({ status: 200, body: JSON.stringify(null) }));
+}
+```
+
+Individual specs can override a specific route **after** calling `mockAllApis`:
+```ts
+await mockAllApis(page);
+await page.route("**/api/trip-plan", route => route.fulfill({ status: 500 })); // override for error test
+```
 
 ---
 
@@ -103,62 +324,67 @@ Exports `mockAllApis(page)` — sets up all route intercepts using the constants
 | Single kid display | `"1 kid, age 5"` |
 | Multiple kids display | `"2 kids, ages 4 & 8"` |
 | Adults-only trip | No kids line present |
-| International tag | Badge appears when `countryCode !== "US"` |
-| Domestic trip | No international badge |
+| International tag | Badge appears when `countryCode !== "US"` (mock with `countryCode: "JP"`) |
+| Domestic trip | No international badge when `countryCode === "US"` |
 
 ### `weather-tile.spec.ts`
 | Test | Assertion |
 |------|-----------|
-| Forecast days render | Each day's label + condition visible |
-| Hi/lo temperatures | `"76° / 68°"` format |
-| Historical avg badge | Badge present when trip dates beyond forecast window |
-| Missing forecast | Graceful fallback, no crash |
+| Forecast days render | Each day's label visible ("Saturday", "Sunday") |
+| High temperature renders | `"76°"` visible |
+| Low temperature renders | `"68°"` visible |
+| Historical avg badge | Badge present when trip dates don't match forecast dates (mock `forecast[0].date` far in future) |
+| Missing forecast graceful | No crash when `weather.forecast` is empty array |
 
 ### `itinerary-tile.spec.ts`
 | Test | Assertion |
 |------|-----------|
-| Day tabs render | Tab for each day visible |
-| Day tab switching | Clicking Day 2 shows Day 2 activities |
-| Scheduled time renders | `"9:00 AM"` visible on activity |
-| Star rating renders | `★★★★` + numeric rating visible |
-| Price level renders | `$`, `$$`, `$$$` visible |
-| Photo thumbnail renders | `<img>` present when `enriched.photos[0]` set |
-| Emoji fallback | Category emoji shows when no photo |
-| Closed activity warning | Red "Closed on this day" visible |
-| Closing-soon warning | Amber warning text visible |
-| Breakfast card | ☕ emoji + name + cuisine badge |
-| Lunch card | 🍽 emoji + name + cuisine badge |
-| Dinner card | 🍷 emoji + name + cuisine badge |
-| Meal note renders | Restaurant note text visible |
+| Day tabs render | "Apr 12" and "Apr 13" tabs visible |
+| Day tab switching | Clicking Day 2 tab shows "Snorkeling at Molokini" |
+| Scheduled time renders | `"9:00 AM"` visible on Road to Hana card |
+| Star rating renders | Rating visible on enriched activity |
+| Price level renders | `$` visible on activity with `priceLevel: 1` |
+| Photo thumbnail renders | `<img>` present when `enriched.photos[0]` is set |
+| Emoji fallback | Category emoji shows when no photo (Snorkeling at Molokini) |
+| Closed activity warning | Red "Closed on this day" text visible for closed activity |
+| Breakfast card | ☕ emoji + "Kihei Cafe" visible |
+| Lunch card | 🍽 emoji visible |
+| Dinner card | "Mama's Fish House" + "Seafood" badge visible |
+| Meal note renders | "Iconic oceanfront" text visible |
+| Address renders | "Hana Hwy, Maui, HI" visible on enriched activity |
 | Tap hint | "Tap any activity" hint visible |
-| Empty itinerary | "No itinerary data yet" graceful state |
+| Empty itinerary | "No itinerary data yet" graceful state (mock `scheduledItinerary: []`, `dailyItinerary: []`) |
 
 ### `safety-tile.spec.ts`
 | Test | Assertion |
 |------|-----------|
-| Advisory level renders | Advisory text visible |
-| Emergency number renders | Emergency # visible |
-| Health tips render | Health section visible |
-| Family tips render | Family section visible |
-| Water safety renders | Water safety text visible |
-| Null safety data | Graceful fallback, no crash |
+| Advisory level renders | "low" advisory text visible |
+| Emergency number renders | "911" visible |
+| Health tips render | "Stay hydrated" text visible |
+| Family tips render | Family tip text visible |
+| Water safety renders | "Safe to drink tap water" visible |
+| Null safety data | Graceful fallback, "Safety data unavailable" or similar — no crash |
 
 ### `map-tile.spec.ts`
 | Test | Assertion |
 |------|-----------|
-| iframe present | `<iframe>` in DOM |
-| Correct coordinates | iframe `src` contains lat/lon from trip data |
-| Null lat/lon | Tile renders without crashing |
+| iframe present | `iframe` element in DOM |
+| Correct coordinates | iframe `src` contains `20.7984` and `156.3319` |
+| Null lat/lon | Tile renders without crashing (mock `lat: null, lon: null`) |
 
 ### `packing-tile.spec.ts`
-| Test | Assertion |
-|------|-----------|
-| Categories render | Category names visible |
-| Items render | Item names visible within categories |
-| Check an item | Item shows checked state after click |
-| Uncheck an item | Item returns to unchecked state |
-| Checked state persists | Switch tabs and return — checked state maintained |
-| Empty packing list | Graceful fallback message |
+
+> **Note:** Check/uncheck and persistence tests are **blocked** pending `PackingChecklist` being wired into the Pack tab of `ResultsScreen`. Currently the Pack tab renders a stub. Implement these tests after the component is integrated.
+
+| Test | Status | Assertion |
+|------|--------|-----------|
+| Pack tab renders | Ready | "Pack" tab button visible |
+| Pack tab is clickable | Ready | Clicking Pack tab does not crash |
+| Item count shown | Ready | "N items" text visible in stub |
+| Categories render | Blocked | Category names visible — pending component integration |
+| Items render | Blocked | Item names visible — pending component integration |
+| Check an item | Blocked | Item shows checked state — pending component integration |
+| Checked state persists | Blocked | State maintained across tab switches — pending component integration |
 
 ---
 
@@ -167,69 +393,71 @@ Exports `mockAllApis(page)` — sets up all route intercepts using the constants
 ### `input-screen.spec.ts`
 | Test | Assertion |
 |------|-----------|
-| Textarea visible | `<textarea>` in DOM and visible |
-| Plan It button visible | Button with "Plan it" text visible |
-| Chip buttons present | At least "Beach trip" and "City break" chips visible |
-| Chip pre-fills textarea | Clicking chip populates textarea text |
-| Geolocation label | Detected region label renders when geo returns a region |
+| Textarea visible | `textarea` in DOM and visible |
+| Plan It button visible | Button with `/plan it/i` text visible |
+| Chip buttons present | At least one chip button visible |
+| Chip pre-fills textarea | Clicking "Beach trip" chip populates textarea |
+
+> Note: No geo label assertion — `InputScreen` does not render the detected region as a visible label.
 
 ### `generating-screen.spec.ts`
 | Test | Assertion |
 |------|-----------|
-| Heading appears | "Building your trip plan" (or equivalent) visible after submit |
-| Step labels present | Labels for resolve, weather, itinerary, packing, safety visible |
+| Heading appears | `/Building your trip plan/i` (regex — text includes `…` ellipsis) visible after submit |
+| Step labels present | Labels for resolve, weather, itinerary steps visible |
 
 ---
 
 ## Flow Tests
 
+All flow tests call `mockAllApis(page)` in `beforeEach` and navigate to `/`. APIs return instantly since all routes are mocked — no real network calls.
+
 ### `happy-path.spec.ts`
-Full journey: type trip → click Plan It → results render
 1. Type `"Beach vacation in Maui with kids age 4 and 8"`
 2. Click Plan It
-3. Generating screen appears
-4. Results screen: Hero tile shows "Maui, Hawaii"
+3. Generating screen appears (`/Building your trip plan/i`)
+4. Results: Hero tile shows `"Maui, Hawaii"`
 5. Weather tile visible
-6. Itinerary tile visible with at least one activity
+6. Itinerary tile visible with `"Road to Hana"`
 7. Safety tile visible
 
 ### `destination-picker.spec.ts`
-1. Type `"beach trip for spring break"` (mock returns `destination: null` + 3 suggestions)
-2. Click Plan It
-3. Three destination cards appear: "Maui, Hawaii", "Cancun, Mexico", "San Diego, CA"
+1. Override `parse-input` to return `MOCK_DESTINATIONS` (null destination, 3 suggestions)
+2. Type `"beach trip for spring break"`, click Plan It
+3. Three destination cards: "Maui, Hawaii", "Cancun, Mexico", "San Diego, CA"
 4. Click "Maui, Hawaii"
 5. Generating screen appears
-6. Results load with "Maui, Hawaii" in Hero tile
+6. Results load with `"Maui, Hawaii"` in Hero tile
 
 ### `food-preferences.spec.ts`
-1. Type `"vegan family trip to Tokyo"` (mock returns meals with vegan cuisine labels)
-2. Click Plan It → results load
-3. Itinerary tile shows meal cards
-4. Meal cuisine badges include vegan-appropriate labels (e.g. "Vegan Ramen", "Plant-based")
-5. No meal marked with excluded cuisine types
+1. Override `parse-input` to return vegan trip data (`vibe: "dining"`, `foodPreferences.dietary: ["vegan"]`)
+2. Override `trip-plan` to return meal cards with vegan cuisine labels (`"Vegan Ramen"`, `"Plant-based Sushi"`)
+3. Type trip, click Plan It, results load
+4. Itinerary tile shows meal cards
+5. Cuisine badges include `"Vegan"` label
 
 ### `error-states.spec.ts`
-| Scenario | Setup | Assertion |
-|----------|-------|-----------|
-| Parse input 500 | Override `/api/v1/trip/parse-input` → 500 | Error message visible on generating/input screen |
-| Trip plan 500 | Override `/api/trip-plan` → 500 | Error message visible |
-| Rate limit 429 | Override `/api/trip-plan` → 429 | Rate limit message visible |
-| Empty itinerary | `scheduledItinerary: []`, `dailyItinerary: []` | "No itinerary data yet" in itinerary tile |
-| Null safety data | Override `/api/safety/travel-tips` → `{}` | Safety tile renders gracefully |
+| Scenario | Route override | Assertion |
+|----------|---------------|-----------|
+| Parse input 500 | `parse-input` → 500 | Error message visible on screen |
+| Trip plan 500 | `trip-plan` → 500 | Error message visible |
+| Rate limit 429 | `trip-plan` → 429 + `{ error: "Too many requests..." }` | Error message visible |
+| Empty itinerary | `trip-plan` → 200 with `scheduledItinerary: [], tripPlan.dailyItinerary: []` | "No itinerary data yet" in itinerary tile |
+| Null safety data | `safety/travel-tips` → 200 with `{}` | Safety tile renders without crashing |
 
 ---
 
 ## Smoke Tests
 
-### `production.spec.ts`
-Runs against `https://sproutroute-production.up.railway.app`. No API mocking. Structural assertions only — no content.
+Runs against `https://sproutroute-production.up.railway.app`. No API mocking. No real trip generation (to avoid spending API credits). Structural assertions only.
 
+### `production.spec.ts`
 | Test | Assertion |
 |------|-----------|
 | Health check | `GET /api/health` → `{ status: "ok" }` |
-| Parse input returns shape | POST real trip string → response has `destination` or `suggestedDestinations` key |
-| Trip plan returns shape | POST real trip → response has `trip`, `weather`, `tripPlan`, `scheduledItinerary` keys |
-| App loads | `GET /` → page title contains "SproutRoute" or "Sprout" |
+| App loads | `GET /` → page title contains `/SproutRoute\|Sprout/i` |
+| Parse input returns shape | POST `{ text: "beach trip to Maui next April" }` → response has `destination` key AND `suggestedDestinations` is an array |
+| Trip plan returns shape | POST minimal trip data → response has `trip`, `weather`, `tripPlan`, `scheduledItinerary` keys — no content assertions |
 
 ---
 
@@ -241,7 +469,7 @@ New GitHub Actions workflow: `.github/workflows/e2e.yml`
 name: E2E Tests
 on:
   push:
-    branches: [main, feature/**]
+    branches: [main, "feature/**"]
   pull_request:
 
 jobs:
@@ -251,18 +479,26 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: npm ci
-      - run: cd src/frontend && npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --project=mocked
-      - uses: actions/upload-artifact@v4
+      - name: Install root deps
+        run: npm ci
+      - name: Install frontend deps
+        run: cd src/frontend && npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run mocked E2E tests
+        run: npx playwright test --project=mocked
+      - name: Upload report on failure
         if: failure()
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
 ```
 
-Smoke tests are excluded (no `--project=smoke`). Screenshots uploaded on failure for debugging.
+Notes:
+- `--project=mocked` excludes smoke tests; no `ANTHROPIC_API_KEY` needed (backend not started)
+- Smoke tests (`--project=smoke`) are run locally only: `npx playwright test --project=smoke`
+- Existing `.github/workflows/test.yml` (unit/integration tests) is unchanged
 
 ---
 
@@ -270,17 +506,18 @@ Smoke tests are excluded (no `--project=smoke`). Screenshots uploaded on failure
 
 | Layer | Files | Est. Tests |
 |-------|-------|-----------|
-| Tiles | 6 | ~40 |
-| Screens | 2 | ~10 |
+| Tiles | 6 | ~38 |
+| Screens | 2 | ~9 |
 | Flows | 4 | ~20 |
 | Smoke | 1 | 4 |
-| **Total** | **13** | **~74** |
+| **Total** | **13** | **~71** |
 
 ---
 
 ## Out of Scope
 
-- Visual regression / screenshot diffing (not needed at this stage)
+- Visual regression / screenshot diffing
 - Firefox / WebKit browser matrix (Chromium only for speed)
 - Mobile viewport testing (Phase 3 — React Native)
 - Performance / Lighthouse tests
+- Packing list check/uncheck tests (blocked pending `PackingChecklist` integration into `ResultsScreen`)
