@@ -16,14 +16,14 @@ import { generateTripPlan } from "./services/tripPlanAI.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
-import { resolveAiDestination } from "./services/aiDestinationResolver.js";
+import { parseInput } from "./services/parseInput.js";
+import { enrichActivity } from "./services/placesEnrich.js";
 import {
   sanitizeString,
   sanitizeChildren,
   sanitizeTripData,
   validateTripData,
 } from "./utils/sanitize.js";
-import { log } from "./utils/logger.js";
 
 dotenv.config();
 
@@ -53,7 +53,6 @@ export function createApp(deps = {}) {
   const {
     geocodeLocationFn = geocodeLocation,
     resolveDestinationQueryFn = resolveDestinationQuery,
-    resolveAiDestinationFn = resolveAiDestination,
     getWeatherForecastFn = getWeatherForecast,
     generatePackingListFn = generatePackingList,
     generateTripPlanFn = generateTripPlan,
@@ -65,11 +64,6 @@ export function createApp(deps = {}) {
 
   const app = express();
 
-  // Railway sits behind a reverse proxy — trust first hop so express-rate-limit
-  // reads the real client IP from X-Forwarded-For instead of throwing ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
-  app.set("trust proxy", 1);
-
-  // devLog kept for non-critical debug output; log.* used for production-visible logging
   const devLog = (...args) => {
     if (process.env.NODE_ENV !== "production" && enableRequestLogging) {
       console.log(...args);
@@ -114,17 +108,9 @@ export function createApp(deps = {}) {
 
   if (enableRequestLogging) {
     app.use((req, res, next) => {
-      const start = Date.now();
-      res.on("finish", () => {
-        const duration = Date.now() - start;
-        // Log all API requests (skip static file serving)
-        if (req.path.startsWith("/api")) {
-          log.info(`${req.method} ${req.path} ${res.statusCode}`, {
-            duration: `${duration}ms`,
-            ip: req.ip,
-          });
-        }
-      });
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+      }
       next();
     });
   }
@@ -138,12 +124,13 @@ export function createApp(deps = {}) {
     standardHeaders: true,  // Sends RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, RateLimit-Policy
     legacyHeaders: false,
     handler: (req, res) => {
-      log.warn("Rate limit hit", { ip: req.ip, path: req.path });
+      // Include reset timestamp in body so frontend can show a countdown timer
+      // even if it can't read headers directly (e.g. browser CORS restrictions)
       const resetAt = Math.ceil(Date.now() / 1000) + 15 * 60;
       res.status(429).json({
         error: "Too many requests. Please try again in 15 minutes.",
         retryAfter: "15 minutes",
-        rateLimitReset: resetAt,
+        rateLimitReset: resetAt,  // Unix timestamp (seconds) for frontend countdown
       });
     },
   });
@@ -157,47 +144,6 @@ export function createApp(deps = {}) {
     });
   });
 
-  // POST /api/v1/destination/ai-resolve
-  // AI-powered natural-language destination resolver used by the mobile app.
-  // Returns mode:"direct" for specific places or mode:"suggestions" (up to 3) for vague queries.
-  app.post("/api/v1/destination/ai-resolve", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
-    try {
-      const rawQuery = (req.body?.query || "").trim();
-      if (!rawQuery) {
-        return v1Error(res, 400, {
-          code: "VALIDATION_ERROR",
-          message: "query is required",
-          category: "validation",
-          retryable: false,
-          requestId,
-        });
-      }
-      if (rawQuery.length > 300) {
-        return v1Error(res, 400, {
-          code: "VALIDATION_ERROR",
-          message: "query must be 300 characters or fewer",
-          category: "validation",
-          retryable: false,
-          requestId,
-        });
-      }
-
-      devLog("v1/destination/ai-resolve:", rawQuery);
-      const result = await resolveAiDestinationFn(rawQuery);
-      return res.json({ requestId, ...result });
-    } catch (error) {
-      log.error("ai-resolve failed", { requestId, error: error.message });
-      return v1Error(res, 500, {
-        code: "RESOLVE_FAILED",
-        message: "Could not resolve destination. Please try a more specific location.",
-        category: "geocoding",
-        retryable: true,
-        requestId,
-      });
-    }
-  });
-
   app.post("/api/resolve-destination", apiLimiter, async (req, res) => {
     // Resolves free-text destination intent before trip planning starts.
     try {
@@ -209,7 +155,9 @@ export function createApp(deps = {}) {
       const result = await resolveDestinationQueryFn(rawQuery);
       return res.json(result);
     } catch (error) {
-      log.error("resolve-destination failed", { error: error.message });
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Error in /api/resolve-destination:", error);
+      }
       return res.status(500).json({
         error: "Failed to resolve destination. Please try again.",
       });
@@ -245,7 +193,7 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       devLog(`Geocoded to: ${coords.lat}, ${coords.lon} (${coords.countryCode || "US"})`);
 
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate, endDate);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate);
       devLog(`Weather fetched successfully`);
 
       const tripPlan = await generateTripPlanFn(
@@ -283,7 +231,9 @@ export function createApp(deps = {}) {
         tripPlan,
       });
     } catch (error) {
-      log.error("trip-plan failed", { error: error.message });
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Error in /api/trip-plan:", error);
+      }
 
       if (
         error.message.includes("Location not found") ||
@@ -339,7 +289,7 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       devLog(`Geocoded coordinates obtained`);
 
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate, endDate);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate);
       devLog(`Weather fetched successfully`);
 
       const packingList = await generatePackingListFn(
@@ -371,7 +321,9 @@ export function createApp(deps = {}) {
         packingList,
       });
     } catch (error) {
-      log.error("generate failed", { error: error.message });
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Error in /api/generate:", error);
+      }
 
       if (
         error.message.includes("Location not found") ||
@@ -412,12 +364,6 @@ export function createApp(deps = {}) {
       ).toUpperCase();
       const tripDate = sanitizeString(req.body?.tripDate || "", 20);
       const children = sanitizeChildren(req.body?.children, 10);
-      // countryCode used to route non-US destinations to international guidance
-      const VALID_COUNTRY_RE = /^[A-Za-z]{2}$/;
-      const rawCountryCode = req.body?.countryCode;
-      const countryCode = VALID_COUNTRY_RE.test(rawCountryCode || "")
-        ? rawCountryCode.toUpperCase()
-        : null;
 
       if (children.length === 0) {
         return res.status(400).json({
@@ -432,13 +378,14 @@ export function createApp(deps = {}) {
           jurisdictionCode,
           tripDate,
           children,
-          countryCode,
         }),
       );
 
       return res.json(guidance);
     } catch (error) {
-      log.error("car-seat-check failed", { error: error.message });
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Error in /api/safety/car-seat-check:", error);
+      }
       return res.status(500).json({
         error: "Failed to evaluate car seat guidance. Please try again.",
       });
@@ -527,7 +474,7 @@ export function createApp(deps = {}) {
       const result = await resolveDestinationQueryFn(rawQuery);
       return res.json({ ...result, requestId });
     } catch (error) {
-      log.error("v1/trip/resolve failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/trip/resolve:", error);
       return v1Error(res, 500, {
         code: "RESOLVE_FAILED",
         message: "Failed to resolve destination. Please try again.",
@@ -563,7 +510,7 @@ export function createApp(deps = {}) {
       devLog("v1/trip/plan: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate);
       const tripPlan = await generateTripPlanFn(
         { destination, startDate, endDate, activities: safeActivities, children },
         weather,
@@ -595,7 +542,7 @@ export function createApp(deps = {}) {
         tripPlan,
       });
     } catch (error) {
-      log.error("v1/trip/plan failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/trip/plan:", error);
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -649,31 +596,23 @@ export function createApp(deps = {}) {
           ? activities
           : ["family-friendly", "parks", "city"];
 
-      // Extract tripType — not part of sanitizeTripData since it's not user-text; validate against allowlist
-      const VALID_TRIP_TYPES = new Set(["beach", "city", "adventure", "cruise", "international"]);
-      const rawTripType = req.body?.tripType;
-      const tripType = VALID_TRIP_TYPES.has(rawTripType) ? rawTripType : null;
-
-      const rlog = log.withRequestId(requestId);
-
       // Phase 1: Geocode
       const geocodeStart = Date.now();
-      rlog.info("bundle: geocoding", { destination });
+      devLog("v1/trip/bundle: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
       timings.geocode = Date.now() - geocodeStart;
-      rlog.info("bundle: geocoded", { lat: coords.lat, lon: coords.lon, country: resolvedCountry, ms: timings.geocode });
 
       // Phase 2: Weather
       const weatherStart = Date.now();
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
+      devLog("v1/trip/bundle: fetching weather...");
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate);
       timings.weather = Date.now() - weatherStart;
-      rlog.info("bundle: weather fetched", { ms: timings.weather });
 
       // Phase 3: Trip plan + Packing list in parallel
       const aiStart = Date.now();
-      rlog.info("bundle: AI starting (trip + packing)");
-      const tripPayload = { destination, startDate, endDate, activities: safeActivities, children, tripType, countryCode: resolvedCountry };
+      devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
+      const tripPayload = { destination, startDate, endDate, activities: safeActivities, children };
       const [tripPlan, packingList] = await Promise.all([
         generateTripPlanFn(tripPayload, weather),
         generatePackingListFn(tripPayload, weather),
@@ -681,7 +620,7 @@ export function createApp(deps = {}) {
       timings.ai = Date.now() - aiStart;
       timings.total = Date.now() - geocodeStart;
 
-      rlog.info("bundle: complete", { geocode: `${timings.geocode}ms`, weather: `${timings.weather}ms`, ai: `${timings.ai}ms`, total: `${timings.total}ms` });
+      devLog(`v1/trip/bundle timings: geocode=${timings.geocode}ms, weather=${timings.weather}ms, ai=${timings.ai}ms, total=${timings.total}ms`);
 
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -712,7 +651,7 @@ export function createApp(deps = {}) {
         timings,
       });
     } catch (error) {
-      log.error("v1/trip/bundle failed", { requestId, error: error.message, timings });
+      devLog("Error in /api/v1/trip/bundle:", error);
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -738,146 +677,6 @@ export function createApp(deps = {}) {
         retryable: true,
         requestId,
       });
-    }
-  });
-
-  // POST /api/v1/trip/stream
-  // Server-Sent Events (SSE) streaming endpoint for progressive trip plan generation.
-  // Emits events: destination, weather, itinerary-chunk, packing, safety, done, error.
-  // Falls back gracefully — clients can use the bundle endpoint if SSE is unsupported.
-  app.post("/api/v1/trip/stream", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
-
-    // Validate input before opening SSE connection
-    const sanitizedData = sanitizeTripData(req.body);
-    const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
-    if (validationErrors.length > 0) {
-      return res.status(400).json({
-        code: "VALIDATION_ERROR",
-        message: validationErrors.join("; "),
-        requestId,
-      });
-    }
-
-    // Open SSE stream
-    res.writeHead(200, {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
-      "X-Request-Id": requestId,
-    });
-
-    // Helper: write a typed SSE event
-    function emit(type, payload) {
-      res.write(`event: ${type}\ndata: ${JSON.stringify(payload)}\n\n`);
-    }
-
-    // Helper: flush-safe write (some proxies buffer SSE)
-    function flush() {
-      if (typeof res.flush === "function") res.flush();
-    }
-
-    try {
-      const { destination, startDate, endDate, activities, children } = sanitizedData;
-      const VALID_TRIP_TYPES = new Set(["beach", "city", "adventure", "cruise", "international"]);
-      const rawTripType = req.body?.tripType;
-      const tripType = VALID_TRIP_TYPES.has(rawTripType) ? rawTripType : null;
-      const safeActivities =
-        Array.isArray(activities) && activities.length > 0
-          ? activities
-          : ["family-friendly", "parks", "city"];
-
-      const rlog = log.withRequestId(requestId);
-      const streamStart = Date.now();
-
-      // Phase 1: Geocode
-      rlog.info("stream: geocoding", { destination });
-      const coords = await geocodeLocationFn(destination);
-      const resolvedCountry = coords.countryCode || "US";
-      rlog.info("stream: geocoded", { lat: coords.lat, lon: coords.lon, country: resolvedCountry, ms: Date.now() - streamStart });
-      emit("destination", {
-        destination: coords.displayName || destination,
-        lat: coords.lat,
-        lon: coords.lon,
-        countryCode: resolvedCountry,
-      });
-      flush();
-
-      // Phase 2: Weather
-      const weatherStart = Date.now();
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
-      rlog.info("stream: weather fetched", { ms: Date.now() - weatherStart });
-      emit("weather", { weather });
-      flush();
-
-      // Phase 3: Trip plan + Packing list in parallel
-      const aiStart = Date.now();
-      rlog.info("stream: AI starting (trip + packing)");
-      const tripPayload = {
-        destination: coords.displayName || destination,
-        startDate,
-        endDate,
-        activities: safeActivities,
-        children,
-        tripType,
-        countryCode: resolvedCountry,
-      };
-
-      emit("itinerary-chunk", { status: "generating", message: "Crafting your itinerary…" });
-      flush();
-
-      const [tripPlan, packingList] = await Promise.all([
-        generateTripPlanFn(tripPayload, weather),
-        generatePackingListFn(tripPayload, weather),
-      ]);
-      rlog.info("stream: AI complete", { ms: Date.now() - aiStart });
-
-      emit("itinerary-chunk", { status: "done", tripPlan });
-      flush();
-
-      emit("packing", { packingList });
-      flush();
-
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
-
-      emit("done", {
-        requestId,
-        trip: {
-          destination: coords.displayName || destination,
-          jurisdictionCode: coords.stateCode || null,
-          jurisdictionName: coords.stateName || null,
-          startDate,
-          endDate,
-          duration: tripDuration,
-          activities: safeActivities,
-          children,
-          countryCode: resolvedCountry,
-          regionCode: coords.regionCode || null,
-          lat: coords.lat,
-          lon: coords.lon,
-        },
-        weather,
-        tripPlan,
-        packingList,
-      });
-      flush();
-
-      rlog.info("stream: complete", { total: `${Date.now() - streamStart}ms` });
-      res.end();
-    } catch (error) {
-      log.error("v1/trip/stream failed", { requestId, error: error.message });
-      emit("error", {
-        code: "STREAM_FAILED",
-        message: error.message?.includes("Location not found")
-          ? "Could not find that location. Please try a more specific address."
-          : "Failed to generate trip plan. Please try again.",
-        retryable: true,
-        requestId,
-      });
-      flush();
-      res.end();
     }
   });
 
@@ -922,7 +721,7 @@ export function createApp(deps = {}) {
 
       return res.json({ requestId, tripPlan });
     } catch (error) {
-      log.error("v1/trip/replan failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/trip/replan:", error);
       return v1Error(res, 500, {
         code: "REPLAN_FAILED",
         message: "Failed to regenerate trip plan. Please try again.",
@@ -954,7 +753,7 @@ export function createApp(deps = {}) {
       devLog("v1/trip/packing: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
-      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
+      const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate);
       const packingList = await generatePackingListFn(
         { destination, startDate, endDate, activities, children },
         weather,
@@ -985,7 +784,7 @@ export function createApp(deps = {}) {
         packingList,
       });
     } catch (error) {
-      log.error("v1/trip/packing failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/trip/packing:", error);
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -1052,7 +851,7 @@ export function createApp(deps = {}) {
         lastReviewed: guidance.lastReviewed || new Date().toISOString().split("T")[0],
       });
     } catch (error) {
-      log.error("v1/safety/car-seat-check failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/safety/car-seat-check:", error);
       return v1Error(res, 500, {
         code: "SAFETY_CHECK_FAILED",
         message: "Failed to retrieve car seat guidance. Please try again.",
@@ -1082,7 +881,7 @@ export function createApp(deps = {}) {
       const advisory = await getTravelAdvisoryFn(countryCode);
       return res.json({ requestId, advisory });
     } catch (error) {
-      log.error("v1/safety/travel-advisory failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/safety/travel-advisory:", error);
       return v1Error(res, 500, {
         code: "ADVISORY_FAILED",
         message: "Failed to fetch travel advisory. Trip planning will continue without it.",
@@ -1114,7 +913,7 @@ export function createApp(deps = {}) {
       const safety = await getNeighborhoodSafetyFn(lat, lon);
       return res.json({ requestId, safety });
     } catch (error) {
-      log.error("v1/safety/neighborhood failed", { requestId, error: error.message });
+      devLog("Error in /api/v1/safety/neighborhood:", error);
       return v1Error(res, 500, {
         code: "SAFETY_FAILED",
         message: "Failed to fetch neighborhood safety data.",
@@ -1122,6 +921,87 @@ export function createApp(deps = {}) {
         retryable: true,
         requestId,
       });
+    }
+  });
+
+  // ─── Parse natural language trip input ───
+  app.post("/api/v1/trip/parse-input", async (req, res) => {
+    try {
+      const { text, detectedLat, detectedLon } = req.body;
+      if (!text || typeof text !== "string" || text.trim().length === 0) {
+        return res.status(422).json({ error: "text is required" });
+      }
+      let detectedRegion = null;
+      if (detectedLat && detectedLon) {
+        try {
+          const geoRes = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${detectedLat}&lon=${detectedLon}&format=json`,
+            { headers: { "User-Agent": "SproutRoute/1.0" } }
+          );
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            const addr = geoData.address || {};
+            detectedRegion = [addr.city || addr.town, addr.state].filter(Boolean).join(", ");
+          }
+        } catch { /* silent — region is optional */ }
+      }
+      const result = await parseInput(text.trim(), { detectedRegion });
+      res.json(result);
+    } catch (err) {
+      console.error("parse-input error:", err);
+      res.status(500).json({ error: "Failed to parse trip input" });
+    }
+  });
+
+  // ─── Enrich activity with Google Places data ───
+  app.post("/api/v1/places/enrich", async (req, res) => {
+    try {
+      const { activityName, destination, category } = req.body;
+      if (!activityName || !destination) {
+        return res.status(422).json({ error: "activityName and destination required" });
+      }
+      const result = await enrichActivity(activityName, destination, category || "");
+      if (!result) return res.json(null);
+      res.json(result);
+    } catch (err) {
+      console.error("places enrich error:", err);
+      res.status(500).json({ error: "Failed to enrich activity" });
+    }
+  });
+
+  // ─── Proxy Google Places photo (keeps API key server-side) ───
+  app.get("/api/v1/places/photo", async (req, res) => {
+    try {
+      const ref = req.query.ref;
+      const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+      if (!ref || !apiKey) return res.status(400).send("Missing ref or API key");
+      const photoUrl = `https://places.googleapis.com/v1/${ref}/media?maxWidthPx=800&key=${apiKey}`;
+      const photoRes = await fetch(photoUrl);
+      if (!photoRes.ok) return res.status(photoRes.status).send("Photo not found");
+      res.set("Content-Type", photoRes.headers.get("content-type") || "image/jpeg");
+      res.set("Cache-Control", "public, max-age=86400");
+      const buffer = Buffer.from(await photoRes.arrayBuffer());
+      res.send(buffer);
+    } catch (err) {
+      console.error("photo proxy error:", err);
+      res.status(500).send("Photo proxy error");
+    }
+  });
+
+  // ─── IP geolocation proxy (ip-api.com is HTTP-only, can't call from HTTPS frontend) ───
+  app.get("/api/v1/geo/detect", async (req, res) => {
+    try {
+      const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
+      const geoRes = await fetch(`http://ip-api.com/json/${ip}?fields=lat,lon,city,regionName,country`);
+      if (!geoRes.ok) return res.json({ lat: null, lon: null, region: null });
+      const data = await geoRes.json();
+      res.json({
+        lat: data.lat || null,
+        lon: data.lon || null,
+        region: [data.city, data.regionName].filter(Boolean).join(", ") || null,
+      });
+    } catch {
+      res.json({ lat: null, lon: null, region: null });
     }
   });
 
