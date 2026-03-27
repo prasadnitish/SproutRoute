@@ -199,6 +199,8 @@ export function createApp(deps = {}) {
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate, endDate);
       devLog(`Weather fetched successfully`);
 
+      const foodPreferences = req.body?.foodPreferences || null;
+
       const tripPlan = await generateTripPlanFn(
         {
           destination,
@@ -206,6 +208,7 @@ export function createApp(deps = {}) {
           endDate,
           activities: safeActivities,
           children,
+          foodPreferences,
         },
         weather,
       );
@@ -222,6 +225,7 @@ export function createApp(deps = {}) {
           tripPlan.suggestedActivities,
           destName,
           enrichActivityFn,
+          tripPlan.dailyItinerary,
         );
         scheduledItinerary = scheduleItinerary(tripPlan, enrichedMap, startDate);
         devLog(`Scheduled ${scheduledItinerary.length} days with ${Object.keys(enrichedMap).length} enriched activities`);

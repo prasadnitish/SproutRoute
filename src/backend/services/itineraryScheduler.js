@@ -109,12 +109,54 @@ function estimateTravelMinutes(/* from, to */) {
  * @param {string} dateStr - "2026-05-21"
  * @returns {object} scheduled day with timed activities
  */
+function buildMealCard(mealType, mealData, enrichedMap, fallbackName) {
+  // mealData can be: { name, cuisine, note } (new AI format) or a string (legacy)
+  if (!mealData && !fallbackName) return null;
+
+  const name = typeof mealData === "object" ? (mealData.name || fallbackName) : (mealData || fallbackName);
+  const cuisine = typeof mealData === "object" ? mealData.cuisine : null;
+  const note = typeof mealData === "object" ? mealData.note : null;
+  const enriched = enrichedMap[name] || null;
+
+  const timeSlots = {
+    breakfast: { start: 480, end: 540 },   // 8:00 - 9:00
+    lunch:     { start: 720, end: 810 },    // 12:00 - 1:30
+    dinner:    { start: 1080, end: 1170 },  // 6:00 - 7:30
+  };
+  const slot = timeSlots[mealType] || timeSlots.lunch;
+
+  return {
+    name,
+    category: "dining",
+    mealType,
+    cuisine,
+    note,
+    scheduledStart: formatTime(slot.start),
+    scheduledEnd: formatTime(slot.end),
+    duration: slot.end - slot.start,
+    status: "meal",
+    isMeal: true,
+    enriched: enriched ? {
+      rating: enriched.rating,
+      address: enriched.address,
+      phone: enriched.phone,
+      website: enriched.website,
+      photos: enriched.photos,
+      mapsUrl: enriched.mapsUrl,
+      priceLevel: enriched.priceLevel,
+    } : null,
+  };
+}
+
 function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
   const activityMap = {};
   (suggestedActivities || []).forEach(a => { if (a.id) activityMap[a.id] = a; });
 
   const rawActivities = day.activities || [];
   const dayOfWeek = dateStr ? new Date(dateStr + "T12:00:00Z").getDay() : null;
+
+  // Parse meals (new format: { breakfast, lunch, dinner } or legacy string)
+  const meals = typeof day.meals === "object" ? day.meals : {};
 
   let currentTime = parseTime(DEFAULT_SLOTS.morning.start); // 9:00 AM = 540
   const scheduled = [];
@@ -170,39 +212,35 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
       startTime = hours.open;
     }
 
-    // Insert lunch break if crossing noon
-    if (currentTime < 720 && startTime + duration > 720) {
-      // Activity goes past noon — check if we should eat first
-      if (startTime < 720 && duration > 60) {
-        // It's a long activity that starts before noon, let it run
-      } else if (startTime >= 660 && startTime < 780) {
-        // We're near lunch time, insert break
-        scheduled.push({
-          name: day.meals || "Lunch break",
-          category: "dining",
-          scheduledStart: formatTime(720),
-          scheduledEnd: formatTime(810),
-          duration: 90,
-          status: "meal",
-          isMeal: true,
-        });
+    // Insert lunch if crossing noon
+    const hasLunch = scheduled.some(s => s.isMeal && s.mealType === "lunch");
+    if (!hasLunch && currentTime < 720 && startTime + duration > 720) {
+      if (startTime >= 660 && startTime < 780 && duration <= 60) {
+        // Near lunch, short activity — eat first
+        const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
+        if (lunchCard) scheduled.push(lunchCard);
         startTime = 810; // 1:30 PM
       }
     }
+    // Force lunch if we've crossed 1 PM and haven't eaten
+    if (!hasLunch && !scheduled.some(s => s.mealType === "lunch") && currentTime >= 780 && startTime >= 780) {
+      const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
+      if (lunchCard) {
+        lunchCard.scheduledStart = formatTime(currentTime);
+        lunchCard.scheduledEnd = formatTime(currentTime + 75);
+        scheduled.push(lunchCard);
+        startTime = currentTime + 75 + estimateTravelMinutes();
+      }
+    }
 
-    // Insert dinner if we're past 5:30 PM and haven't had it
-    const hasDinner = scheduled.some(s => s.isMeal && parseTime(s.scheduledStart?.replace(/\s*(AM|PM)/i, "")) >= 1020);
-    if (startTime >= 1050 && !hasDinner) {
-      scheduled.push({
-        name: "Dinner",
-        category: "dining",
-        scheduledStart: formatTime(1080),
-        scheduledEnd: formatTime(1170),
-        duration: 90,
-        status: "meal",
-        isMeal: true,
-      });
-      startTime = 1170;
+    // Insert dinner if past 5:30 PM
+    const hasDinner = scheduled.some(s => s.isMeal && s.mealType === "dinner");
+    if (!hasDinner && startTime >= 1050) {
+      const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner");
+      if (dinnerCard) {
+        scheduled.push(dinnerCard);
+        startTime = 1170 + estimateTravelMinutes();
+      }
     }
 
     const endTime = startTime + duration;
@@ -276,28 +314,56 @@ export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) 
  * @param {function} enrichFn - enrichActivity function (injected for testing)
  * @returns {object} { activityName: placesData }
  */
-export async function batchEnrich(suggestedActivities, destination, enrichFn) {
+export async function batchEnrich(suggestedActivities, destination, enrichFn, dailyItinerary = []) {
   const enrichedMap = {};
 
-  // Enrich up to 10 activities in parallel (rate-limit friendly)
+  // Collect all items to enrich: activities + restaurant names from meals
+  const enrichTargets = [];
+
+  // Activities (up to 10)
   const activities = (suggestedActivities || []).slice(0, 10);
-  const results = await Promise.allSettled(
-    activities.map(async (activity) => {
-      const name = activity.name || activity.title || "";
-      if (!name) return null;
+  for (const activity of activities) {
+    const name = activity.name || activity.title || "";
+    if (name) {
+      enrichTargets.push({ name, category: activity.category, id: activity.id });
+    }
+  }
+
+  // Restaurant names from meal suggestions (up to 9 = 3 meals × 3 days)
+  const seenRestaurants = new Set();
+  for (const day of (dailyItinerary || []).slice(0, 5)) {
+    const meals = typeof day.meals === "object" ? day.meals : {};
+    for (const mealType of ["breakfast", "lunch", "dinner"]) {
+      const meal = meals[mealType];
+      if (meal && typeof meal === "object" && meal.name && !seenRestaurants.has(meal.name)) {
+        seenRestaurants.add(meal.name);
+        enrichTargets.push({ name: meal.name, category: "restaurant", id: null });
+      }
+    }
+  }
+
+  // Enrich all in parallel (capped at 20)
+  const capped = enrichTargets.slice(0, 20);
+  await Promise.allSettled(
+    capped.map(async ({ name, category, id }) => {
       try {
-        const data = await enrichFn(name, destination, activity.category);
-        if (data) enrichedMap[name] = data;
-        // Also map by ID for lookup
-        if (data && activity.id) enrichedMap[activity.id] = data;
+        const data = await enrichFn(name, destination, category);
+        if (data) {
+          enrichedMap[name] = data;
+          if (id) enrichedMap[id] = data;
+        }
       } catch (err) {
-        log.warn("Enrich failed for activity", { name, error: err.message });
+        log.warn("Enrich failed", { name, error: err.message });
       }
     })
   );
 
-  const enriched = results.filter(r => r.status === "fulfilled").length;
-  log.info("Batch enrich complete", { total: activities.length, enriched, destination });
+  log.info("Batch enrich complete", {
+    activities: activities.length,
+    restaurants: seenRestaurants.size,
+    enriched: Object.keys(enrichedMap).length,
+    destination,
+  });
 
   return enrichedMap;
 }

@@ -71,6 +71,7 @@ export function useTrip() {
       adults: parsed.adults,
       childrenAges: parsed.childrenAges,
       activities: [parsed.vibe],
+      foodPreferences: parsed.foodPreferences || null,
     };
 
     // Call existing /api/trip-plan endpoint
