@@ -52,7 +52,8 @@ function buildRepairPrompt(brokenText) {
         {
           "name": "string",
           "quantity": "string",
-          "reason": "string"
+          "reason": "string",
+          "searchQuery": "string"
         }
       ]
     }
@@ -223,7 +224,8 @@ Generate a detailed packing list with the following structure:
         {
           "name": "Item name",
           "quantity": "number or range like '2-3'",
-          "reason": "Brief explanation (weather-based, activity-based, or child age-based)"
+          "reason": "Brief explanation (weather-based, activity-based, or child age-based)",
+          "searchQuery": "Short retail search query (3-8 words) for finding this product online"
         }
       ]
     }
@@ -250,6 +252,10 @@ ${ageGuards}
    - Small backpack or daypack (for shore excursions)
    - Do NOT include car seat, stroller, or booster unless children are under 3` : ""}
 ${sizeGuardrail}
+For EACH item, include a "searchQuery" field: a short, specific Amazon/retail search query
+(3-8 words) optimized for finding the best product. Include qualifiers like "kids",
+"travel size", "family pack", age-appropriate terms, or climate-specific terms.
+Do NOT include brand names in searchQuery — keep it generic for best search results.
 Return ONLY the JSON, no additional text.`;
 
   // RAG base template: inject pre-built item suggestions for the detected climate+trip type.
