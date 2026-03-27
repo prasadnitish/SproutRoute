@@ -999,17 +999,9 @@ export function createApp(deps = {}) {
         });
       }
 
-      // Validate travelMode
-      const travelMode = req.body?.travelMode;
-      if (!travelMode || !["fly", "drive"].includes(travelMode)) {
-        return v1Error(res, 422, {
-          code: "INVALID_TRAVEL_MODE",
-          message: "travelMode must be \"fly\" or \"drive\".",
-          category: "validation",
-          retryable: false,
-          requestId,
-        });
-      }
+      // Validate travelMode — default to "drive" if not provided
+      const rawMode = req.body?.travelMode;
+      const travelMode = ["fly", "drive"].includes(rawMode) ? rawMode : "drive";
 
       const destination = sanitizeString(req.body?.destination || "", 200);
       const countryCode = sanitizeString(req.body?.countryCode || "US", 2).toUpperCase();
