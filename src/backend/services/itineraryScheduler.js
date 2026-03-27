@@ -162,6 +162,16 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
   const scheduled = [];
   const warnings = [];
 
+  // ── Always insert breakfast at the start of the day ──
+  const breakfastCard = buildMealCard("breakfast", meals.breakfast, enrichedMap, "Breakfast");
+  if (breakfastCard) {
+    scheduled.push(breakfastCard);
+    currentTime = 540 + estimateTravelMinutes(); // after breakfast, start activities at ~9:15
+  }
+
+  let lunchInserted = false;
+  let dinnerInserted = false;
+
   for (const actRef of rawActivities) {
     const activity = typeof actRef === "string" ? activityMap[actRef] : actRef;
     if (!activity) continue;
@@ -185,7 +195,6 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
         type: "closed",
         message: `${name} is closed on this day`,
       });
-      // Still include but mark as closed
       scheduled.push({
         ...activity,
         name,
@@ -212,34 +221,26 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
       startTime = hours.open;
     }
 
-    // Insert lunch if crossing noon
-    const hasLunch = scheduled.some(s => s.isMeal && s.mealType === "lunch");
-    if (!hasLunch && currentTime < 720 && startTime + duration > 720) {
-      if (startTime >= 660 && startTime < 780 && duration <= 60) {
-        // Near lunch, short activity — eat first
-        const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
-        if (lunchCard) scheduled.push(lunchCard);
-        startTime = 810; // 1:30 PM
-      }
-    }
-    // Force lunch if we've crossed 1 PM and haven't eaten
-    if (!hasLunch && !scheduled.some(s => s.mealType === "lunch") && currentTime >= 780 && startTime >= 780) {
+    // ── Insert lunch when crossing noon (or force it by 1 PM) ──
+    if (!lunchInserted && (startTime >= 720 || (currentTime < 720 && startTime + duration > 720))) {
       const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
       if (lunchCard) {
-        lunchCard.scheduledStart = formatTime(currentTime);
-        lunchCard.scheduledEnd = formatTime(currentTime + 75);
+        const lunchStart = Math.max(startTime, 720);
+        lunchCard.scheduledStart = formatTime(lunchStart);
+        lunchCard.scheduledEnd = formatTime(lunchStart + 75);
         scheduled.push(lunchCard);
-        startTime = currentTime + 75 + estimateTravelMinutes();
+        startTime = lunchStart + 75 + estimateTravelMinutes();
+        lunchInserted = true;
       }
     }
 
-    // Insert dinner if past 5:30 PM
-    const hasDinner = scheduled.some(s => s.isMeal && s.mealType === "dinner");
-    if (!hasDinner && startTime >= 1050) {
+    // ── Insert dinner when crossing 6 PM ──
+    if (!dinnerInserted && startTime >= 1080) {
       const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner");
       if (dinnerCard) {
         scheduled.push(dinnerCard);
         startTime = 1170 + estimateTravelMinutes();
+        dinnerInserted = true;
       }
     }
 
@@ -273,6 +274,16 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
     });
 
     currentTime = endTime + estimateTravelMinutes();
+  }
+
+  // ── Guarantee lunch and dinner even if no activity triggered them ──
+  if (!lunchInserted) {
+    const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
+    if (lunchCard) scheduled.push(lunchCard);
+  }
+  if (!dinnerInserted) {
+    const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner");
+    if (dinnerCard) scheduled.push(dinnerCard);
   }
 
   return {

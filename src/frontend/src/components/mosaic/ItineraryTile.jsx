@@ -82,6 +82,13 @@ function ActivityCard({ activity, onTap }) {
           {enriched && <PriceLevel level={enriched.priceLevel} />}
         </div>
 
+        {/* Category label for activities */}
+        {!isMeal && activity.category && (
+          <span className="inline-block text-[10px] bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 mt-0.5 capitalize">
+            {activity.category.replace(/_/g, " ")}
+          </span>
+        )}
+
         {/* Cuisine tag + note for meals */}
         {isMeal && activity.cuisine && (
           <span className="inline-block text-[10px] bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 mt-0.5">
