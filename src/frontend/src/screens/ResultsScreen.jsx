@@ -5,6 +5,7 @@ import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
 import MapTile from "../components/mosaic/MapTile";
 import ActivityDetailPanel from "../components/ActivityDetailPanel";
+import PackingChecklist from "../components/PackingChecklist";
 
 const TABS = [
   { key: "plan", label: "\u{1F4C5} Plan" },
@@ -153,13 +154,15 @@ export default function ResultsScreen({
 
       {/* Pack tab */}
       {activeTab === "pack" && (
-        <div className="p-8 text-center text-gray-500">
-          <p className="text-4xl mb-3">{"\u{1F392}"}</p>
-          <p className="font-medium">
-            Packing list &mdash;{" "}
-            {packingList?.items?.length || 0} items ready when you finalize your
-            plan.
-          </p>
+        <div>
+          {packingList ? (
+            <PackingChecklist packingList={packingList} />
+          ) : (
+            <div className="p-8 text-center text-gray-500">
+              <p className="text-4xl mb-3">{"\u{1F392}"}</p>
+              <p className="font-medium">Generating packing list&hellip;</p>
+            </div>
+          )}
         </div>
       )}
 
