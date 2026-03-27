@@ -104,12 +104,13 @@ export function useTrip() {
     // Step 4: Safety (non-blocking)
     markStep("safety", "active");
     try {
-      const safetyRes = await fetch("/api/safety/car-seat-check", {
+      const safetyRes = await fetch("/api/safety/travel-tips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           destination: parsed.destination,
           childrenAges: parsed.childrenAges,
+          countryCode: tripResult?.trip?.countryCode || "",
         }),
       });
       if (safetyRes.ok) {

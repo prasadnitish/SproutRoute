@@ -1,3 +1,10 @@
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d)) return dateStr;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 export default function HeroTile({ tripData, parsedInput, onEdit }) {
   const destination =
     tripData?.parsed?.destination || parsedInput?.destination || "Your Trip";
@@ -7,6 +14,8 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
   const childrenAges =
     tripData?.parsed?.childrenAges || parsedInput?.childrenAges || [];
   const vibe = tripData?.parsed?.vibe || parsedInput?.vibe;
+  const countryCode =
+    tripData?.trip?.countryCode || parsedInput?.countryCode || "US";
 
   // Compute duration
   let durationLabel = "";
@@ -20,7 +29,7 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
   const tags = [];
   if (vibe) tags.push(vibe);
   if (childrenAges.length > 0) tags.push("Family");
-  tags.push("Domestic");
+  tags.push(countryCode === "US" ? "Domestic" : "International");
 
   return (
     <div className="bg-gradient-to-br from-meadow-900 via-meadow-600 to-meadow-400 text-white rounded-2xl p-6 h-full flex flex-col justify-between">
@@ -38,8 +47,8 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
         {/* Dates + duration */}
         {startDate && (
           <p className="mt-2 text-sm opacity-90">
-            {startDate}
-            {endDate ? ` \u2013 ${endDate}` : ""}
+            {formatDate(startDate)}
+            {endDate ? ` \u2013 ${formatDate(endDate)}` : ""}
             {durationLabel ? ` \u00B7 ${durationLabel}` : ""}
           </p>
         )}
@@ -62,7 +71,7 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
         <span>
           Assumed: {adults} adult{adults !== 1 ? "s" : ""}
           {childrenAges.length > 0 &&
-            ` \u00B7 kids ${childrenAges.join(" & ")}`}
+            ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}, age${childrenAges.length !== 1 ? "s" : ""} ${childrenAges.join(" & ")}`}
           {vibe ? ` \u00B7 vibe ${vibe}` : ""}
         </span>
         {onEdit && (

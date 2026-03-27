@@ -17,6 +17,7 @@ import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
 import { parseInput } from "./services/parseInput.js";
+import { getTravelSafety } from "./services/travelSafety.js";
 import { enrichActivity } from "./services/placesEnrich.js";
 import {
   sanitizeString,
@@ -217,6 +218,8 @@ export function createApp(deps = {}) {
       res.json({
         trip: {
           destination: coords.displayName || destination,
+          lat: coords.lat,
+          lon: coords.lon,
           jurisdictionCode: coords.stateCode || null,
           jurisdictionName: coords.stateName || null,
           countryCode: coords.countryCode || null,
@@ -388,6 +391,29 @@ export function createApp(deps = {}) {
       }
       return res.status(500).json({
         error: "Failed to evaluate car seat guidance. Please try again.",
+      });
+    }
+  });
+
+  // POST /api/safety/travel-tips — AI-generated travel safety for any destination
+  app.post("/api/safety/travel-tips", apiLimiter, async (req, res) => {
+    try {
+      const destination = sanitizeString(req.body?.destination || "", 120);
+      const childrenAges = req.body?.childrenAges || [];
+      const countryCode = sanitizeString(req.body?.countryCode || "", 5);
+
+      if (!destination) {
+        return res.status(400).json({ error: "Destination is required." });
+      }
+
+      const tips = await getTravelSafety(destination, childrenAges, countryCode);
+      return res.json(tips);
+    } catch (error) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Error in /api/safety/travel-tips:", error);
+      }
+      return res.status(500).json({
+        error: "Failed to generate travel safety tips.",
       });
     }
   });
