@@ -1,17 +1,28 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
-  // 'class' strategy: dark mode toggled by adding/removing 'dark' class on <html>.
-  // Supports user-controlled toggle + respects prefers-color-scheme as the default.
-  darkMode: "class",
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Outfit", "sans-serif"],
-        heading: ["Nunito", "sans-serif"],
+        sans: ['"Inter"', 'sans-serif'],
+        display: ['"Space Grotesk"', 'sans-serif'],
+        body: ['"Inter"', 'sans-serif'],
       },
       colors: {
-        // Primary — Greens (Growth / Nature)
+        // Primary — Fresh Meadow greens (new primary scale)
+        meadow: {
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          200: '#bbf7d0',
+          300: '#86efac',
+          400: '#4ade80',
+          500: '#22c55e',
+          600: '#16a34a',
+          700: '#15803d',
+          800: '#166534',
+          900: '#14532d',
+        },
+        // Legacy greens — kept for backward compatibility
         sprout: {
           light: "#E8F5E9",
           base: "#81C784",
@@ -30,37 +41,15 @@ export default {
         paper: "#FDFDFD",
         "slate-text": "#334155",
         muted: "#64748B",
-        // Dark mode surface palette
-        "dark-bg": "#0f1a10",
-        "dark-card": "#1a2e1b",
-        "dark-border": "#2d4a2e",
-        "dark-text": "#e8f5e9",
-        "dark-muted": "#9ab89b",
-        "dark-sprout": "#a5d6a7",
       },
       boxShadow: {
         soft: "0 4px 20px -2px rgba(46, 125, 50, 0.08)",
         card: "0 2px 12px -2px rgba(46, 125, 50, 0.06)",
-        "soft-dark": "0 4px 20px -2px rgba(0, 0, 0, 0.4)",
       },
       borderRadius: {
         xl: "1rem",
         "2xl": "1.5rem",
         "3xl": "2rem",
-      },
-      keyframes: {
-        fadeSlideUp: {
-          from: { opacity: "0", transform: "translateY(12px)" },
-          to: { opacity: "1", transform: "translateY(0)" },
-        },
-        shimmer: {
-          "0%": { backgroundPosition: "-200% 0" },
-          "100%": { backgroundPosition: "200% 0" },
-        },
-      },
-      animation: {
-        "fade-slide-up": "fadeSlideUp 0.4s ease",
-        shimmer: "shimmer 1.5s ease-in-out infinite",
       },
     },
   },
