@@ -39,5 +39,5 @@ export async function goToResults(page: Page, waitFor = "Maui, Hawaii"): Promise
   await page.goto("/");
   await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
   await page.getByRole("button", { name: /plan it/i }).click();
-  await page.getByText(waitFor, { exact: false }).waitFor({ timeout: 15000 });
+  await page.getByRole("heading", { name: new RegExp(waitFor, "i") }).waitFor({ timeout: 15000 });
 }

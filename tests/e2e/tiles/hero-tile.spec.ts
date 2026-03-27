@@ -9,7 +9,7 @@ test.describe("HeroTile", () => {
   });
 
   test("renders destination name", async ({ page }) => {
-    await expect(page.getByText("Maui, Hawaii", { exact: false })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i })).toBeVisible();
   });
 
   test("renders human-readable dates (not ISO)", async ({ page }) => {
