@@ -25,8 +25,10 @@ strollerscout/
 │   │   │   ├── App.jsx                  ← ORCHESTRATOR — wizard state, API calls, layout
 │   │   │   ├── components/
 │   │   │   │   ├── TripPlanDisplay.jsx  ← Itinerary + activity customization
-│   │   │   │   ├── PackingChecklist.jsx ← Packing items + checked state
+│   │   │   │   ├── PackingChecklist.jsx ← Packing items + checked state (incl. pet items)
 │   │   │   │   ├── TravelSafetyCard.jsx ← Car seat guidance display
+│   │   │   │   ├── PetSafetyTile.jsx   ← Airline eligibility + entry requirements (NEW)
+│   │   │   │   ├── FamilyStep.jsx      ← Children + pets input (renamed from KidsStep)
 │   │   │   │   ├── WeatherDisplay.jsx   ← Weather forecast cards
 │   │   │   │   └── ShareExport.jsx      ← (Phase 2) Share/copy/print
 │   │   │   ├── services/
@@ -42,10 +44,13 @@ strollerscout/
 │   │   ├── services/
 │   │   │   ├── weather.js               ← Weather.gov API (US-only for now)
 │   │   │   ├── geocoding.js             ← Nominatim (OpenStreetMap) geocoder
-│   │   │   ├── tripPlanAI.js            ← AI itinerary generation
-│   │   │   ├── packingListAI.js         ← AI packing list generation
+│   │   │   ├── tripPlanAI.js            ← AI itinerary generation (pet-aware prompts)
+│   │   │   ├── packingListAI.js         ← AI packing list generation (pet packing category)
 │   │   │   ├── safetyRules.js           ← Car seat law lookup orchestration
-│   │   │   └── carSeatRules.js          ← US state car seat data (~10 states currently)
+│   │   │   ├── carSeatRules.js          ← US state car seat data (~10 states currently)
+│   │   │   ├── petSafety.js             ← Pet travel orchestrator (DI pattern) (NEW)
+│   │   │   ├── petAirlineRules.js       ← Static airline pet policies — 6 carriers (NEW)
+│   │   │   └── petEntryRules.js         ← International pet entry requirements (NEW)
 │   │   └── package.json
 │   │
 │   └── shared/                          ← (Phase 1) TypeScript contracts package
@@ -85,6 +90,8 @@ strollerscout/
 | `src/backend/server.js` | Core Express config — test before every deploy |
 | `src/backend/services/safetyRules.js` | Legal safety guidance — human review required |
 | `src/backend/services/carSeatRules.js` | Legal data — human review required for any new state |
+| `src/backend/services/petAirlineRules.js` | Airline pet policy data — human review required |
+| `src/backend/services/petEntryRules.js` | International pet entry data — human review required |
 
 **PreToolUse hook** (in `.claude/settings.json`) will block attempts to edit `package-lock.json` or `.env` files.
 
@@ -94,12 +101,24 @@ strollerscout/
 
 ### Trip Plan Request (web)
 ```
-User submits wizard
+User submits wizard (destination + dates + children + pets)
 → App.jsx calls api.js → POST /api/resolve-destination
-→ api.js → POST /api/trip-plan (weather + AI itinerary)
-→ api.js → POST /api/generate (packing list)
+→ api.js → POST /api/trip-plan (weather + AI itinerary, pet-aware if pets present)
+→ api.js → POST /api/generate (packing list, includes pet packing category)
 → api.js → POST /api/safety/car-seat-check
-→ App.jsx renders: TripPlanDisplay + PackingChecklist + TravelSafetyCard
+→ api.js → POST /api/v1/safety/pet-travel-check (if pets present)
+→ App.jsx renders: TripPlanDisplay + PackingChecklist + TravelSafetyCard + PetSafetyTile
+```
+
+### Pet Travel Data Flow (when pets present)
+```
+User enters trip with pets in FamilyStep (renamed from KidsStep)
+→ api.js → POST /api/v1/trip/parse-input (detects pets from text)
+→ Backend derives travelMode from distance + countryCode
+→ api.js → POST /api/v1/trip/plan (pets injected into AI prompt → pet-friendly itinerary)
+→ api.js → POST /api/v1/trip/packing (pets → pet packing category per pet)
+→ api.js → POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
+→ App.jsx renders: ItineraryTile (badges) + PackingChecklist (pet items) + PetSafetyTile
 ```
 
 ### API Route Ownership
@@ -109,6 +128,7 @@ User submits wizard
 | `POST /api/trip-plan` | `server.js:~line 170` | `weather.js` + `tripPlanAI.js` |
 | `POST /api/generate` | `server.js:~line 220` | `packingListAI.js` |
 | `POST /api/safety/car-seat-check` | `server.js:~line 260` | `safetyRules.js` + `carSeatRules.js` |
+| `POST /api/v1/safety/pet-travel-check` | `server.js` | `petSafety.js` + `petAirlineRules.js` + `petEntryRules.js` |
 | `GET /api/health` | `server.js:~line 120` | inline |
 
 ---

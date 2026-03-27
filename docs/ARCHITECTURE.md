@@ -16,45 +16,60 @@ SproutRoute is a **client-server web application** that helps parents transform 
 ## Component Diagram
 
 ```
-┌──────────────────────────────────────────────────┐
-│              User Browser                        │
-│  ┌────────────────────────────────────────────┐ │
-│  │         React Frontend (SPA)               │ │
-│  │  - Step-by-step Trip Wizard                │ │
-│  │  - Weather Display                         │ │
-│  │  - Itinerary Display                        │ │
-│  │  - Packing Checklist                       │ │
-│  │  - Travel Safety Card                      │ │
-│  │  - Local Storage Manager                   │ │
-│  └────────────┬───────────────────────────────┘ │
-└───────────────┼──────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│              User Browser                                │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │         React Frontend (SPA)                       │ │
+│  │  - Step-by-step Trip Wizard                        │ │
+│  │    - FamilyStep (children + pets input)            │ │
+│  │  - Weather Display                                 │ │
+│  │  - Itinerary Display (pet-friendly badges)         │ │
+│  │  - Packing Checklist (pet packing category)        │ │
+│  │  - Travel Safety Card (car seat guidance)          │ │
+│  │  - Pet Safety Tile (airline + entry rules)         │ │
+│  │  - Local Storage Manager                           │ │
+│  └────────────┬───────────────────────────────────────┘ │
+└───────────────┼──────────────────────────────────────────┘
                 │ HTTP/REST
                 ▼
-┌──────────────────────────────────────────────────┐
-│        Backend API Server (Express)              │
-│  ┌────────────────────────────────────────────┐ │
-│  │  GET  /api/health                          │ │
-│  │  POST /api/resolve-destination             │ │
-│  │  POST /api/trip-plan                       │ │
-│  │  POST /api/generate                        │ │
-│  │  POST /api/safety/car-seat-check           │ │
-│  └────┬──────────────────────┬────────────────┘ │
-└───────┼──────────────────────┼───────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│        Backend API Server (Express)                      │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │  GET  /api/health                                  │ │
+│  │  POST /api/resolve-destination                     │ │
+│  │  POST /api/trip-plan          (pets → AI prompt)   │ │
+│  │  POST /api/generate           (pets → packing)     │ │
+│  │  POST /api/safety/car-seat-check                   │ │
+│  │  POST /api/v1/safety/pet-travel-check   ← NEW     │ │
+│  └────┬──────────────────────┬────────────────────────┘ │
+└───────┼──────────────────────┼──────────────────────────┘
         │                      │
         ▼                      ▼
-┌──────────────────┐   ┌────────────────────┐
-│   Weather.gov    │   │   AI API           │
-│   (NWS API)      │   │                    │
-│                  │   │  - Itinerary +     │
-│  - Forecast data │   │    packing lists   │
-│  - US locations  │   │  - Car seat law    │
-└──────────────────┘   │    research        │
-        ▲              └────────────────────┘
+┌──────────────────┐   ┌────────────────────────────┐
+│   Weather.gov    │   │   AI API                   │
+│   (NWS API)      │   │                            │
+│                  │   │  - Itinerary + packing     │
+│  - Forecast data │   │    (pet-aware prompts)     │
+│  - US locations  │   │  - Car seat law research   │
+└──────────────────┘   │  - Pet contextual advice   │
+        ▲              └────────────────────────────┘
         │
 ┌────────────────────────────────────────┐
 │ OpenStreetMap (Nominatim + Overpass)   │
 │ - Geocoding + nearby city suggestions  │
 └────────────────────────────────────────┘
+
+Pet Safety Services (new):
+┌──────────────────────────────────────────────────────┐
+│  petSafety.js ─── Orchestrator (DI pattern)          │
+│    ├── petAirlineRules.js ── Static airline policies │
+│    │   (Delta, United, AA, Southwest, JetBlue, Alaska│
+│    │    cabin/cargo eligibility, breed bans, fees)   │
+│    ├── petEntryRules.js ──── International entry reqs│
+│    │   (microchip, rabies, quarantine, banned breeds)│
+│    └── AI contextual layer (via aiClient.js)         │
+│        (wraps static facts into actionable advice)   │
+└──────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -66,15 +81,31 @@ SproutRoute is a **client-server web application** that helps parents transform 
 1. **User enters destination intent** → Frontend calls `POST /api/resolve-destination`
 2. **Backend → OpenStreetMap:** Geocode base city + fetch nearby city suggestions
 3. **Frontend displays suggestions** → User selects a destination
-4. **Frontend → Backend:** `POST /api/trip-plan` with destination + dates + kids
+4. **Frontend → Backend:** `POST /api/trip-plan` with destination + dates + kids + pets
 5. **Backend → Weather.gov:** Fetch 7-day forecast using lat/lon
-6. **Backend → AI API:** Generate structured itinerary
+6. **Backend → AI API:** Generate structured itinerary (pet-aware if pets present)
 7. **Frontend displays itinerary** → User reviews and optionally selects activities
 8. **Frontend → Backend (parallel):**
-   - `POST /api/generate` with selected activities → AI generates packing list
+   - `POST /api/generate` with selected activities + pets → AI generates packing list (includes pet packing category)
    - `POST /api/safety/car-seat-check` with children profiles → returns jurisdiction-specific guidance
-9. **Frontend displays:** Weather, itinerary, car seat guidance, packing checklist
+   - `POST /api/v1/safety/pet-travel-check` with pets + travelMode → airline eligibility + entry requirements
+9. **Frontend displays:** Weather, itinerary, car seat guidance, pet safety tile, packing checklist
 10. **Frontend saves:** Trip + packing list + checked items → browser local storage
+
+### Flow 1b: Pet Travel Data Flow (when pets present)
+
+```
+User enters trip with pets in FamilyStep (renamed from KidsStep)
+→ App.jsx calls api.js → POST /api/v1/trip/parse-input (detects pets from text)
+→ Backend derives travelMode from distance + countryCode
+→ api.js → POST /api/v1/trip/plan (pets injected into AI prompt → pet-friendly itinerary)
+→ api.js → POST /api/v1/trip/packing (pets → pet packing category per pet)
+→ api.js → POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
+→ App.jsx renders:
+    ItineraryTile (pet-friendly badges on activities)
+    PackingChecklist (pet items + affiliate shop links)
+    PetSafetyTile (airline comparison table + entry requirements + document checklist)
+```
 
 ### Flow 2: Load Saved List
 
@@ -412,6 +443,63 @@ SproutRoute is a **client-server web application** that helps parents transform 
 - **400:** Missing or empty children array
 - **500:** Internal evaluation failure
 
+### POST /api/v1/safety/pet-travel-check
+
+**Description:** Return airline eligibility for all carriers + international entry requirements per pet
+
+**Request:**
+
+```json
+{
+  "pets": [{ "type": "dog", "breed": "golden retriever", "weightLbs": 20, "name": "Max" }],
+  "destination": "London, UK",
+  "countryCode": "GB",
+  "travelMode": "fly"
+}
+```
+
+**Response:**
+
+```json
+{
+  "airlineGuidance": [
+    {
+      "pet": "Max",
+      "airlines": [
+        {
+          "carrier": "Delta",
+          "carrierCode": "DL",
+          "cabinEligible": true,
+          "cabinFee": "$95 each way",
+          "cargoEligible": true,
+          "cargoFee": "$300-$700",
+          "breedWarning": null,
+          "requiredDocuments": ["Vet certificate within 10 days"]
+        }
+      ],
+      "recommendation": "Max qualifies for cabin travel on Delta, United, and JetBlue."
+    }
+  ],
+  "entryRequirements": {
+    "country": "United Kingdom",
+    "microchipRequired": true,
+    "rabiesVaccine": "Required, administered 21+ days before travel",
+    "quarantine": false,
+    "bannedBreeds": ["Pit Bull Terrier", "Japanese Tosa", "Dogo Argentino", "Fila Brasileiro"],
+    "healthCertificate": "USDA-endorsed veterinary certificate within 10 days",
+    "advanceNoticeDays": 30,
+    "timelineWarning": null
+  },
+  "source": "gov.uk/bring-pet-to-great-britain"
+}
+```
+
+**Error Responses:**
+
+- **422:** Pets array empty/invalid, travelMode not in `["fly", "drive"]`
+- **404:** countryCode not in database (entry requirements return null, airline guidance still returned)
+- **500:** `{ code: "PET_SAFETY_FAILED", message: "...", retryable: true }`
+
 ---
 
 ## Data Models
@@ -419,12 +507,22 @@ SproutRoute is a **client-server web application** that helps parents transform 
 ### Frontend State (React)
 
 ```typescript
+interface Pet {
+  type: "dog" | "cat" | "small_animal";
+  name?: string;
+  breed: string;
+  weightLbs: number;
+  specialNeeds?: string;
+}
+
 interface TripInput {
   destination: string;
   startDate: string; // ISO date string (e.g. "2026-05-15")
   endDate: string;
   activities: string[];
   children: { age: number; weightLb?: number; heightIn?: number }[];
+  pets: Pet[];              // NEW — pet travelers
+  travelMode?: "fly" | "drive"; // derived from distance if not set
 }
 
 interface WeatherForecast {
@@ -459,6 +557,7 @@ interface PackingCategory {
     "tripPlan": { "overview": "...", "suggestedActivities": [...], "dailyItinerary": [...], "tips": [...] },
     "packingList": { "categories": [...] },
     "safetyGuidance": { "status": "Needs review", "results": [...] },
+    "petSafetyGuidance": { "airlineGuidance": [...], "entryRequirements": {...} },
     "lastModified": "2026-05-10T14:32:00Z"
   },
   "sproutroute_checked": ["Clothing-0-0", "Clothing-0-1", ...]
