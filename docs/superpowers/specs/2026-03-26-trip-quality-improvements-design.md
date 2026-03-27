@@ -65,7 +65,7 @@ Keep tips to max 5 items.
 
 Five targeted additions to the system prompt in `buildTripPlanPrompt`:
 
-**A. No flight times in Day 1** — replaces the vague international context hint:
+**A. No flight times in Day 1** — replaces the vague "consider time zone adjustment" line inside the `internationalContext` block (same placement, same gate: only when `isInternational`):
 ```
 IMPORTANT: Do NOT include flight arrival times, layovers, or travel logistics in any
 itinerary day. Day 1 begins at the destination. Never schedule any activity before
@@ -107,18 +107,19 @@ same category more than once on the same day.
 ```js
 // Reads/writes localStorage key 'sproutroute_temp_unit'.
 // Returns [unit, toggleUnit] where unit is "F" or "C".
+// try/catch guards against React Native environments where localStorage throws.
 import { useState } from "react";
 
 const STORAGE_KEY = "sproutroute_temp_unit";
 
 export function useTempUnit() {
-  const [unit, setUnit] = useState(
-    () => localStorage.getItem(STORAGE_KEY) || "F"
-  );
+  const [unit, setUnit] = useState(() => {
+    try { return localStorage.getItem(STORAGE_KEY) || "F"; } catch { return "F"; }
+  });
 
   const toggleUnit = () => {
     const next = unit === "F" ? "C" : "F";
-    localStorage.setItem(STORAGE_KEY, next);
+    try { localStorage.setItem(STORAGE_KEY, next); } catch { /* ignore */ }
     setUnit(next);
   };
 
@@ -153,12 +154,7 @@ export function unitLabel(unit) {
   ```
 - Replace all raw temperature renders: `{value}&deg;` → `{toDisplay(value, unit)}{unitLabel(unit)}`. The bare `&deg;` entity must be removed — `unitLabel` already includes the degree symbol plus the unit letter.
 - Applies to three locations in WeatherTile: big temp display (`highTemp`), forecast strip high (`hi`), forecast strip low (`lo`)
-- Use `try/catch` in `useTempUnit`'s `useState` initializer for React Native compatibility (where `localStorage` throws rather than being undefined):
-  ```js
-  const [unit, setUnit] = useState(() => {
-    try { return localStorage.getItem(STORAGE_KEY) || "F"; } catch { return "F"; }
-  });
-  ```
+- The `try/catch` pattern in both the `useState` initializer and `toggleUnit` is already incorporated into the primary code block above.
 
 ---
 
@@ -184,7 +180,7 @@ User submits 10-day trip
 
 | File | Change |
 |------|--------|
-| `src/backend/services/tripPlanAI.js` | Dynamic day count, 5 prompt improvements |
+| `src/backend/services/tripPlanAI.js` | Dynamic day count, 5 prompt improvements, `MAX_TOKENS` 4096 → 6000 |
 | `src/frontend/src/hooks/useTempUnit.js` | New — localStorage-backed unit hook |
 | `src/frontend/src/utils/tempConvert.js` | New — toDisplay + unitLabel helpers |
 | `src/frontend/src/components/mosaic/WeatherTile.jsx` | Toggle button + use hook |
