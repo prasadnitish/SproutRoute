@@ -267,3 +267,107 @@ test("generateTripPlan handles adults-only trip (no children)", async () => {
     "System prompt should mention adults-only context",
   );
 });
+
+// ── Pet-aware planning ───────────────────────────────────────────────────────
+
+test("generateTripPlan includes pet planning rules when pets are present", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "Portland, OR",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["parks", "hiking"],
+      children: [{ age: 5 }],
+      pets: [
+        { type: "dog", name: "Max", breed: "golden retriever", weightLbs: 20, specialNeeds: "anxiety medication" },
+      ],
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  assert.ok(captured.calls.length >= 1, "Should have made at least 1 AI call");
+  const systemText = extractSystemText(captured.calls[0]);
+
+  assert.ok(systemText.includes("PETS TRAVELING"), "System prompt should include PETS TRAVELING section");
+  assert.ok(systemText.includes("PET-AWARE PLANNING RULES"), "System prompt should include PET-AWARE PLANNING RULES");
+  assert.ok(systemText.includes("Max"), "System prompt should include pet name");
+  assert.ok(systemText.includes("golden retriever"), "System prompt should include pet breed");
+  assert.ok(systemText.includes("20"), "System prompt should include pet weight");
+});
+
+test("generateTripPlan does NOT include pet rules when no pets", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "Portland, OR",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["parks"],
+      children: [{ age: 5 }],
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  assert.ok(!systemText.includes("PETS TRAVELING"), "System prompt should NOT include PETS TRAVELING when no pets");
+  assert.ok(!systemText.includes("PET-AWARE PLANNING RULES"), "System prompt should NOT include PET-AWARE PLANNING RULES when no pets");
+});
+
+test("generateTripPlan includes petFriendly field in activity schema when pets present", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "Portland, OR",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["parks"],
+      children: [{ age: 5 }],
+      pets: [
+        { type: "dog", name: "Buddy", breed: "labrador", weightLbs: 30 },
+      ],
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  assert.ok(systemText.includes("petFriendly"), "Activity schema should include petFriendly field when pets present");
+});
+
+test("generateTripPlan lists all pets with details in prompt", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "Denver, CO",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["hiking"],
+      children: [{ age: 8 }],
+      pets: [
+        { type: "dog", name: "Max", breed: "golden retriever", weightLbs: 20, specialNeeds: "anxiety medication" },
+        { type: "cat", name: "Whiskers", breed: "siamese", weightLbs: 8 },
+      ],
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+
+  assert.ok(systemText.includes("Max"), "Should list first pet name");
+  assert.ok(systemText.includes("golden retriever"), "Should list first pet breed");
+  assert.ok(systemText.includes("anxiety medication"), "Should list first pet special needs");
+  assert.ok(systemText.includes("Whiskers"), "Should list second pet name");
+  assert.ok(systemText.includes("siamese"), "Should list second pet breed");
+});
