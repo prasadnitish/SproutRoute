@@ -101,8 +101,34 @@ export async function getPetTravelGuidance(
     };
   }
 
+  // 3. Drive-mode safety tips (always useful)
+  const driveTips = [];
+  if (travelMode === "drive") {
+    driveTips.push("Never leave pets in a parked car — temperatures can rise 20°F in 10 minutes");
+    driveTips.push("Stop every 2-3 hours for water, bathroom breaks, and stretching");
+    driveTips.push("Use a pet seatbelt harness or secured carrier for safety");
+    driveTips.push("Bring a travel water bowl, familiar blanket, and pet first-aid kit");
+    for (const pet of pets) {
+      if (pet.ageMonths != null && pet.ageMonths < 6) {
+        driveTips.push(`Puppies under 6 months may get carsick — consult your vet before long drives`);
+        break;
+      }
+    }
+  }
+
+  // 4. General local ordinance tips
+  const localTips = [];
+  localTips.push("Check hotel/Airbnb pet policies and fees before booking");
+  localTips.push("Research local leash laws — many cities require leashes in public areas");
+  localTips.push("Locate emergency vet clinics near your destination before you go");
+  if (destination) {
+    localTips.push(`Search "${destination} dog-friendly restaurants and parks" for pet-welcoming venues`);
+  }
+
   return {
     airlineGuidance,
     entryRequirements,
+    driveTips: driveTips.length > 0 ? driveTips : null,
+    localTips,
   };
 }

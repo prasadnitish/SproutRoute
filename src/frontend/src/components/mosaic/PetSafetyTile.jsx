@@ -192,11 +192,11 @@ export default function PetSafetyTile({ petSafetyData }) {
   if (!petSafetyData) return null;
 
   const {
-    airlineGuidance = [],
     entryRequirements,
     requiredDocuments,
     source,
   } = petSafetyData;
+  const airlineGuidance = petSafetyData.airlineGuidance || [];
 
   const hasAirlineData = airlineGuidance.length > 0;
   const hasEntryData = !!entryRequirements;
@@ -206,7 +206,11 @@ export default function PetSafetyTile({ petSafetyData }) {
       (g) => g.airlines?.some((a) => a.requiredDocuments?.length > 0)
     );
 
-  if (!hasAirlineData && !hasEntryData) return null;
+  const driveTips = petSafetyData.driveTips || [];
+  const localTips = petSafetyData.localTips || [];
+  const hasTips = driveTips.length > 0 || localTips.length > 0;
+
+  if (!hasAirlineData && !hasEntryData && !hasTips) return null;
 
   // Collect all required documents from airline guidance + top-level
   const allDocs = new Set(requiredDocuments || []);
@@ -267,6 +271,40 @@ export default function PetSafetyTile({ petSafetyData }) {
       {/* Required documents checklist */}
       {allDocs.size > 0 && (
         <RequiredDocumentsSection documents={[...allDocs]} />
+      )}
+
+      {/* Drive safety tips */}
+      {driveTips.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+            {"\uD83D\uDE97"} Road Trip Safety
+          </p>
+          <ul className="space-y-1">
+            {driveTips.map((tip, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                <span className="text-amber-500 flex-shrink-0 mt-0.5">{"\u26A0\uFE0F"}</span>
+                <span>{tip}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Local ordinance tips */}
+      {localTips.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+            {"\uD83D\uDCCD"} Local Pet Tips
+          </p>
+          <ul className="space-y-1">
+            {localTips.map((tip, i) => (
+              <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                <span className="text-meadow-500 flex-shrink-0 mt-0.5">{"\u2022"}</span>
+                <span>{tip}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* Disclaimer */}
