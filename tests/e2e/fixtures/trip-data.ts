@@ -168,8 +168,22 @@ export const MOCK_TRIP_PLAN = {
 
 export const MOCK_PACKING_LIST = {
   categories: [
-    { name: "Beach Essentials", items: [{ name: "Sunscreen SPF 50" }, { name: "Beach towels" }] },
-    { name: "Kids",             items: [{ name: "Life jackets" },      { name: "Sand toys"    }] },
+    {
+      name: "Beach Essentials",
+      items: [
+        {
+          name: "Sunscreen SPF 50",
+          searchQuery: "reef safe sunscreen SPF 50 kids",
+          shopLinks: [
+            { store: "Amazon",  url: "https://www.amazon.com/s?k=reef%20safe%20sunscreen&tag=test-20", color: "#ff9900" },
+            { store: "Walmart", url: "https://www.walmart.com/search?q=reef%20safe%20sunscreen",       color: "#0071dc" },
+            { store: "Target",  url: "https://www.target.com/s?searchTerm=reef%20safe%20sunscreen",    color: "#cc0000" },
+          ],
+        },
+        { name: "Beach towels" },
+      ],
+    },
+    { name: "Kids", items: [{ name: "Life jackets" }, { name: "Sand toys" }] },
   ],
 };
 
