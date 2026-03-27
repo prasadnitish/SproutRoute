@@ -26,6 +26,7 @@ import {
   sanitizeTripData,
   validateTripData,
 } from "./utils/sanitize.js";
+import { buildShopLinks } from "./utils/affiliateLinks.js";
 
 dotenv.config();
 
@@ -333,6 +334,16 @@ export function createApp(deps = {}) {
       devLog(
         `Packing list generated successfully`,
       );
+
+      // Add shopLinks to each item in each category
+      if (packingList?.categories) {
+        for (const category of packingList.categories) {
+          category.items = category.items.map(item => ({
+            ...item,
+            shopLinks: item.searchQuery ? buildShopLinks(item.searchQuery) : [],
+          }));
+        }
+      }
 
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -677,6 +688,16 @@ export function createApp(deps = {}) {
       timings.ai = Date.now() - aiStart;
       timings.total = Date.now() - geocodeStart;
 
+      // Add shopLinks to each item in each category
+      if (packingList?.categories) {
+        for (const category of packingList.categories) {
+          category.items = category.items.map(item => ({
+            ...item,
+            shopLinks: item.searchQuery ? buildShopLinks(item.searchQuery) : [],
+          }));
+        }
+      }
+
       devLog(`v1/trip/bundle timings: geocode=${timings.geocode}ms, weather=${timings.weather}ms, ai=${timings.ai}ms, total=${timings.total}ms`);
 
       const tripDuration = Math.ceil(
@@ -815,6 +836,16 @@ export function createApp(deps = {}) {
         { destination, startDate, endDate, activities, children },
         weather,
       );
+
+      // Add shopLinks to each item in each category
+      if (packingList?.categories) {
+        for (const category of packingList.categories) {
+          category.items = category.items.map(item => ({
+            ...item,
+            shopLinks: item.searchQuery ? buildShopLinks(item.searchQuery) : [],
+          }));
+        }
+      }
 
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -1091,6 +1122,9 @@ export function startServer(port, deps = {}) {
   const PORT = Number(port ?? process.env.PORT ?? 8080);
   const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server listening on port ${PORT}`);
+    if (!process.env.AMAZON_AFFILIATE_TAG) {
+      console.warn("⚠️  AMAZON_AFFILIATE_TAG not set — affiliate links will work but won't earn commission");
+    }
   });
   return { app, server };
 }
