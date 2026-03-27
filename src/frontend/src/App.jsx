@@ -70,6 +70,7 @@ export default function App() {
             parsedInput={trip.parsedInput}
             packingList={trip.packingList}
             safetyData={trip.safetyData}
+            petSafetyData={trip.petSafetyData}
             enrichedData={enrichedData}
             enrich={enrich}
             onGoBack={trip.goBack}
