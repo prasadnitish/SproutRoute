@@ -25,8 +25,24 @@ Return ONLY valid JSON with these fields:
   "endDate": "YYYY-MM-DD" or null,
   "adults": number (default 2),
   "childrenAges": [numbers] or [],
-  "vibe": one of "beach","adventure","theme_parks","international","cruise","camping","city","relaxing","general"
+  "vibe": one of "beach","adventure","theme_parks","international","cruise","camping","city","relaxing","general",
+  "foodPreferences": {
+    "dietary": [] (e.g. ["vegetarian","gluten-free","halal","kosher","vegan","dairy-free","nut-free"]),
+    "cuisines": [] (e.g. ["italian","mexican","thai","seafood","local","bbq","sushi"]),
+    "avoidances": [] (e.g. ["no spicy","no seafood","no pork"]),
+    "kidFoods": [] (e.g. ["pizza","pasta","chicken nuggets","mac and cheese"]),
+    "budget": "budget" | "moderate" | "fine_dining" | null
+  }
 }
+
+Food preference extraction rules:
+- "we're vegetarian" → dietary: ["vegetarian"]
+- "kids love pizza" → kidFoods: ["pizza"]
+- "no seafood" → avoidances: ["no seafood"]
+- "looking for good sushi" → cuisines: ["sushi"]
+- "budget-friendly food" → budget: "budget"
+- "nice restaurants" or "fine dining" → budget: "fine_dining"
+- If no food preferences mentioned, return foodPreferences with all empty arrays and null budget.
 
 If the user mentions "spring break" and no dates, use April 12-19 of the current year.
 If no kids mentioned, childrenAges should be [].
@@ -46,6 +62,7 @@ export async function parseInput(text, deps = {}) {
   const raw = await callAI(prompt);
 
   const defaults = defaultDates();
+  const emptyFood = { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null };
 
   let parsed;
   try {
@@ -59,9 +76,12 @@ export async function parseInput(text, deps = {}) {
       adults: 2,
       childrenAges: [],
       vibe: "general",
+      foodPreferences: emptyFood,
       detectedRegion,
     };
   }
+
+  const fp = parsed.foodPreferences || {};
 
   return {
     destination: parsed.destination || null,
@@ -71,6 +91,13 @@ export async function parseInput(text, deps = {}) {
     adults: parsed.adults || 2,
     childrenAges: Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [],
     vibe: parsed.vibe || "general",
+    foodPreferences: {
+      dietary: Array.isArray(fp.dietary) ? fp.dietary : [],
+      cuisines: Array.isArray(fp.cuisines) ? fp.cuisines : [],
+      avoidances: Array.isArray(fp.avoidances) ? fp.avoidances : [],
+      kidFoods: Array.isArray(fp.kidFoods) ? fp.kidFoods : [],
+      budget: fp.budget || null,
+    },
     detectedRegion,
   };
 }

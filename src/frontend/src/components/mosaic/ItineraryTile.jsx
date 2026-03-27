@@ -30,19 +30,22 @@ function ActivityCard({ activity, onTap }) {
   const isMeal = activity.isMeal || activity.status === "meal";
   const isClosed = activity.status === "closed";
   const name = activity.name || activity.title || "Activity";
-  const emoji = activity.emoji || CATEGORY_EMOJI[activity.category] || (isMeal ? "\u{1F37D}" : "\u{1F3AF}");
+  const mealEmojis = { breakfast: "\u{2615}", lunch: "\u{1F37D}", dinner: "\u{1F377}" };
+  const emoji = isMeal
+    ? (mealEmojis[activity.mealType] || "\u{1F37D}")
+    : (activity.emoji || CATEGORY_EMOJI[activity.category] || "\u{1F3AF}");
   const enriched = activity.enriched;
   const photoUrl = enriched?.photos?.[0];
 
   return (
     <div
-      onClick={() => !isMeal && onTap?.(activity)}
-      className={`relative flex gap-3 p-3 rounded-xl border transition ${
+      onClick={() => onTap?.(activity)}
+      className={`relative flex gap-3 p-3 rounded-xl border transition cursor-pointer ${
         isClosed
           ? "border-red-100 bg-red-50/50 opacity-70"
           : isMeal
-            ? "border-amber-100 bg-amber-50/30"
-            : "border-transparent hover:bg-meadow-50 hover:border-meadow-200 cursor-pointer"
+            ? "border-amber-100 bg-amber-50/30 hover:bg-amber-50"
+            : "border-transparent hover:bg-meadow-50 hover:border-meadow-200"
       }`}
     >
       {/* Timeline dot */}
@@ -79,7 +82,17 @@ function ActivityCard({ activity, onTap }) {
           {enriched && <PriceLevel level={enriched.priceLevel} />}
         </div>
 
-        {activity.description && (
+        {/* Cuisine tag + note for meals */}
+        {isMeal && activity.cuisine && (
+          <span className="inline-block text-[10px] bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 mt-0.5">
+            {activity.cuisine}
+          </span>
+        )}
+        {isMeal && activity.note && (
+          <p className="text-xs text-amber-600/80 mt-0.5">{activity.note}</p>
+        )}
+
+        {activity.description && !isMeal && (
           <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">
             {activity.description}
           </p>

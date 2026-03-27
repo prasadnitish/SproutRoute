@@ -101,6 +101,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     children,
     tripType = null,
     countryCode = "US",
+    foodPreferences = null,
   } = tripData;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
@@ -114,7 +115,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     activities,
     children,
     weatherForecast,
-    { compact: false, tripType, countryCode },
+    { compact: false, tripType, countryCode, foodPreferences },
   );
 
   try {
@@ -140,7 +141,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         activities,
         children,
         weatherForecast,
-        { compact: true, tripType, countryCode },
+        { compact: true, tripType, countryCode, foodPreferences },
       );
 
       const secondAttempt = await requestWithRetry(
@@ -193,7 +194,7 @@ function buildTripPlanPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false, tripType = null, countryCode = "US" } = options;
+  const { compact = false, tripType = null, countryCode = "US", foodPreferences = null } = options;
 
   const isCruise = tripType === "cruise";
   const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
@@ -256,7 +257,11 @@ Generate a trip plan with the following structure:
     {
       "day": "${isCruise ? "Day 1: Embarkation" : "Day 1 (date)"}",
       "activities": ["activity-id-1", "activity-id-2"],
-      "meals": "Meal suggestions",
+      "meals": {
+        "breakfast": { "name": "Specific restaurant name", "cuisine": "type", "note": "Why recommended" },
+        "lunch": { "name": "Specific restaurant name", "cuisine": "type", "note": "Why recommended" },
+        "dinner": { "name": "Specific restaurant name", "cuisine": "type", "note": "Why recommended" }
+      },
       "notes": "Any special notes (weather warnings, booking recommendations, etc.)"
     }
   ],
@@ -273,6 +278,14 @@ ${internationalContext}
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs)
 5. Be specific to the destination (not generic advice)
 6. Create a balanced daily itinerary that's not too packed
+7. For EACH meal (breakfast, lunch, dinner), suggest a SPECIFIC, REAL restaurant name at the destination. Vary cuisines across days. Include the cuisine type and a brief note about why it's a good fit.
+${foodPreferences ? `8. FOOD PREFERENCES (must respect):
+   - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
+   - Preferred cuisines: ${foodPreferences.cuisines?.length ? foodPreferences.cuisines.join(", ") : "open to all"}
+   - Avoidances: ${foodPreferences.avoidances?.length ? foodPreferences.avoidances.join(", ") : "none"}
+   - Kid-friendly foods: ${foodPreferences.kidFoods?.length ? foodPreferences.kidFoods.join(", ") : "standard kid options"}
+   - Budget: ${foodPreferences.budget || "moderate"}
+   All restaurant suggestions MUST accommodate these dietary needs.` : ""}
 ${sizeGuardrail}
 Return ONLY the JSON, no additional text.`;
 
