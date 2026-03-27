@@ -18,6 +18,7 @@ import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
 import { parseInput } from "./services/parseInput.js";
 import { getTravelSafety } from "./services/travelSafety.js";
+import { getPetTravelGuidance } from "./services/petSafety.js";
 import { enrichActivity } from "./services/placesEnrich.js";
 import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js";
 import {
@@ -27,7 +28,7 @@ import {
   validateTripData,
 } from "./utils/sanitize.js";
 import { buildShopLinks } from "./utils/affiliateLinks.js";
-import { sanitizeDestination, sanitizeFoodPreferences } from "./services/inputSafety.js";
+import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets } from "./services/inputSafety.js";
 import { log } from "./utils/logger.js";
 
 dotenv.config();
@@ -65,6 +66,7 @@ export function createApp(deps = {}) {
     getTravelAdvisoryFn = getTravelAdvisory,
     getNeighborhoodSafetyFn = getNeighborhoodSafety,
     enrichActivityFn = enrichActivity,
+    getPetTravelGuidanceFn = getPetTravelGuidance,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -961,6 +963,73 @@ export function createApp(deps = {}) {
       return v1Error(res, 500, {
         code: "SAFETY_CHECK_FAILED",
         message: "Failed to retrieve car seat guidance. Please try again.",
+        category: "server",
+        retryable: true,
+        requestId,
+      });
+    }
+  });
+
+  // POST /api/v1/safety/pet-travel-check
+  // Returns airline eligibility + international entry requirements for traveling with pets.
+  app.post("/api/v1/safety/pet-travel-check", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    try {
+      // Validate and sanitize pets array
+      const rawPets = req.body?.pets;
+      if (!Array.isArray(rawPets) || rawPets.length === 0) {
+        return v1Error(res, 422, {
+          code: "MISSING_PETS",
+          message: "At least one pet is required for pet travel guidance.",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const pets = sanitizePets(rawPets);
+      if (pets.length === 0) {
+        return v1Error(res, 422, {
+          code: "INVALID_PETS",
+          message: "No valid pets found after sanitization.",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      // Validate travelMode
+      const travelMode = req.body?.travelMode;
+      if (!travelMode || !["fly", "drive"].includes(travelMode)) {
+        return v1Error(res, 422, {
+          code: "INVALID_TRAVEL_MODE",
+          message: "travelMode must be \"fly\" or \"drive\".",
+          category: "validation",
+          retryable: false,
+          requestId,
+        });
+      }
+
+      const destination = sanitizeString(req.body?.destination || "", 200);
+      const countryCode = sanitizeString(req.body?.countryCode || "US", 2).toUpperCase();
+      const startDate = sanitizeString(req.body?.startDate || "", 20);
+
+      const guidance = await getPetTravelGuidanceFn(pets, {
+        destination,
+        travelMode,
+        countryCode,
+        startDate,
+      });
+
+      return res.json({
+        requestId,
+        ...guidance,
+      });
+    } catch (error) {
+      devLog("Error in /api/v1/safety/pet-travel-check:", error);
+      return v1Error(res, 500, {
+        code: "PET_SAFETY_FAILED",
+        message: "Failed to retrieve pet travel guidance. Please try again.",
         category: "server",
         retryable: true,
         requestId,
