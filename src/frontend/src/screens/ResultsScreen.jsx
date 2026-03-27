@@ -52,6 +52,7 @@ export default function ResultsScreen({
     tripData?.itinerary ||
     [];
   const suggestedActivities = tripData?.tripPlan?.suggestedActivities || [];
+  const scheduledItinerary = tripData?.scheduledItinerary || null;
   const dailyItinerary = useMemo(
     () => resolveItinerary(rawItinerary, suggestedActivities),
     [rawItinerary, suggestedActivities]
@@ -143,6 +144,7 @@ export default function ResultsScreen({
           {/* Itinerary — full width below the mosaic */}
           <ItineraryTile
             dailyItinerary={dailyItinerary}
+            scheduledItinerary={scheduledItinerary}
             forecast={forecast}
             onActivityTap={handleActivityTap}
           />

@@ -19,6 +19,7 @@ import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
 import { parseInput } from "./services/parseInput.js";
 import { getTravelSafety } from "./services/travelSafety.js";
 import { enrichActivity } from "./services/placesEnrich.js";
+import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js";
 import {
   sanitizeString,
   sanitizeChildren,
@@ -60,6 +61,7 @@ export function createApp(deps = {}) {
     getCarSeatGuidanceFn = getCarSeatGuidance,
     getTravelAdvisoryFn = getTravelAdvisory,
     getNeighborhoodSafetyFn = getNeighborhoodSafety,
+    enrichActivityFn = enrichActivity,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -207,9 +209,26 @@ export function createApp(deps = {}) {
         },
         weather,
       );
-      devLog(
-        `Trip plan generated successfully`,
-      );
+      devLog(`Trip plan generated successfully`);
+
+      // ── Enrich + Schedule pipeline ──────────────────────────────
+      // Batch-enrich all activities with Google Places data (hours, rating, photos)
+      // then schedule them into real time slots based on business hours.
+      let scheduledItinerary = null;
+      let enrichedMap = {};
+      try {
+        const destName = coords.displayName || destination;
+        enrichedMap = await batchEnrich(
+          tripPlan.suggestedActivities,
+          destName,
+          enrichActivityFn,
+        );
+        scheduledItinerary = scheduleItinerary(tripPlan, enrichedMap, startDate);
+        devLog(`Scheduled ${scheduledItinerary.length} days with ${Object.keys(enrichedMap).length} enriched activities`);
+      } catch (enrichErr) {
+        // Non-blocking: fall back to un-scheduled itinerary
+        devLog(`Enrich/schedule failed (non-blocking): ${enrichErr.message}`);
+      }
 
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -232,6 +251,8 @@ export function createApp(deps = {}) {
         },
         weather,
         tripPlan,
+        scheduledItinerary,
+        enrichedMap,
       });
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
