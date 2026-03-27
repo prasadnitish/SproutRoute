@@ -6,6 +6,7 @@ import SafetyTile from "../components/mosaic/SafetyTile";
 import MapTile from "../components/mosaic/MapTile";
 import ActivityDetailPanel from "../components/ActivityDetailPanel";
 import PackingChecklist from "../components/PackingChecklist";
+import DayRouteMap from "../components/mosaic/DayRouteMap";
 
 const TABS = [
   { key: "plan", label: "\u{1F4C5} Plan" },
@@ -45,6 +46,7 @@ export default function ResultsScreen({
 }) {
   const [activeTab, setActiveTab] = useState("plan");
   const [selectedActivity, setSelectedActivity] = useState(null);
+  const [activeDayActivities, setActiveDayActivities] = useState([]);
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
   const rawItinerary =
@@ -142,13 +144,24 @@ export default function ResultsScreen({
             </div>
           </div>
 
-          {/* Itinerary — full width below the mosaic */}
-          <ItineraryTile
-            dailyItinerary={dailyItinerary}
-            scheduledItinerary={scheduledItinerary}
-            forecast={forecast}
-            onActivityTap={handleActivityTap}
-          />
+          {/* Itinerary + Day Route Map — side by side on desktop */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3">
+            <ItineraryTile
+              dailyItinerary={dailyItinerary}
+              scheduledItinerary={scheduledItinerary}
+              forecast={forecast}
+              onActivityTap={handleActivityTap}
+              onDayChange={setActiveDayActivities}
+            />
+            <div className="hidden lg:block">
+              <DayRouteMap
+                activities={activeDayActivities}
+                destination={destination}
+                lat={lat}
+                lon={lon}
+              />
+            </div>
+          </div>
         </div>
       )}
 
