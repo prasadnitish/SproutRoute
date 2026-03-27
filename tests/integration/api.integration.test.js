@@ -392,3 +392,94 @@ test("POST /api/safety/car-seat-check returns guidance from safety service", asy
   assert.equal(res.body.status, "Needs review");
   assert.equal(res.body.results[0].requiredRestraint, "booster");
 });
+
+// --- Pet travel check integration tests ---
+
+test("POST /api/v1/safety/pet-travel-check returns 200 with valid pet data (fly mode)", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({ enableRequestLogging: false });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/safety/pet-travel-check", {
+    pets: [{ type: "dog", name: "Max", breed: "golden retriever", weightLbs: 20 }],
+    destination: "London, UK",
+    countryCode: "GB",
+    travelMode: "fly",
+    startDate: "2026-08-15",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.requestId, "should include requestId");
+  assert.ok(res.body.airlineGuidance, "should include airline guidance for fly mode");
+  assert.equal(res.body.airlineGuidance.length, 1);
+  assert.equal(res.body.airlineGuidance[0].airlines.length, 6);
+  assert.ok(res.body.entryRequirements, "should include entry requirements for GB");
+  assert.equal(res.body.entryRequirements.country, "United Kingdom");
+});
+
+test("POST /api/v1/safety/pet-travel-check returns 422 for empty pets array", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({ enableRequestLogging: false });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/safety/pet-travel-check", {
+    pets: [],
+    travelMode: "fly",
+  });
+
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.code, "MISSING_PETS");
+});
+
+test("POST /api/v1/safety/pet-travel-check returns 422 for invalid travelMode", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({ enableRequestLogging: false });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/safety/pet-travel-check", {
+    pets: [{ type: "dog", breed: "poodle", weightLbs: 15 }],
+    travelMode: "teleport",
+  });
+
+  assert.equal(res.statusCode, 422);
+  assert.equal(res.body.code, "INVALID_TRAVEL_MODE");
+});
+
+test("POST /api/v1/safety/pet-travel-check skips airlines for drive mode", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({ enableRequestLogging: false });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/safety/pet-travel-check", {
+    pets: [{ type: "dog", name: "Buddy", breed: "labrador", weightLbs: 30 }],
+    destination: "San Diego, CA",
+    countryCode: "US",
+    travelMode: "drive",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.airlineGuidance, null, "no airline guidance for drive mode");
+  assert.equal(res.body.entryRequirements, null, "no entry requirements for US domestic");
+});
+
+test("POST /api/v1/safety/pet-travel-check returns airline guidance with DI mock", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const mockGuidance = {
+    airlineGuidance: [{ pet: "TestDog", airlines: [{ carrier: "Mock Air", cabinEligible: true }] }],
+    entryRequirements: null,
+  };
+
+  const app = createApp({
+    enableRequestLogging: false,
+    getPetTravelGuidanceFn: async () => mockGuidance,
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/safety/pet-travel-check", {
+    pets: [{ type: "dog", breed: "test", weightLbs: 10 }],
+    travelMode: "fly",
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.airlineGuidance[0].pet, "TestDog");
+});
