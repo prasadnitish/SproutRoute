@@ -141,6 +141,7 @@ export async function callModel(prompt, deps = {}) {
   } = prompt;
 
   const provider = (process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
+  const fallbackEnabled = provider === "anthropic" && !!process.env.DEEPSEEK_API_KEY;
 
   try {
     if (provider === "deepseek") {
@@ -148,12 +149,24 @@ export async function callModel(prompt, deps = {}) {
       return await callDeepSeek(client, { system, user, maxTokens, temperature });
     }
 
-    // Default: Anthropic (Claude Haiku)
+    // Default: Anthropic (Claude Sonnet)
     const client = deps.anthropicClient ?? makeAnthropicClient();
     return await callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt });
   } catch (error) {
+    // Fallback to DeepSeek if Anthropic fails and DEEPSEEK_API_KEY is configured
+    if (fallbackEnabled) {
+      log.warn(`Anthropic failed, falling back to DeepSeek`, { error: error.message });
+      try {
+        const dsClient = deps.deepseekClient ?? (await makeDeepSeekClient());
+        return await callDeepSeek(dsClient, { system, user, maxTokens, temperature });
+      } catch (fallbackError) {
+        log.error(`DeepSeek fallback also failed`, { error: fallbackError.message });
+        // Throw the original Anthropic error (more useful for debugging)
+        throw error;
+      }
+    }
+
     log.error(`AI call failed (${provider})`, { error: error.message });
-    // Re-throw so callers (packingListAI, tripPlanAI) can handle with their retry logic
     throw error;
   }
 }
