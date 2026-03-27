@@ -221,7 +221,7 @@ function milesToMeters(miles) {
   return miles * 1609.34;
 }
 
-function haversineDistanceMiles(lat1, lon1, lat2, lon2) {
+export function haversineDistanceMiles(lat1, lon1, lat2, lon2) {
   // Great-circle distance approximation: good enough for ranking nearby options.
   const toRad = (deg) => (deg * Math.PI) / 180;
   const R = 3958.8; // Earth radius in miles
