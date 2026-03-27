@@ -18,6 +18,9 @@ export function useTrip() {
   const submitTrip = useCallback(async (text, geolocation) => {
     setTripInput(text);
     setError(null);
+    setTripData(null);
+    setPackingList(null);
+    setSafetyData(null);
     setScreen("generating");
     setProgress({});
 
