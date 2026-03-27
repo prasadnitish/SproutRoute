@@ -190,6 +190,7 @@ export function sanitizeTripPayload(tripData) {
     endDate: sanitizeDate(tripData.endDate),
     activities: sanitizeActivities(tripData.activities || []),
     children: sanitizeChildren(tripData.children || []),
+    pets: sanitizePets(tripData.pets || []),
   };
 
   // Preserve non-user-input fields as-is (countryCode, lat, lon are system-derived)
@@ -254,6 +255,96 @@ export function sanitizeFoodPreferences(fp) {
     kidFoods: sanitizeList(fp.kidFoods),
     budget: ALLOWED_BUDGETS.has(fp.budget) ? fp.budget : null,
   };
+}
+
+// ── Pet sanitization ────────────────────────────────────────────────
+
+const ALLOWED_PET_TYPES = new Set(["dog", "cat", "small_animal"]);
+const MAX_PETS = 5;
+const MAX_PET_NAME_LENGTH = 50;
+const MAX_PET_BREED_LENGTH = 80;
+const MAX_SPECIAL_NEEDS_LENGTH = 300;
+const MAX_PET_WEIGHT = 300;
+
+/**
+ * Sanitize a pet special-needs string.
+ * Allows medical-safe characters: letters, digits, whitespace, and common
+ * punctuation used in dosage descriptions (e.g., "5mg twice daily",
+ * "Rx: Apoquel 3.6mg, given 2x/day (morning & evening)").
+ * Strips injection patterns and HTML. Caps at 300 chars.
+ * @param {string} input
+ * @returns {string}
+ */
+export function sanitizeSpecialNeeds(input) {
+  if (typeof input !== "string") return "";
+
+  let cleaned = input.slice(0, MAX_SPECIAL_NEEDS_LENGTH);
+  cleaned = removeNonPrintable(cleaned);
+
+  // Strip injection patterns
+  for (const pattern of INJECTION_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  for (const pattern of HTML_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  for (const pattern of SQL_PATTERNS) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+
+  // Only allow medical-safe characters
+  cleaned = cleaned.replace(/[^a-zA-Z0-9\s,.\-'()&/+#:;mg]/g, "");
+
+  // Normalize whitespace that may result from stripping
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+  logIfBlocked(input, cleaned, "specialNeeds");
+  return cleaned;
+}
+
+/**
+ * Sanitize a single pet object. Returns a cleaned pet with validated fields.
+ * @param {object} pet
+ * @returns {object}
+ */
+function sanitizeSinglePet(pet) {
+  if (!pet || typeof pet !== "object") {
+    return { type: "dog", name: "", breed: "", weightLbs: 0, specialNeeds: "" };
+  }
+
+  // Type: validate against allowlist, default to "dog"
+  const type = ALLOWED_PET_TYPES.has(pet.type) ? pet.type : "dog";
+
+  // Name: sanitize via sanitizeDestination (allows accented chars, periods), cap at 50
+  const rawName = typeof pet.name === "string" ? pet.name.slice(0, MAX_PET_NAME_LENGTH) : "";
+  const name = sanitizeDestination(rawName);
+
+  // Breed: sanitize via sanitizeDestination (allows accented chars like "Bichon Frisé"), cap at 80
+  const rawBreed = typeof pet.breed === "string" ? pet.breed.slice(0, MAX_PET_BREED_LENGTH) : "";
+  const breed = sanitizeDestination(rawBreed);
+
+  // Weight: parse as number, clamp 0-300
+  const rawWeight = Number(pet.weightLbs);
+  const weightLbs = isFinite(rawWeight) && !isNaN(rawWeight)
+    ? Math.max(0, Math.min(MAX_PET_WEIGHT, Math.floor(rawWeight)))
+    : 0;
+
+  // Special needs
+  const specialNeeds = sanitizeSpecialNeeds(pet.specialNeeds || "");
+
+  return { type, name, breed, weightLbs, specialNeeds };
+}
+
+/**
+ * Sanitize a pets array.
+ * Validates each pet, caps array at 5 items.
+ * Returns empty array for non-array / null / undefined input.
+ * @param {Array} pets
+ * @returns {Array}
+ */
+export function sanitizePets(pets) {
+  if (!Array.isArray(pets)) return [];
+  return pets.slice(0, MAX_PETS).map(sanitizeSinglePet);
 }
 
 export function isAiResponseSafe(responseText) {
