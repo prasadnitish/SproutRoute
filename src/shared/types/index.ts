@@ -41,3 +41,17 @@ export type {
   CarSeatCheckResponse,
   ChildCarSeatResult,
 } from "./trip.js";
+
+export type {
+  // Pet travel
+  PetType,
+  Pet,
+  PetAirlineRule,
+  PetEntryRule,
+  PetAirlineEligibility,
+  PetAirlineGuidance,
+  PetEntryRequirements,
+  TravelMode,
+  PetTravelCheckRequest,
+  PetTravelCheckResponse,
+} from "./pet.js";
