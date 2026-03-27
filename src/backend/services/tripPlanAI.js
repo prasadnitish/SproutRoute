@@ -102,6 +102,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     tripType = null,
     countryCode = "US",
     foodPreferences = null,
+    pets = [],
   } = tripData;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
@@ -115,7 +116,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     activities,
     children,
     weatherForecast,
-    { compact: false, tripType, countryCode, foodPreferences },
+    { compact: false, tripType, countryCode, foodPreferences, pets },
   );
 
   try {
@@ -141,7 +142,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         activities,
         children,
         weatherForecast,
-        { compact: true, tripType, countryCode, foodPreferences },
+        { compact: true, tripType, countryCode, foodPreferences, pets },
       );
 
       const secondAttempt = await requestWithRetry(
@@ -194,7 +195,7 @@ function buildTripPlanPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false, tripType = null, countryCode = "US", foodPreferences = null } = options;
+  const { compact = false, tripType = null, countryCode = "US", foodPreferences = null, pets = [] } = options;
 
   const isCruise = tripType === "cruise";
   const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
@@ -226,6 +227,22 @@ function buildTripPlanPrompt(
 - Note tender ports (smaller ships required) when applicable
 - Include advice about staying near the ship for shorter port stops` : "";
 
+  // Pet-aware planning context
+  const hasPets = Array.isArray(pets) && pets.length > 0;
+  const petContext = hasPets ? `
+**PETS TRAVELING:**
+${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weightLbs} lbs${p.specialNeeds ? ", " + p.specialNeeds : ""}`).join("\n")}
+
+**PET-AWARE PLANNING RULES:**
+1. All restaurant suggestions MUST be pet-friendly (outdoor seating or explicitly pet-welcoming)
+2. Include at least 2 off-leash dog parks or pet exercise areas per day for dogs
+3. For cats/small animals: suggest activities where pet stays safely at accommodation
+4. Suggest one pet daycare/boarding option per day for activities that don't allow pets
+5. Never suggest leaving pets in vehicles
+6. Note pet-restricted venues clearly with a warning
+7. Consider pet anxiety/energy levels when planning activity density
+8. Include pet supply stores near accommodation for emergencies` : "";
+
   // International context additions
   const internationalContext = isInternational ? `
 **INTERNATIONAL TRAVEL CONTEXT:**
@@ -247,7 +264,8 @@ Generate a trip plan with the following structure:
       "category": "one of: beach, hiking, city, museums, parks, dining, shopping, sports, water, wildlife, theme_park, camping${isCruise ? ", cruise, shore_excursion" : ""}",
       "description": "Brief description of the activity (1-2 sentences)",
       "duration": "Estimated duration (e.g., '2-3 hours', 'half day', 'full day')",
-      "kidFriendly": true,
+      "kidFriendly": true,${hasPets ? `
+      "petFriendly": true,` : ""}
       "weatherDependent": false,
       "bestDays": ["Day names from forecast when this activity is recommended"],
       "reason": "Why this activity is recommended (weather, season, family-friendly, etc.)"
@@ -271,6 +289,7 @@ Generate a trip plan with the following structure:
 }
 ${cruiseInstructions}
 ${internationalContext}
+${petContext}
 **Requirements:**
 1. Include a mix of indoor and outdoor activities based on weather
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
