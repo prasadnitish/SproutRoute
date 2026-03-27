@@ -26,6 +26,7 @@ Return ONLY valid JSON with these fields:
   "adults": number (default 2),
   "childrenAges": [numbers] or [],
   "vibe": one of "beach","adventure","theme_parks","international","cruise","camping","city","relaxing","general",
+  "pets": [{"type":"dog"|"cat"|"bird"|"other","breed":"string or null","ageMonths":number or null,"weightLb":number or null,"name":"string or null"}] or [],
   "foodPreferences": {
     "dietary": [] (e.g. ["vegetarian","gluten-free","halal","kosher","vegan","dairy-free","nut-free"]),
     "cuisines": [] (e.g. ["italian","mexican","thai","seafood","local","bbq","sushi"]),
@@ -34,6 +35,14 @@ Return ONLY valid JSON with these fields:
     "budget": "budget" | "moderate" | "fine_dining" | null
   }
 }
+
+Pet extraction rules:
+- "with my dog" or "bringing our dog" → pets: [{"type":"dog"}]
+- "3 month maltipoo" → pets: [{"type":"dog","breed":"Maltipoo","ageMonths":3}]
+- "golden retriever puppy named Max, 20 lbs" → pets: [{"type":"dog","breed":"Golden Retriever","ageMonths":null,"weightLb":20,"name":"Max"}]
+- "traveling with our cat" → pets: [{"type":"cat"}]
+- "two dogs" → pets: [{"type":"dog"},{"type":"dog"}]
+- If no pets mentioned, pets should be [].
 
 Food preference extraction rules:
 - "we're vegetarian" → dietary: ["vegetarian"]
@@ -75,6 +84,7 @@ export async function parseInput(text, deps = {}) {
       ...defaults,
       adults: 2,
       childrenAges: [],
+      pets: [],
       vibe: "general",
       foodPreferences: emptyFood,
       detectedRegion,
@@ -90,6 +100,7 @@ export async function parseInput(text, deps = {}) {
     endDate: parsed.endDate || defaults.endDate,
     adults: parsed.adults || 2,
     childrenAges: Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [],
+    pets: Array.isArray(parsed.pets) ? parsed.pets : [],
     vibe: parsed.vibe || "general",
     foodPreferences: {
       dietary: Array.isArray(fp.dietary) ? fp.dietary : [],
