@@ -10,17 +10,34 @@ const VIBES = [
   { emoji: "\u{1F3D9}", label: "City break" },
 ];
 
+const TRAVELER_TAGS = [
+  { key: "kids", emoji: "\u{1F476}", label: "With kids", hint: "traveling with kids" },
+  { key: "pet", emoji: "\u{1F43E}", label: "With a pet", hint: "traveling with our dog" },
+];
+
 export default function InputScreen({ onSubmit }) {
   const [text, setText] = useState("");
+  const [tags, setTags] = useState({});
   const textareaRef = useRef(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
 
+  const toggleTag = (key) => {
+    setTags((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const handleSubmit = () => {
     const trimmed = text.trim();
-    if (trimmed) onSubmit(trimmed);
+    if (!trimmed) return;
+    // Append context hints from toggles if user didn't already mention them
+    const lower = trimmed.toLowerCase();
+    const extras = TRAVELER_TAGS
+      .filter(t => tags[t.key] && !lower.includes(t.key === "kids" ? "kid" : "dog") && !lower.includes(t.key === "kids" ? "child" : "pet"))
+      .map(t => t.hint);
+    const finalText = extras.length > 0 ? `${trimmed} — ${extras.join(", ")}` : trimmed;
+    onSubmit(finalText);
   };
 
   const handleKeyDown = (e) => {
@@ -64,6 +81,25 @@ export default function InputScreen({ onSubmit }) {
             Plan it &#x2728;
           </button>
         </div>
+      </div>
+
+      {/* Traveler toggles */}
+      <div className="flex gap-2 w-full justify-center">
+        {TRAVELER_TAGS.map(({ key, emoji, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggleTag(key)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition cursor-pointer border ${
+              tags[key]
+                ? "bg-meadow-100 border-meadow-500 text-meadow-700"
+                : "bg-white border-gray-200 text-gray-500 hover:border-meadow-400"
+            }`}
+            aria-pressed={!!tags[key]}
+          >
+            {emoji} {label}
+          </button>
+        ))}
       </div>
 
       {/* Divider */}
