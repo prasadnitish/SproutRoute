@@ -3,6 +3,7 @@ import HeroTile from "../components/mosaic/HeroTile";
 import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
+import ActivityDetailPanel from "../components/ActivityDetailPanel";
 
 const TABS = [
   { key: "plan", label: "\u{1F4C5} Plan" },
@@ -14,12 +15,28 @@ export default function ResultsScreen({
   parsedInput,
   packingList,
   safetyData,
+  enrichedData,
+  enrich,
   onGoBack,
 }) {
   const [activeTab, setActiveTab] = useState("plan");
+  const [selectedActivity, setSelectedActivity] = useState(null);
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
   const dailyItinerary = tripData?.itinerary?.dailyItinerary || tripData?.itinerary || [];
+  const destination = tripData?.parsed?.destination;
+
+  const handleActivityTap = (activity) => {
+    setSelectedActivity(activity);
+    const activityName = activity.name || activity.title || "";
+    if (activityName && destination) {
+      enrich?.(activityName, destination, activity.category);
+    }
+  };
+
+  const selectedKey = selectedActivity
+    ? `${selectedActivity.name || selectedActivity.title || ""}||${destination}`
+    : null;
 
   return (
     <div className="w-full max-w-5xl mx-auto">
@@ -62,6 +79,7 @@ export default function ResultsScreen({
             <ItineraryTile
               dailyItinerary={dailyItinerary}
               forecast={forecast}
+              onActivityTap={handleActivityTap}
             />
           </div>
 
@@ -83,6 +101,14 @@ export default function ResultsScreen({
           </p>
         </div>
       )}
+
+      {/* Activity Detail Panel */}
+      <ActivityDetailPanel
+        activity={selectedActivity}
+        placesData={selectedKey ? enrichedData?.[selectedKey] : null}
+        isOpen={!!selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+      />
     </div>
   );
 }
