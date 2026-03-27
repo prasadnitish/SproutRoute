@@ -1,6 +1,16 @@
 // src/backend/services/parseInput.js
 import { callModel } from "../utils/aiClient.js";
 
+const fmt = (d) => d.toISOString().split("T")[0];
+
+function defaultDates() {
+  const start = new Date();
+  start.setDate(start.getDate() + 14);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  return { startDate: fmt(start), endDate: fmt(end) };
+}
+
 const PARSE_PROMPT = (userText, region) => `You are a trip planner assistant. Parse this trip request into structured JSON.
 
 User input: "${userText}"
@@ -35,6 +45,8 @@ export async function parseInput(text, deps = {}) {
   const prompt = PARSE_PROMPT(text, detectedRegion);
   const raw = await callAI(prompt);
 
+  const defaults = defaultDates();
+
   let parsed;
   try {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -43,8 +55,7 @@ export async function parseInput(text, deps = {}) {
     return {
       destination: null,
       suggestedDestinations: [],
-      startDate: null,
-      endDate: null,
+      ...defaults,
       adults: 2,
       childrenAges: [],
       vibe: "general",
@@ -55,8 +66,8 @@ export async function parseInput(text, deps = {}) {
   return {
     destination: parsed.destination || null,
     suggestedDestinations: parsed.suggestedDestinations || [],
-    startDate: parsed.startDate || null,
-    endDate: parsed.endDate || null,
+    startDate: parsed.startDate || defaults.startDate,
+    endDate: parsed.endDate || defaults.endDate,
     adults: parsed.adults || 2,
     childrenAges: Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [],
     vibe: parsed.vibe || "general",
