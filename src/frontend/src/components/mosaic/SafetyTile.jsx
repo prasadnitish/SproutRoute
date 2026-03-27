@@ -1,3 +1,5 @@
+import { safeText } from "../../utils/safeRender";
+
 function Badge({ color, children }) {
   const colors = {
     green: "bg-green-100 text-green-700",
@@ -86,7 +88,7 @@ export default function SafetyTile({ safetyData }) {
                       <span className="text-meadow-500 flex-shrink-0 mt-0.5">
                         {"\u2022"}
                       </span>
-                      <span>{tip}</span>
+                      <span>{safeText(tip)}</span>
                     </li>
                   ))}
                 </ul>
@@ -108,7 +110,7 @@ export default function SafetyTile({ safetyData }) {
                       <span className="text-meadow-500 flex-shrink-0 mt-0.5">
                         {"\u2022"}
                       </span>
-                      <span>{tip}</span>
+                      <span>{safeText(tip)}</span>
                     </li>
                   ))}
                 </ul>
@@ -135,7 +137,7 @@ export default function SafetyTile({ safetyData }) {
                   <ul className="space-y-0.5">
                     {safetyData.localCustoms.slice(0, 2).map((tip, i) => (
                       <li key={i} className="text-xs text-gray-600 leading-snug">
-                        {tip}
+                        {safeText(tip)}
                       </li>
                     ))}
                   </ul>

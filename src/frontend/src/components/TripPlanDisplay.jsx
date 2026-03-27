@@ -6,6 +6,7 @@
 import { useState, useEffect, useRef } from "react";
 import { format, addDays } from "date-fns";
 import { motion } from "framer-motion";
+import { safeText, formatMeals } from "../utils/safeRender";
 
 export default function TripPlanDisplay({
   tripPlan,
@@ -292,18 +293,18 @@ export default function TripPlanDisplay({
                     {day.activities.map((id, ai) => (
                       <p key={ai} className="text-sm text-slate-text dark:text-dark-text flex items-start gap-2">
                         <span className="text-sprout-base mt-0.5">●</span>
-                        {activityNameMap[id] || id}
+                        {safeText(activityNameMap[id] || id)}
                       </p>
                     ))}
                   </div>
                 )}
 
                 {day.meals && (
-                  <p className="text-xs text-muted dark:text-dark-muted">🍽 {day.meals}</p>
+                  <p className="text-xs text-muted dark:text-dark-muted">🍽 {formatMeals(day.meals)}</p>
                 )}
                 {day.notes && (
                   <p className="text-xs text-muted dark:text-dark-muted italic">
-                    {day.notes}
+                    {safeText(day.notes)}
                   </p>
                 )}
               </motion.div>
@@ -349,14 +350,14 @@ export default function TripPlanDisplay({
                     <div className="space-y-1">
                       {day.activities.map((id, ai) => (
                         <p key={ai} className="text-sm text-slate-text dark:text-dark-text">
-                          • {activityNameMap[id] || id}
+                          • {safeText(activityNameMap[id] || id)}
                         </p>
                       ))}
                     </div>
                   )}
 
                   {day.meals && (
-                    <p className="text-xs text-muted dark:text-dark-muted">🍽 {day.meals}</p>
+                    <p className="text-xs text-muted dark:text-dark-muted">🍽 {formatMeals(day.meals)}</p>
                   )}
                   {day.notes && (
                     <p className="text-xs text-muted dark:text-dark-muted italic">
