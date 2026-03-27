@@ -317,6 +317,119 @@ test("generatePackingList user prompt includes tripType", async () => {
 
 // ── Prompt caching ───────────────────────────────────────────────────────────
 
+// ── Pet packing category ────────────────────────────────────────────────────
+
+test("generatePackingList includes pet packing section when pets are present", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generatePackingList(
+    {
+      destination: "Portland, OR",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["hiking"],
+      children: [{ age: 5 }],
+      pets: [
+        { type: "dog", name: "Max", breed: "golden retriever", weightLbs: 20, specialNeeds: "" },
+      ],
+      travelMode: "drive",
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  const userText = captured.calls[0].messages[0].content;
+
+  assert.ok(
+    userText.includes("PET PACKING NEEDS"),
+    "User prompt should include PET PACKING NEEDS section when pets are present",
+  );
+  assert.ok(
+    userText.includes("Pet Supplies"),
+    "User prompt should mention Pet Supplies category for AI to generate",
+  );
+  assert.ok(
+    userText.includes("Leash and collar"),
+    "User prompt should include leash and collar in pet packing guidance",
+  );
+  assert.ok(
+    userText.includes("Vaccination records"),
+    "User prompt should include vaccination records in pet packing guidance",
+  );
+});
+
+test("generatePackingList does NOT include pet section when no pets", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generatePackingList(
+    {
+      destination: "Portland, OR",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["hiking"],
+      children: [{ age: 5 }],
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  const userText = captured.calls[0].messages[0].content;
+
+  assert.ok(
+    !userText.includes("PET PACKING NEEDS"),
+    "User prompt should NOT include PET PACKING NEEDS when no pets",
+  );
+  assert.ok(
+    !userText.includes("Pet Supplies"),
+    "User prompt should NOT mention Pet Supplies when no pets",
+  );
+});
+
+test("generatePackingList includes per-pet details (type, breed, weight)", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockAnthropicClient } = createCapturingMock();
+
+  await generatePackingList(
+    {
+      destination: "Denver, CO",
+      startDate: "2026-07-01",
+      endDate: "2026-07-05",
+      activities: ["hiking", "camping"],
+      children: [{ age: 8 }],
+      pets: [
+        { type: "dog", name: "Buddy", breed: "labrador", weightLbs: 65, specialNeeds: "joint supplements" },
+        { type: "cat", name: "Whiskers", breed: "siamese", weightLbs: 10, specialNeeds: "" },
+      ],
+      travelMode: "fly",
+    },
+    mockWeather,
+    { anthropicClient: mockAnthropicClient },
+  );
+
+  const userText = captured.calls[0].messages[0].content;
+
+  assert.ok(
+    userText.includes("Buddy") && userText.includes("labrador") && userText.includes("65"),
+    "User prompt should include first pet's name, breed, and weight",
+  );
+  assert.ok(
+    userText.includes("Whiskers") && userText.includes("siamese") && userText.includes("10"),
+    "User prompt should include second pet's name, breed, and weight",
+  );
+  assert.ok(
+    userText.includes("joint supplements"),
+    "User prompt should include pet special needs",
+  );
+  assert.ok(
+    userText.includes("fly"),
+    "User prompt should include travel mode for carrier type guidance",
+  );
+});
+
+// ── Prompt caching ───────────────────────────────────────────────────────────
+
 test("generatePackingList enables prompt caching on first attempt", async () => {
   delete process.env.AI_PROVIDER;
   const { captured, mockAnthropicClient } = createCapturingMock();

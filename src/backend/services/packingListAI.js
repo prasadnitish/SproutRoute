@@ -85,6 +85,8 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     activities: rawActivities,
     children,
     tripType = null,
+    pets = [],
+    travelMode = null,
   } = tripData;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
@@ -98,7 +100,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     activities,
     children,
     weatherForecast,
-    { compact: false, tripType },
+    { compact: false, tripType, pets, travelMode },
   );
 
   try {
@@ -123,7 +125,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
         activities,
         children,
         weatherForecast,
-        { compact: true, tripType },
+        { compact: true, tripType, pets, travelMode },
       );
 
       const secondAttempt = await requestWithRetry(
@@ -176,7 +178,7 @@ function buildPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false, tripType = null } = options;
+  const { compact = false, tripType = null, pets = [], travelMode = null } = options;
   const isCruise = tripType === "cruise";
   const childrenInfo =
     children.length > 0
@@ -266,6 +268,27 @@ Return ONLY the JSON, no additional text.`;
     ? `\n\n**Base Packing Reference — ${climateZone} climate, ${tripType || "general"} trip** (expand, personalise, and remove age-inappropriate items):\n${ragBase}`
     : "";
 
+  // Build pet packing section when pets are present
+  const petSection = pets.length > 0
+    ? `
+
+PET PACKING NEEDS:
+Pets traveling: ${pets.map((p) => `${p.name || "Unnamed"} (${p.type}, ${p.breed || "unknown breed"}, ${p.weightLbs || "unknown"} lbs${p.specialNeeds ? `, special needs: ${p.specialNeeds}` : ""})`).join("; ")}
+Travel mode: ${travelMode || "unknown"}
+
+Generate a "Pet Supplies" category with items for each pet including:
+- Leash and collar with ID tags
+- Carrier (soft-sided for cabin travel, hard-sided for cargo)
+- Food and water bowls (collapsible for travel)
+- Pet food for trip duration + extra
+- Waste bags
+- Vaccination records and health certificates
+- Any medications: ${pets.filter((p) => p.specialNeeds).map((p) => `${p.name || "Unnamed"}: ${p.specialNeeds}`).join("; ") || "none"}
+- Familiar blanket or toy (anxiety reduction)
+- Pet first aid kit
+- Climate-specific: cooling vest (hot), paw booties (hot pavement/snow)`
+    : "";
+
   const user = `Generate a comprehensive packing list for a ${isCruise ? "cruise trip" : "family trip"}.
 
 **Trip Details:**
@@ -284,7 +307,7 @@ ${weatherForecast.forecast
     (f) =>
       `${f.name}: ${f.high}°F, ${f.condition}, ${f.precipitation}% rain chance`,
   )
-  .join("\n")}${ragSection}`;
+  .join("\n")}${petSection}${ragSection}`;
 
   return { system, user };
 }
