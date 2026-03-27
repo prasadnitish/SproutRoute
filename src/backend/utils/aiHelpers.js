@@ -4,12 +4,12 @@
 
 // Worst-case AI API calls per HTTP request with MAX_RETRIES=1:
 //   primary (up to 2) + compact retry (up to 2) + repair (1) = 5 max.
-export const MAX_RETRIES = 1;
+export const MAX_RETRIES = 2;
 export const INITIAL_RETRY_DELAY_MS = 1000;
 
 export function isRetryableError(error) {
   // Only retry on transient upstream conditions; never retry on bad input or auth errors.
-  if (error.status === 429 || error.status === 503) return true;
+  if (error.status === 429 || error.status === 503 || error.status === 529) return true;
   if (error.message?.includes("timeout")) return true;
   return false;
 }
