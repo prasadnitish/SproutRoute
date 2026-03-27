@@ -303,6 +303,63 @@ test("429 handler response body contains retryAfter and error message", async ()
   );
 });
 
+test("POST /api/generate includes shopLinks on packing list items", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.AMAZON_AFFILIATE_TAG = "test-20";
+
+  const app = createApp({
+    enableRequestLogging: false,
+    geocodeLocationFn: async () => ({
+      lat: 47.6062,
+      lon: -122.3321,
+      displayName: "Seattle, WA",
+    }),
+    getWeatherForecastFn: async () => ({
+      summary: "Mild and cloudy",
+      forecast: [],
+    }),
+    generatePackingListFn: async () => ({
+      categories: [
+        {
+          name: "Gear",
+          items: [
+            { name: "Stroller", quantity: "1", reason: "Essential", searchQuery: "travel stroller for toddler" },
+            { name: "Snacks", quantity: "5", reason: "Hungry kids" },
+          ],
+        },
+      ],
+    }),
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/generate", {
+    destination: "Seattle, WA",
+    startDate: "2026-05-01",
+    endDate: "2026-05-03",
+    activities: ["parks"],
+    children: [{ age: 2 }],
+  });
+
+  assert.equal(res.statusCode, 200);
+
+  const items = res.body.packingList.categories[0].items;
+  const stroller = items.find((i) => i.name === "Stroller");
+  const snacks = items.find((i) => i.name === "Snacks");
+
+  // Item with searchQuery should have 3 shopLinks including Amazon tag
+  assert.equal(stroller.shopLinks.length, 3);
+  const amazonLink = stroller.shopLinks.find((l) => l.store === "Amazon");
+  assert.ok(amazonLink, "Amazon shop link must be present");
+  assert.ok(
+    amazonLink.url.includes("tag=test-20"),
+    `Amazon URL should contain affiliate tag; got: ${amazonLink.url}`,
+  );
+
+  // Item without searchQuery should have empty shopLinks
+  assert.deepEqual(snacks.shopLinks, []);
+
+  delete process.env.AMAZON_AFFILIATE_TAG;
+});
+
 test("POST /api/safety/car-seat-check returns guidance from safety service", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
 
