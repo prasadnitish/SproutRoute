@@ -82,9 +82,14 @@ export function useTrip() {
     });
     if (!tripRes.ok) {
       const errBody = await tripRes.json().catch(() => ({}));
-      throw new Error(errBody.message || "Failed to generate trip plan");
+      throw new Error(errBody.error || errBody.message || "Failed to generate trip plan");
     }
-    const tripResult = await tripRes.json();
+    let tripResult;
+    try {
+      tripResult = await tripRes.json();
+    } catch {
+      throw new Error("Server returned an invalid response. Please try again.");
+    }
     markStep("weather", "done");
     markStep("itinerary", "done");
 
@@ -98,8 +103,12 @@ export function useTrip() {
       });
       if (packRes.ok) {
         setPackingList(await packRes.json());
+      } else {
+        console.warn("Packing list failed:", packRes.status);
       }
-    } catch { /* non-blocking */ }
+    } catch (err) {
+      console.warn("Packing list error (non-blocking):", err.message);
+    }
     markStep("packing", "done");
 
     // Step 4: Safety (non-blocking)
@@ -116,8 +125,12 @@ export function useTrip() {
       });
       if (safetyRes.ok) {
         setSafetyData(await safetyRes.json());
+      } else {
+        console.warn("Safety data failed:", safetyRes.status);
       }
-    } catch { /* non-blocking */ }
+    } catch (err) {
+      console.warn("Safety data error (non-blocking):", err.message);
+    }
     markStep("safety", "done");
 
     // Save and transition to results
