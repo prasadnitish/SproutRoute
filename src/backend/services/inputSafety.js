@@ -30,6 +30,15 @@ const INJECTION_PATTERNS = [
   /jailbreak/gi,
   /DAN\s+mode/gi,
   /override\s+(your\s+)?(safety|restrictions|guidelines)/gi,
+  // ChatML / Anthropic / XML injection patterns
+  /<\|im_start\|>/gi,
+  /<\|im_end\|>/gi,
+  /###\s*(Human|Assistant|System)\s*:/gi,
+  /\[SYSTEM\]/gi,
+  /\[USER\]/gi,
+  /<\/?instructions>/gi,
+  /IMPORTANT:\s*ignore/gi,
+  /CRITICAL:\s*ignore/gi,
 ];
 
 // HTML/script patterns that could cause output injection
@@ -225,6 +234,28 @@ function sanitizeChildren(children) {
  * @param {string} responseText
  * @returns {boolean}
  */
+/**
+ * Sanitize food preferences object before AI prompt interpolation.
+ * Prevents prompt injection via dietary/cuisine/avoidance arrays.
+ * @param {object} fp
+ * @returns {object|null}
+ */
+export function sanitizeFoodPreferences(fp) {
+  if (!fp || typeof fp !== "object") return null;
+  const sanitizeList = (arr) =>
+    Array.isArray(arr)
+      ? arr.slice(0, 10).map((s) => sanitizeActivity(String(s))).filter(Boolean)
+      : [];
+  const ALLOWED_BUDGETS = new Set(["budget", "moderate", "fine_dining"]);
+  return {
+    dietary: sanitizeList(fp.dietary),
+    cuisines: sanitizeList(fp.cuisines),
+    avoidances: sanitizeList(fp.avoidances),
+    kidFoods: sanitizeList(fp.kidFoods),
+    budget: ALLOWED_BUDGETS.has(fp.budget) ? fp.budget : null,
+  };
+}
+
 export function isAiResponseSafe(responseText) {
   if (typeof responseText !== "string") return false;
 

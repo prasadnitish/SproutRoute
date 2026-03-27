@@ -27,6 +27,8 @@ import {
   validateTripData,
 } from "./utils/sanitize.js";
 import { buildShopLinks } from "./utils/affiliateLinks.js";
+import { sanitizeDestination, sanitizeFoodPreferences } from "./services/inputSafety.js";
+import { log } from "./utils/logger.js";
 
 dotenv.config();
 
@@ -125,22 +127,38 @@ export function createApp(deps = {}) {
     });
   }
 
+  // AI-intensive limiter: stricter — these routes cost real money (Anthropic/DeepSeek calls)
+  const aiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,  // 10 AI calls per 15 minutes per IP (~2-3 complete trip plans)
+    message: { error: "Too many AI requests, please try again in 15 minutes." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+      const resetAt = Math.ceil(Date.now() / 1000) + 15 * 60;
+      res.status(429).json({
+        error: "Too many AI requests. Please try again in 15 minutes.",
+        retryAfter: "15 minutes",
+        rateLimitReset: resetAt,
+      });
+    },
+  });
+
+  // General API limiter: for lightweight routes (geocoding, places, photos, health)
   const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 30,  // Increased from 10 to 30: ~5 complete trip plans per window (resolve + plan + generate + car-seat = 4 calls/trip)
+    max: 60,  // 60 lightweight calls per 15 minutes per IP
     message: {
       error: "Too many requests from this IP, please try again in 15 minutes.",
     },
-    standardHeaders: true,  // Sends RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, RateLimit-Policy
+    standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {
-      // Include reset timestamp in body so frontend can show a countdown timer
-      // even if it can't read headers directly (e.g. browser CORS restrictions)
       const resetAt = Math.ceil(Date.now() / 1000) + 15 * 60;
       res.status(429).json({
         error: "Too many requests. Please try again in 15 minutes.",
         retryAfter: "15 minutes",
-        rateLimitReset: resetAt,  // Unix timestamp (seconds) for frontend countdown
+        rateLimitReset: resetAt,
       });
     },
   });
@@ -174,7 +192,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/api/trip-plan", apiLimiter, async (req, res) => {
+  app.post("/api/trip-plan", aiLimiter, async (req, res) => {
     // Generates itinerary + weather context; activities are optional at this stage.
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -206,7 +224,7 @@ export function createApp(deps = {}) {
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, coords.countryCode || "US", startDate, endDate);
       devLog(`Weather fetched successfully`);
 
-      const foodPreferences = req.body?.foodPreferences || null;
+      const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
 
       const tripPlan = await generateTripPlanFn(
         {
@@ -299,7 +317,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/api/generate", apiLimiter, async (req, res) => {
+  app.post("/api/generate", aiLimiter, async (req, res) => {
     // Generates packing list; requires selected activities for concrete output.
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -554,7 +572,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/plan
-  app.post("/api/v1/trip/plan", apiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/plan", aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -642,7 +660,7 @@ export function createApp(deps = {}) {
   // POST /api/v1/trip/bundle
   // Single endpoint: geocode once → weather once → trip plan + packing list in parallel.
   // Eliminates redundant geocoding + weather round-trip, runs AI calls concurrently.
-  app.post("/api/v1/trip/bundle", apiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/bundle", aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const timings = {};
     try {
@@ -762,7 +780,7 @@ export function createApp(deps = {}) {
   // Regenerates ONLY the trip itinerary (no geocoding or weather fetch).
   // Used when the user customizes activities after the initial plan is generated.
   // Requires: destination, startDate, endDate, activities, children, weather (cached).
-  app.post("/api/v1/trip/replan", apiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/replan", aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -811,7 +829,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/packing
-  app.post("/api/v1/trip/packing", apiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/packing", aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1013,17 +1031,31 @@ export function createApp(deps = {}) {
   });
 
   // ─── Parse natural language trip input ───
-  app.post("/api/v1/trip/parse-input", async (req, res) => {
+  app.post("/api/v1/trip/parse-input", aiLimiter, async (req, res) => {
     try {
       const { text, detectedLat, detectedLon } = req.body;
       if (!text || typeof text !== "string" || text.trim().length === 0) {
         return res.status(422).json({ error: "text is required" });
       }
+      // SECURITY: Sanitize user text before AI prompt (prompt injection defense)
+      const sanitizedText = sanitizeDestination(String(text).trim());
+      if (!sanitizedText) return res.status(422).json({ error: "text is required" });
+
       let detectedRegion = null;
-      if (detectedLat && detectedLon) {
+      // SECURITY: Validate lat/lon as numeric to prevent SSRF via URL parameter injection
+      const parsedLat = parseFloat(detectedLat);
+      const parsedLon = parseFloat(detectedLon);
+      if (Number.isFinite(parsedLat) && Number.isFinite(parsedLon)
+          && parsedLat >= -90 && parsedLat <= 90
+          && parsedLon >= -180 && parsedLon <= 180) {
         try {
+          const params = new URLSearchParams({
+            lat: parsedLat.toFixed(6),
+            lon: parsedLon.toFixed(6),
+            format: "json",
+          });
           const geoRes = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${detectedLat}&lon=${detectedLon}&format=json`,
+            `https://nominatim.openstreetmap.org/reverse?${params}`,
             { headers: { "User-Agent": "SproutRoute/1.0" } }
           );
           if (geoRes.ok) {
@@ -1033,16 +1065,16 @@ export function createApp(deps = {}) {
           }
         } catch { /* silent — region is optional */ }
       }
-      const result = await parseInput(text.trim(), { detectedRegion });
+      const result = await parseInput(sanitizedText, { detectedRegion });
       res.json(result);
     } catch (err) {
-      console.error("parse-input error:", err);
+      log.error("parse-input error", { error: err.message });
       res.status(500).json({ error: "Failed to parse trip input" });
     }
   });
 
   // ─── Enrich activity with Google Places data ───
-  app.post("/api/v1/places/enrich", async (req, res) => {
+  app.post("/api/v1/places/enrich", apiLimiter, async (req, res) => {
     try {
       const { activityName, destination, category } = req.body;
       if (!activityName || !destination) {
@@ -1052,17 +1084,21 @@ export function createApp(deps = {}) {
       if (!result) return res.json(null);
       res.json(result);
     } catch (err) {
-      console.error("places enrich error:", err);
+      log.error("places enrich error", { error: err.message });
       res.status(500).json({ error: "Failed to enrich activity" });
     }
   });
 
   // ─── Proxy Google Places photo (keeps API key server-side) ───
-  app.get("/api/v1/places/photo", async (req, res) => {
+  app.get("/api/v1/places/photo", apiLimiter, async (req, res) => {
     try {
       const ref = req.query.ref;
       const apiKey = process.env.GOOGLE_PLACES_API_KEY;
       if (!ref || !apiKey) return res.status(400).send("Missing ref or API key");
+      // SECURITY: Validate ref matches expected Google Places photo reference format
+      if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(ref)) {
+        return res.status(400).send("Invalid photo reference");
+      }
       const photoUrl = `https://places.googleapis.com/v1/${ref}/media?maxWidthPx=800&key=${apiKey}`;
       const photoRes = await fetch(photoUrl);
       if (!photoRes.ok) return res.status(photoRes.status).send("Photo not found");
@@ -1071,16 +1107,18 @@ export function createApp(deps = {}) {
       const buffer = Buffer.from(await photoRes.arrayBuffer());
       res.send(buffer);
     } catch (err) {
-      console.error("photo proxy error:", err);
+      log.error("photo proxy error", { error: err.message });
       res.status(500).send("Photo proxy error");
     }
   });
 
   // ─── IP geolocation proxy (ip-api.com is HTTP-only, can't call from HTTPS frontend) ───
-  app.get("/api/v1/geo/detect", async (req, res) => {
+  app.get("/api/v1/geo/detect", apiLimiter, async (req, res) => {
     try {
       const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
-      const geoRes = await fetch(`http://ip-api.com/json/${ip}?fields=lat,lon,city,regionName,country`);
+      // SECURITY: Validate IP is a plausible format before using in URL
+      const ipSafe = encodeURIComponent(ip);
+      const geoRes = await fetch(`http://ip-api.com/json/${ipSafe}?fields=lat,lon,city,regionName,country`);
       if (!geoRes.ok) return res.json({ lat: null, lon: null, region: null });
       const data = await geoRes.json();
       res.json({
