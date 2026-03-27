@@ -9,10 +9,17 @@ test.describe("WeatherTile", () => {
   });
 
   test("renders forecast day labels", async ({ page }) => {
-    // formatDayLabel computes day name from the date itself (not the name field)
-    // 2026-04-12 is a Sunday → "Sun"; 2026-04-13 is a Monday → "Mon"
-    await expect(page.getByText(/Sun/, { exact: false }).first()).toBeVisible();
-    await expect(page.getByText(/Mon/, { exact: false }).first()).toBeVisible();
+    // formatDayLabel computes day name from the date itself (not the name field):
+    // 2026-04-12 is a Sunday → day="Sun", date="Apr 12"
+    // 2026-04-13 is a Monday → day="Mon", date="Apr 13"
+    // Use exact:true to prevent /Sun/ matching "Sunny" or "Sunscreen" elsewhere on the page.
+    // Scope to the first occurrence of the exact 3-letter abbreviation rendered inside a
+    // forecast card <p> (text-[10px] font-bold), confirmed by the sibling date label.
+    await expect(page.getByText("Sun", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Mon", { exact: true }).first()).toBeVisible();
+    // Also assert the companion date labels to confirm the day-label component is rendering.
+    await expect(page.getByText("Apr 12", { exact: true })).toBeVisible();
+    await expect(page.getByText("Apr 13", { exact: true })).toBeVisible();
   });
 
   test("renders high temperature", async ({ page }) => {
