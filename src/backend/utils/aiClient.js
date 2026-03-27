@@ -22,7 +22,7 @@ import { log } from "./logger.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ANTHROPIC_MODEL_ID = "claude-haiku-4-5-20251001";
+const ANTHROPIC_MODEL_ID = "claude-sonnet-4-20250514";
 const DEEPSEEK_MODEL_ID  = "deepseek-chat";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;

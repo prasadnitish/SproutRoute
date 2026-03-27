@@ -77,10 +77,10 @@ test("callModel with anthropic provider uses correct model ID", async () => {
 
   await callModel({ system: "s", user: "u" }, { anthropicClient: mockAnthropicClient });
 
-  // Must use Claude Haiku (not Sonnet/Opus — cost-sensitive path)
+  // Must use Claude Sonnet (upgraded from Haiku for quality — see smoke test results)
   assert.ok(
-    usedModel && usedModel.toLowerCase().includes("haiku"),
-    `Model ID must include "haiku" — got: ${usedModel}`,
+    usedModel && usedModel.toLowerCase().includes("sonnet"),
+    `Model ID must include "sonnet" — got: ${usedModel}`,
   );
 });
 
