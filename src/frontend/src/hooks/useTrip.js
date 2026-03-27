@@ -96,7 +96,19 @@ export function useTrip() {
     markStep("weather", "done");
     markStep("itinerary", "done");
 
-    // Step 3: Packing list (non-blocking)
+    // Save and transition to results IMMEDIATELY — don't wait for packing/safety
+    const fullData = { ...tripResult, parsed };
+    setTripData(fullData);
+    saveJSON(STORAGE_KEYS.trip, fullData);
+    setScreen("results");
+
+    // Step 3 & 4: Packing list + Safety — run in background while user views itinerary
+    fetchPackingInBackground(formData);
+    fetchSafetyInBackground(parsed, tripResult);
+  }
+
+  // Background fetchers — run after results screen is shown
+  async function fetchPackingInBackground(formData) {
     markStep("packing", "active");
     try {
       const packRes = await fetch("/api/generate", {
@@ -114,8 +126,9 @@ export function useTrip() {
       console.warn("Packing list error (non-blocking):", err.message);
     }
     markStep("packing", "done");
+  }
 
-    // Step 4: Safety (non-blocking)
+  async function fetchSafetyInBackground(parsed, tripResult) {
     markStep("safety", "active");
     try {
       const safetyRes = await fetch("/api/safety/travel-tips", {
@@ -136,12 +149,6 @@ export function useTrip() {
       console.warn("Safety data error (non-blocking):", err.message);
     }
     markStep("safety", "done");
-
-    // Save and transition to results
-    const fullData = { ...tripResult, parsed };
-    setTripData(fullData);
-    saveJSON(STORAGE_KEYS.trip, fullData);
-    setScreen("results");
   }
 
   const goBack = useCallback(() => {
