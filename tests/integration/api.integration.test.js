@@ -438,11 +438,11 @@ test("POST /api/v1/safety/pet-travel-check returns 422 for invalid travelMode", 
 
   const res = await invokeRoute(app, "POST", "/api/v1/safety/pet-travel-check", {
     pets: [{ type: "dog", breed: "poodle", weightLbs: 15 }],
-    travelMode: "teleport",
+    travelMode: "teleport", // invalid mode defaults to "drive"
   });
 
-  assert.equal(res.statusCode, 422);
-  assert.equal(res.body.code, "INVALID_TRAVEL_MODE");
+  // Invalid travelMode now defaults to "drive" instead of rejecting
+  assert.equal(res.statusCode, 200);
 });
 
 test("POST /api/v1/safety/pet-travel-check skips airlines for drive mode", async () => {

@@ -162,14 +162,19 @@ export function useTrip() {
 
   async function fetchPetSafetyInBackground(pets, parsed, tripResult) {
     try {
+      // Derive travel mode: if distance > 300 miles or different country, assume fly
+      const distMiles = tripResult?.trip?.distanceMiles;
+      const countryCode = tripResult?.trip?.countryCode || "US";
+      const derivedMode = (distMiles && distMiles > 300) || (countryCode !== "US") ? "fly" : "drive";
+
       const petRes = await fetch("/api/v1/safety/pet-travel-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           pets,
           destination: parsed.destination,
-          countryCode: tripResult?.trip?.countryCode || "",
-          travelMode: null, // let backend derive from distance
+          countryCode,
+          travelMode: derivedMode,
         }),
       });
       if (petRes.ok) {

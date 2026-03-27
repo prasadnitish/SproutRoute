@@ -166,6 +166,8 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
       photos: enriched.photos,
       mapsUrl: enriched.mapsUrl,
       priceLevel: enriched.priceLevel,
+      latitude: enriched.latitude,
+      longitude: enriched.longitude,
     } : null,
   };
 }
@@ -292,6 +294,8 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
         photos: enriched.photos,
         mapsUrl: enriched.mapsUrl,
         priceLevel: enriched.priceLevel,
+        latitude: enriched.latitude,
+        longitude: enriched.longitude,
       } : null,
     });
 
