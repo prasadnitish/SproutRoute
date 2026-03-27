@@ -4,20 +4,11 @@
 
 body {
   margin: 0;
-  font-family: "Outfit", sans-serif;
+  font-family: "Inter", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #fdfdfd;
+  background: #f9fafb;
   color: #334155;
-  transition:
-    background 0.2s ease,
-    color 0.2s ease;
-}
-
-/* Dark mode body */
-html.dark body {
-  background: #0f1a10;
-  color: #e8f5e9;
 }
 
 #root {
@@ -25,7 +16,7 @@ html.dark body {
   position: relative;
 }
 
-/* Subtle nature-inspired background texture — light mode */
+/* Subtle nature-inspired background texture */
 #root::before {
   content: "";
   position: fixed;
@@ -39,22 +30,6 @@ html.dark body {
     radial-gradient(circle at 50% 95%, rgba(46, 125, 50, 0.04), transparent 40%);
   pointer-events: none;
   z-index: 0;
-  transition: opacity 0.2s ease;
-}
-
-/* Dark mode background — deeper, moodier gradients */
-html.dark #root::before {
-  background-image: radial-gradient(
-      circle at 15% 10%,
-      rgba(46, 125, 50, 0.12),
-      transparent 40%
-    ),
-    radial-gradient(circle at 85% 5%, rgba(2, 119, 189, 0.08), transparent 35%),
-    radial-gradient(
-      circle at 50% 95%,
-      rgba(129, 199, 132, 0.06),
-      transparent 40%
-    );
 }
 
 /* Wizard step slide-in animation */
@@ -75,15 +50,12 @@ html.dark #root::before {
 
 /* Custom checkbox accent */
 input[type="checkbox"] {
-  accent-color: #2e7d32;
+  accent-color: #16a34a;
 }
 
-/* Custom date input — respect current theme */
+/* Custom date input */
 input[type="date"] {
   color-scheme: light;
-}
-html.dark input[type="date"] {
-  color-scheme: dark;
 }
 
 /* Horizontal scroll-snap carousel */
@@ -95,8 +67,6 @@ html.dark input[type="date"] {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
   padding-bottom: 0.25rem;
-  max-width: 100%;
-  min-width: 0;
 }
 .scroll-carousel::-webkit-scrollbar {
   display: none;
@@ -120,14 +90,8 @@ html.dark input[type="date"] {
   background: #e0e0e0;
   transition: background 0.2s ease;
 }
-html.dark .page-dot {
-  background: #2a3a2c;
-}
 .page-dot.active {
-  background: #2e7d32;
-}
-html.dark .page-dot.active {
-  background: #81c784;
+  background: #16a34a;
 }
 
 /* Activity chip styles (wizard step) */
@@ -145,105 +109,18 @@ html.dark .page-dot.active {
   user-select: none;
 }
 .activity-chip.selected {
-  background: rgba(46, 125, 50, 0.12);
-  border-color: #2e7d32;
-  color: #2e7d32;
-}
-html.dark .activity-chip.selected {
-  background: rgba(129, 199, 132, 0.12);
-  border-color: #81c784;
-  color: #81c784;
+  background: rgba(22, 163, 74, 0.12);
+  border-color: #16a34a;
+  color: #15803d;
 }
 .activity-chip.unselected {
   background: transparent;
   border-color: #e0e0e0;
   color: #64748b;
 }
-html.dark .activity-chip.unselected {
-  border-color: #2a3a2c;
-  color: #9ca3af;
-}
 .activity-chip.unselected:hover {
-  border-color: #81c784;
-  background: rgba(129, 199, 132, 0.05);
-}
-
-/* Skeleton shimmer for loading states */
-.skeleton {
-  background: linear-gradient(90deg, #e8f5e9 25%, #f1f8f1 50%, #e8f5e9 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-  border-radius: 0.5rem;
-}
-html.dark .skeleton {
-  background: linear-gradient(90deg, #1a2e1b 25%, #243824 50%, #1a2e1b 75%);
-  background-size: 200% 100%;
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-/* Focus ring — consistent across all interactive elements */
-button:focus-visible,
-input:focus-visible,
-[role="tab"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px #fdfdfd, 0 0 0 4px #81C784;
-}
-html.dark button:focus-visible,
-html.dark input:focus-visible,
-html.dark [role="tab"]:focus-visible {
-  box-shadow: 0 0 0 2px #0f1a10, 0 0 0 4px #a5d6a7;
-}
-
-/* Calendar grid styles */
-.calendar-day {
-  width: 2.5rem;
-  height: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  position: relative;
-}
-.calendar-day:hover:not(.disabled) {
-  background: rgba(129, 199, 132, 0.15);
-}
-.calendar-day.selected {
-  background: #2E7D32;
-  color: white;
-  font-weight: 600;
-}
-html.dark .calendar-day.selected {
-  background: #a5d6a7;
-  color: #0f1a10;
-}
-.calendar-day.in-range {
-  background: rgba(129, 199, 132, 0.15);
-}
-html.dark .calendar-day.in-range {
-  background: rgba(165, 214, 167, 0.12);
-}
-.calendar-day.disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-.calendar-day.today::after {
-  content: "";
-  position: absolute;
-  bottom: 2px;
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: #2E7D32;
-}
-html.dark .calendar-day.today::after {
-  background: #a5d6a7;
+  border-color: #86efac;
+  background: rgba(134, 239, 172, 0.08);
 }
 
 /* Print styles */
@@ -259,7 +136,7 @@ html.dark .calendar-day.today::after {
     overflow: visible;
   }
   .page-dots,
-  .print\\:hidden {
+  .print\:hidden {
     display: none;
   }
 }

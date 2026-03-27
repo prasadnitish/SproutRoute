@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14532d"/>
+      <stop offset="50%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="26" fill="url(#bg)"/>
+  <!-- Stem -->
+  <path d="M60 95 Q58 78 60 65 Q62 52 60 42" stroke="rgba(255,255,255,0.9)" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <!-- Left leaf -->
+  <path d="M60 75 Q38 60 34 42 Q48 46 60 64" fill="rgba(255,255,255,0.7)"/>
+  <!-- Right leaf -->
+  <path d="M60 70 Q82 54 86 36 Q72 40 60 58" fill="white"/>
+  <!-- Top leaves -->
+  <path d="M60 48 Q50 30 53 16 Q65 24 63 40" fill="rgba(255,255,255,0.7)"/>
+  <path d="M60 48 Q70 28 67 14 Q55 23 58 40" fill="rgba(255,255,255,0.9)"/>
+  <!-- Eyes -->
+  <circle cx="55" cy="68" r="2.5" fill="#064e3b"/>
+  <circle cx="65" cy="68" r="2.5" fill="#064e3b"/>
+  <!-- Eye highlights -->
+  <circle cx="56" cy="67" r="1" fill="white"/>
+  <circle cx="66" cy="67" r="1" fill="white"/>
+  <!-- Smile -->
+  <path d="M54 73 Q60 78 66 73" stroke="#064e3b" stroke-width="2" fill="none" stroke-linecap="round"/>
+</svg>
