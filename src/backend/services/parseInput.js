@@ -23,9 +23,12 @@ If no kids mentioned, childrenAges should be [].
 If destination is vague ("beach trip", "somewhere warm"), set destination to null and provide 3 suggestedDestinations based on the user's location and season.`;
 
 export async function parseInput(text, deps = {}) {
-  const callAI = deps.callAI || (async (prompt) => {
-    const result = await callModel(prompt);
-    return result;
+  const callAI = deps.callAI || (async (promptText) => {
+    const { responseText } = await callModel({
+      system: "You are a trip planner assistant. Return ONLY valid JSON, no markdown or explanation.",
+      user: promptText,
+    });
+    return responseText;
   });
   const detectedRegion = deps.detectedRegion || null;
 
