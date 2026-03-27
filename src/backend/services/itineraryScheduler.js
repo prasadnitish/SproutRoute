@@ -109,7 +109,7 @@ function estimateTravelMinutes(/* from, to */) {
  * @param {string} dateStr - "2026-05-21"
  * @returns {object} scheduled day with timed activities
  */
-function buildMealCard(mealType, mealData, enrichedMap, fallbackName) {
+function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek = null) {
   // mealData can be: { name, cuisine, note } (new AI format) or a string (legacy)
   if (!mealData && !fallbackName) return null;
 
@@ -124,6 +124,26 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName) {
     dinner:    { start: 1080, end: 1170 },  // 6:00 - 7:30
   };
   const slot = timeSlots[mealType] || timeSlots.lunch;
+  let startTime = slot.start;
+  let endTime = slot.end;
+  let warning = null;
+  let openingHoursStr = null;
+
+  // Check enriched opening hours — don't schedule before restaurant opens
+  if (enriched?.openingHours && dayOfWeek !== null) {
+    const hours = getOpeningHoursForDay(enriched.openingHours, dayOfWeek);
+    if (hours && !hours.isOpen) {
+      warning = `${name} is closed on this day`;
+    } else if (hours?.open && hours.open > startTime) {
+      // Restaurant opens later than default slot — shift to opening time
+      startTime = hours.open;
+      endTime = startTime + (slot.end - slot.start);
+      warning = `Opens at ${formatTime(hours.open)} — adjusted from default ${mealType} time`;
+    }
+    if (hours?.open && hours?.close) {
+      openingHoursStr = `${formatTime(hours.open)} - ${formatTime(hours.close)}`;
+    }
+  }
 
   return {
     name,
@@ -131,11 +151,13 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName) {
     mealType,
     cuisine,
     note,
-    scheduledStart: formatTime(slot.start),
-    scheduledEnd: formatTime(slot.end),
-    duration: slot.end - slot.start,
+    scheduledStart: formatTime(startTime),
+    scheduledEnd: formatTime(endTime),
+    duration: endTime - startTime,
     status: "meal",
     isMeal: true,
+    warning,
+    openingHours: openingHoursStr,
     enriched: enriched ? {
       rating: enriched.rating,
       address: enriched.address,
@@ -163,7 +185,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
   const warnings = [];
 
   // ── Always insert breakfast at the start of the day ──
-  const breakfastCard = buildMealCard("breakfast", meals.breakfast, enrichedMap, "Breakfast");
+  const breakfastCard = buildMealCard("breakfast", meals.breakfast, enrichedMap, "Breakfast", dayOfWeek);
   if (breakfastCard) {
     scheduled.push(breakfastCard);
     currentTime = 540 + estimateTravelMinutes(); // after breakfast, start activities at ~9:15
@@ -223,7 +245,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
 
     // ── Insert lunch when crossing noon (or force it by 1 PM) ──
     if (!lunchInserted && (startTime >= 720 || (currentTime < 720 && startTime + duration > 720))) {
-      const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
+      const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch", dayOfWeek);
       if (lunchCard) {
         const lunchStart = Math.max(startTime, 720);
         lunchCard.scheduledStart = formatTime(lunchStart);
@@ -236,7 +258,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
 
     // ── Insert dinner when crossing 6 PM ──
     if (!dinnerInserted && startTime >= 1080) {
-      const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner");
+      const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek);
       if (dinnerCard) {
         scheduled.push(dinnerCard);
         startTime = 1170 + estimateTravelMinutes();
@@ -278,11 +300,11 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
 
   // ── Guarantee lunch and dinner even if no activity triggered them ──
   if (!lunchInserted) {
-    const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch");
+    const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch", dayOfWeek);
     if (lunchCard) scheduled.push(lunchCard);
   }
   if (!dinnerInserted) {
-    const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner");
+    const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek);
     if (dinnerCard) scheduled.push(dinnerCard);
   }
 

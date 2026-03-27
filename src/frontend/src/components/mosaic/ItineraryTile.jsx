@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DayTabs from "../DayTabs";
 
 const CATEGORY_EMOJI = {
@@ -74,6 +74,13 @@ function ActivityCard({ activity, onTap }) {
 
       {/* Content */}
       <div className="flex-1 min-w-0">
+        {/* Meal type badge — prominent label above restaurant name */}
+        {isMeal && activity.mealType && (
+          <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white rounded px-2 py-0.5 mb-1">
+            {activity.mealType}
+          </span>
+        )}
+
         <div className="flex items-center gap-2 flex-wrap">
           <p className={`font-bold text-sm ${isClosed ? "text-red-700 line-through" : "text-gray-900"}`}>
             {name}
@@ -84,7 +91,7 @@ function ActivityCard({ activity, onTap }) {
 
         {/* Category label for activities */}
         {!isMeal && activity.category && (
-          <span className="inline-block text-[10px] bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 mt-0.5 capitalize">
+          <span className="inline-block text-[10px] font-semibold bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 mt-0.5 capitalize">
             {activity.category.replace(/_/g, " ")}
           </span>
         )}
@@ -143,11 +150,30 @@ export default function ItineraryTile({
   scheduledItinerary,
   forecast,
   onActivityTap,
+  onDayChange,
 }) {
   const [activeDay, setActiveDay] = useState(0);
 
+  const handleDayChange = (dayIndex) => {
+    setActiveDay(dayIndex);
+    const days = scheduledItinerary || dailyItinerary;
+    if (days && onDayChange) {
+      const day = days[dayIndex];
+      const activities = day?.scheduled || day?.activities || day?.items || [];
+      onDayChange(activities);
+    }
+  };
+
   // Use scheduled data if available, fall back to raw itinerary
   const days = scheduledItinerary || dailyItinerary;
+
+  // Notify parent of initial day's activities for the route map
+  useEffect(() => {
+    if (days?.length > 0 && onDayChange) {
+      const day = days[0];
+      onDayChange(day?.scheduled || day?.activities || day?.items || []);
+    }
+  }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!days || days.length === 0) {
     return (
@@ -188,7 +214,7 @@ export default function ItineraryTile({
       </div>
 
       {/* Day tabs */}
-      <DayTabs days={dayTabs} activeDay={activeDay} onSelectDay={setActiveDay} />
+      <DayTabs days={dayTabs} activeDay={activeDay} onSelectDay={handleDayChange} />
 
       {/* Day header */}
       <div className="flex items-center gap-2 mt-3 mb-2">
