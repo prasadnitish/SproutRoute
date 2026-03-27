@@ -4,6 +4,7 @@
 // 3. Neighborhood Safety — Amadeus/GeoSure scores
 // 4. Travel Tips — from tripPlan.tips array
 // 5. Car Seat Laws — from safetyGuidance (hidden if no children)
+import { safeText } from "../utils/safeRender";
 
 function statusStyles(status) {
   if (status === "Verified") {
@@ -212,7 +213,7 @@ function TravelTipsSection({ tips }) {
         {tips.map((tip, index) => (
           <li key={index} className="flex items-start gap-2 text-sm text-slate-text dark:text-dark-text">
             <span className="text-sprout-base mt-0.5">●</span>
-            <span>{tip}</span>
+            <span>{safeText(tip)}</span>
           </li>
         ))}
       </ul>
@@ -265,7 +266,7 @@ function CarSeatSection({ safetyGuidance }) {
 
       {message && (
         <div className="rounded-xl border border-earth/15 bg-earth/5 dark:bg-dark-bg px-4 py-3 text-sm text-slate-text dark:text-dark-text">
-          {message}
+          {safeText(message)}
         </div>
       )}
 
@@ -306,7 +307,7 @@ function CarSeatSection({ safetyGuidance }) {
                     {Number.isFinite(result.heightIn) ? ` · ${result.heightIn} in` : ""}
                   </p>
                 )}
-                <p className="mt-2 text-sm text-muted dark:text-dark-muted">{result.rationale}</p>
+                <p className="mt-2 text-sm text-muted dark:text-dark-muted">{safeText(result.rationale)}</p>
               </article>
             );
           })}
