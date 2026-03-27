@@ -5,6 +5,29 @@
 
 ---
 
+## 0. Demo MVP — Interview Scope
+
+Given the interview is tomorrow, implementation is tiered. **Tier 1 must ship. Tier 2 is bonus.**
+
+### Tier 1 — Must ship (interview demo)
+- Codebase repairs (restore deleted files, package.json files)
+- New input screen: smart text area + vibe chips + IP geolocation
+- Generating screen: auto-transition, assumption card, live progress steps
+- Destination picker: 3 AI suggestions for generic input
+- Results mosaic: Hero tile + Weather tile + Itinerary tile (with day tabs, activities, weather inside cards)
+- Activity detail panel with Google Places data (photos, address, phone, rating)
+- Fresh Meadow color scheme + new SVG logo
+- Playwright E2E: input flow + generating screen + results mosaic (3 specs)
+
+### Tier 2 — Ship if time allows
+- Refine with AI tile
+- Map tile
+- Pack tab (packing list)
+- Share icon
+- Remaining Playwright specs (4 specs)
+
+---
+
 ## 1. Overview
 
 Complete UX reimagination of SproutRoute. Replace the multi-step wizard with a single smart text input → instant AI generation → mission-control mosaic results layout. Add Google Places API for rich activity details. Rebuild codebase from current broken state (deleted files, no package.json) into a clean, testable architecture.
@@ -22,7 +45,8 @@ Complete UX reimagination of SproutRoute. Replace the multi-step wizard with a s
 
 ### Screen 2 — Generating
 - Auto-transition from Screen 1 on submit. No manual click needed.
-- **Assumption summary card** (green tinted): Shows what the AI inferred — `📍 Maui, Hawaii · 📅 Apr 12–19 · 👨‍👧‍👦 2 adults, 2 kids (4 & 8) · 🏖 Beach`. Includes `✏ Something wrong? Edit →` escape hatch.
+- **Parse step first**: On submit, frontend calls `POST /api/v1/trip/parse-input` with the raw text. Returns structured assumptions `{ destination, startDate, endDate, adults, childrenAges, vibe }` plus `suggestedDestinations[]` if destination was ambiguous. This response drives the assumption card and (if needed) the destination picker.
+- **Assumption summary card** (green tinted): Shows parsed assumptions — `📍 Maui, Hawaii · 📅 Apr 12–19 · 👨‍👧‍👦 2 adults, 2 kids (4 & 8) · 🏖 Beach`. Includes `✏ Something wrong? Edit →` escape hatch. Appears immediately from the `parse-input` response before full generation completes.
 - **Live progress steps** (check off as each completes):
   1. ✓ Resolved destination
   2. ✓ Got weather forecast
@@ -110,7 +134,7 @@ Responsive CSS grid. Desktop: `1.5fr 1fr` two-column. Tablet: `1.2fr 1fr`. Mobil
 - Label: "✨ Refine"
 - Quick-tap chips: "More adventure 🧗", "Easier on toddler 👶", "More restaurants 🍽", "Budget-friendly 💰"
 - Free-text input: "Or describe a change…"
-- "Regenerate ✨" button — calls the itinerary endpoint with the original params + refinement instruction. Replaces itinerary tile content in place with a loading state.
+- "Regenerate ✨" button — calls the itinerary endpoint with the original params + refinement instruction. Replaces itinerary tile content in place with a loading state. On error: restores previous itinerary and shows toast "Couldn't refine the plan — try again."
 
 #### Tile F — Map (col 1–2, bottom row)
 - Static map placeholder showing pins for each activity on the active day.
@@ -155,12 +179,29 @@ If Google Places enrichment fails or returns no match, panel shows AI-generated 
 
 Triggered when: user submits input with no parseable destination.
 
-1. Backend detects missing destination from AI parsing.
-2. IP geolocation resolves approximate user region (e.g. "Chicago, IL, US").
-3. AI generates 3 destination suggestions based on: detected region, current season (Mar 26 → Spring), trip vibe from input, kids' ages.
-4. Frontend shows a lightweight overlay mid-generating-screen: "We found a few great matches — pick one to continue."
-5. Each suggestion shows: destination name, flag/emoji, 1-line description, estimated weather.
-6. User taps a destination → generation resumes from the weather step.
+**Implementation flow** (no mid-stream pausing needed):
+1. Frontend calls `POST /api/v1/trip/parse-input` first (fast, ~1s).
+2. If response includes `suggestedDestinations`, frontend shows the destination picker overlay and waits — generation has NOT started yet.
+3. User picks a destination → frontend proceeds to call the existing trip plan endpoints with the selected destination.
+4. If response includes a resolved `destination`, picker is skipped and generation starts immediately.
+
+**`POST /api/v1/trip/parse-input` response:**
+```json
+{
+  "destination": "Maui, Hawaii",         // null if ambiguous
+  "suggestedDestinations": [],           // populated if destination is null
+  "startDate": "2026-04-12",
+  "endDate": "2026-04-19",
+  "adults": 2,
+  "childrenAges": [4, 8],
+  "vibe": "beach",
+  "detectedRegion": "Chicago, IL"        // from IP geolocation
+}
+```
+
+Each suggested destination object: `{ name, emoji, description, season_note }`.
+
+User taps a destination → it's injected as `destination` and full trip generation proceeds.
 
 ---
 
@@ -186,9 +227,12 @@ Triggered when: user submits input with no parseable destination.
   "website": "mamasfishhouse.com",
   "openingHours": ["Mon–Sun: 11am–9pm"],
   "priceLevel": 4,
-  "photos": ["https://maps.googleapis.com/..."],
+  "photos": ["https://sproutroute-production.up.railway.app/api/v1/places/photo?ref=..."],
   "mapsUrl": "https://maps.google.com/?cid=..."
 }
+```
+
+**Photo resolution**: Google Places returns opaque photo references, not direct URLs. The `placesEnrich.js` service must either: (a) call the Places Photo API server-side and return proxied URLs through a `/api/v1/places/photo?ref=` backend endpoint, or (b) construct signed URLs server-side using the API key (never exposed to client). Option (a) is simpler. The API key is never sent to the frontend.
 ```
 
 ### API Key
@@ -233,7 +277,7 @@ src/frontend/src/
 │   │   └── MapTile.jsx
 │   ├── ActivityDetailPanel.jsx ← Slide-in panel
 │   ├── DestinationPicker.jsx   ← 3-option overlay for generic input
-│   ├── PackingList.jsx         ← Pack tab content
+│   ├── PackingList.jsx         ← Pack tab content (replaces existing PackingChecklist.jsx)
 │   └── DayTabs.jsx             ← Day selector within ItineraryTile
 ├── hooks/
 │   ├── useTrip.js              ← Trip state + localStorage persistence
@@ -257,10 +301,13 @@ src/backend/
 ```
 
 ### New API Routes
+New routes use `/api/v1/` prefix. Existing routes (`/api/trip-plan`, `/api/generate`, `/api/safety/car-seat-check`, `/api/resolve-destination`) remain unchanged at `/api/` — no migration needed this sprint.
+
 | Method | Path | Purpose |
 |--------|------|---------|
-| POST | `/api/v1/places/enrich` | Enrich activity with Google Places data |
-| POST | `/api/v1/trip/suggest-destinations` | Return 3 AI destination suggestions from vague input |
+| POST | `/api/v1/trip/parse-input` | Parse raw text → structured assumptions + optional destination suggestions |
+| POST | `/api/v1/places/enrich` | Enrich activity name with Google Places data |
+| GET  | `/api/v1/places/photo` | Proxy Google Places photo (avoids exposing API key to client) |
 
 ### IP Geolocation
 - Library: `ipapi.co` free API (no key needed, 1000 req/day) or `ip-api.com`.
@@ -272,7 +319,7 @@ src/backend/
 ## 9. Testing Strategy
 
 ### Unit Tests (existing — keep all passing)
-Node.js `node:test` suite. All existing 106 tests must remain green throughout.
+Node.js `node:test` suite. Run `npm test` after file restoration to establish baseline count. All passing tests must remain green throughout.
 
 ### New Unit Tests
 - `tests/unit/placesEnrich.test.js` — mock fetch, test cache hit/miss, test fallback on API error
@@ -280,18 +327,39 @@ Node.js `node:test` suite. All existing 106 tests must remain green throughout.
 - `tests/unit/geolocation.test.js` — test IP geolocation service, null fallback
 
 ### Playwright E2E Tests
-```
-tests/e2e/
-├── input-flow.spec.ts         ← Type trip idea, submit, see generating screen
-├── generic-input.spec.ts      ← Vague input → destination picker → generation
-├── results-mosaic.spec.ts     ← Tiles render, day tabs switch, weather shown
-├── activity-detail.spec.ts    ← Tap activity → detail panel opens with Places data
-├── refine-ai.spec.ts          ← Refine chip → regeneration → updated itinerary
-├── packing-tab.spec.ts        ← Pack tab, check items, add custom item
-└── share.spec.ts              ← Share icon copies link to clipboard
+
+**Setup:**
+```bash
+cd src/frontend && npm install -D @playwright/test && npx playwright install chromium
 ```
 
-**E2E approach**: Mock backend API responses using Playwright's `route()` intercept. No real API calls in tests. Tests run against `vite preview` build.
+`playwright.config.ts` at repo root:
+```ts
+import { defineConfig } from '@playwright/test';
+export default defineConfig({
+  testDir: './tests/e2e',
+  use: { baseURL: 'http://localhost:4173' },  // vite preview port
+  webServer: { command: 'npm run preview', port: 4173, reuseExistingServer: true },
+});
+```
+
+**Tier 1 specs** (must ship):
+```
+tests/e2e/
+├── input-flow.spec.ts        ← Type trip idea → "Plan it" → see generating screen with assumption card
+├── generic-input.spec.ts     ← Vague input ("beach trip") → destination picker shows 3 options → pick one → generating
+└── results-mosaic.spec.ts    ← Hero tile, weather tile, itinerary tile render; day tabs switch days; tap activity → detail panel opens
+```
+
+**Tier 2 specs** (if time allows):
+```
+├── activity-detail.spec.ts   ← Places data (photo, address, rating) shown in panel
+├── refine-ai.spec.ts         ← Refine chip → regeneration → updated itinerary
+├── packing-tab.spec.ts       ← Pack tab, check items, add custom item
+└── share.spec.ts             ← Share icon copies URL to clipboard
+```
+
+**E2E approach**: Mock all backend API responses using Playwright's `page.route()` intercept. No real API calls in tests. Tests run against `vite preview` build. CI gating: Tier 1 specs only added to `.github/workflows/test.yml`.
 
 ---
 
@@ -308,7 +376,7 @@ tests/e2e/
 - [ ] Activity detail panel: opens on tap, shows Google Places data (photos, address, phone, rating)
 - [ ] Refine with AI: chips + free text trigger regeneration in place
 - [ ] Pack tab: separate, fully functional packing list with progress ring
-- [ ] Share icon: copies shareable URL to clipboard, shows toast confirmation
+- [ ] Share icon: copies URL to clipboard with original input text encoded as query param (`?q=beach+vacation+spring+break`). Recipient sees input pre-filled but must re-generate. Shows toast confirmation "Link copied!"
 - [ ] Fresh Meadow color scheme applied throughout
 - [ ] New logo (SVG) in nav bar and as favicon
 - [ ] No console errors in production build
