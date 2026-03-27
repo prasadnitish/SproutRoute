@@ -19,6 +19,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
   const [customItems, setCustomItems] = useState(() => loadCustomItems());
   // Per-category "add item" input state
   const [addInputs, setAddInputs] = useState({});
+  const [expandedShop, setExpandedShop] = useState(null); // itemId of currently expanded shop panel
 
   const validItemIds = useMemo(
     () => getPackingItemIds(packingList, customItems),
@@ -46,6 +47,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
       newChecked.delete(itemId);
     } else {
       newChecked.add(itemId);
+      setExpandedShop(null); // collapse shop when item is checked
     }
     setCheckedItems(newChecked);
     localStorage.setItem(
@@ -119,6 +121,29 @@ export default function PackingChecklist({ packingList, onUpdate }) {
     // Browser-native print flow keeps output simple and dependency-free.
     window.print();
   };
+
+  const ShopPanel = ({ shopLinks }) => (
+    <div className="ml-7 mt-1 mb-2 p-3 bg-gray-50 dark:bg-dark-bg rounded-xl border border-gray-100 dark:border-dark-border print:hidden">
+      <div className="flex gap-2 flex-wrap">
+        {shopLinks.map(({ store, url, color }) => (
+          <a
+            key={store}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-80"
+            style={{ backgroundColor: color }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {store === "Amazon" ? "🛒" : store === "Walmart" ? "🏪" : "🎯"} {store}
+          </a>
+        ))}
+      </div>
+      <p className="text-[10px] text-gray-400 mt-2">
+        SproutRoute may earn a small commission — at no extra cost to you
+      </p>
+    </div>
+  );
 
   if (!packingList || !packingList.categories) {
     return null;
@@ -243,8 +268,8 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                     const isCustom = item.source === "custom";
 
                     return (
+                      <div key={itemId}>
                       <label
-                        key={itemId}
                         className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
                           isChecked
                             ? "bg-sprout-light/60 dark:bg-dark-border"
@@ -283,6 +308,19 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                             </p>
                           )}
                         </div>
+                        {!isChecked && item.shopLinks?.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setExpandedShop(expandedShop === itemId ? null : itemId);
+                            }}
+                            className="text-xs text-sprout-dark hover:text-sprout-base transition-colors shrink-0 mt-0.5 print:hidden"
+                            aria-label={`Shop for ${item.name}`}
+                          >
+                            🛒
+                          </button>
+                        )}
                         {isCustom && (
                           <button
                             onClick={(e) => {
@@ -296,6 +334,10 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                           </button>
                         )}
                       </label>
+                      {expandedShop === itemId && item.shopLinks?.length > 0 && (
+                        <ShopPanel shopLinks={item.shopLinks} />
+                      )}
+                      </div>
                     );
                   })}
 
