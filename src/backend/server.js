@@ -67,6 +67,12 @@ export function createApp(deps = {}) {
 
   const app = express();
 
+  // Railway (and most PaaS) sit behind a load balancer that sets X-Forwarded-For.
+  // Without trust proxy, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
+  if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+
   const devLog = (...args) => {
     if (process.env.NODE_ENV !== "production" && enableRequestLogging) {
       console.log(...args);
