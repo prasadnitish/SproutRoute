@@ -242,7 +242,7 @@ User taps a destination → it's injected as `destination` and full trip generat
 ### Cost Management
 - Cache enrichment results per `(activityName, destination)` pair in memory (TTL: 24h). Same activity name in same city never calls Places twice.
 - Enrichment called **lazily**: only when user taps an activity to open the detail panel — not at trip generation time.
-- Estimated cost for typical usage: < $0.50/day at 50 users.
+- **Pricing (post-March 2025)**: Text Search = $32/1K requests (10,000 free/month). Place Photos = $7/1K additional. At 50 users × ~5 activities = 250 enrichments/month — well within free tier. Use FieldMask (`displayName,rating,formattedAddress,nationalPhoneNumber,websiteUri,photos,regularOpeningHours,priceLevel,googleMapsUri`) to stay in cheapest SKU.
 
 ---
 
@@ -310,8 +310,9 @@ New routes use `/api/v1/` prefix. Existing routes (`/api/trip-plan`, `/api/gener
 | GET  | `/api/v1/places/photo` | Proxy Google Places photo (avoids exposing API key to client) |
 
 ### IP Geolocation
-- Library: `ipapi.co` free API (no key needed, 1000 req/day) or `ip-api.com`.
-- Called once on `/api/v1/trip/bundle` if no destination in request.
+- **Primary**: Browser `navigator.geolocation.getCurrentPosition()` — most accurate (GPS-based), no server cost. Requires user permission prompt.
+- **Fallback** (if user denies permission): `ip-api.com` free API (`http://ip-api.com/json/`). 45 req/min, no key needed. Note: `ipapi.co` was rejected — free tier is not for production and rate-limits aggressively from shared IPs.
+- Frontend resolves location before calling `parse-input`. Sends `{ detectedLat, detectedLon }` in the request body.
 - Falls back gracefully to null (AI generates without location bias).
 
 ---
