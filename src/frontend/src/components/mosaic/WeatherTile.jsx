@@ -1,9 +1,27 @@
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function dayInitial(dateStr) {
-  if (!dateStr) return "?";
-  const d = new Date(dateStr);
-  return isNaN(d) ? "?" : DAY_NAMES[d.getDay()]?.[0] || "?";
+function formatDayLabel(dateStr) {
+  if (!dateStr) return { day: "?", date: "" };
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d)) return { day: "?", date: "" };
+  return {
+    day: DAY_NAMES[d.getDay()],
+    date: `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`,
+  };
+}
+
+function weatherEmoji(condition) {
+  if (!condition) return "\u{1F324}";
+  const c = condition.toLowerCase();
+  if (c.includes("rain") || c.includes("shower")) return "\u{1F327}";
+  if (c.includes("snow")) return "\u{2744}";
+  if (c.includes("cloud") || c.includes("overcast")) return "\u{2601}";
+  if (c.includes("partly") || c.includes("partial")) return "\u{26C5}";
+  if (c.includes("sun") || c.includes("clear")) return "\u{2600}";
+  if (c.includes("thunder") || c.includes("storm")) return "\u{26C8}";
+  if (c.includes("fog") || c.includes("mist")) return "\u{1F32B}";
+  return "\u{1F324}";
 }
 
 export default function WeatherTile({ forecast }) {
@@ -20,8 +38,9 @@ export default function WeatherTile({ forecast }) {
 
   const first = forecast[0];
   const highTemp = first.high ?? first.highTemp ?? first.temperature ?? "--";
-  const conditions = first.conditions ?? first.shortForecast ?? "";
-  const emoji = first.emoji ?? "\u{1F324}";
+  const lowTemp = first.low ?? first.lowTemp ?? "";
+  const conditions = first.conditions ?? first.condition ?? first.shortForecast ?? "";
+  const emoji = first.emoji ?? weatherEmoji(conditions);
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -30,7 +49,7 @@ export default function WeatherTile({ forecast }) {
         {"\u{1F324}"} Weather
       </p>
 
-      {/* Big temp */}
+      {/* Big temp + conditions */}
       <div className="flex items-baseline gap-2">
         <span className="text-3xl font-display font-extrabold text-meadow-700">
           {highTemp}&deg;
@@ -41,21 +60,31 @@ export default function WeatherTile({ forecast }) {
         <p className="text-sm text-gray-500 mt-0.5">{conditions}</p>
       )}
 
-      {/* 7-day row */}
-      <div className="flex gap-2 overflow-x-auto mt-3 pb-1">
-        {forecast.slice(0, 7).map((day, i) => {
+      {/* Trip date forecast strip */}
+      <div className="flex gap-1.5 overflow-x-auto mt-3 pb-1">
+        {forecast.map((day, i) => {
           const hi = day.high ?? day.highTemp ?? day.temperature ?? "--";
-          const dayEmoji = day.emoji ?? "\u{1F324}";
+          const lo = day.low ?? day.lowTemp ?? "";
+          const cond = day.conditions ?? day.condition ?? day.shortForecast ?? "";
+          const dayEmoji = day.emoji ?? weatherEmoji(cond);
+          const { day: dayName, date } = formatDayLabel(day.date);
+
           return (
             <div
               key={i}
-              className="min-w-[50px] text-center bg-gray-50 rounded-lg p-2 flex-shrink-0"
+              className={`min-w-[56px] text-center rounded-xl p-2 flex-shrink-0 transition ${
+                i === 0
+                  ? "bg-meadow-50 border border-meadow-200"
+                  : "bg-gray-50 border border-transparent"
+              }`}
             >
-              <p className="text-xs font-medium text-gray-500">
-                {dayInitial(day.date)}
-              </p>
+              <p className="text-[10px] font-bold text-gray-700">{dayName}</p>
+              <p className="text-[9px] text-gray-400">{date}</p>
               <p className="text-base my-0.5">{dayEmoji}</p>
               <p className="text-xs font-bold text-gray-700">{hi}&deg;</p>
+              {lo !== "" && (
+                <p className="text-[10px] text-gray-400">{lo}&deg;</p>
+              )}
             </div>
           );
         })}

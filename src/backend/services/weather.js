@@ -78,9 +78,17 @@ export function __resetWeatherCacheForTests() {
 }
 
 export async function getWeatherForecast(lat, lon, countryCode, startDate, endDate) {
-  // Route international requests to Visual Crossing; US stays on Weather.gov.
-  // Visual Crossing also used for US when trip dates are provided (better date-range support).
-  if (countryCode && countryCode.toUpperCase() !== "US") {
+  // All regions use Visual Crossing for consistent date-range-aware forecasts.
+  // Weather.gov (US-only, no date filtering) kept as fallback if VC fails for US.
+  if (startDate && endDate) {
+    try {
+      return await getVisualCrossingForecast(lat, lon, { startDate, endDate });
+    } catch (err) {
+      // For US, fall through to Weather.gov; for international, rethrow
+      if (!countryCode || countryCode.toUpperCase() !== "US") throw err;
+      log.warn("Visual Crossing failed for US, falling back to Weather.gov", { error: err.message });
+    }
+  } else if (countryCode && countryCode.toUpperCase() !== "US") {
     return getVisualCrossingForecast(lat, lon, { startDate, endDate });
   }
 
