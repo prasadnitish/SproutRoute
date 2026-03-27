@@ -208,7 +208,7 @@ export function createApp(deps = {}) {
         });
       }
 
-      const { destination, startDate, endDate, activities, children } =
+      const { destination, startDate, endDate, activities, children, pets } =
         sanitizedData;
       const safeActivities =
         Array.isArray(activities) && activities.length > 0
@@ -235,6 +235,7 @@ export function createApp(deps = {}) {
           endDate,
           activities: safeActivities,
           children,
+          pets,
           foodPreferences,
         },
         weather,
@@ -333,7 +334,7 @@ export function createApp(deps = {}) {
         });
       }
 
-      const { destination, startDate, endDate, activities, children } =
+      const { destination, startDate, endDate, activities, children, pets } =
         sanitizedData;
 
       // Note: API key validation is performed at startup via validateEnvironmentVariables()
@@ -348,7 +349,7 @@ export function createApp(deps = {}) {
       devLog(`Weather fetched successfully`);
 
       const packingList = await generatePackingListFn(
-        { destination, startDate, endDate, activities, children },
+        { destination, startDate, endDate, activities, children, pets },
         weather,
       );
       devLog(

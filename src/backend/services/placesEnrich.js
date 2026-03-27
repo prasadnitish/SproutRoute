@@ -7,6 +7,7 @@ const FIELD_MASK = [
   "places.id", "places.displayName", "places.rating", "places.userRatingCount",
   "places.formattedAddress", "places.nationalPhoneNumber", "places.websiteUri",
   "places.regularOpeningHours", "places.priceLevel", "places.googleMapsUri", "places.photos",
+  "places.location",
 ].join(",");
 
 export async function enrichActivity(activityName, destination, category = "") {
@@ -47,6 +48,8 @@ export async function enrichActivity(activityName, destination, category = "") {
       openingHours: place.regularOpeningHours?.weekdayDescriptions || [],
       priceLevel: parsePriceLevel(place.priceLevel),
       mapsUrl: place.googleMapsUri || null,
+      latitude: place.location?.latitude || null,
+      longitude: place.location?.longitude || null,
       photos: (place.photos || []).slice(0, 5).map(p =>
         `/api/v1/places/photo?ref=${encodeURIComponent(p.name)}`
       ),

@@ -64,6 +64,37 @@ export function sanitizeChildren(children, maxLength = 10) {
     .filter(child => child !== null);
 }
 
+const VALID_PET_TYPES = new Set(["dog", "cat", "bird", "other"]);
+
+export function sanitizePets(pets, maxLength = 5) {
+  if (!Array.isArray(pets)) return [];
+
+  return pets.slice(0, maxLength)
+    .map((pet) => {
+      const type = VALID_PET_TYPES.has(pet?.type) ? pet.type : "dog";
+      const safe = { type };
+
+      if (typeof pet.breed === "string" && pet.breed.trim()) {
+        safe.breed = sanitizeString(pet.breed, 50);
+      }
+      if (typeof pet.name === "string" && pet.name.trim()) {
+        safe.name = sanitizeString(pet.name, 30);
+      }
+
+      const ageMonths = Number.parseInt(String(pet?.ageMonths), 10);
+      if (Number.isFinite(ageMonths) && ageMonths >= 0 && ageMonths <= 360) {
+        safe.ageMonths = ageMonths;
+      }
+
+      const weightLb = Number.parseFloat(String(pet?.weightLb));
+      if (Number.isFinite(weightLb) && weightLb > 0 && weightLb <= 300) {
+        safe.weightLb = weightLb;
+      }
+
+      return safe;
+    });
+}
+
 export function sanitizeTripData(data) {
   // Canonical payload sanitizer for trip-related endpoints.
   const safeData = data || {};
@@ -77,6 +108,7 @@ export function sanitizeTripData(data) {
   };
 
   sanitized.children = sanitizeChildren(safeData.children);
+  sanitized.pets = sanitizePets(safeData.pets);
 
   return sanitized;
 }
