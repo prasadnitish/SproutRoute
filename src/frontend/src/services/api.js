@@ -226,6 +226,16 @@ export const getCapabilities = async (client = "web") =>
     { maxRetries: 0, timeoutMs: 5000 },
   );
 
+// --- Pet travel safety ---
+
+/** Fetch pet travel guidance (airline policies + entry requirements). */
+export const petTravelCheck = async ({ pets, destination, countryCode, travelMode }, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/safety/pet-travel-check`,
+    POST_OPTS({ pets, destination, countryCode, travelMode }),
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
+  );
+
 // --- Phase 4: International safety API calls ---
 
 /** Fetch US State Dept travel advisory for a country. Returns null for US or if unavailable. */

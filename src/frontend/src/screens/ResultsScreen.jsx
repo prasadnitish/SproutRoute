@@ -3,6 +3,7 @@ import HeroTile from "../components/mosaic/HeroTile";
 import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
+import PetSafetyTile from "../components/mosaic/PetSafetyTile";
 import MapTile from "../components/mosaic/MapTile";
 import ActivityDetailPanel from "../components/ActivityDetailPanel";
 import PackingChecklist from "../components/PackingChecklist";
@@ -40,6 +41,7 @@ export default function ResultsScreen({
   parsedInput,
   packingList,
   safetyData,
+  petSafetyData,
   enrichedData,
   enrich,
   onGoBack,
@@ -64,6 +66,7 @@ export default function ResultsScreen({
     tripData?.parsed?.destination || tripData?.trip?.destination;
   const lat = tripData?.trip?.lat;
   const lon = tripData?.trip?.lon;
+  const hasPets = (tripData?.trip?.pets?.length || parsedInput?.pets?.length || 0) > 0;
 
   const handleActivityTap = (activity) => {
     setSelectedActivity(activity);
@@ -142,6 +145,13 @@ export default function ResultsScreen({
             <div className="lg:col-span-2">
               <SafetyTile safetyData={safetyData} />
             </div>
+
+            {/* Pet Safety — shown when pet safety data is available */}
+            {petSafetyData && (
+              <div className="md:col-span-2 lg:col-span-3">
+                <PetSafetyTile petSafetyData={petSafetyData} />
+              </div>
+            )}
           </div>
 
           {/* Itinerary + Day Route Map — side by side on desktop */}
@@ -152,6 +162,7 @@ export default function ResultsScreen({
               forecast={forecast}
               onActivityTap={handleActivityTap}
               onDayChange={setActiveDayActivities}
+              hasPets={hasPets}
             />
             <div className="hidden lg:block">
               <DayRouteMap

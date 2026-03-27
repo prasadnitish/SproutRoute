@@ -26,7 +26,43 @@ function PriceLevel({ level }) {
   return <span className="text-[10px] text-gray-400">{symbols}</span>;
 }
 
-function ActivityCard({ activity, onTap }) {
+function PetBadge({ petFriendly, hasPets }) {
+  if (!hasPets) return null;
+  if (petFriendly === true) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-meadow-50 text-meadow-700 rounded-full px-1.5 py-0.5">
+        {"\uD83D\uDC3E"} Pet friendly
+      </span>
+    );
+  }
+  if (petFriendly === false) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 rounded-full px-1.5 py-0.5">
+        {"\u26A0\uFE0F"} No pets
+      </span>
+    );
+  }
+  return null;
+}
+
+function DaycareSuggestion() {
+  return (
+    <div className="flex gap-3 p-3 rounded-xl border border-amber-100 bg-amber-50/40">
+      <div className="flex flex-col items-center flex-shrink-0 w-14">
+        <span className="text-lg">{"\uD83D\uDC3E"}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-amber-700">Pet daycare suggestion</p>
+        <p className="text-[10px] text-amber-600 mt-0.5">
+          This day has several no-pets activities. Consider booking a nearby pet daycare
+          or pet-sitting service so your furry friend is well cared for.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ActivityCard({ activity, onTap, hasPets }) {
   const isMeal = activity.isMeal || activity.status === "meal";
   const isClosed = activity.status === "closed";
   const name = activity.name || activity.title || "Activity";
@@ -87,6 +123,7 @@ function ActivityCard({ activity, onTap }) {
           </p>
           {enriched && <Stars rating={enriched.rating} />}
           {enriched && <PriceLevel level={enriched.priceLevel} />}
+          <PetBadge petFriendly={activity.petFriendly} hasPets={hasPets} />
         </div>
 
         {/* Category label for activities */}
@@ -151,6 +188,7 @@ export default function ItineraryTile({
   forecast,
   onActivityTap,
   onDayChange,
+  hasPets = false,
 }) {
   const [activeDay, setActiveDay] = useState(0);
 
@@ -240,6 +278,12 @@ export default function ItineraryTile({
         </div>
       )}
 
+      {/* Daycare suggestion when 2+ non-pet-friendly activities in a day */}
+      {hasPets &&
+        activities.filter((a) => a.petFriendly === false).length >= 2 && (
+          <DaycareSuggestion />
+        )}
+
       {/* Activities timeline */}
       <div className="space-y-0.5">
         {activities.map((activity, i) => (
@@ -247,6 +291,7 @@ export default function ItineraryTile({
             key={i}
             activity={activity}
             onTap={onActivityTap}
+            hasPets={hasPets}
           />
         ))}
       </div>

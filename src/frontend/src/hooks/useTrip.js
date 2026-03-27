@@ -8,6 +8,7 @@ export function useTrip() {
   const [tripData, setTripData] = useState(() => loadJSON(STORAGE_KEYS.trip));
   const [packingList, setPackingList] = useState(null);
   const [safetyData, setSafetyData] = useState(null);
+  const [petSafetyData, setPetSafetyData] = useState(null);
   const [progress, setProgress] = useState({});
   const [error, setError] = useState(null);
 
@@ -21,6 +22,7 @@ export function useTrip() {
     setTripData(null);
     setPackingList(null);
     setSafetyData(null);
+    setPetSafetyData(null);
     setScreen("generating");
     setProgress({});
 
@@ -67,6 +69,7 @@ export function useTrip() {
     // Step 2: Trip plan (weather + itinerary) using existing endpoint
     markStep("weather", "active");
 
+    const pets = parsed.pets || [];
     const formData = {
       destination: parsed.destination,
       startDate: parsed.startDate,
@@ -75,6 +78,7 @@ export function useTrip() {
       childrenAges: parsed.childrenAges,
       activities: [parsed.vibe],
       foodPreferences: parsed.foodPreferences || null,
+      pets,
     };
 
     // Call existing /api/trip-plan endpoint
@@ -105,6 +109,11 @@ export function useTrip() {
     // Step 3 & 4: Packing list + Safety — run in background while user views itinerary
     fetchPackingInBackground(formData);
     fetchSafetyInBackground(parsed, tripResult);
+
+    // Step 5: Pet travel safety — run in background if pets present
+    if (pets.length > 0) {
+      fetchPetSafetyInBackground(pets, parsed, tripResult);
+    }
   }
 
   // Background fetchers — run after results screen is shown
@@ -151,6 +160,28 @@ export function useTrip() {
     markStep("safety", "done");
   }
 
+  async function fetchPetSafetyInBackground(pets, parsed, tripResult) {
+    try {
+      const petRes = await fetch("/api/v1/safety/pet-travel-check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pets,
+          destination: parsed.destination,
+          countryCode: tripResult?.trip?.countryCode || "",
+          travelMode: null, // let backend derive from distance
+        }),
+      });
+      if (petRes.ok) {
+        setPetSafetyData(await petRes.json());
+      } else {
+        console.warn("Pet safety data failed:", petRes.status);
+      }
+    } catch (err) {
+      console.warn("Pet safety data error (non-blocking):", err.message);
+    }
+  }
+
   const goBack = useCallback(() => {
     setScreen("input");
     setParsedInput(null);
@@ -159,7 +190,7 @@ export function useTrip() {
   }, []);
 
   return {
-    screen, tripInput, parsedInput, tripData, packingList, safetyData,
+    screen, tripInput, parsedInput, tripData, packingList, safetyData, petSafetyData,
     progress, error, STEPS,
     submitTrip, selectDestination, goBack,
   };
