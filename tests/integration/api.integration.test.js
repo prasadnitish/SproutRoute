@@ -462,6 +462,41 @@ test("POST /api/v1/safety/pet-travel-check skips airlines for drive mode", async
   assert.equal(res.body.entryRequirements, null, "no entry requirements for US domestic");
 });
 
+test("CSP allows Google Fonts and OpenStreetMap iframe", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  const app = createApp({ enableRequestLogging: false });
+
+  // Find the security middleware (the use() layer that sets CSP headers)
+  // It's an app-level middleware that calls setHeader("Content-Security-Policy", ...)
+  // We invoke it directly with a mock req/res to capture the header value.
+  const appStack = app._router?.stack || [];
+  const securityLayer = appStack.find(
+    (layer) =>
+      !layer.route &&
+      layer.handle &&
+      layer.handle.toString().includes("Content-Security-Policy"),
+  );
+
+  assert.ok(securityLayer, "security middleware layer must exist");
+
+  const capturedHeaders = {};
+  const mockRes = {
+    setHeader(name, value) { capturedHeaders[name] = value; },
+  };
+  const mockReq = {};
+  let nextCalled = false;
+  const mockNext = () => { nextCalled = true; };
+
+  securityLayer.handle(mockReq, mockRes, mockNext);
+
+  const csp = capturedHeaders["Content-Security-Policy"];
+  assert.ok(csp, "Content-Security-Policy header must be set");
+  assert.ok(csp.includes("fonts.googleapis.com"), "CSP must allow Google Fonts stylesheets");
+  assert.ok(csp.includes("fonts.gstatic.com"), "CSP must allow Google Fonts files");
+  assert.ok(csp.includes("openstreetmap.org"), "CSP must allow OSM iframe");
+  assert.ok(nextCalled, "middleware must call next()");
+});
+
 test("POST /api/v1/safety/pet-travel-check returns airline guidance with DI mock", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
 
