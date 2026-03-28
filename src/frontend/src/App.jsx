@@ -73,6 +73,7 @@ export default function App() {
             packingError={trip.packingError}
             safetyData={trip.safetyData}
             petSafetyData={trip.petSafetyData}
+            carSeatData={trip.carSeatData}
             enrichedData={enrichedData}
             enrich={enrich}
             onGoBack={trip.goBack}

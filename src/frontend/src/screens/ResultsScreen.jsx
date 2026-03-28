@@ -43,6 +43,7 @@ export default function ResultsScreen({
   packingError,
   safetyData,
   petSafetyData,
+  carSeatData,
   enrichedData,
   enrich,
   onGoBack,
@@ -145,7 +146,7 @@ export default function ResultsScreen({
 
             {/* Safety — fills remaining space on lg row 2 */}
             <div className="lg:col-span-2">
-              <SafetyTile safetyData={safetyData} />
+              <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
             </div>
 
             {/* Pet Safety — shown when pet safety data is available */}
