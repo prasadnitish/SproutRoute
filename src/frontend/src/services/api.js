@@ -168,7 +168,7 @@ export const generateTripPlan = async (tripData, { onRetry, onRateLimitInfo } = 
   fetchWithRetry(
     `${API_BASE_URL}/api/trip-plan`,
     POST_OPTS(tripData),
-    { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
+    { maxRetries: 2, timeoutMs: 60000, onRetry, onRateLimitInfo },
   );
 
 /**
