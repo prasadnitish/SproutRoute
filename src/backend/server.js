@@ -245,24 +245,13 @@ export function createApp(deps = {}) {
       );
       devLog(`Trip plan generated successfully`);
 
-      // ── Enrich + Schedule pipeline ──────────────────────────────
-      // Batch-enrich all activities with Google Places data (hours, rating, photos)
-      // then schedule them into real time slots based on business hours.
+      // Enrichment deferred to frontend (usePlacesEnrich) for faster response.
+      // Schedule itinerary using time-slot heuristics only (no Places data needed).
       let scheduledItinerary = null;
-      let enrichedMap = {};
       try {
-        const destName = coords.displayName || destination;
-        enrichedMap = await batchEnrich(
-          tripPlan.suggestedActivities,
-          destName,
-          enrichActivityFn,
-          tripPlan.dailyItinerary,
-        );
-        scheduledItinerary = scheduleItinerary(tripPlan, enrichedMap, startDate);
-        devLog(`Scheduled ${scheduledItinerary.length} days with ${Object.keys(enrichedMap).length} enriched activities`);
-      } catch (enrichErr) {
-        // Non-blocking: fall back to un-scheduled itinerary
-        devLog(`Enrich/schedule failed (non-blocking): ${enrichErr.message}`);
+        scheduledItinerary = scheduleItinerary(tripPlan, {}, startDate);
+      } catch (scheduleErr) {
+        devLog(`Schedule failed (non-blocking): ${scheduleErr.message}`);
       }
 
       const tripDuration = Math.ceil(
@@ -290,7 +279,6 @@ export function createApp(deps = {}) {
         weather,
         tripPlan,
         scheduledItinerary,
-        enrichedMap,
       });
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
@@ -791,6 +779,115 @@ export function createApp(deps = {}) {
         retryable: true,
         requestId,
       });
+    }
+  });
+
+  // POST /api/v1/trip/stream
+  // Server-Sent Events endpoint: streams trip results progressively.
+  // Events: destination → weather → itinerary-chunk → packing → done
+  // No batch enrichment — frontend enriches on-demand via usePlacesEnrich.
+  app.post("/api/v1/trip/stream", aiLimiter, async (req, res) => {
+    // SSE headers
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable nginx/proxy buffering
+
+    const send = (event, data) => {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    try {
+      const sanitizedData = sanitizeTripData(req.body);
+      const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
+      if (validationErrors.length > 0) {
+        send("error", { message: validationErrors.join("; ") });
+        return res.end();
+      }
+
+      const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
+      const safeActivities =
+        Array.isArray(activities) && activities.length > 0
+          ? activities
+          : ["family-friendly", "parks", "city"];
+
+      // Phase 1: Geocode (~1-2s)
+      const coords = await geocodeLocationFn(destination);
+      const resolvedCountry = coords.countryCode || "US";
+      const tripDuration = Math.ceil(
+        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
+      );
+
+      send("destination", {
+        destination: coords.displayName || destination,
+        lat: coords.lat,
+        lon: coords.lon,
+        jurisdictionCode: coords.stateCode || null,
+        jurisdictionName: coords.stateName || null,
+        countryCode: resolvedCountry,
+        regionCode: coords.regionCode || null,
+        startDate,
+        endDate,
+        duration: tripDuration,
+        activities: safeActivities,
+        children,
+      });
+
+      // Phase 2: Weather (~1-3s)
+      const weather = await getWeatherForecastFn(
+        coords.lat, coords.lon, resolvedCountry, startDate, endDate,
+      );
+      send("weather", { weather });
+
+      // Phase 3: AI itinerary + packing in parallel (~10-20s)
+      const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const tripPayload = {
+        destination, startDate, endDate,
+        activities: safeActivities, children, pets, foodPreferences,
+      };
+
+      // Run both AI calls concurrently
+      const [tripPlan, packingResult] = await Promise.allSettled([
+        generateTripPlanFn(tripPayload, weather),
+        generatePackingListFn(tripPayload, weather),
+      ]);
+
+      // Send itinerary as soon as it's ready
+      if (tripPlan.status === "fulfilled") {
+        send("itinerary-chunk", { tripPlan: tripPlan.value });
+      } else {
+        send("error", { message: "Failed to generate itinerary. Please try again." });
+        return res.end();
+      }
+
+      // Send packing list (may have failed independently)
+      if (packingResult.status === "fulfilled") {
+        const packingList = packingResult.value;
+        // Add shopLinks
+        if (packingList?.categories) {
+          for (const category of packingList.categories) {
+            category.items = category.items.map(item => ({
+              ...item,
+              shopLinks: item.searchQuery ? buildShopLinks(item.searchQuery) : [],
+            }));
+          }
+        }
+        send("packing", { packingList });
+      }
+      // Packing failure is non-fatal — frontend shows retry button
+
+      send("done", {});
+      res.end();
+    } catch (error) {
+      devLog("Error in /api/v1/trip/stream:", error);
+      try {
+        if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
+          send("error", { message: "Could not find that location. Please try a more specific address." });
+        } else {
+          send("error", { message: "Failed to generate trip plan. Please try again." });
+        }
+      } catch { /* response may already be closed */ }
+      try { res.end(); } catch { /* ignore */ }
     }
   });
 
