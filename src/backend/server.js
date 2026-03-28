@@ -1203,19 +1203,24 @@ export function createApp(deps = {}) {
     }
   });
 
-  // ─── IP geolocation proxy (ip-api.com is HTTP-only, can't call from HTTPS frontend) ───
+  // ─── IP geolocation proxy (HTTPS — privacy-safe) ───
   app.get("/api/v1/geo/detect", apiLimiter, async (req, res) => {
     try {
       const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
-      // SECURITY: Validate IP is a plausible format before using in URL
-      const ipSafe = encodeURIComponent(ip);
-      const geoRes = await fetch(`http://ip-api.com/json/${ipSafe}?fields=lat,lon,city,regionName,country`);
+      // Validate IP format before external call
+      if (!/^[\d.:a-fA-F]+$/.test(ip)) {
+        return res.json({ lat: null, lon: null, region: null });
+      }
+      const geoRes = await fetch(
+        `https://ipapi.co/${encodeURIComponent(ip)}/json/`,
+        { headers: { "User-Agent": "SproutRoute/1.0" }, signal: AbortSignal.timeout(3000) }
+      );
       if (!geoRes.ok) return res.json({ lat: null, lon: null, region: null });
       const data = await geoRes.json();
       res.json({
-        lat: data.lat || null,
-        lon: data.lon || null,
-        region: [data.city, data.regionName].filter(Boolean).join(", ") || null,
+        lat: data.latitude || null,
+        lon: data.longitude || null,
+        region: [data.city, data.region].filter(Boolean).join(", ") || null,
       });
     } catch {
       res.json({ lat: null, lon: null, region: null });
