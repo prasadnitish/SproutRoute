@@ -49,6 +49,9 @@ export function useTrip() {
         detectedLon: geolocation?.lon || null,
       });
       setParsedInput(parsed);
+      // Attach user origin coords for distance-based travel mode derivation
+      parsed.originLat = geolocation?.lat || null;
+      parsed.originLon = geolocation?.lon || null;
       markStep("resolve", "done");
 
       // If no destination, show destination picker (don't continue generation)
@@ -147,9 +150,22 @@ export function useTrip() {
 
   async function fetchPetSafetyInBackground(pets, parsed, tripResult, signal) {
     try {
-      // Derive travel mode: if distance > 300 miles or different country, assume fly
-      const distMiles = tripResult?.trip?.distanceMiles;
       const countryCode = tripResult?.trip?.countryCode || "US";
+      // Compute distance from user's geolocation to destination for travel mode
+      let distMiles = null;
+      const tripLat = tripResult?.trip?.lat;
+      const tripLon = tripResult?.trip?.lon;
+      const originLat = parsed.originLat;
+      const originLon = parsed.originLon;
+      if (tripLat && tripLon && originLat && originLon) {
+        const toRad = (d) => (d * Math.PI) / 180;
+        const R = 3958.8;
+        const dLat = toRad(tripLat - originLat);
+        const dLon = toRad(tripLon - originLon);
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(toRad(originLat)) * Math.cos(toRad(tripLat)) * Math.sin(dLon / 2) ** 2;
+        distMiles = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      }
       const derivedMode = (distMiles && distMiles > 300) || (countryCode !== "US") ? "fly" : "drive";
 
       const result = await petTravelCheck({
