@@ -79,3 +79,31 @@ test("sanitizeTripData preserves pets field", () => {
   assert.equal(result.pets.length, 1);
   assert.equal(result.pets[0].breed, "Maltipoo");
 });
+
+test("sanitizeTripData accepts childrenAges flat array", () => {
+  const result = sanitizeTripData({
+    destination: "Orlando, FL",
+    startDate: "2026-04-10",
+    endDate: "2026-04-14",
+    activities: ["theme_parks"],
+    childrenAges: [3, 7, 12],
+  });
+  assert.strictEqual(result.children.length, 3);
+  assert.strictEqual(result.children[0].age, 3);
+  assert.strictEqual(result.children[1].age, 7);
+  assert.strictEqual(result.children[2].age, 12);
+});
+
+test("sanitizeTripData prefers children objects over childrenAges", () => {
+  const result = sanitizeTripData({
+    destination: "Orlando, FL",
+    startDate: "2026-04-10",
+    endDate: "2026-04-14",
+    activities: ["theme_parks"],
+    children: [{ age: 5, weightLb: 40 }],
+    childrenAges: [3, 7],
+  });
+  assert.strictEqual(result.children.length, 1);
+  assert.strictEqual(result.children[0].age, 5);
+  assert.strictEqual(result.children[0].weightLb, 40);
+});

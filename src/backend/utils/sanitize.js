@@ -107,7 +107,15 @@ export function sanitizeTripData(data) {
     children: [],
   };
 
-  sanitized.children = sanitizeChildren(safeData.children);
+  // Accept children as objects [{age:3}] or flat childrenAges [3, 7]
+  if (Array.isArray(safeData.children) && safeData.children.length > 0) {
+    sanitized.children = sanitizeChildren(safeData.children);
+  } else if (Array.isArray(safeData.childrenAges) && safeData.childrenAges.length > 0) {
+    sanitized.children = sanitizeChildren(
+      safeData.childrenAges.map(age => ({ age }))
+    );
+  }
+
   sanitized.pets = sanitizePets(safeData.pets);
 
   return sanitized;
