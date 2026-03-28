@@ -34,7 +34,7 @@ export default function App() {
               <button
                 onClick={() => {
                   const url = new URL(window.location.href);
-                  url.searchParams.set("q", trip.tripInput);
+                  url.searchParams.set("dest", trip.tripData?.parsed?.destination || "");
                   navigator.clipboard.writeText(url.toString());
                 }}
                 className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-meadow-50 rounded-lg text-gray-600 hover:text-meadow-600 transition"
