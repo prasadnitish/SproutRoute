@@ -22,19 +22,33 @@ strollerscout/
 ├── src/
 │   ├── frontend/                        # React 18 + Vite + Tailwind (SPA)
 │   │   ├── src/
-│   │   │   ├── App.jsx                  ← ORCHESTRATOR — wizard state, API calls, layout
+│   │   │   ├── App.jsx                  ← Minimal: nav + screen router
+│   │   │   ├── screens/
+│   │   │   │   ├── InputScreen.jsx      ← Single textarea + vibe chips
+│   │   │   │   ├── GeneratingScreen.jsx ← Progress steps + destination picker
+│   │   │   │   └── ResultsScreen.jsx    ← Tab layout: Plan (mosaic) + Pack
+│   │   │   ├── hooks/
+│   │   │   │   ├── useTrip.js           ← ORCHESTRATOR: parse → plan → packing/safety/pet/car-seat
+│   │   │   │   ├── useGeolocation.js    ← IP-based location detection
+│   │   │   │   └── usePlacesEnrich.js   ← Google Places enrichment
 │   │   │   ├── components/
-│   │   │   │   ├── TripPlanDisplay.jsx  ← Itinerary + activity customization
-│   │   │   │   ├── PackingChecklist.jsx ← Packing items + checked state (incl. pet items)
-│   │   │   │   ├── TravelSafetyCard.jsx ← Car seat guidance display
-│   │   │   │   ├── PetSafetyTile.jsx   ← Airline eligibility + entry requirements (NEW)
-│   │   │   │   ├── FamilyStep.jsx      ← Children + pets input (renamed from KidsStep)
-│   │   │   │   ├── WeatherDisplay.jsx   ← Weather forecast cards
-│   │   │   │   └── ShareExport.jsx      ← (Phase 2) Share/copy/print
+│   │   │   │   ├── mosaic/
+│   │   │   │   │   ├── HeroTile.jsx         ← Trip summary card
+│   │   │   │   │   ├── WeatherTile.jsx       ← Weather forecast
+│   │   │   │   │   ├── ItineraryTile.jsx     ← Day-by-day itinerary
+│   │   │   │   │   ├── SafetyTile.jsx        ← Safety tips + car seat guidance
+│   │   │   │   │   ├── PetSafetyTile.jsx     ← Airline + entry requirements
+│   │   │   │   │   ├── MapTile.jsx           ← OpenStreetMap embed
+│   │   │   │   │   └── DayRouteMap.jsx       ← Activity route visualization
+│   │   │   │   ├── ActivityDetailPanel.jsx  ← Slide-over for activity details
+│   │   │   │   ├── PackingChecklist.jsx     ← Packing items + checked state (incl. pet items)
+│   │   │   │   └── ResultTabs.jsx           ← Tab component
 │   │   │   ├── services/
-│   │   │   │   └── api.js               ← All fetch() calls to backend; retry logic here
+│   │   │   │   └── api.js               ← All fetch() calls to backend; fetchWithRetry + parseSafeResponse
 │   │   │   ├── utils/
-│   │   │   │   └── checklist.js         ← Item ID generation, checked-state helpers
+│   │   │   │   ├── checklist.js         ← Item ID generation, checked-state helpers
+│   │   │   │   ├── storage.js           ← localStorage with TTL
+│   │   │   │   └── safeRender.js        ← XSS-safe text rendering
 │   │   │   └── index.css                ← Global styles, dark mode, print styles
 │   │   ├── tailwind.config.js           ← Color tokens: sprout-green, sprout-dark, warm-white
 │   │   └── package.json
@@ -48,9 +62,21 @@ strollerscout/
 │   │   │   ├── packingListAI.js         ← AI packing list generation (pet packing category)
 │   │   │   ├── safetyRules.js           ← Car seat law lookup orchestration
 │   │   │   ├── carSeatRules.js          ← US state car seat data (~10 states currently)
-│   │   │   ├── petSafety.js             ← Pet travel orchestrator (DI pattern) (NEW)
-│   │   │   ├── petAirlineRules.js       ← Static airline pet policies — 6 carriers (NEW)
-│   │   │   └── petEntryRules.js         ← International pet entry requirements (NEW)
+│   │   │   ├── petSafety.js             ← Pet travel orchestrator (DI pattern)
+│   │   │   ├── petAirlineRules.js       ← Static airline pet policies — 6 carriers
+│   │   │   ├── petEntryRules.js         ← International pet entry requirements
+│   │   │   ├── travelSafety.js          ← AI-generated safety tips
+│   │   │   ├── travelAdvisory.js        ← US State Dept advisories
+│   │   │   ├── neighborhoodSafety.js    ← Neighborhood safety data
+│   │   │   ├── parseInput.js            ← AI trip input parser
+│   │   │   ├── inputSafety.js           ← Prompt injection protection
+│   │   │   ├── placesEnrich.js          ← Google Places enrichment
+│   │   │   └── itineraryScheduler.js    ← Time slot scheduling
+│   │   ├── utils/
+│   │   │   ├── sanitize.js              ← Input sanitization
+│   │   │   ├── aiClient.js              ← Anthropic API wrapper
+│   │   │   ├── affiliateLinks.js        ← Shopping link generation
+│   │   │   └── logger.js                ← Structured logging
 │   │   └── package.json
 │   │
 │   └── shared/                          ← (Phase 1) TypeScript contracts package
@@ -59,13 +85,36 @@ strollerscout/
 │           └── api.ts                   ← ApiError, CapabilityPayload
 │
 ├── tests/
-│   ├── unit/
-│   │   ├── sanitize.test.js             ← 3 tests, pure functions
-│   │   ├── checklist.test.js            ← 2 tests, item ID helpers
-│   │   ├── geocoding.test.js            ← 3 tests, fetch mock + cache reset
-│   │   └── safetyRules.test.js          ← 7 tests, DI via researchFn override
-│   └── integration/
-│       └── api.integration.test.js      ← 6 tests, createApp(deps={}) DI pattern
+│   ├── unit/                            ← 24 test files
+│   │   ├── sanitize.test.js
+│   │   ├── inputSafety.test.js
+│   │   ├── parseInput.test.js
+│   │   ├── geocoding.test.js
+│   │   ├── safetyRules.test.js
+│   │   ├── petSafety.test.js
+│   │   ├── petAirlineRules.test.js
+│   │   ├── petEntryRules.test.js
+│   │   ├── travelAdvisory.test.js
+│   │   ├── neighborhoodSafety.test.js
+│   │   ├── weather.test.js
+│   │   ├── tripPlanAI.test.js
+│   │   ├── packingListAI.test.js
+│   │   ├── placesEnrich.test.js
+│   │   ├── aiClient.test.js
+│   │   ├── affiliateLinks.test.js
+│   │   ├── checklist.test.js
+│   │   ├── apiFetch.test.js
+│   │   ├── intlSafetyRules.test.js
+│   │   ├── placesCache.test.js
+│   │   ├── ragTemplates.test.js
+│   │   ├── rebrand.test.js
+│   │   └── travelMode.test.js
+│   ├── integration/
+│   │   ├── api.integration.test.js      ← createApp(deps={}) DI pattern
+│   │   └── apiV1.contract.test.js       ← /api/v1 contract tests
+│   └── e2e/
+│       └── tiles/
+│           └── packing-tile.spec.ts     ← Playwright
 │
 ├── docs/
 │   ├── AI_DELIVERY_PLAYBOOK.md          ← AI coding operating model
@@ -101,33 +150,38 @@ strollerscout/
 
 ### Trip Plan Request (web)
 ```
-User submits wizard (destination + dates + children + pets)
-→ App.jsx calls api.js → POST /api/resolve-destination
-→ api.js → POST /api/trip-plan (weather + AI itinerary, pet-aware if pets present)
-→ api.js → POST /api/generate (packing list, includes pet packing category)
-→ api.js → POST /api/safety/car-seat-check
-→ api.js → POST /api/v1/safety/pet-travel-check (if pets present)
-→ App.jsx renders: TripPlanDisplay + PackingChecklist + TravelSafetyCard + PetSafetyTile
+User types free-text in InputScreen textarea
+→ useTrip.submitTrip(text, geolocation)
+→ POST /api/v1/trip/parse-input (AI extracts structured data from free text)
+→ POST /api/trip-plan (geocode → weather → AI itinerary)
+→ Results shown immediately (HeroTile + WeatherTile + ItineraryTile), then background:
+  → POST /api/generate (packing list → PackingChecklist)
+  → POST /api/safety/travel-tips (AI safety tips → SafetyTile)
+  → POST /api/safety/car-seat-check (if children present → SafetyTile)
+  → POST /api/v1/safety/pet-travel-check (if pets present → PetSafetyTile)
+→ ResultsScreen renders: mosaic tiles (Plan tab) + PackingChecklist (Pack tab)
 ```
 
 ### Pet Travel Data Flow (when pets present)
 ```
-User enters trip with pets in FamilyStep (renamed from KidsStep)
-→ api.js → POST /api/v1/trip/parse-input (detects pets from text)
+User mentions pets in free-text input
+→ POST /api/v1/trip/parse-input (extracts pets from text)
 → Backend derives travelMode from distance + countryCode
-→ api.js → POST /api/v1/trip/plan (pets injected into AI prompt → pet-friendly itinerary)
-→ api.js → POST /api/v1/trip/packing (pets → pet packing category per pet)
-→ api.js → POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
-→ App.jsx renders: ItineraryTile (badges) + PackingChecklist (pet items) + PetSafetyTile
+→ POST /api/trip-plan (pets injected into AI prompt → pet-friendly itinerary)
+→ POST /api/generate (pets → pet packing category per pet)
+→ POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
+→ ResultsScreen renders: ItineraryTile (pet badges) + PackingChecklist (pet items) + PetSafetyTile
 ```
 
 ### API Route Ownership
 | Frontend call | Backend route | Service file |
 |--------------|---------------|--------------|
+| `POST /api/v1/trip/parse-input` | `server.js` | `parseInput.js` + `inputSafety.js` |
 | `POST /api/resolve-destination` | `server.js:~line 140` | `geocoding.js` |
 | `POST /api/trip-plan` | `server.js:~line 170` | `weather.js` + `tripPlanAI.js` |
 | `POST /api/generate` | `server.js:~line 220` | `packingListAI.js` |
 | `POST /api/safety/car-seat-check` | `server.js:~line 260` | `safetyRules.js` + `carSeatRules.js` |
+| `POST /api/safety/travel-tips` | `server.js` | `travelSafety.js` + `travelAdvisory.js` |
 | `POST /api/v1/safety/pet-travel-check` | `server.js` | `petSafety.js` + `petAirlineRules.js` + `petEntryRules.js` |
 | `GET /api/health` | `server.js:~line 120` | inline |
 
@@ -167,7 +221,7 @@ railway logs --service SproutRoute --lines 50
 
 **Framework:** Node.js `node:test` + `assert/strict` (no external deps)
 **Run command:** `npm test` (from project root `strollerscout/`)
-**Current coverage:** ~34% backend, 0% frontend components
+**Current coverage:** ~60%+ backend unit tests, 0% frontend components; Playwright e2e for packing tile
 
 ### Key patterns
 
@@ -287,13 +341,11 @@ Skills are in `.claude/skills/` — use them for consistent workflows:
 
 ## Known Issues to Fix (Phase 2 priority order)
 
-1. `TripPlanDisplay.jsx:10` — `isItineraryOpen` defaults to `false` → should be `true`
-2. `api.js:56-58` — `response.json()` crashes on HTML 502 errors → needs try/catch + fallback
-3. No retry logic in `api.js` → add `fetchWithRetry` with exponential backoff
-4. `carSeatRules.js` — only ~10 US states, IL shows "Not found in repo" → need all 50 states
-5. No share/export → add `ShareExport.jsx` component
+1. `carSeatRules.js` — only ~10 US states covered, IL shows "Not found in repo" → need all 50 states
+2. Sequential API flow in `useTrip.js` — a bundle endpoint exists but is not used by default; waterfall adds latency
+3. Accessibility: `ResultTabs.jsx` tabs lack `role="tablist"` / `role="tab"` ARIA semantics
+4. No frontend linting or Playwright tests in CI (`test.yml`) — only `npm test` + `vite build` run
+5. No share/export → add `ShareExport` component (Phase 2)
 6. Date formatting shows ISO `2026-04-13` → use `date-fns` human format
-7. Activity cards render BELOW itinerary in `TripPlanDisplay.jsx` → move ABOVE
-8. `PackingChecklist.jsx:139-143` — item IDs are position-based → use content hash
 
 See full issue list in `/Users/nitish/.claude/plans/lucky-plotting-acorn.md` Phase 2 section.
