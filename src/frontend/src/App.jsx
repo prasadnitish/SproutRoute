@@ -39,6 +39,7 @@ export default function App() {
                 }}
                 className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-meadow-50 rounded-lg text-gray-600 hover:text-meadow-600 transition"
                 title="Share trip"
+                aria-label="Share trip link"
               >
                 {"\u2197"}
               </button>
@@ -69,11 +70,13 @@ export default function App() {
             tripData={trip.tripData}
             parsedInput={trip.parsedInput}
             packingList={trip.packingList}
+            packingError={trip.packingError}
             safetyData={trip.safetyData}
             petSafetyData={trip.petSafetyData}
             enrichedData={enrichedData}
             enrich={enrich}
             onGoBack={trip.goBack}
+            onRetryPacking={trip.retryPacking}
           />
         )}
       </main>

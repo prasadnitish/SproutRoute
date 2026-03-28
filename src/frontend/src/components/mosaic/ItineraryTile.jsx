@@ -75,7 +75,11 @@ function ActivityCard({ activity, onTap, hasPets }) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => onTap?.(activity)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap?.(activity); } }}
+      aria-label={`View details for ${activity.name || activity.title || "activity"}`}
       className={`relative flex gap-3 p-3 rounded-xl border transition cursor-pointer ${
         isClosed
           ? "border-red-100 bg-red-50/50 opacity-70"

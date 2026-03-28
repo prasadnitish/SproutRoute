@@ -1,5 +1,12 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
+import {
+  parseInput,
+  generateTripPlan,
+  generatePackingList,
+  getTravelSafety,
+  petTravelCheck,
+} from "../services/api.js";
 
 export function useTrip() {
   const [screen, setScreen] = useState("input"); // "input" | "generating" | "results"
@@ -7,20 +14,27 @@ export function useTrip() {
   const [parsedInput, setParsedInput] = useState(null);
   const [tripData, setTripData] = useState(() => loadJSON(STORAGE_KEYS.trip));
   const [packingList, setPackingList] = useState(null);
+  const [packingError, setPackingError] = useState(null);
   const [safetyData, setSafetyData] = useState(null);
   const [petSafetyData, setPetSafetyData] = useState(null);
   const [progress, setProgress] = useState({});
   const [error, setError] = useState(null);
+  const abortRef = useRef(null);
 
   const STEPS = ["resolve", "weather", "itinerary", "packing", "safety"];
 
   const markStep = (step, status) => setProgress(p => ({ ...p, [step]: status }));
 
   const submitTrip = useCallback(async (text, geolocation) => {
+    // Abort any in-flight background fetches from a previous submission
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+
     setTripInput(text);
     setError(null);
     setTripData(null);
     setPackingList(null);
+    setPackingError(null);
     setSafetyData(null);
     setPetSafetyData(null);
     setScreen("generating");
@@ -29,17 +43,11 @@ export function useTrip() {
     try {
       // Step 1: Parse input via AI
       markStep("resolve", "active");
-      const res = await fetch("/api/v1/trip/parse-input", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          detectedLat: geolocation?.lat || null,
-          detectedLon: geolocation?.lon || null,
-        }),
+      const parsed = await parseInput({
+        text,
+        detectedLat: geolocation?.lat || null,
+        detectedLon: geolocation?.lon || null,
       });
-      if (!res.ok) throw new Error("Failed to parse input");
-      const parsed = await res.json();
       setParsedInput(parsed);
       markStep("resolve", "done");
 
@@ -50,6 +58,7 @@ export function useTrip() {
 
       await generateTrip(parsed);
     } catch (err) {
+      if (err.name === "AbortError") return;
       setError(err.message || "Something went wrong");
     }
   }, []);
@@ -61,6 +70,7 @@ export function useTrip() {
     try {
       await generateTrip(updated);
     } catch (err) {
+      if (err.name === "AbortError") return;
       setError(err.message || "Something went wrong");
     }
   }, [parsedInput]);
@@ -81,122 +91,110 @@ export function useTrip() {
       pets,
     };
 
-    // Call existing /api/trip-plan endpoint
-    const tripRes = await fetch("/api/trip-plan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    if (!tripRes.ok) {
-      const errBody = await tripRes.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.message || "Failed to generate trip plan");
-    }
-    let tripResult;
-    try {
-      tripResult = await tripRes.json();
-    } catch {
-      throw new Error("Server returned an invalid response. Please try again.");
-    }
+    const tripResult = await generateTripPlan(formData);
     markStep("weather", "done");
     markStep("itinerary", "done");
 
-    // Save and transition to results IMMEDIATELY — don't wait for packing/safety
+    // Save and transition to results IMMEDIATELY -- don't wait for packing/safety
     const fullData = { ...tripResult, parsed };
     setTripData(fullData);
     saveJSON(STORAGE_KEYS.trip, fullData);
     setScreen("results");
 
-    // Step 3 & 4: Packing list + Safety — run in background while user views itinerary
-    fetchPackingInBackground(formData);
-    fetchSafetyInBackground(parsed, tripResult);
+    // Step 3 & 4: Packing list + Safety -- run in background while user views itinerary
+    const signal = abortRef.current?.signal;
+    fetchPackingInBackground(formData, signal);
+    fetchSafetyInBackground(parsed, tripResult, signal);
 
-    // Step 5: Pet travel safety — run in background if pets present
+    // Step 5: Pet travel safety -- run in background if pets present
     if (pets.length > 0) {
-      fetchPetSafetyInBackground(pets, parsed, tripResult);
+      fetchPetSafetyInBackground(pets, parsed, tripResult, signal);
     }
   }
 
-  // Background fetchers — run after results screen is shown
-  async function fetchPackingInBackground(formData) {
+  // Background fetchers -- run after results screen is shown
+  async function fetchPackingInBackground(formData, signal) {
     markStep("packing", "active");
+    setPackingError(null);
     try {
-      const packRes = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-      if (packRes.ok) {
-        const packData = await packRes.json();
-        setPackingList(packData.packingList || packData);
-      } else {
-        console.warn("Packing list failed:", packRes.status);
-      }
+      const packData = await generatePackingList(formData);
+      if (signal?.aborted) return;
+      setPackingList(packData.packingList || packData);
     } catch (err) {
+      if (err.name === "AbortError" || signal?.aborted) return;
       console.warn("Packing list error (non-blocking):", err.message);
+      setPackingError(err.message || "Failed to generate packing list");
     }
     markStep("packing", "done");
   }
 
-  async function fetchSafetyInBackground(parsed, tripResult) {
+  async function fetchSafetyInBackground(parsed, tripResult, signal) {
     markStep("safety", "active");
     try {
-      const safetyRes = await fetch("/api/safety/travel-tips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination: parsed.destination,
-          childrenAges: parsed.childrenAges,
-          countryCode: tripResult?.trip?.countryCode || "",
-        }),
+      const safetyResult = await getTravelSafety({
+        destination: parsed.destination,
+        childrenAges: parsed.childrenAges,
+        countryCode: tripResult?.trip?.countryCode || "",
       });
-      if (safetyRes.ok) {
-        setSafetyData(await safetyRes.json());
-      } else {
-        console.warn("Safety data failed:", safetyRes.status);
-      }
+      if (signal?.aborted) return;
+      setSafetyData(safetyResult);
     } catch (err) {
+      if (err.name === "AbortError" || signal?.aborted) return;
       console.warn("Safety data error (non-blocking):", err.message);
     }
     markStep("safety", "done");
   }
 
-  async function fetchPetSafetyInBackground(pets, parsed, tripResult) {
+  async function fetchPetSafetyInBackground(pets, parsed, tripResult, signal) {
     try {
       // Derive travel mode: if distance > 300 miles or different country, assume fly
       const distMiles = tripResult?.trip?.distanceMiles;
       const countryCode = tripResult?.trip?.countryCode || "US";
       const derivedMode = (distMiles && distMiles > 300) || (countryCode !== "US") ? "fly" : "drive";
 
-      const petRes = await fetch("/api/v1/safety/pet-travel-check", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pets,
-          destination: parsed.destination,
-          countryCode,
-          travelMode: derivedMode,
-        }),
+      const result = await petTravelCheck({
+        pets,
+        destination: parsed.destination,
+        countryCode,
+        travelMode: derivedMode,
       });
-      if (petRes.ok) {
-        setPetSafetyData(await petRes.json());
-      } else {
-        console.warn("Pet safety data failed:", petRes.status);
-      }
+      if (signal?.aborted) return;
+      setPetSafetyData(result);
     } catch (err) {
+      if (err.name === "AbortError" || signal?.aborted) return;
       console.warn("Pet safety data error (non-blocking):", err.message);
     }
   }
 
+  const retryPacking = useCallback(async () => {
+    if (!tripData?.parsed) return;
+    const parsed = tripData.parsed;
+    const formData = {
+      destination: parsed.destination,
+      startDate: parsed.startDate,
+      endDate: parsed.endDate,
+      adults: parsed.adults,
+      childrenAges: parsed.childrenAges,
+      activities: [parsed.vibe],
+      foodPreferences: parsed.foodPreferences || null,
+      pets: parsed.pets || [],
+    };
+    await fetchPackingInBackground(formData, abortRef.current?.signal);
+  }, [tripData]);
+
   const goBack = useCallback(() => {
+    // Abort background fetches before going back
+    if (abortRef.current) abortRef.current.abort();
     setScreen("input");
     setParsedInput(null);
     setProgress({});
     setError(null);
+    setPackingError(null);
   }, []);
 
   return {
-    screen, tripInput, parsedInput, tripData, packingList, safetyData, petSafetyData,
+    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData,
     progress, error, STEPS,
-    submitTrip, selectDestination, goBack,
+    submitTrip, selectDestination, goBack, retryPacking,
   };
 }

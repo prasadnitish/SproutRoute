@@ -40,11 +40,13 @@ export default function ResultsScreen({
   tripData,
   parsedInput,
   packingList,
+  packingError,
   safetyData,
   petSafetyData,
   enrichedData,
   enrich,
   onGoBack,
+  onRetryPacking,
 }) {
   const [activeTab, setActiveTab] = useState("plan");
   const [selectedActivity, setSelectedActivity] = useState(null);
@@ -181,6 +183,21 @@ export default function ResultsScreen({
         <div>
           {packingList ? (
             <PackingChecklist packingList={packingList} />
+          ) : packingError ? (
+            <div className="p-8 text-center text-gray-500" role="alert">
+              <p className="text-4xl mb-3">{"\u{1F392}"}</p>
+              <p className="font-medium text-red-600 dark:text-red-400 mb-2">
+                {packingError}
+              </p>
+              {onRetryPacking && (
+                <button
+                  onClick={onRetryPacking}
+                  className="px-4 py-2 rounded-lg bg-meadow-600 text-white text-sm font-medium hover:bg-meadow-700 transition"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           ) : (
             <div className="p-8 text-center text-gray-500">
               <p className="text-4xl mb-3">{"\u{1F392}"}</p>

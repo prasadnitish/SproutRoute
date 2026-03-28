@@ -108,6 +108,7 @@ async function fetchWithRetry(url, options = {}, config = {}) {
     retryableStatuses = [429, 502, 503, 504],
     timeoutMs = 30000,
     onRetry, // optional: (attempt, err) => void — for "Retrying..." UI
+    onRateLimitInfo, // optional: (resetTimestamp) => void — for rate limit countdown UI
   } = config;
 
   const retryableSet = new Set(retryableStatuses);
@@ -136,6 +137,10 @@ async function fetchWithRetry(url, options = {}, config = {}) {
         );
       } else {
         lastError = err;
+      }
+
+      if (lastError.status === 429 && lastError.rateLimitReset && onRateLimitInfo) {
+        onRateLimitInfo(lastError.rateLimitReset);
       }
 
       const isRetryable = lastError.retryable || retryableSet.has(lastError.status);
@@ -201,7 +206,7 @@ export const generatePackingList = async (tripData, { onRetry, onRateLimitInfo }
 /** Resolve natural-language destination queries via AI NLP resolver. */
 export const resolveDestination = async (query, { onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
-    `${API_BASE_URL}/api/v1/destination/ai-resolve`,
+    `${API_BASE_URL}/api/v1/trip/resolve`,
     POST_OPTS({ query }),
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
@@ -224,6 +229,22 @@ export const getCapabilities = async (client = "web") =>
     `${API_BASE_URL}/api/v1/meta/capabilities?client=${client}`,
     {},
     { maxRetries: 0, timeoutMs: 5000 },
+  );
+
+/** Parse natural-language trip input via AI. */
+export const parseInput = async (payload, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/trip/parse-input`,
+    POST_OPTS(payload),
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
+  );
+
+/** Fetch travel safety tips (car seat, general safety). */
+export const getTravelSafety = async (payload, { onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/safety/travel-tips`,
+    POST_OPTS(payload),
+    { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
 // --- Pet travel safety ---
