@@ -3,6 +3,7 @@ import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
 import {
   parseInput,
   generateTripPlan,
+  streamTripPlan,
   generatePackingList,
   getTravelSafety,
   petTravelCheck,
@@ -82,7 +83,6 @@ export function useTrip() {
   }, [parsedInput]);
 
   async function generateTrip(parsed) {
-    // Step 2: Trip plan (weather + itinerary) using existing endpoint
     markStep("weather", "active");
 
     const pets = parsed.pets || [];
@@ -97,30 +97,88 @@ export function useTrip() {
       pets,
     };
 
-    const tripResult = await generateTripPlan(formData);
-    markStep("weather", "done");
-    markStep("itinerary", "done");
-
-    // Save and transition to results IMMEDIATELY -- don't wait for packing/safety
-    const fullData = { ...tripResult, parsed };
-    setTripData(fullData);
-    saveJSON(STORAGE_KEYS.trip, fullData);
-    setScreen("results");
-
-    // Step 3 & 4: Packing list + Safety -- run in background while user views itinerary
     const signal = abortRef.current?.signal;
-    fetchPackingInBackground(formData, signal);
-    fetchSafetyInBackground(parsed, tripResult, signal);
 
-    // Step 5: Pet travel safety -- run in background if pets present
-    if (pets.length > 0) {
-      fetchPetSafetyInBackground(pets, parsed, tripResult, signal);
-    }
+    // Use SSE streaming for progressive rendering
+    const streamResult = await streamTripPlan(formData, (event) => {
+      if (signal?.aborted) return;
 
-    // Car seat guidance -- fetch in background if children present
-    const childAges = parsed.childrenAges || [];
-    if (childAges.length > 0) {
-      fetchCarSeatInBackground(childAges, tripResult, signal);
+      switch (event.type) {
+        case "destination":
+          markStep("weather", "active");
+          // Show results screen immediately with destination data
+          setTripData(prev => ({
+            ...prev,
+            trip: event.data,
+            parsed,
+          }));
+          break;
+
+        case "weather":
+          markStep("weather", "done");
+          setTripData(prev => ({
+            ...prev,
+            weather: event.data,
+          }));
+          break;
+
+        case "itinerary":
+          markStep("itinerary", "done");
+          setTripData(prev => ({
+            ...prev,
+            tripPlan: event.data,
+          }));
+          // Transition to results screen once we have the itinerary
+          setScreen("results");
+          break;
+
+        case "packing":
+          markStep("packing", "done");
+          setPackingList(event.data?.categories ? event.data : event.data);
+          break;
+
+        case "fallback":
+          // SSE failed, falling back to bundle -- show a brief status
+          markStep("weather", "active");
+          break;
+
+        case "done": {
+          // Final: ensure all data is set from accumulated result
+          const result = event.data;
+          const fullData = {
+            trip: result.trip,
+            weather: result.weather,
+            tripPlan: result.tripPlan,
+            parsed,
+          };
+          setTripData(fullData);
+          saveJSON(STORAGE_KEYS.trip, fullData);
+          if (result.packingList) {
+            setPackingList(result.packingList);
+          }
+          setScreen("results");
+          break;
+        }
+      }
+    }, signal);
+
+    // Background safety fetches -- don't block results
+    if (!signal?.aborted) {
+      fetchSafetyInBackground(parsed, streamResult, signal);
+
+      if (pets.length > 0) {
+        fetchPetSafetyInBackground(pets, parsed, streamResult, signal);
+      }
+
+      const childAges = parsed.childrenAges || [];
+      if (childAges.length > 0) {
+        fetchCarSeatInBackground(childAges, streamResult, signal);
+      }
+
+      // If packing wasn't included in stream, fetch separately
+      if (!streamResult.packingList) {
+        fetchPackingInBackground(formData, signal);
+      }
     }
   }
 
