@@ -182,6 +182,7 @@ function generateWeatherSummary(forecast) {
   }
 
   const temps = forecast.map((f) => f.high).filter(Boolean);
+  if (temps.length === 0) return "Weather data unavailable";
   const minTemp = Math.min(...temps);
   const maxTemp = Math.max(...temps);
 

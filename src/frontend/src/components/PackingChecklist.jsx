@@ -180,6 +180,11 @@ export default function PackingChecklist({ packingList, onUpdate }) {
       <div className="mb-6">
         <div className="w-full bg-gray-100 dark:bg-dark-bg rounded-full h-3 overflow-hidden">
           <div
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Packing progress"
             className="h-3 rounded-full transition-all duration-500"
             style={{
               width: `${progress}%`,
@@ -226,6 +231,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
               {/* Category header */}
               <button
                 onClick={() => toggleCategory(category.name)}
+                aria-expanded={!isCollapsed}
                 className={`w-full px-4 py-3 flex justify-between items-center transition-colors print:pointer-events-none ${
                   categoryDone
                     ? "bg-sprout-dark text-white"

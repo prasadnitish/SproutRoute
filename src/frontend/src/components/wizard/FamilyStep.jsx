@@ -98,11 +98,12 @@ export default function FamilyStep({
           whileTap={{ scale: 0.95 }}
           onClick={() => updateChildCount(numChildren - 1)}
           disabled={numChildren <= 0}
+          aria-label="Remove a child"
           className="w-10 h-10 rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg flex items-center justify-center text-lg font-bold text-slate-text dark:text-dark-text disabled:opacity-30 transition-colors hover:border-sprout-base"
         >
           -
         </motion.button>
-        <div className="text-center">
+        <div className="text-center" aria-live="polite">
           <span className="text-3xl font-bold text-sprout-dark dark:text-dark-sprout">{numChildren}</span>
           <p className="text-xs text-muted dark:text-dark-muted">
             {numChildren === 1 ? "child" : "children"}
@@ -113,6 +114,7 @@ export default function FamilyStep({
           whileTap={{ scale: 0.95 }}
           onClick={() => updateChildCount(numChildren + 1)}
           disabled={numChildren >= 10}
+          aria-label="Add a child"
           className="w-10 h-10 rounded-xl border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg flex items-center justify-center text-lg font-bold text-slate-text dark:text-dark-text disabled:opacity-30 transition-colors hover:border-sprout-base"
         >
           +

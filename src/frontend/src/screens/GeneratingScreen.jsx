@@ -108,7 +108,7 @@ export default function GeneratingScreen({
 
       {/* Error */}
       {error && (
-        <div className="w-full bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+        <div className="w-full bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700" role="alert" aria-live="assertive">
           <p className="font-medium">Something went wrong</p>
           <p className="mt-1">{error}</p>
           <button

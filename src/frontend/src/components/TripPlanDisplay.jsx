@@ -49,6 +49,8 @@ export default function TripPlanDisplay({
     return () => observer.disconnect();
   }, [tripPlan?.dailyItinerary]);
 
+  if (!tripPlan) return null;
+
   const activityNameMap = Object.fromEntries(
     (tripPlan.suggestedActivities || []).map((a) => [a.id, a.name]),
   );
@@ -61,7 +63,7 @@ export default function TripPlanDisplay({
   };
 
   const handleApprove = async () => {
-    const approved = tripPlan.suggestedActivities.filter((a) =>
+    const approved = (tripPlan.suggestedActivities || []).filter((a) =>
       selectedActivities.has(a.id),
     );
     setIsSubmitting(true);
@@ -146,8 +148,8 @@ export default function TripPlanDisplay({
             </p>
           </div>
 
-          <div className="scroll-carousel">
-            {tripPlan.suggestedActivities.map((activity) => {
+          <div className="scroll-carousel" role="group" aria-label="Activity options">
+            {(tripPlan.suggestedActivities || []).map((activity) => {
               const isSelected = selectedActivities.has(activity.id);
               return (
                 <label

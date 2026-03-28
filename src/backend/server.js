@@ -110,7 +110,10 @@ export function createApp(deps = {}) {
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("X-XSS-Protection", "1; mode=block");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none';",
+    );
     if (process.env.NODE_ENV === "production") {
       res.setHeader(
         "Strict-Transport-Security",
@@ -265,6 +268,9 @@ export function createApp(deps = {}) {
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
       );
+      if (tripDuration <= 0) {
+        return res.status(400).json({ error: "End date must be after start date." });
+      }
 
       res.json({
         trip: {
@@ -369,6 +375,9 @@ export function createApp(deps = {}) {
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
       );
+      if (tripDuration <= 0) {
+        return res.status(400).json({ error: "End date must be after start date." });
+      }
 
       res.json({
         trip: {
@@ -608,6 +617,9 @@ export function createApp(deps = {}) {
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
       );
+      if (tripDuration <= 0) {
+        return res.status(400).json({ error: "End date must be after start date." });
+      }
 
       return res.json({
         requestId,
@@ -724,6 +736,9 @@ export function createApp(deps = {}) {
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
       );
+      if (tripDuration <= 0) {
+        return res.status(400).json({ error: "End date must be after start date." });
+      }
 
       return res.json({
         requestId,
@@ -801,8 +816,8 @@ export function createApp(deps = {}) {
       const { destination, startDate, endDate, activities, children } = sanitizedData;
 
       // weather must be provided by the client — we skip geocoding and weather fetch.
-      const weather = req.body.weather;
-      if (!weather || !Array.isArray(weather.forecast)) {
+      const rawWeather = req.body.weather;
+      if (!rawWeather || !Array.isArray(rawWeather.forecast)) {
         return v1Error(res, 400, {
           code: "VALIDATION_ERROR",
           message: "weather object with forecast array is required for replan",
@@ -811,6 +826,17 @@ export function createApp(deps = {}) {
           requestId,
         });
       }
+      // Sanitize client-supplied weather to prevent prompt injection via summary/condition fields
+      const weather = {
+        summary: sanitizeString(rawWeather.summary || "", 500),
+        forecast: rawWeather.forecast.slice(0, 14).map((f) => ({
+          name: sanitizeString(f.name || "", 50),
+          high: Number.isFinite(Number(f.high)) ? Number(f.high) : null,
+          low: Number.isFinite(Number(f.low)) ? Number(f.low) : null,
+          condition: sanitizeString(f.condition || "", 100),
+          precipitation: Math.max(0, Math.min(100, parseInt(f.precipitation) || 0)),
+        })),
+      };
 
       devLog("v1/trip/replan: regenerating itinerary with activities:", activities);
       const tripPlan = await generateTripPlanFn(
@@ -871,6 +897,9 @@ export function createApp(deps = {}) {
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
       );
+      if (tripDuration <= 0) {
+        return res.status(400).json({ error: "End date must be after start date." });
+      }
 
       return res.json({
         requestId,
@@ -1032,7 +1061,7 @@ export function createApp(deps = {}) {
 
   // GET /api/v1/safety/travel-advisory/:countryCode
   // Returns US State Dept travel advisory for a country. Graceful: returns null if unavailable.
-  app.get("/api/v1/safety/travel-advisory/:countryCode", async (req, res) => {
+  app.get("/api/v1/safety/travel-advisory/:countryCode", apiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const countryCode = sanitizeString(req.params.countryCode || "", 3).toUpperCase();
@@ -1062,7 +1091,7 @@ export function createApp(deps = {}) {
 
   // GET /api/v1/safety/neighborhood?lat=X&lon=Y
   // Returns Amadeus/GeoSure neighborhood safety scores. Graceful: returns null if unavailable.
-  app.get("/api/v1/safety/neighborhood", async (req, res) => {
+  app.get("/api/v1/safety/neighborhood", apiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const lat = parseFloat(req.query?.lat);
