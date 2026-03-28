@@ -6,6 +6,7 @@ import {
   generatePackingList,
   getTravelSafety,
   petTravelCheck,
+  getCarSeatGuidance,
 } from "../services/api.js";
 
 export function useTrip() {
@@ -17,6 +18,7 @@ export function useTrip() {
   const [packingError, setPackingError] = useState(null);
   const [safetyData, setSafetyData] = useState(null);
   const [petSafetyData, setPetSafetyData] = useState(null);
+  const [carSeatData, setCarSeatData] = useState(null);
   const [progress, setProgress] = useState({});
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
@@ -37,6 +39,7 @@ export function useTrip() {
     setPackingError(null);
     setSafetyData(null);
     setPetSafetyData(null);
+    setCarSeatData(null);
     setScreen("generating");
     setProgress({});
 
@@ -113,6 +116,12 @@ export function useTrip() {
     if (pets.length > 0) {
       fetchPetSafetyInBackground(pets, parsed, tripResult, signal);
     }
+
+    // Car seat guidance -- fetch in background if children present
+    const childAges = parsed.childrenAges || [];
+    if (childAges.length > 0) {
+      fetchCarSeatInBackground(childAges, tripResult, signal);
+    }
   }
 
   // Background fetchers -- run after results screen is shown
@@ -146,6 +155,23 @@ export function useTrip() {
       console.warn("Safety data error (non-blocking):", err.message);
     }
     markStep("safety", "done");
+  }
+
+  async function fetchCarSeatInBackground(childrenAges, tripResult, signal) {
+    try {
+      const children = childrenAges.map(age => ({ age }));
+      const result = await getCarSeatGuidance({
+        destination: tripResult?.trip?.destination || "",
+        jurisdictionCode: tripResult?.trip?.jurisdictionCode || "",
+        tripDate: tripResult?.trip?.startDate || "",
+        children,
+      });
+      if (signal?.aborted) return;
+      setCarSeatData(result);
+    } catch (err) {
+      if (err.name === "AbortError" || signal?.aborted) return;
+      console.warn("Car seat data error (non-blocking):", err.message);
+    }
   }
 
   async function fetchPetSafetyInBackground(pets, parsed, tripResult, signal) {
@@ -209,7 +235,7 @@ export function useTrip() {
   }, []);
 
   return {
-    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData,
+    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData,
     progress, error, STEPS,
     submitTrip, selectDestination, goBack, retryPacking,
   };
