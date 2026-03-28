@@ -323,8 +323,8 @@ function sanitizeSinglePet(pet) {
   const rawBreed = typeof pet.breed === "string" ? pet.breed.slice(0, MAX_PET_BREED_LENGTH) : "";
   const breed = sanitizeDestination(rawBreed);
 
-  // Weight: parse as number, clamp 0-300
-  const rawWeight = Number(pet.weightLbs);
+  // Weight: accept both weightLb (from parseInput) and weightLbs (from direct API)
+  const rawWeight = Number(pet.weightLbs ?? pet.weightLb);
   const weightLbs = isFinite(rawWeight) && !isNaN(rawWeight)
     ? Math.max(0, Math.min(MAX_PET_WEIGHT, Math.floor(rawWeight)))
     : 0;

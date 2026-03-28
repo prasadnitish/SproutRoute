@@ -66,6 +66,13 @@ test("sanitizePets() defaults weightLbs to 0 for non-numeric input", () => {
   assert.equal(result[0].weightLbs, 0);
 });
 
+test("sanitizePets reads weightLb (no trailing s) from parseInput", () => {
+  const result = sanitizePets([
+    { type: "dog", name: "Max", weightLb: 25 },
+  ]);
+  assert.strictEqual(result[0].weightLbs, 25);
+});
+
 test("sanitizePets() sanitizes breed with accented characters (Bichon Frise)", () => {
   const result = sanitizePets([{ type: "dog", breed: "Bichon Frisé", weightLbs: 12 }]);
   assert.equal(result[0].breed, "Bichon Frisé");
