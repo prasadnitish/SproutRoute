@@ -80,6 +80,7 @@ If the user mentions "spring break" and no dates, use April 12-19 of the current
 If "kids" or "children" mentioned without specific ages, default to childrenAges: [5] (one child, age 5).
 If "toddler" mentioned without age, use age 2. If "baby" or "infant", use age 1. If "teenager" or "teen", use age 14.
 If no kids or children mentioned at all, childrenAges should be [].
+If the user explicitly names a destination like "San Diego", "Maui", or "Paris", destination must NOT be null.
 If destination is vague ("beach trip", "somewhere warm"), set destination to null and provide 3 suggestedDestinations based on the user's location and season.`;
 
 export async function parseInput(text, deps = {}) {

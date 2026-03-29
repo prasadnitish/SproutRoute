@@ -3,7 +3,7 @@
  *
  * Supports three providers:
  *   - "anthropic"  — Claude Sonnet 4.6 via @anthropic-ai/sdk
- *   - "gemini"     — Gemini 3 Flash via @google/generative-ai
+ *   - "gemini"     — Gemini via @google/generative-ai
  *   - "deepseek"   — DeepSeek V3 via openai npm package (OpenAI-compatible API)
  *
  * Per-task model selection:
@@ -35,8 +35,8 @@ import { metrics } from "../services/metrics.js";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_MODEL_ID = process.env.ANTHROPIC_MODEL_ID || "claude-sonnet-4-6";
-const GEMINI_MODEL_ID    = process.env.GOOGLE_GEMINI_MODEL || process.env.GEMINI_MODEL_ID || "gemini-2.5-flash";
-const DEEPSEEK_MODEL_ID  = process.env.DEEPSEEK_MODEL_ID || "deepseek-chat";
+const GEMINI_MODEL_ID = process.env.GOOGLE_GEMINI_MODEL || process.env.GEMINI_MODEL_ID || "gemini-2.5-flash";
+const DEEPSEEK_MODEL_ID = process.env.DEEPSEEK_MODEL_ID || "deepseek-chat";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
 
@@ -45,19 +45,55 @@ function getDefaultProvider() {
   return (process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
 }
 
+function normalizeCallerKey(caller = "") {
+  return String(caller)
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function resolveModelId(provider, caller = "") {
+  const callerKey = normalizeCallerKey(caller);
+
+  switch (provider) {
+    case "gemini": {
+      if (callerKey) {
+        const callerSpecific = process.env[`GOOGLE_GEMINI_MODEL_${callerKey}`];
+        if (callerSpecific) return callerSpecific;
+      }
+      return GEMINI_MODEL_ID;
+    }
+    case "deepseek": {
+      if (callerKey) {
+        const callerSpecific = process.env[`DEEPSEEK_MODEL_ID_${callerKey}`];
+        if (callerSpecific) return callerSpecific;
+      }
+      return DEEPSEEK_MODEL_ID;
+    }
+    default: {
+      if (callerKey) {
+        const callerSpecific = process.env[`ANTHROPIC_MODEL_ID_${callerKey}`];
+        if (callerSpecific) return callerSpecific;
+      }
+      return ANTHROPIC_MODEL_ID;
+    }
+  }
+}
+
 // ── Provider implementations ──────────────────────────────────────────────────
 
 /**
  * Call Claude via Anthropic SDK.
  * Returns { responseText, stopReason }.
  */
-async function callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt }) {
+async function callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId }) {
   const systemParam = cacheSystemPrompt
     ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
     : system;
 
   const message = await client.messages.create({
-    model: ANTHROPIC_MODEL_ID,
+    model: modelId,
     system: systemParam,
     temperature,
     max_tokens: maxTokens,
@@ -139,13 +175,13 @@ function makeAnthropicClient() {
 /** @type {GoogleGenerativeAI|null} */
 let _geminiInstance = null;
 
-function makeGeminiModel() {
+function makeGeminiModel(modelId) {
   if (!_geminiInstance) {
     const apiKey = process.env.GOOGLE_GEMINI_API_KEY;
     if (!apiKey) throw new Error("GOOGLE_GEMINI_API_KEY is not set");
     _geminiInstance = new GoogleGenerativeAI(apiKey);
   }
-  return _geminiInstance.getGenerativeModel({ model: GEMINI_MODEL_ID });
+  return _geminiInstance.getGenerativeModel({ model: modelId });
 }
 
 async function makeDeepSeekClient() {
@@ -164,12 +200,8 @@ function resolveProvider(prompt) {
   return getDefaultProvider();
 }
 
-function modelIdForProvider(provider) {
-  switch (provider) {
-    case "gemini":    return GEMINI_MODEL_ID;
-    case "deepseek":  return DEEPSEEK_MODEL_ID;
-    default:          return ANTHROPIC_MODEL_ID;
-  }
+function modelIdForProvider(provider, caller = "") {
+  return resolveModelId(provider, caller);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -204,7 +236,7 @@ export async function callModel(prompt, deps = {}) {
 
   const provider = resolveProvider(prompt);
   const caller = prompt.caller || "unknown";
-  const modelId = modelIdForProvider(provider);
+  const modelId = modelIdForProvider(provider, caller);
   const t0 = Date.now();
 
   // Determine fallback chain: gemini → anthropic → deepseek
@@ -213,7 +245,7 @@ export async function callModel(prompt, deps = {}) {
   if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
 
   try {
-    const result = await callProvider(provider, { system, user, maxTokens, temperature, cacheSystemPrompt }, deps);
+    const result = await callProvider(provider, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId }, deps);
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
     metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true });
@@ -227,10 +259,11 @@ export async function callModel(prompt, deps = {}) {
     for (const fb of fallbackProviders) {
       try {
         const fbT0 = Date.now();
-        const result = await callProvider(fb, { system, user, maxTokens, temperature, cacheSystemPrompt: false }, deps);
+        const fallbackModelId = modelIdForProvider(fb, caller);
+        const result = await callProvider(fb, { system, user, maxTokens, temperature, cacheSystemPrompt: false, modelId: fallbackModelId }, deps);
         const fbMs = Date.now() - fbT0;
-        log.info("ai:call", { caller, provider: `${fb}-fallback`, model: modelIdForProvider(fb), ms: fbMs, outChars: result.responseText?.length || 0 });
-        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: modelIdForProvider(fb), ms: fbMs, outChars: result.responseText?.length || 0, success: true });
+        log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
+        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true });
         return result;
       } catch (fbError) {
         log.warn(`Fallback ${fb} also failed`, { caller, error: fbError.message });
@@ -249,7 +282,7 @@ export async function callModel(prompt, deps = {}) {
 async function callProvider(provider, params, deps) {
   switch (provider) {
     case "gemini": {
-      const model = deps.geminiModel ?? makeGeminiModel();
+      const model = deps.geminiModel ?? makeGeminiModel(params.modelId);
       return await callGemini(model, params);
     }
     case "deepseek": {
@@ -269,6 +302,8 @@ export const __test = {
   ANTHROPIC_MODEL_ID,
   GEMINI_MODEL_ID,
   DEEPSEEK_MODEL_ID,
+  normalizeCallerKey,
+  resolveModelId,
   resolveProvider,
   modelIdForProvider,
 };
