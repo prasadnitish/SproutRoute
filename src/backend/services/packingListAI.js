@@ -10,7 +10,7 @@ import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 8192;
 const REPAIR_INPUT_MAX_CHARS = 24000;
 
 function parsePackingListResponse(responseText) {
