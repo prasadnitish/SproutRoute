@@ -1,7 +1,6 @@
 // AI service: generates a structured packing list in JSON.
 // Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
 import { callModel } from "../utils/aiClient.js";
-import { SchemaType } from "@google/generative-ai";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import { getPackingBaseTemplate, detectClimateZone } from "./ragTemplates.js";
@@ -14,10 +13,7 @@ import {
 const MAX_TOKENS = 3072;
 const REPAIR_INPUT_MAX_CHARS = 24000;
 
-function normalizePackingListShape(
-  parsed,
-  { minCategories = 1, maxCategories = 6, maxItemsPerCategory = 5 } = {},
-) {
+function normalizePackingListShape(parsed, { maxCategories = 6, maxItemsPerCategory = 5 } = {}) {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Packing list response was not an object");
   }
@@ -64,7 +60,7 @@ function normalizePackingListShape(
     .filter(Boolean)
     .slice(0, maxCategories);
 
-  if (categories.length < minCategories) {
+  if (categories.length === 0) {
     throw new Error("Missing categories array");
   }
 
@@ -99,55 +95,10 @@ function getPackingMaxTokens(startDate, endDate, { compact = false, children = [
   return Math.min(MAX_TOKENS, Math.max(1200, base + days * perDay + childBonus + petBonus));
 }
 
-function buildPackingResponseSchema({ minCategories, maxCategories, maxItemsPerCategory }) {
-  return {
-    type: SchemaType.OBJECT,
-    properties: {
-      categories: {
-        type: SchemaType.ARRAY,
-        minItems: minCategories,
-        maxItems: maxCategories,
-        items: {
-          type: SchemaType.OBJECT,
-          properties: {
-            name: { type: SchemaType.STRING },
-            items: {
-              type: SchemaType.ARRAY,
-              minItems: 2,
-              maxItems: maxItemsPerCategory,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  name: { type: SchemaType.STRING },
-                  quantity: { type: SchemaType.STRING },
-                  reason: { type: SchemaType.STRING },
-                  searchQuery: { type: SchemaType.STRING },
-                },
-                required: ["name", "quantity", "reason", "searchQuery"],
-              },
-            },
-          },
-          required: ["name", "items"],
-        },
-      },
-    },
-    required: ["categories"],
-  };
-}
-
-async function requestPackingList({ system, user, maxTokens, responseSchema }, deps, { cache = false } = {}) {
+async function requestPackingList({ system, user, maxTokens }, deps, { cache = false } = {}) {
   // Single model call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({
-    system,
-    user,
-    maxTokens,
-    temperature: 0,
-    cacheSystemPrompt: cache,
-    caller: "packingList",
-    provider: "gemini",
-    responseSchema,
-  }, deps);
+  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "gemini" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -201,7 +152,6 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     plannerSummary = "",
   } = tripData;
   const maxCategories = compactCategoryCount(children, pets, tripType);
-  const minCategories = Math.min(maxCategories, 5);
   const maxItemsPerCategory = 5;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
@@ -218,11 +168,10 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
       { compact: false, tripType, pets, travelMode, plannerSummary },
     );
   const primaryMaxTokens = getPackingMaxTokens(startDate, endDate, { compact: false, children, pets });
-  const responseSchema = buildPackingResponseSchema({ minCategories, maxCategories, maxItemsPerCategory });
 
   try {
       const firstAttempt = await requestWithRetry(
-      () => requestPackingList({ ...primaryPrompt, maxTokens: primaryMaxTokens, responseSchema }, deps, { cache: true }),
+      () => requestPackingList({ ...primaryPrompt, maxTokens: primaryMaxTokens }, deps, { cache: true }),
       MAX_RETRIES,
     );
 
@@ -231,7 +180,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     }
 
     try {
-      return parsePackingListResponse(firstAttempt.responseText, { minCategories, maxCategories, maxItemsPerCategory });
+      return parsePackingListResponse(firstAttempt.responseText, { maxCategories, maxItemsPerCategory });
     } catch (firstParseError) {
       log.warn("Packing-list parse failed (attempt 1), retrying compact", { error: firstParseError.message });
 
@@ -247,12 +196,12 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
       const retryMaxTokens = getPackingMaxTokens(startDate, endDate, { compact: true, children, pets });
 
       const secondAttempt = await requestWithRetry(
-        () => requestPackingList({ ...retryPrompt, maxTokens: retryMaxTokens, responseSchema }, deps),
+        () => requestPackingList({ ...retryPrompt, maxTokens: retryMaxTokens }, deps),
         MAX_RETRIES,
       );
 
       try {
-        return parsePackingListResponse(secondAttempt.responseText, { minCategories, maxCategories, maxItemsPerCategory });
+        return parsePackingListResponse(secondAttempt.responseText, { maxCategories, maxItemsPerCategory });
       } catch (secondParseError) {
         log.warn("Packing-list parse failed (attempt 2), trying repair", { error: secondParseError.message });
 
@@ -260,7 +209,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
         const repairAttempt = await repairPackingListJson(repairSource, deps);
 
         try {
-          return parsePackingListResponse(repairAttempt.responseText, { minCategories, maxCategories, maxItemsPerCategory });
+          return parsePackingListResponse(repairAttempt.responseText, { maxCategories, maxItemsPerCategory });
         } catch (repairParseError) {
           log.error("Packing-list parse failed after all 3 attempts", {
             error: repairParseError.message,
