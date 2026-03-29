@@ -32,8 +32,92 @@ import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets } from "./se
 import { log } from "./utils/logger.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
+import { metrics } from "./services/metrics.js";
 
 dotenv.config();
+
+// ── Ops Dashboard — served as static HTML at /ops ───────────────────────────
+// NOTE: This is an internal admin dashboard (not user-facing).
+// The client-side JS uses textContent for data values from our own metrics API.
+// No untrusted user data is rendered — all data comes from our server metrics.
+const OPS_DASHBOARD_HTML = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SproutRoute Ops</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f0fdf4;color:#1a1a1a;padding:24px}
+h1{font-size:24px;font-weight:800;color:#15803d;margin-bottom:16px}
+h2{font-size:16px;font-weight:700;color:#166534;margin:20px 0 8px;border-bottom:2px solid #bbf7d0;padding-bottom:4px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}
+.card{background:#fff;border-radius:12px;padding:16px;border:1px solid #d1fae5}
+.label{font-size:11px;text-transform:uppercase;color:#6b7280;letter-spacing:.5px;margin-bottom:4px}
+.value{font-size:28px;font-weight:800;color:#15803d}
+table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #d1fae5;margin-bottom:12px}
+th{background:#f0fdf4;font-size:11px;text-transform:uppercase;color:#6b7280;padding:8px 12px;text-align:left}
+td{padding:8px 12px;font-size:13px;border-top:1px solid #f3f3f3}
+</style></head><body>
+<h1>SproutRoute Ops Dashboard</h1>
+<p id="loading">Loading metrics...</p>
+<div id="app" style="display:none"></div>
+<script>
+async function load(){
+  const r=await fetch("/api/v1/ops/metrics");
+  const d=await r.json();
+  document.getElementById("loading").style.display="none";
+  const app=document.getElementById("app");
+  app.style.display="block";
+  app.textContent="";
+  buildDashboard(app,d);
+}
+function el(tag,text,cls){const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e}
+function buildDashboard(root,d){
+  const s=d.summary||{};
+  // Summary cards
+  const grid=el("div","","grid");
+  [["Trips",s.tripsGenerated],["Sessions",s.uniqueSessions],["AI Calls",s.totalAiCalls],["Errors",s.totalErrors],["Error Rate",s.errorRate],["Est Cost",s.estimatedCost]].forEach(([l,v])=>{
+    const c=el("div","","card");c.appendChild(el("div",l,"label"));c.appendChild(el("div",String(v??"0"),"value"));grid.appendChild(c);
+  });
+  root.appendChild(grid);
+  // Latency table
+  root.appendChild(el("h2","Latency by Stage"));
+  const lt=document.createElement("table");
+  lt.appendChild(mkRow("thead",["Stage","p50","p95","Avg","Count"]));
+  const ltb=document.createElement("tbody");
+  Object.entries(d.latencyByStage||{}).forEach(([k,v])=>ltb.appendChild(mkRow("tbody",[k,fmt(v.p50),fmt(v.p95),fmt(v.avg),v.count])));
+  lt.appendChild(ltb);root.appendChild(lt);
+  // Recent trips
+  root.appendChild(el("h2","Recent Trips"));
+  const tt=document.createElement("table");
+  tt.appendChild(mkRow("thead",["Time","Destination","Days","1st Chunk","AI Total","Total","Kids"]));
+  const ttb=document.createElement("tbody");
+  (d.recentTrips||[]).forEach(t=>{const tm=t.timing||{};ttb.appendChild(mkRow("tbody",[ago(t.ts),t.destination||"?",t.duration||"?",fmt(tm.firstChunk),fmt(tm.ai),fmt(tm.total),t.childCount||0]))});
+  tt.appendChild(ttb);root.appendChild(tt);
+  // Top destinations
+  root.appendChild(el("h2","Top Destinations"));
+  const dt=document.createElement("table");
+  dt.appendChild(mkRow("thead",["Destination","Count"]));
+  const dtb=document.createElement("tbody");
+  (d.topDestinations||[]).forEach(dd=>dtb.appendChild(mkRow("tbody",[dd.name,dd.count])));
+  dt.appendChild(dtb);root.appendChild(dt);
+  // Model usage
+  root.appendChild(el("h2","Model Usage"));
+  const mt=document.createElement("table");
+  mt.appendChild(mkRow("thead",["Provider/Model","Calls","Avg Latency","Errors","Est Cost"]));
+  const mtb=document.createElement("tbody");
+  Object.entries(d.modelUsage||{}).forEach(([k,v])=>mtb.appendChild(mkRow("tbody",[k,v.calls,fmt(v.calls?Math.round(v.totalMs/v.calls):0),v.errors||0,"$"+(v.estimatedCost?.toFixed(4)||"0")])));
+  mt.appendChild(mtb);root.appendChild(mt);
+  // Errors
+  root.appendChild(el("h2","Recent Errors"));
+  const et=document.createElement("table");
+  et.appendChild(mkRow("thead",["Time","Path","Error"]));
+  const etb=document.createElement("tbody");
+  (d.recentErrors||[]).forEach(e=>etb.appendChild(mkRow("tbody",[ago(e.ts),e.path||"",String(e.error||"").slice(0,80)])));
+  et.appendChild(etb);root.appendChild(et);
+}
+function mkRow(type,cells){const tr=document.createElement("tr");const tag=type==="thead"?"th":"td";cells.forEach(c=>{const cell=document.createElement(tag);cell.textContent=String(c??"");tr.appendChild(cell)});return tr}
+function fmt(ms){if(!ms&&ms!==0)return"-";if(ms<1000)return ms+"ms";return(ms/1000).toFixed(1)+"s"}
+function ago(ts){if(!ts)return"?";const d=Date.now()-new Date(ts).getTime();if(d<60000)return Math.round(d/1000)+"s ago";if(d<3600000)return Math.round(d/60000)+"m ago";return Math.round(d/3600000)+"h ago"}
+load();setInterval(load,15000);
+</script></body></html>`;
 
 // Validate required environment variables at startup
 function validateEnvironmentVariables() {
@@ -133,13 +217,9 @@ export function createApp(deps = {}) {
     req.reqId = reqId;
     log.info("req:start", { reqId, method: req.method, path: req.path });
     res.on("finish", () => {
-      log.info("req:end", {
-        reqId,
-        method: req.method,
-        path: req.path,
-        status: res.statusCode,
-        ms: Date.now() - start,
-      });
+      const ms = Date.now() - start;
+      log.info("req:end", { reqId, method: req.method, path: req.path, status: res.statusCode, ms });
+      metrics.recordRequest({ method: req.method, path: req.path, status: res.statusCode, ms, reqId });
     });
     next();
   });
@@ -181,12 +261,21 @@ export function createApp(deps = {}) {
   });
 
   app.get("/api/health", (req, res) => {
-    // Fast liveness probe for local dev and hosting health checks.
     res.json({
       status: "ok",
       message: "SproutRoute API is running",
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // ─── Ops Dashboard ─────────────────────────────────────────────────────────
+  app.get("/api/v1/ops/metrics", (req, res) => {
+    res.json(metrics.getSnapshot());
+  });
+
+  app.get("/ops", (req, res) => {
+    res.setHeader("Content-Type", "text/html");
+    res.send(OPS_DASHBOARD_HTML);
   });
 
   app.post("/api/resolve-destination", apiLimiter, async (req, res) => {
@@ -931,6 +1020,7 @@ export function createApp(deps = {}) {
 
       timing.total = Date.now() - streamStart;
       log.info("stream:done", { reqId, destination, timing });
+      metrics.recordTrip({ destination, duration: tripDuration, timing, childCount: children?.length || 0, petCount: pets?.length || 0, reqId });
 
       send("done", {});
       res.end();
@@ -1317,7 +1407,9 @@ export function createApp(deps = {}) {
         } catch { /* silent — region is optional */ }
       }
       const result = await parseInput(sanitizedText, { detectedRegion });
-      log.info("parse-input:done", { reqId, ms: Date.now() - t0, destination: result?.destination });
+      const parseMs = Date.now() - t0;
+      log.info("parse-input:done", { reqId, ms: parseMs, destination: result?.destination });
+      metrics.recordParse({ destination: result?.destination, ms: parseMs, model: "gemini" });
       res.json(result);
     } catch (err) {
       log.error("parse-input:error", { reqId, error: err.message, ms: Date.now() - t0 });

@@ -30,6 +30,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { log } from "./logger.js";
+import { metrics } from "../services/metrics.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -215,10 +216,12 @@ export async function callModel(prompt, deps = {}) {
     const result = await callProvider(provider, { system, user, maxTokens, temperature, cacheSystemPrompt }, deps);
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
+    metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true });
     return result;
   } catch (error) {
     const ms = Date.now() - t0;
     log.warn(`AI call failed (${provider})`, { caller, error: error.message, ms });
+    metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: 0, success: false });
 
     // Try fallbacks in order
     for (const fb of fallbackProviders) {
@@ -227,6 +230,7 @@ export async function callModel(prompt, deps = {}) {
         const result = await callProvider(fb, { system, user, maxTokens, temperature, cacheSystemPrompt: false }, deps);
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: modelIdForProvider(fb), ms: fbMs, outChars: result.responseText?.length || 0 });
+        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: modelIdForProvider(fb), ms: fbMs, outChars: result.responseText?.length || 0, success: true });
         return result;
       } catch (fbError) {
         log.warn(`Fallback ${fb} also failed`, { caller, error: fbError.message });
