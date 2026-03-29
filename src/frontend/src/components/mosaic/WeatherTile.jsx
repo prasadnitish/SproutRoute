@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -27,16 +29,19 @@ function weatherEmoji(condition) {
   return "\u{1F324}";
 }
 
-// Check if forecast dates are within ~2 days of trip dates (not current weather)
 function isHistoricalForecast(forecast, tripStart) {
   if (!forecast?.length || !tripStart) return false;
   const firstForecast = new Date(forecast[0].date + "T00:00:00");
   const tripDate = new Date(tripStart + "T00:00:00");
   const diffDays = Math.abs((tripDate - firstForecast) / 86400000);
-  return diffDays > 7; // forecast dates are >7 days from trip start = mismatch
+  return diffDays > 7;
 }
 
+const COMPACT_DAYS = 5;
+
 export default function WeatherTile({ forecast, tripStart }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (!forecast || forecast.length === 0) {
     return (
       <div className="bg-white border border-gray-200 rounded-2xl p-4 h-full">
@@ -55,6 +60,9 @@ export default function WeatherTile({ forecast, tripStart }) {
     first.conditions ?? first.condition ?? first.shortForecast ?? "";
   const emoji = first.emoji ?? weatherEmoji(conditions);
 
+  const showAll = expanded || forecast.length <= COMPACT_DAYS;
+  const visibleDays = showAll ? forecast : forecast.slice(0, COMPACT_DAYS);
+
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4 h-full flex flex-col">
       {/* Label */}
@@ -69,20 +77,20 @@ export default function WeatherTile({ forecast, tripStart }) {
         )}
       </div>
 
-      {/* Big temp + conditions */}
-      <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-display font-extrabold text-meadow-700">
+      {/* Compact: inline temp + condition */}
+      <div className="flex items-center gap-2 mb-1">
+        <span className="text-2xl font-display font-extrabold text-meadow-700">
           {highTemp}&deg;
         </span>
-        <span className="text-2xl">{emoji}</span>
+        <span className="text-xl">{emoji}</span>
+        {conditions && (
+          <span className="text-xs text-gray-500">{conditions}</span>
+        )}
       </div>
-      {conditions && (
-        <p className="text-xs text-gray-500 mt-0.5 mb-auto">{conditions}</p>
-      )}
 
       {/* Daily forecast strip */}
-      <div className="flex gap-1 overflow-x-auto mt-3 pb-1 -mx-1 px-1">
-        {forecast.map((day, i) => {
+      <div className="flex gap-1 overflow-x-auto mt-1 pb-1 -mx-1 px-1">
+        {visibleDays.map((day, i) => {
           const hi = day.high ?? day.highTemp ?? day.temperature ?? "--";
           const lo = day.low ?? day.lowTemp ?? "";
           const cond =
@@ -93,7 +101,7 @@ export default function WeatherTile({ forecast, tripStart }) {
           return (
             <div
               key={i}
-              className={`min-w-[52px] text-center rounded-xl py-2 px-1.5 flex-shrink-0 transition ${
+              className={`min-w-[48px] text-center rounded-xl py-1.5 px-1 flex-shrink-0 transition ${
                 i === 0
                   ? "bg-meadow-50 border border-meadow-200"
                   : "bg-gray-50"
@@ -101,7 +109,7 @@ export default function WeatherTile({ forecast, tripStart }) {
             >
               <p className="text-[10px] font-bold text-gray-700">{dayName}</p>
               <p className="text-[9px] text-gray-400 leading-tight">{date}</p>
-              <p className="text-base my-0.5">{dayEmoji}</p>
+              <p className="text-sm my-0.5">{dayEmoji}</p>
               <p className="text-xs font-bold text-gray-700">{hi}&deg;</p>
               {lo !== "" && (
                 <p className="text-[10px] text-gray-400">{lo}&deg;</p>
@@ -110,6 +118,16 @@ export default function WeatherTile({ forecast, tripStart }) {
           );
         })}
       </div>
+
+      {/* Show all / collapse toggle */}
+      {forecast.length > COMPACT_DAYS && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-xs text-meadow-600 hover:text-meadow-800 mt-1 cursor-pointer self-end"
+        >
+          {expanded ? "Show less" : `Show all ${forecast.length} days`}
+        </button>
+      )}
     </div>
   );
 }

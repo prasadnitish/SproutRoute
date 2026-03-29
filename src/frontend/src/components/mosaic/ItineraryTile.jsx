@@ -231,8 +231,20 @@ export default function ItineraryTile({
   }
 
   const isScheduled = !!scheduledItinerary;
+
+  const formatDayLabel = (dateStr, index) => {
+    if (!dateStr) return `Day ${index + 1}`;
+    try {
+      const d = new Date(dateStr + "T12:00:00");
+      const dayName = d.toLocaleDateString("en-US", { weekday: "short" });
+      const month = d.toLocaleDateString("en-US", { month: "short" });
+      const dayNum = d.getDate();
+      return `${dayName}, ${month} ${dayNum}`;
+    } catch { return dateStr; }
+  };
+
   const dayTabs = days.map((day, i) => ({
-    label: day.date || day.day || `Day ${i + 1}`,
+    label: formatDayLabel(day.date, i),
     date: day.date,
   }));
 
@@ -272,7 +284,7 @@ export default function ItineraryTile({
       <div className="flex items-center gap-2 mt-3 mb-2">
         {currentDay.date && (
           <span className="text-sm font-medium text-gray-700">
-            {currentDay.date}
+            {formatDayLabel(currentDay.date, activeDay)}
           </span>
         )}
         {dayForecast && (
