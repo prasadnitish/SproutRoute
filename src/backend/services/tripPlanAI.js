@@ -341,10 +341,13 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 5 day objects.
 3. Keep each description/reason <= 120 characters.
 4. Keep tips to max 5 items.`
-    : `**Output Size Limits:**
-1. Suggest 8-10 activities.
+    : `**Output Size Limits (important for speed):**
+1. Suggest 1-2 activities per day (not 8-10 total — scale with trip length).
 2. Keep dailyItinerary to max 7 day objects.
-3. Keep all text concise.`;
+3. Keep descriptions to 1 sentence max (under 80 chars).
+4. Keep meal notes to under 40 chars.
+5. Keep tips to 3-5 items max.
+6. Minimize JSON size — no unnecessary whitespace.`;
 
   // Cruise-specific itinerary format instructions
   const cruiseInstructions = isCruise ? `

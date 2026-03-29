@@ -17,7 +17,6 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
   const countryCode =
     tripData?.trip?.countryCode || parsedInput?.countryCode || "US";
 
-  // Compute duration
   let durationLabel = "";
   if (startDate && endDate) {
     const ms = new Date(endDate) - new Date(startDate);
@@ -25,36 +24,30 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
     durationLabel = `${days} day${days !== 1 ? "s" : ""}`;
   }
 
-  // Tags
   const tags = [];
   if (vibe) tags.push(vibe);
   if (childrenAges.length > 0) tags.push("Family");
   tags.push(countryCode === "US" ? "Domestic" : "International");
 
   return (
-    <div className="bg-gradient-to-br from-meadow-900 via-meadow-600 to-meadow-400 text-white rounded-2xl p-6 h-full flex flex-col justify-between">
-      <div>
-        {/* Eyebrow */}
-        <p className="text-xs uppercase tracking-wide font-semibold opacity-80 mb-2">
-          Your trip plan &#x2728;
-        </p>
+    <div className="bg-gradient-to-r from-meadow-800 via-meadow-600 to-meadow-500 text-white rounded-2xl px-6 py-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        {/* Left: destination + dates */}
+        <div className="flex items-center gap-4">
+          <div>
+            <h2 className="font-display font-extrabold text-2xl md:text-3xl leading-tight">
+              {destination}
+            </h2>
+            <p className="text-sm opacity-90 mt-0.5">
+              {startDate && formatDate(startDate)}
+              {endDate ? ` \u2013 ${formatDate(endDate)}` : ""}
+              {durationLabel ? ` \u00B7 ${durationLabel}` : ""}
+            </p>
+          </div>
+        </div>
 
-        {/* Destination */}
-        <h2 className="font-display font-extrabold text-3xl md:text-4xl leading-tight">
-          {destination}
-        </h2>
-
-        {/* Dates + duration */}
-        {startDate && (
-          <p className="mt-2 text-sm opacity-90">
-            {formatDate(startDate)}
-            {endDate ? ` \u2013 ${formatDate(endDate)}` : ""}
-            {durationLabel ? ` \u00B7 ${durationLabel}` : ""}
-          </p>
-        )}
-
-        {/* Tag chips */}
-        <div className="flex flex-wrap gap-2 mt-4">
+        {/* Right: tags + edit */}
+        <div className="flex items-center gap-2 flex-wrap">
           {tags.map((tag) => (
             <span
               key={tag}
@@ -63,25 +56,20 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
               {tag}
             </span>
           ))}
+          <span className="text-xs opacity-70 hidden sm:inline">
+            {adults} adult{adults !== 1 ? "s" : ""}
+            {childrenAges.length > 0 &&
+              ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}`}
+          </span>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="ml-1 text-xs underline opacity-80 hover:opacity-100 cursor-pointer"
+            >
+              Edit
+            </button>
+          )}
         </div>
-      </div>
-
-      {/* Bottom edit */}
-      <div className="mt-6 text-xs opacity-80">
-        <span>
-          Assumed: {adults} adult{adults !== 1 ? "s" : ""}
-          {childrenAges.length > 0 &&
-            ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}, age${childrenAges.length !== 1 ? "s" : ""} ${childrenAges.join(" & ")}`}
-          {vibe ? ` \u00B7 vibe ${vibe}` : ""}
-        </span>
-        {onEdit && (
-          <button
-            onClick={onEdit}
-            className="ml-2 underline opacity-90 hover:opacity-100 cursor-pointer"
-          >
-            Edit &rarr;
-          </button>
-        )}
       </div>
     </div>
   );

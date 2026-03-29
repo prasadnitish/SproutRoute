@@ -120,38 +120,39 @@ export default function ResultsScreen({
             Mobile: single column stack
           */}
 
-          {/* Top mosaic: Hero + info tiles */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr] gap-3 mb-3">
-            {/* Hero — spans 2 rows on lg */}
-            <div className="md:col-span-2 lg:col-span-1 lg:row-span-2">
-              <HeroTile
-                tripData={tripData}
-                parsedInput={parsedInput}
-                onEdit={onGoBack}
-              />
-            </div>
+          {/* Hero banner — compact, full width */}
+          <div className="mb-3">
+            <HeroTile
+              tripData={tripData}
+              parsedInput={parsedInput}
+              onEdit={onGoBack}
+            />
+          </div>
 
-            {/* Weather */}
-            <div>
-              <WeatherTile
-                forecast={forecast}
-                tripStart={tripData?.parsed?.startDate || parsedInput?.startDate}
-              />
-            </div>
+          {/* Info tiles: Weather + Map side by side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <WeatherTile
+              forecast={forecast}
+              tripStart={tripData?.parsed?.startDate || parsedInput?.startDate}
+            />
+            <MapTile destination={destination} lat={lat} lon={lon} />
+          </div>
 
-            {/* Map */}
-            <div>
-              <MapTile destination={destination} lat={lat} lon={lon} />
-            </div>
-
-            {/* Safety — fills remaining space on lg row 2 */}
-            <div className="lg:col-span-2">
-              <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
-            </div>
-
-            {/* Pet Safety — shown when pet safety data is available */}
+          {/* Safety — collapsed by default */}
+          <div className="mb-3">
+            <details className="group">
+              <summary className="bg-white border border-gray-200 rounded-2xl p-4 cursor-pointer list-none flex items-center justify-between">
+                <span className="text-xs uppercase tracking-wide font-semibold text-meadow-600">
+                  {"\u{1F6E1}"} Safety & Tips
+                </span>
+                <span className="text-gray-400 text-xs group-open:rotate-180 transition-transform">{"\u25BC"}</span>
+              </summary>
+              <div className="mt-1">
+                <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
+              </div>
+            </details>
             {petSafetyData && (
-              <div className="md:col-span-2 lg:col-span-3">
+              <div className="mt-2">
                 <PetSafetyTile petSafetyData={petSafetyData} />
               </div>
             )}
