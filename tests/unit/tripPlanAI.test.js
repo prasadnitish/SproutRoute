@@ -279,6 +279,41 @@ test("generateTripPlan injects compact planner summary when provided", async () 
   assert.ok(userText.includes("slow-paced family"), "Planner summary content should be injected");
 });
 
+test("generateTripPlan includes cached attraction candidates when provided", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["parks", "family-friendly"],
+      children: [{ age: 4 }],
+      cachedAttractions: [
+        {
+          canonicalName: "Balboa Park",
+          category: "parks",
+          shortSummary: "Large urban cultural park with gardens and museums.",
+          whatItIs: "A large central park with museums, gardens, and walking paths.",
+          whyRecommended: "Great fit for stroller-friendly mornings and low-pressure exploring.",
+          timingTip: "Go early to avoid crowds.",
+          verificationStatus: "verified",
+        },
+      ],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  const userText = captured.calls[0].user;
+
+  assert.ok(systemText.includes("VETTED ATTRACTION CANDIDATES"), "System prompt should include cached-attraction instructions");
+  assert.ok(userText.includes("Balboa Park"), "User prompt should include cached attraction names");
+  assert.ok(userText.includes("stroller-friendly"), "User prompt should include cached attraction rationale");
+});
+
 // ── Adults-only trip ─────────────────────────────────────────────────────────
 
 test("generateTripPlan handles adults-only trip (no children)", async () => {
