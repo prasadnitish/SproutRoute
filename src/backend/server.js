@@ -336,6 +336,8 @@ export function createApp(deps = {}) {
 
   app.get("/ops", opsGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");
+    // Override CSP for admin dashboard — allows inline script (auth-gated, not user-facing)
+    res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
     res.send(OPS_DASHBOARD_HTML);
   });
 
