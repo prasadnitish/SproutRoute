@@ -13,7 +13,146 @@ const MAX_TOKENS = 4096;
 const CHUNK_SIZE_DAYS = 7;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 
-function parseTripPlanResponse(responseText) {
+function sanitizeBoolean(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const lower = value.trim().toLowerCase();
+    if (lower === "true" || lower === "yes") return true;
+    if (lower === "false" || lower === "no") return false;
+  }
+  return fallback;
+}
+
+function normalizeMealField(meals) {
+  if (!meals) return "";
+  if (typeof meals === "string") return meals.trim();
+  if (typeof meals !== "object") return String(meals);
+
+  const normalizeMeal = (value) => {
+    if (!value) return "";
+    if (typeof value === "string") return value.trim();
+    if (typeof value !== "object") return String(value);
+    return {
+      name: String(value.name || value.title || "").trim(),
+      cuisine: value.cuisine ? String(value.cuisine).trim() : undefined,
+      note: value.note ? String(value.note).trim() : undefined,
+    };
+  };
+
+  const normalized = {
+    breakfast: normalizeMeal(meals.breakfast),
+    lunch: normalizeMeal(meals.lunch),
+    dinner: normalizeMeal(meals.dinner),
+  };
+
+  if (!normalized.breakfast && !normalized.lunch && !normalized.dinner) {
+    return "";
+  }
+
+  return normalized;
+}
+
+function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = null } = {}) {
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Trip plan response was not an object");
+  }
+
+  const rawActivities = Array.isArray(parsed.suggestedActivities)
+    ? parsed.suggestedActivities
+    : Array.isArray(parsed.activities)
+      ? parsed.activities
+      : [];
+
+  const suggestedActivities = rawActivities
+    .map((activity, index) => {
+      const safe = typeof activity === "string" ? { name: activity } : (activity || {});
+      const fallbackName = String(safe.name || safe.title || `Activity ${index + 1}`).trim();
+      return {
+        id: String(safe.id || `act-${index + 1}`),
+        name: fallbackName,
+        category: String(safe.category || "general").trim().toLowerCase().replace(/\s+/g, "_"),
+        description: String(safe.description || safe.reason || "").trim(),
+        duration: String(safe.duration || "2 hours").trim(),
+        kidFriendly: sanitizeBoolean(safe.kidFriendly, true),
+        weatherDependent: sanitizeBoolean(safe.weatherDependent, false),
+        ...(safe.petFriendly !== undefined ? { petFriendly: sanitizeBoolean(safe.petFriendly, false) } : {}),
+      };
+    })
+    .filter((activity) => activity.name);
+
+  const trimmedActivities = maxActivities
+    ? suggestedActivities.slice(0, maxActivities)
+    : suggestedActivities;
+  const validIds = new Set(trimmedActivities.map((activity) => activity.id));
+
+  const rawDays = Array.isArray(parsed.dailyItinerary)
+    ? parsed.dailyItinerary
+    : Array.isArray(parsed.itinerary)
+      ? parsed.itinerary
+      : [];
+
+  const dailyItinerary = rawDays
+    .map((day, index) => {
+      const safe = day && typeof day === "object" ? day : { day: `Day ${index + 1}`, activities: [] };
+      const rawDayActivities = Array.isArray(safe.activities)
+        ? safe.activities
+        : Array.isArray(safe.items)
+          ? safe.items
+          : [];
+
+      const activities = rawDayActivities
+        .map((entry, entryIndex) => {
+          if (typeof entry === "string") return entry;
+          if (entry && typeof entry === "object") {
+            if (entry.id && validIds.has(String(entry.id))) return String(entry.id);
+            if (entry.name) {
+              const match = trimmedActivities.find((activity) => activity.name === entry.name);
+              if (match) return match.id;
+              const fallbackId = `day-${index + 1}-activity-${entryIndex + 1}`;
+              if (!validIds.has(fallbackId)) {
+                trimmedActivities.push({
+                  id: fallbackId,
+                  name: String(entry.name).trim(),
+                  category: String(entry.category || "general").trim().toLowerCase().replace(/\s+/g, "_"),
+                  description: String(entry.description || "").trim(),
+                  duration: String(entry.duration || "2 hours").trim(),
+                  kidFriendly: sanitizeBoolean(entry.kidFriendly, true),
+                  weatherDependent: sanitizeBoolean(entry.weatherDependent, false),
+                  ...(entry.petFriendly !== undefined ? { petFriendly: sanitizeBoolean(entry.petFriendly, false) } : {}),
+                });
+                validIds.add(fallbackId);
+              }
+              return fallbackId;
+            }
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      return {
+        day: String(safe.day || safe.date || `Day ${index + 1}`).trim(),
+        activities,
+        meals: normalizeMealField(safe.meals),
+        notes: String(safe.notes || "").trim(),
+      };
+    })
+    .filter((day) => day.activities.length > 0 || day.meals || day.notes);
+
+  if (trimmedActivities.length === 0 || dailyItinerary.length === 0) {
+    throw new Error("Missing required trip-plan arrays");
+  }
+
+  return {
+    overview: String(parsed.overview || parsed.summary || "").trim(),
+    suggestedActivities: trimmedActivities,
+    dailyItinerary: expectedDays ? dailyItinerary.slice(0, expectedDays) : dailyItinerary,
+    tips: Array.isArray(parsed.tips)
+      ? parsed.tips.map((tip) => String(tip).trim()).filter(Boolean).slice(0, 5)
+      : [],
+  };
+}
+
+function parseTripPlanResponse(responseText, options = {}) {
   // Attempts tolerant parsing because model output may include markdown wrappers.
   const candidates = extractJsonCandidates(responseText);
 
@@ -21,15 +160,7 @@ function parseTripPlanResponse(responseText) {
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
-      if (
-        parsed &&
-        Array.isArray(parsed.suggestedActivities) &&
-        Array.isArray(parsed.dailyItinerary) &&
-        Array.isArray(parsed.tips)
-      ) {
-        return parsed;
-      }
-      lastError = new Error("Missing required trip-plan arrays");
+      return normalizeTripPlanShape(parsed, options);
     } catch (error) {
       lastError = error;
     }
@@ -68,9 +199,7 @@ function buildRepairPrompt(brokenText) {
       "description": "string",
       "duration": "string",
       "kidFriendly": true,
-      "weatherDependent": false,
-      "bestDays": ["string"],
-      "reason": "string"
+      "weatherDependent": false
     }
   ],
   "dailyItinerary": [
@@ -115,6 +244,8 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     pets = [],
     plannerSummary = "",
   } = tripData;
+  const expectedDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
+  const maxActivities = Math.min(Math.max(expectedDays * 2, 4), 10);
 
   // Sanitize user-supplied fields before interpolating into AI prompts
   const destination = sanitizeDestination(rawDestination);
@@ -143,7 +274,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     }
 
     try {
-      return parseTripPlanResponse(firstAttempt.responseText);
+      return parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities });
     } catch (firstParseError) {
       log.warn("Trip-plan parse failed (attempt 1), retrying compact", { error: firstParseError.message });
 
@@ -164,7 +295,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       );
 
       try {
-        return parseTripPlanResponse(secondAttempt.responseText);
+        return parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
       } catch (secondParseError) {
         log.warn("Trip-plan parse failed (attempt 2), trying repair", { error: secondParseError.message });
 
@@ -172,7 +303,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         const repairAttempt = await repairTripPlanJson(repairSource, deps);
 
         try {
-          return parseTripPlanResponse(repairAttempt.responseText);
+          return parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
         } catch (repairParseError) {
           log.error("Trip-plan parse failed after all 3 attempts", {
             error: repairParseError.message,
@@ -356,16 +487,16 @@ function buildTripPlanPrompt(
 
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
-1. Suggest exactly 6-8 activities.
+1. Suggest 4-6 activities total.
 2. Keep dailyItinerary to max 5 day objects.
-3. Keep each description/reason <= 120 characters.
-4. Keep tips to max 5 items.`
+3. Keep each activity description <= 80 characters.
+4. Keep tips to max 4 items.`
     : `**Output Size Limits (important for speed):**
-1. Suggest 1-2 activities per day (not 8-10 total — scale with trip length).
+1. Suggest 1-2 activities per day, maximum ${Math.min(Math.max(Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) * 2, 4), 10)} activities total.
 2. Keep dailyItinerary to max 7 day objects.
-3. Keep descriptions to 1 sentence max (under 80 chars).
-4. Keep meal notes to under 40 chars.
-5. Keep tips to 3-5 items max.
+3. Keep descriptions to 1 short sentence (under 70 chars).
+4. Meal entries should be restaurant names or tiny objects only.
+5. Keep tips to 3-4 items max.
 6. Minimize JSON size — no unnecessary whitespace.`;
 
   // Cruise-specific itinerary format instructions
@@ -424,13 +555,11 @@ Generate a trip plan with the following structure:
       "id": "unique-id",
       "name": "Activity Name",
       "category": "one of: beach, hiking, city, museums, parks, dining, shopping, sports, water, wildlife, theme_park, camping${isCruise ? ", cruise, shore_excursion" : ""}",
-      "description": "Brief description of the activity (1-2 sentences)",
+      "description": "Very short description",
       "duration": "Estimated duration (e.g., '2-3 hours', 'half day', 'full day')",
       "kidFriendly": true,${hasPets ? `
       "petFriendly": true,` : ""}
-      "weatherDependent": false,
-      "bestDays": ["Day names from forecast when this activity is recommended"],
-      "reason": "Why this activity is recommended (weather, season, family-friendly, etc.)"
+      "weatherDependent": false
     }
   ],
   "dailyItinerary": [
@@ -438,11 +567,11 @@ Generate a trip plan with the following structure:
       "day": "${isCruise ? "Day 1: Embarkation" : "Day 1 (date)"}",
       "activities": ["activity-id-1", "activity-id-2"],
       "meals": {
-        "breakfast": { "name": "Specific restaurant name", "cuisine": "type", "note": "Why recommended" },
-        "lunch": { "name": "Specific restaurant name", "cuisine": "type", "note": "Why recommended" },
-        "dinner": { "name": "Specific restaurant name", "cuisine": "type", "note": "Why recommended" }
+        "breakfast": "Specific restaurant name",
+        "lunch": "Specific restaurant name",
+        "dinner": "Specific restaurant name"
       },
-      "notes": "Any special notes (weather warnings, booking recommendations, etc.)"
+      "notes": "Short note"
     }
   ],
   "tips": [
@@ -460,7 +589,7 @@ ${profileContext}
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs)
 5. Be specific to the destination (not generic advice)
 6. Create a balanced daily itinerary that's not too packed
-7. For EACH meal (breakfast, lunch, dinner), suggest a SPECIFIC, REAL restaurant name at the destination. Vary cuisines across days. Include the cuisine type and a brief note about why it's a good fit.
+7. For each meal (breakfast, lunch, dinner), suggest only a SPECIFIC, REAL restaurant name at the destination.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
    - Preferred cuisines: ${foodPreferences.cuisines?.length ? foodPreferences.cuisines.join(", ") : "open to all"}

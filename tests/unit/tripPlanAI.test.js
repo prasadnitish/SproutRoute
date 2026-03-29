@@ -413,3 +413,100 @@ test("generateTripPlan lists all pets with details in prompt", async () => {
   assert.ok(systemText.includes("Whiskers"), "Should list second pet name");
   assert.ok(systemText.includes("siamese"), "Should list second pet breed");
 });
+
+test("generateTripPlan normalizes simplified activity and meal shapes without repair", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const mockGeminiModel = {
+    generateContent: async () => ({
+      response: {
+        text: () => JSON.stringify({
+          overview: "San Diego weekend",
+          suggestedActivities: [
+            {
+              name: "Children's Pool Beach",
+              category: "beach",
+              description: "See seals and walk the coast",
+              duration: "2 hours",
+              kidFriendly: "true",
+              weatherDependent: "false",
+            },
+          ],
+          dailyItinerary: [
+            {
+              day: "Day 1",
+              activities: [{ name: "Children's Pool Beach" }],
+              meals: {
+                breakfast: "The Cottage",
+                lunch: "Shore Rider",
+                dinner: "Catania",
+              },
+              notes: "Easy stroller day",
+            },
+          ],
+          tips: ["Arrive early for parking"],
+        }),
+        candidates: [{ finishReason: "STOP" }],
+      },
+    }),
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-03",
+      activities: ["relaxing"],
+      children: [{ age: 2 }],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.equal(result.suggestedActivities.length, 1);
+  assert.equal(result.suggestedActivities[0].id, "act-1");
+  assert.equal(result.suggestedActivities[0].kidFriendly, true);
+  assert.equal(result.suggestedActivities[0].weatherDependent, false);
+  assert.deepEqual(result.dailyItinerary[0].activities, ["act-1"]);
+  assert.equal(result.dailyItinerary[0].meals.breakfast, "The Cottage");
+});
+
+test("generateTripPlan trims itinerary days to the requested trip length", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const mockGeminiModel = {
+    generateContent: async () => ({
+      response: {
+        text: () => JSON.stringify({
+          overview: "Too many days",
+          suggestedActivities: [
+            { id: "a1", name: "Zoo", category: "wildlife", description: "Animals", duration: "half day", kidFriendly: true, weatherDependent: false },
+          ],
+          dailyItinerary: [
+            { day: "Day 1", activities: ["a1"], meals: "Breakfast", notes: "" },
+            { day: "Day 2", activities: ["a1"], meals: "Lunch", notes: "" },
+            { day: "Day 3", activities: ["a1"], meals: "Dinner", notes: "" },
+            { day: "Day 4", activities: ["a1"], meals: "Extra", notes: "" },
+          ],
+          tips: [],
+        }),
+        candidates: [{ finishReason: "STOP" }],
+      },
+    }),
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-03",
+      activities: ["relaxing"],
+      children: [{ age: 2 }],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.equal(result.dailyItinerary.length, 2);
+  assert.equal(result.dailyItinerary[1].day, "Day 2");
+});
