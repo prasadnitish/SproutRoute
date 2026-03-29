@@ -163,6 +163,7 @@ export function useTrip() {
           setTripData(prev => ({
             ...prev,
             tripPlan: event.data,
+            scheduledItinerary: event.scheduledItinerary || null,
           }));
           // Transition to results screen once we have the itinerary
           setScreenWithHistory("results");
@@ -185,6 +186,7 @@ export function useTrip() {
             trip: result.trip,
             weather: result.weather,
             tripPlan: result.tripPlan,
+            scheduledItinerary: result.scheduledItinerary || null,
             parsed,
           };
           setTripData(fullData);
