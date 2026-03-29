@@ -9,7 +9,8 @@ import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MAX_TOKENS = 8192;
+const MAX_TOKENS = 4096;
+const CHUNK_SIZE_DAYS = 7;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 
 function parseTripPlanResponse(responseText) {
@@ -182,6 +183,136 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     }
     throw new Error("Failed to generate trip plan: " + error.message);
   }
+}
+
+// ── Chunked generation for trips > 7 days ───────────────────────────────────
+
+/**
+ * Split a date range into 7-day chunks.
+ * @param {string} startDate — YYYY-MM-DD
+ * @param {string} endDate — YYYY-MM-DD
+ * @returns {Array<{startDate, endDate, dayOffset, chunkIndex, totalChunks}>}
+ */
+export function computeChunks(startDate, endDate) {
+  const start = new Date(startDate + "T12:00:00Z");
+  const end = new Date(endDate + "T12:00:00Z");
+  const totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+
+  if (totalDays <= CHUNK_SIZE_DAYS) {
+    return [{ startDate, endDate, dayOffset: 0, chunkIndex: 0, totalChunks: 1 }];
+  }
+
+  const chunks = [];
+  let cursor = new Date(start);
+  let offset = 0;
+
+  while (cursor < end) {
+    const chunkEnd = new Date(cursor);
+    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + CHUNK_SIZE_DAYS);
+    const actualEnd = chunkEnd > end ? end : chunkEnd;
+
+    chunks.push({
+      startDate: cursor.toISOString().split("T")[0],
+      endDate: actualEnd.toISOString().split("T")[0],
+      dayOffset: offset,
+      chunkIndex: chunks.length,
+      totalChunks: 0, // filled below
+    });
+
+    offset += CHUNK_SIZE_DAYS;
+    cursor = new Date(actualEnd);
+  }
+
+  // Fill totalChunks
+  for (const c of chunks) c.totalChunks = chunks.length;
+  return chunks;
+}
+
+/**
+ * Merge multiple chunk results into a single tripPlan.
+ * @param {Array<object>} chunkResults — array of parseTripPlanResponse outputs
+ * @returns {object} merged tripPlan with combined dailyItinerary, activities, tips
+ */
+export function mergeTripPlanChunks(chunkResults) {
+  if (chunkResults.length === 1) return chunkResults[0];
+
+  const merged = {
+    overview: chunkResults[0].overview || "",
+    suggestedActivities: [],
+    dailyItinerary: [],
+    tips: [],
+  };
+
+  const seenActivityIds = new Set();
+
+  for (const chunk of chunkResults) {
+    // Merge activities (deduplicate by id)
+    for (const act of (chunk.suggestedActivities || [])) {
+      if (!seenActivityIds.has(act.id)) {
+        seenActivityIds.add(act.id);
+        merged.suggestedActivities.push(act);
+      }
+    }
+
+    // Append daily itinerary
+    merged.dailyItinerary.push(...(chunk.dailyItinerary || []));
+
+    // Collect tips
+    merged.tips.push(...(chunk.tips || []));
+  }
+
+  // Deduplicate tips
+  merged.tips = [...new Set(merged.tips)];
+
+  return merged;
+}
+
+/**
+ * Generate a trip plan in chunks for trips > 7 days.
+ * Returns results one chunk at a time via the onChunk callback.
+ *
+ * @param {object} tripData — full trip data
+ * @param {object} weather — weather forecast
+ * @param {function} onChunk — called with (chunkTripPlan, chunkMeta) for each chunk
+ * @param {object} deps — DI for testing
+ */
+export async function generateTripPlanChunked(tripData, weather, onChunk, deps = {}) {
+  const chunks = computeChunks(tripData.startDate, tripData.endDate);
+
+  if (chunks.length === 1) {
+    // Short trip — single generation
+    const result = await generateTripPlan(tripData, weather, deps);
+    onChunk(result, { chunk: 1, totalChunks: 1, dayOffset: 0 });
+    return result;
+  }
+
+  // Multi-chunk generation
+  const chunkResults = [];
+  for (const chunk of chunks) {
+    const chunkData = {
+      ...tripData,
+      startDate: chunk.startDate,
+      endDate: chunk.endDate,
+    };
+
+    // For chunk 2+, add continuation context
+    if (chunk.chunkIndex > 0 && chunkResults.length > 0) {
+      const prevDays = chunkResults.flatMap(r => r.dailyItinerary || []);
+      const prevActivities = chunkResults.flatMap(r => (r.suggestedActivities || []).map(a => a.name));
+      chunkData._continuationContext = `This is days ${chunk.dayOffset + 1}-${chunk.dayOffset + 7} of a ${chunks[0].totalChunks * CHUNK_SIZE_DAYS}-day trip. Previous days already planned: ${prevDays.map(d => d.day).join(", ")}. Activities already suggested: ${prevActivities.slice(0, 10).join(", ")}. Avoid repeating the same activities. Continue with new experiences.`;
+    }
+
+    const result = await generateTripPlan(chunkData, weather, deps);
+    chunkResults.push(result);
+
+    onChunk(result, {
+      chunk: chunk.chunkIndex + 1,
+      totalChunks: chunk.totalChunks,
+      dayOffset: chunk.dayOffset,
+    });
+  }
+
+  return mergeTripPlanChunks(chunkResults);
 }
 
 function buildTripPlanPrompt(

@@ -336,9 +336,35 @@ export async function streamTripPlan(tripData, onEvent, signal) {
               onEvent({ type: "weather", data: result.weather });
             } else if (type === "itinerary-chunk") {
               if (data.tripPlan) {
-                result.tripPlan = data.tripPlan;
-                result.scheduledItinerary = data.scheduledItinerary || null;
-                onEvent({ type: "itinerary", data: result.tripPlan, scheduledItinerary: result.scheduledItinerary });
+                const isFirstChunk = !result.tripPlan;
+                const chunk = data.chunk || 1;
+                const totalChunks = data.totalChunks || 1;
+
+                if (isFirstChunk) {
+                  // First chunk — set initial data
+                  result.tripPlan = data.tripPlan;
+                  result.scheduledItinerary = data.scheduledItinerary || null;
+                  result._totalChunks = totalChunks;
+                  result._receivedChunks = 1;
+                  onEvent({ type: "itinerary", data: result.tripPlan, scheduledItinerary: result.scheduledItinerary, chunk, totalChunks });
+                } else {
+                  // Subsequent chunks — merge into existing data
+                  const prev = result.tripPlan;
+                  result.tripPlan = {
+                    ...prev,
+                    dailyItinerary: [...(prev.dailyItinerary || []), ...(data.tripPlan.dailyItinerary || [])],
+                    suggestedActivities: [...(prev.suggestedActivities || []), ...(data.tripPlan.suggestedActivities || [])],
+                    tips: [...new Set([...(prev.tips || []), ...(data.tripPlan.tips || [])])],
+                  };
+                  if (data.scheduledItinerary) {
+                    result.scheduledItinerary = [
+                      ...(result.scheduledItinerary || []),
+                      ...data.scheduledItinerary,
+                    ];
+                  }
+                  result._receivedChunks = (result._receivedChunks || 1) + 1;
+                  onEvent({ type: "itinerary-update", data: result.tripPlan, scheduledItinerary: result.scheduledItinerary, chunk, totalChunks });
+                }
               } else {
                 onEvent({ type: "itinerary-status", data });
               }

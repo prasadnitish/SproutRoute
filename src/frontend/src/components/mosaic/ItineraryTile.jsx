@@ -193,6 +193,8 @@ export default function ItineraryTile({
   onActivityTap,
   onDayChange,
   hasPets = false,
+  totalChunks = 1,
+  receivedChunks = 1,
 }) {
   const [activeDay, setActiveDay] = useState(0);
 
@@ -257,6 +259,14 @@ export default function ItineraryTile({
 
       {/* Day tabs */}
       <DayTabs days={dayTabs} activeDay={activeDay} onSelectDay={handleDayChange} />
+
+      {/* Loading indicator for additional chunks */}
+      {totalChunks > 1 && receivedChunks < totalChunks && (
+        <div className="flex items-center gap-2 mt-1 mb-1 text-xs text-meadow-600 animate-pulse">
+          <span className="inline-block w-3 h-3 border-2 border-meadow-500 border-t-transparent rounded-full animate-spin" />
+          Loading more days ({receivedChunks}/{totalChunks})...
+        </div>
+      )}
 
       {/* Day header */}
       <div className="flex items-center gap-2 mt-3 mb-2">
