@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mockAllApis, goToResults } from "../fixtures/mock-api";
+import { mockAllApis, goToResults, overrideSSE, buildSSEBody } from "../fixtures/mock-api";
 import { MOCK_TRIP_PLAN } from "../fixtures/trip-data";
 
 test.describe("MapTile", () => {
@@ -9,7 +9,8 @@ test.describe("MapTile", () => {
   });
 
   test("renders an iframe", async ({ page }) => {
-    await expect(page.locator("iframe")).toBeVisible();
+    // Multiple iframes may exist (map + day route map), use .first()
+    await expect(page.locator("iframe").first()).toBeVisible();
   });
 
   test("iframe src contains trip coordinates", async ({ page }) => {
@@ -20,16 +21,12 @@ test.describe("MapTile", () => {
   });
 
   test("renders without crashing when lat/lon are null", async ({ page }) => {
-    await page.route("**/api/trip-plan", (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          ...MOCK_TRIP_PLAN,
-          trip: { ...MOCK_TRIP_PLAN.trip, lat: null, lon: null },
-        }),
-      })
-    );
+    // Override SSE stream to return null coordinates
+    await overrideSSE(page, {
+      body: buildSSEBody({
+        trip: { ...MOCK_TRIP_PLAN.trip, lat: null, lon: null },
+      }),
+    });
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();
