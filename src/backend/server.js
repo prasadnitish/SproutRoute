@@ -11,7 +11,7 @@ import {
   resolveDestinationQuery,
 } from "./services/geocoding.js";
 import { getWeatherForecast } from "./services/weather.js";
-import { generatePackingList } from "./services/packingListAI.js";
+import { generatePackingList } from "./services/deterministicPacking.js";
 import { generateTripPlan, generateTripPlanChunked, computeChunks } from "./services/tripPlanAI.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
@@ -970,7 +970,8 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/trip/stream
   // Server-Sent Events endpoint: streams trip results progressively.
-  // Events: destination → weather → itinerary-chunk → packing → done
+  // Events: destination → weather → itinerary-chunk → done
+  // Packing is loaded after the itinerary so the first useful result is not blocked.
   // No batch enrichment — frontend enriches on-demand via usePlacesEnrich.
   app.post("/api/v1/trip/stream", optionalAuth, aiLimiter, async (req, res) => {
     // SSE headers
@@ -1035,7 +1036,7 @@ export function createApp(deps = {}) {
       timing.weather = Date.now() - t0;
       send("weather", { weather });
 
-      // Phase 3: AI itinerary + packing in parallel (~10-20s)
+      // Phase 3: AI itinerary only on the hot path (~10-20s)
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
       const tripPayload = {
@@ -1048,9 +1049,7 @@ export function createApp(deps = {}) {
       const chunks = computeChunks(startDate, endDate);
       const needsChunking = chunks.length > 1;
 
-      // Start packing in parallel with first chunk
       t0 = Date.now();
-      const packingPromise = generatePackingListFn(tripPayload, weather);
 
       // Generate itinerary (chunked for long trips, single for short)
       let firstChunkSent = false;
@@ -1088,22 +1087,6 @@ export function createApp(deps = {}) {
       }
 
       timing.ai = Date.now() - t0;
-
-      // Wait for packing (may already be done if trip was short)
-      try {
-        const packingList = await packingPromise;
-        if (packingList?.categories) {
-          for (const category of packingList.categories) {
-            category.items = category.items.map(item => ({
-              ...item,
-              shopLinks: item.searchQuery ? buildShopLinks(item.searchQuery) : [],
-            }));
-          }
-        }
-        send("packing", { packingList });
-      } catch (packErr) {
-        log.warn("stream:packing-fail", { reqId, error: packErr.message });
-      }
 
       timing.total = Date.now() - streamStart;
       log.info("stream:done", { reqId, destination, timing });

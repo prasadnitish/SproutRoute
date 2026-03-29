@@ -430,6 +430,9 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
               duration: "2 hours",
               kidFriendly: "true",
               weatherDependent: "false",
+              whatItIs: "A scenic cove with seals and an easy coastal path.",
+              whyRecommended: "It is calm, stroller-friendly, and a good match for a slow toddler trip.",
+              timingTip: "Go right after breakfast for fewer crowds.",
             },
           ],
           dailyItinerary: [
@@ -467,6 +470,9 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
   assert.equal(result.suggestedActivities[0].id, "act-1");
   assert.equal(result.suggestedActivities[0].kidFriendly, true);
   assert.equal(result.suggestedActivities[0].weatherDependent, false);
+  assert.equal(result.suggestedActivities[0].whatItIs, "A scenic cove with seals and an easy coastal path.");
+  assert.equal(result.suggestedActivities[0].whyRecommended, "It is calm, stroller-friendly, and a good match for a slow toddler trip.");
+  assert.equal(result.suggestedActivities[0].timingTip, "Go right after breakfast for fewer crowds.");
   assert.deepEqual(result.dailyItinerary[0].activities, ["act-1"]);
   assert.equal(result.dailyItinerary[0].meals.breakfast, "The Cottage");
 });

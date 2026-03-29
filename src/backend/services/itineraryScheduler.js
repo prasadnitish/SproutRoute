@@ -174,7 +174,11 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
 
 function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
   const activityMap = {};
-  (suggestedActivities || []).forEach(a => { if (a.id) activityMap[a.id] = a; });
+  const activityNameMap = {};
+  (suggestedActivities || []).forEach((a) => {
+    if (a.id) activityMap[a.id] = a;
+    if (a.name) activityNameMap[a.name.toLowerCase()] = a;
+  });
 
   const rawActivities = day.activities || [];
   const dayOfWeek = dateStr ? new Date(dateStr + "T12:00:00Z").getDay() : null;
@@ -197,7 +201,9 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
   let dinnerInserted = false;
 
   for (const actRef of rawActivities) {
-    const activity = typeof actRef === "string" ? activityMap[actRef] : actRef;
+    const activity = typeof actRef === "string"
+      ? activityMap[actRef] || activityNameMap[actRef.toLowerCase()]
+      : actRef;
     if (!activity) continue;
 
     const name = activity.name || activity.title || actRef;

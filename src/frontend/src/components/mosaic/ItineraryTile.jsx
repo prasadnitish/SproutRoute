@@ -153,6 +153,12 @@ function ActivityCard({ activity, onTap, hasPets }) {
           </p>
         )}
 
+        {activity.whyRecommended && !isMeal && (
+          <p className="text-[11px] text-meadow-700 mt-1 line-clamp-2">
+            Why this fits: {activity.whyRecommended}
+          </p>
+        )}
+
         {/* Enriched details row */}
         {enriched?.address && (
           <p className="text-[10px] text-gray-400 mt-1 truncate">

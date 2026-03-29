@@ -72,6 +72,9 @@ function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = n
         name: fallbackName,
         category: String(safe.category || "general").trim().toLowerCase().replace(/\s+/g, "_"),
         description: String(safe.description || safe.reason || "").trim(),
+        whatItIs: String(safe.whatItIs || safe.description || safe.summary || "").trim(),
+        whyRecommended: String(safe.whyRecommended || safe.reason || "").trim(),
+        timingTip: String(safe.timingTip || safe.bestTime || "").trim(),
         duration: String(safe.duration || "2 hours").trim(),
         kidFriendly: sanitizeBoolean(safe.kidFriendly, true),
         weatherDependent: sanitizeBoolean(safe.weatherDependent, false),
@@ -115,6 +118,9 @@ function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = n
                   name: String(entry.name).trim(),
                   category: String(entry.category || "general").trim().toLowerCase().replace(/\s+/g, "_"),
                   description: String(entry.description || "").trim(),
+                  whatItIs: String(entry.whatItIs || entry.description || "").trim(),
+                  whyRecommended: String(entry.whyRecommended || entry.reason || "").trim(),
+                  timingTip: String(entry.timingTip || entry.bestTime || "").trim(),
                   duration: String(entry.duration || "2 hours").trim(),
                   kidFriendly: sanitizeBoolean(entry.kidFriendly, true),
                   weatherDependent: sanitizeBoolean(entry.weatherDependent, false),
@@ -197,6 +203,9 @@ function buildRepairPrompt(brokenText) {
       "name": "string",
       "category": "string",
       "description": "string",
+      "whatItIs": "string",
+      "whyRecommended": "string",
+      "timingTip": "string",
       "duration": "string",
       "kidFriendly": true,
       "weatherDependent": false
@@ -556,6 +565,9 @@ Generate a trip plan with the following structure:
       "name": "Activity Name",
       "category": "one of: beach, hiking, city, museums, parks, dining, shopping, sports, water, wildlife, theme_park, camping${isCruise ? ", cruise, shore_excursion" : ""}",
       "description": "Very short description",
+      "whatItIs": "Short factual explainer of the attraction",
+      "whyRecommended": "Short reason this fits this specific trip",
+      "timingTip": "Short timing advice like best time to go",
       "duration": "Estimated duration (e.g., '2-3 hours', 'half day', 'full day')",
       "kidFriendly": true,${hasPets ? `
       "petFriendly": true,` : ""}
@@ -589,6 +601,8 @@ ${profileContext}
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs)
 5. Be specific to the destination (not generic advice)
 6. Create a balanced daily itinerary that's not too packed
+7. Return one day object for each trip day in the requested date range whenever possible
+8. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended"
 7. For each meal (breakfast, lunch, dinner), suggest only a SPECIFIC, REAL restaurant name at the destination.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
