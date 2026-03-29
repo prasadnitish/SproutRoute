@@ -62,6 +62,7 @@ export async function parseInput(text, deps = {}) {
     const { responseText } = await callModel({
       system: "You are a trip planner assistant. Return ONLY valid JSON, no markdown or explanation.",
       user: promptText,
+      caller: "parseInput",
     });
     return responseText;
   });

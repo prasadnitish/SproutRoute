@@ -142,31 +142,42 @@ export async function callModel(prompt, deps = {}) {
 
   const provider = (process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
   const fallbackEnabled = provider === "anthropic" && !!process.env.DEEPSEEK_API_KEY;
+  const caller = prompt.caller || "unknown"; // optional label for log grouping
+  const t0 = Date.now();
 
   try {
+    let result;
     if (provider === "deepseek") {
       const client = deps.deepseekClient ?? (await makeDeepSeekClient());
-      return await callDeepSeek(client, { system, user, maxTokens, temperature });
+      result = await callDeepSeek(client, { system, user, maxTokens, temperature });
+    } else {
+      // Default: Anthropic (Claude Sonnet)
+      const client = deps.anthropicClient ?? makeAnthropicClient();
+      result = await callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt });
     }
 
-    // Default: Anthropic (Claude Sonnet)
-    const client = deps.anthropicClient ?? makeAnthropicClient();
-    return await callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt });
+    const ms = Date.now() - t0;
+    const outLen = result.responseText?.length || 0;
+    log.info("ai:call", { caller, provider, model: provider === "deepseek" ? DEEPSEEK_MODEL_ID : ANTHROPIC_MODEL_ID, ms, outChars: outLen });
+    return result;
   } catch (error) {
+    const ms = Date.now() - t0;
     // Fallback to DeepSeek if Anthropic fails and DEEPSEEK_API_KEY is configured
     if (fallbackEnabled) {
-      log.warn(`Anthropic failed, falling back to DeepSeek`, { error: error.message });
+      log.warn(`Anthropic failed, falling back to DeepSeek`, { caller, error: error.message, ms });
       try {
+        const dsT0 = Date.now();
         const dsClient = deps.deepseekClient ?? (await makeDeepSeekClient());
-        return await callDeepSeek(dsClient, { system, user, maxTokens, temperature });
+        const result = await callDeepSeek(dsClient, { system, user, maxTokens, temperature });
+        log.info("ai:call", { caller, provider: "deepseek-fallback", model: DEEPSEEK_MODEL_ID, ms: Date.now() - dsT0, outChars: result.responseText?.length || 0 });
+        return result;
       } catch (fallbackError) {
-        log.error(`DeepSeek fallback also failed`, { error: fallbackError.message });
-        // Throw the original Anthropic error (more useful for debugging)
+        log.error(`DeepSeek fallback also failed`, { caller, error: fallbackError.message });
         throw error;
       }
     }
 
-    log.error(`AI call failed (${provider})`, { error: error.message });
+    log.error(`AI call failed (${provider})`, { caller, error: error.message, ms });
     throw error;
   }
 }

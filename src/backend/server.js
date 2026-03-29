@@ -123,14 +123,24 @@ export function createApp(deps = {}) {
     next();
   });
 
-  if (enableRequestLogging) {
-    app.use((req, res, next) => {
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-      }
-      next();
+  // ─── Request logging middleware: logs every API request with duration ───
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api")) return next();
+    const start = Date.now();
+    const reqId = crypto.randomUUID().slice(0, 8);
+    req.reqId = reqId;
+    log.info("req:start", { reqId, method: req.method, path: req.path });
+    res.on("finish", () => {
+      log.info("req:end", {
+        reqId,
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        ms: Date.now() - start,
+      });
     });
-  }
+    next();
+  });
 
   // AI-intensive limiter: stricter — these routes cost real money (Anthropic/DeepSeek calls)
   const aiLimiter = rateLimit({
@@ -793,6 +803,10 @@ export function createApp(deps = {}) {
     res.setHeader("Connection", "keep-alive");
     res.setHeader("X-Accel-Buffering", "no"); // Disable nginx/proxy buffering
 
+    const streamStart = Date.now();
+    const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
+    const timing = {};
+
     const send = (event, data) => {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
@@ -811,8 +825,12 @@ export function createApp(deps = {}) {
           ? activities
           : ["family-friendly", "parks", "city"];
 
+      log.info("stream:input", { reqId, destination, startDate, endDate, childCount: children?.length || 0, petCount: pets?.length || 0 });
+
       // Phase 1: Geocode (~1-2s)
+      let t0 = Date.now();
       const coords = await geocodeLocationFn(destination);
+      timing.geocode = Date.now() - t0;
       const resolvedCountry = coords.countryCode || "US";
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -834,9 +852,11 @@ export function createApp(deps = {}) {
       });
 
       // Phase 2: Weather (~1-3s)
+      t0 = Date.now();
       const weather = await getWeatherForecastFn(
         coords.lat, coords.lon, resolvedCountry, startDate, endDate,
       );
+      timing.weather = Date.now() - t0;
       send("weather", { weather });
 
       // Phase 3: AI itinerary + packing in parallel (~10-20s)
@@ -847,15 +867,18 @@ export function createApp(deps = {}) {
       };
 
       // Run both AI calls concurrently
+      t0 = Date.now();
       const [tripPlan, packingResult] = await Promise.allSettled([
         generateTripPlanFn(tripPayload, weather),
         generatePackingListFn(tripPayload, weather),
       ]);
+      timing.ai = Date.now() - t0;
 
       // Send itinerary as soon as it's ready
       if (tripPlan.status === "fulfilled") {
         send("itinerary-chunk", { tripPlan: tripPlan.value });
       } else {
+        log.error("stream:itinerary-fail", { reqId, error: tripPlan.reason?.message });
         send("error", { message: "Failed to generate itinerary. Please try again." });
         return res.end();
       }
@@ -873,13 +896,18 @@ export function createApp(deps = {}) {
           }
         }
         send("packing", { packingList });
+      } else {
+        log.warn("stream:packing-fail", { reqId, error: packingResult.reason?.message });
       }
-      // Packing failure is non-fatal — frontend shows retry button
+
+      timing.total = Date.now() - streamStart;
+      log.info("stream:done", { reqId, destination, timing });
 
       send("done", {});
       res.end();
     } catch (error) {
-      devLog("Error in /api/v1/trip/stream:", error);
+      timing.total = Date.now() - streamStart;
+      log.error("stream:error", { reqId, error: error.message, timing });
       try {
         if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
           send("error", { message: "Could not find that location. Please try a more specific address." });
@@ -1220,6 +1248,8 @@ export function createApp(deps = {}) {
 
   // ─── Parse natural language trip input ───
   app.post("/api/v1/trip/parse-input", aiLimiter, async (req, res) => {
+    const t0 = Date.now();
+    const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
     try {
       const { text, detectedLat, detectedLon } = req.body;
       if (!text || typeof text !== "string" || text.trim().length === 0) {
@@ -1229,6 +1259,8 @@ export function createApp(deps = {}) {
       const sanitizedText = sanitizeDestination(String(text).trim());
       if (!sanitizedText) return res.status(422).json({ error: "text is required" });
 
+      log.info("parse-input:start", { reqId, textLen: sanitizedText.length, text: sanitizedText.slice(0, 100) });
+
       let detectedRegion = null;
       // SECURITY: Validate lat/lon as numeric to prevent SSRF via URL parameter injection
       const parsedLat = parseFloat(detectedLat);
@@ -1237,6 +1269,7 @@ export function createApp(deps = {}) {
           && parsedLat >= -90 && parsedLat <= 90
           && parsedLon >= -180 && parsedLon <= 180) {
         try {
+          const geoT0 = Date.now();
           const params = new URLSearchParams({
             lat: parsedLat.toFixed(6),
             lon: parsedLon.toFixed(6),
@@ -1251,12 +1284,14 @@ export function createApp(deps = {}) {
             const addr = geoData.address || {};
             detectedRegion = [addr.city || addr.town, addr.state].filter(Boolean).join(", ");
           }
+          log.info("parse-input:geo", { reqId, ms: Date.now() - geoT0, region: detectedRegion });
         } catch { /* silent — region is optional */ }
       }
       const result = await parseInput(sanitizedText, { detectedRegion });
+      log.info("parse-input:done", { reqId, ms: Date.now() - t0, destination: result?.destination });
       res.json(result);
     } catch (err) {
-      log.error("parse-input error", { error: err.message });
+      log.error("parse-input:error", { reqId, error: err.message, ms: Date.now() - t0 });
       res.status(500).json({ error: "Failed to parse trip input" });
     }
   });
