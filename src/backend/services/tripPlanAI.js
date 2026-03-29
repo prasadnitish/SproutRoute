@@ -1,6 +1,7 @@
 // AI service: generates a structured trip itinerary in JSON.
 // Uses aiClient.js abstraction — supports Anthropic (Haiku) and DeepSeek V3 via AI_PROVIDER env var.
 import { callModel } from "../utils/aiClient.js";
+import { SchemaType } from "@google/generative-ai";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import {
@@ -52,7 +53,15 @@ function normalizeMealField(meals) {
   return normalized;
 }
 
-function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = null } = {}) {
+function getTripPlanMinimumActivities(expectedDays, maxActivities) {
+  const baseline = Math.max(2, Math.min(expectedDays || 2, 4));
+  return maxActivities ? Math.min(maxActivities, baseline) : baseline;
+}
+
+function normalizeTripPlanShape(
+  parsed,
+  { expectedDays = null, maxActivities = null, minActivities = 1 } = {},
+) {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Trip plan response was not an object");
   }
@@ -138,8 +147,12 @@ function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = n
     })
     .filter((day) => day.activities.length > 0 || day.meals || day.notes);
 
-  if (trimmedActivities.length === 0 || dailyItinerary.length === 0) {
+  if (trimmedActivities.length < minActivities || dailyItinerary.length === 0) {
     throw new Error("Missing required trip-plan arrays");
+  }
+
+  if (expectedDays && dailyItinerary.length < expectedDays) {
+    throw new Error(`Trip plan was incomplete: expected ${expectedDays} days, got ${dailyItinerary.length}`);
   }
 
   return {
@@ -178,10 +191,87 @@ function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
   return Math.min(MAX_TOKENS, Math.max(1400, base + days * perDay));
 }
 
-async function requestTripPlan({ system, user, maxTokens }, deps, { cache = false } = {}) {
+function buildTripPlanResponseSchema({ expectedDays, maxActivities, hasPets = false }) {
+  const mealSchema = {
+    type: SchemaType.OBJECT,
+    properties: {
+      breakfast: { type: SchemaType.STRING },
+      lunch: { type: SchemaType.STRING },
+      dinner: { type: SchemaType.STRING },
+    },
+    required: ["breakfast", "lunch", "dinner"],
+  };
+
+  const activityProperties = {
+    id: { type: SchemaType.STRING },
+    name: { type: SchemaType.STRING },
+    category: { type: SchemaType.STRING },
+    description: { type: SchemaType.STRING },
+    duration: { type: SchemaType.STRING },
+    kidFriendly: { type: SchemaType.BOOLEAN },
+    weatherDependent: { type: SchemaType.BOOLEAN },
+  };
+  if (hasPets) {
+    activityProperties.petFriendly = { type: SchemaType.BOOLEAN };
+  }
+
+  return {
+    type: SchemaType.OBJECT,
+    properties: {
+      overview: { type: SchemaType.STRING },
+      suggestedActivities: {
+        type: SchemaType.ARRAY,
+        minItems: getTripPlanMinimumActivities(expectedDays, maxActivities),
+        maxItems: maxActivities,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: activityProperties,
+          required: ["id", "name", "category", "description", "duration", "kidFriendly", "weatherDependent"],
+        },
+      },
+      dailyItinerary: {
+        type: SchemaType.ARRAY,
+        minItems: expectedDays,
+        maxItems: expectedDays,
+        items: {
+          type: SchemaType.OBJECT,
+          properties: {
+            day: { type: SchemaType.STRING },
+            activities: {
+              type: SchemaType.ARRAY,
+              minItems: 1,
+              maxItems: 4,
+              items: { type: SchemaType.STRING },
+            },
+            meals: mealSchema,
+            notes: { type: SchemaType.STRING },
+          },
+          required: ["day", "activities", "meals", "notes"],
+        },
+      },
+      tips: {
+        type: SchemaType.ARRAY,
+        maxItems: 5,
+        items: { type: SchemaType.STRING },
+      },
+    },
+    required: ["overview", "suggestedActivities", "dailyItinerary", "tips"],
+  };
+}
+
+async function requestTripPlan({ system, user, maxTokens, responseSchema }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "gemini" }, deps);
+  return callModel({
+    system,
+    user,
+    maxTokens,
+    temperature: 0,
+    cacheSystemPrompt: cache,
+    caller: "tripPlan",
+    provider: "gemini",
+    responseSchema,
+  }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -206,7 +296,11 @@ function buildRepairPrompt(brokenText) {
     {
       "day": "string",
       "activities": ["string"],
-      "meals": "string",
+      "meals": {
+        "breakfast": "string",
+        "lunch": "string",
+        "dinner": "string"
+      },
       "notes": "string"
     }
   ],
@@ -246,6 +340,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   } = tripData;
   const expectedDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
   const maxActivities = Math.min(Math.max(expectedDays * 2, 4), 10);
+  const minActivities = getTripPlanMinimumActivities(expectedDays, maxActivities);
 
   // Sanitize user-supplied fields before interpolating into AI prompts
   const destination = sanitizeDestination(rawDestination);
@@ -261,10 +356,11 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary },
     );
   const primaryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: false });
+  const responseSchema = buildTripPlanResponseSchema({ expectedDays, maxActivities, hasPets: pets.length > 0 });
 
   try {
       const firstAttempt = await requestWithRetry(
-      () => requestTripPlan({ ...primaryPrompt, maxTokens: primaryMaxTokens }, deps, { cache: true }),
+      () => requestTripPlan({ ...primaryPrompt, maxTokens: primaryMaxTokens, responseSchema }, deps, { cache: true }),
       MAX_RETRIES,
     );
 
@@ -274,7 +370,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     }
 
     try {
-      return parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities });
+      return parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities, minActivities });
     } catch (firstParseError) {
       log.warn("Trip-plan parse failed (attempt 1), retrying compact", { error: firstParseError.message });
 
@@ -290,12 +386,12 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       const retryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: true });
 
       const secondAttempt = await requestWithRetry(
-        () => requestTripPlan({ ...retryPrompt, maxTokens: retryMaxTokens }, deps),
+        () => requestTripPlan({ ...retryPrompt, maxTokens: retryMaxTokens, responseSchema }, deps),
         MAX_RETRIES,
       );
 
       try {
-        return parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
+        return parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities, minActivities });
       } catch (secondParseError) {
         log.warn("Trip-plan parse failed (attempt 2), trying repair", { error: secondParseError.message });
 
@@ -303,7 +399,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         const repairAttempt = await repairTripPlanJson(repairSource, deps);
 
         try {
-          return parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
+          return parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities, minActivities });
         } catch (repairParseError) {
           log.error("Trip-plan parse failed after all 3 attempts", {
             error: repairParseError.message,
@@ -488,7 +584,7 @@ function buildTripPlanPrompt(
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
 1. Suggest 4-6 activities total.
-2. Keep dailyItinerary to max 5 day objects.
+2. Return exactly ${Math.min(Math.max(Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)), 1), 7)} day objects in dailyItinerary.
 3. Keep each activity description <= 80 characters.
 4. Keep tips to max 4 items.`
     : `**Output Size Limits (important for speed):**
@@ -565,7 +661,7 @@ Generate a trip plan with the following structure:
   "dailyItinerary": [
     {
       "day": "${isCruise ? "Day 1: Embarkation" : "Day 1 (date)"}",
-      "activities": ["activity-id-1", "activity-id-2"],
+      "activities": ["short activity label 1", "short activity label 2"],
       "meals": {
         "breakfast": "Specific restaurant name",
         "lunch": "Specific restaurant name",
@@ -589,6 +685,7 @@ ${profileContext}
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs)
 5. Be specific to the destination (not generic advice)
 6. Create a balanced daily itinerary that's not too packed
+7. Return exactly one day object per trip day in the requested date range
 7. For each meal (breakfast, lunch, dinner), suggest only a SPECIFIC, REAL restaurant name at the destination.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}

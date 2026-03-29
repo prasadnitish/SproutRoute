@@ -30,14 +30,36 @@ const VALID_PACKING_JSON = JSON.stringify({
     {
       name: "Clothing",
       items: [
-        { name: "T-shirts", quantity: "3-4", reason: "Warm weather" },
-        { name: "Shorts", quantity: "2", reason: "Beach activities" },
+        { name: "T-shirts", quantity: "3-4", reason: "Warm weather", searchQuery: "kids t shirts" },
+        { name: "Shorts", quantity: "2", reason: "Beach activities", searchQuery: "kids shorts" },
       ],
     },
     {
       name: "Toiletries",
       items: [
-        { name: "Sunscreen", quantity: "1", reason: "UV protection" },
+        { name: "Sunscreen", quantity: "1", reason: "UV protection", searchQuery: "travel sunscreen" },
+        { name: "Wipes", quantity: "1", reason: "Quick cleanups", searchQuery: "travel wipes" },
+      ],
+    },
+    {
+      name: "Gear",
+      items: [
+        { name: "Stroller", quantity: "1", reason: "Toddler mobility", searchQuery: "travel stroller" },
+        { name: "Water bottle", quantity: "2", reason: "Hydration", searchQuery: "kids water bottle" },
+      ],
+    },
+    {
+      name: "Documents",
+      items: [
+        { name: "ID", quantity: "1", reason: "Travel documents", searchQuery: "travel document organizer" },
+        { name: "Booking confirmations", quantity: "1", reason: "Reservation backup", searchQuery: "travel folder" },
+      ],
+    },
+    {
+      name: "Snacks",
+      items: [
+        { name: "Crackers", quantity: "2 packs", reason: "Travel snack", searchQuery: "travel snack pack" },
+        { name: "Fruit pouches", quantity: "4", reason: "Easy toddler snack", searchQuery: "fruit pouch toddler" },
       ],
     },
   ],
@@ -359,6 +381,29 @@ test("generatePackingList injects compact planner summary when provided", async 
   assert.ok(userText.includes("low-crowd family"), "Planner summary should be present in packing prompt");
 });
 
+test("generatePackingList sends a Gemini response schema with useful category minimums", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  await generatePackingList(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["beach"],
+      children: [{ age: 4 }],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const schema = captured.calls[0]._geminiParams?.generationConfig?.responseSchema;
+  assert.ok(schema, "Gemini call should include a response schema");
+  assert.equal(schema.properties.categories.minItems, 5);
+  assert.equal(schema.properties.categories.maxItems, 6);
+  assert.equal(schema.properties.categories.items.properties.items.minItems, 2);
+});
+
 // ── Prompt caching ───────────────────────────────────────────────────────────
 
 // ── Pet packing category ────────────────────────────────────────────────────
@@ -510,6 +555,34 @@ test("generatePackingList normalizes simplified category and item shapes without
                 "Sandals",
               ],
             },
+            {
+              name: "Toiletries",
+              items: [
+                { title: "Sunscreen", quantity: 1, search: "travel sunscreen" },
+                "Wipes",
+              ],
+            },
+            {
+              name: "Gear",
+              items: [
+                { title: "Stroller", quantity: 1, search: "travel stroller" },
+                "Water bottle",
+              ],
+            },
+            {
+              name: "Documents",
+              items: [
+                { title: "ID", quantity: 1, search: "travel document organizer" },
+                "Booking confirmations",
+              ],
+            },
+            {
+              name: "Snacks",
+              items: [
+                { title: "Crackers", quantity: "2 packs", search: "travel snack pack" },
+                "Fruit pouches",
+              ],
+            },
           ],
         }),
         candidates: [{ finishReason: "STOP" }],
@@ -529,9 +602,68 @@ test("generatePackingList normalizes simplified category and item shapes without
     { geminiModel: mockGeminiModel },
   );
 
-  assert.equal(result.categories.length, 1);
+  assert.equal(result.categories.length, 5);
   assert.equal(result.categories[0].name, "Clothing");
   assert.equal(result.categories[0].items[0].name, "Sun hat");
   assert.equal(result.categories[0].items[0].searchQuery, "kids sun hat beach");
   assert.equal(result.categories[0].items[1].name, "Sandals");
+});
+
+test("generatePackingList retries when the first response is too sparse", async () => {
+  delete process.env.AI_PROVIDER;
+
+  let callCount = 0;
+  const mockGeminiModel = {
+    generateContent: async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        return {
+          response: {
+            text: () => JSON.stringify({
+              categories: [
+                {
+                  name: "Clothing",
+                  items: [
+                    { name: "Sun hat", quantity: "1", reason: "Sunny", searchQuery: "kids sun hat" },
+                    { name: "Sandals", quantity: "1", reason: "Beach", searchQuery: "kids sandals" },
+                  ],
+                },
+              ],
+            }),
+            candidates: [{ finishReason: "STOP" }],
+          },
+        };
+      }
+
+      return {
+        response: {
+          text: () => JSON.stringify({
+            categories: [
+              { name: "Clothing", items: [{ name: "Sun hat", quantity: "1", reason: "Sunny", searchQuery: "kids sun hat" }, { name: "Sandals", quantity: "1", reason: "Beach", searchQuery: "kids sandals" }] },
+              { name: "Toiletries", items: [{ name: "Sunscreen", quantity: "1", reason: "Sun protection", searchQuery: "travel sunscreen" }, { name: "Wipes", quantity: "1", reason: "Quick cleanups", searchQuery: "travel wipes" }] },
+              { name: "Gear", items: [{ name: "Stroller", quantity: "1", reason: "Toddler mobility", searchQuery: "travel stroller" }, { name: "Water bottle", quantity: "2", reason: "Hydration", searchQuery: "kids water bottle" }] },
+              { name: "Documents", items: [{ name: "ID", quantity: "1", reason: "Travel document", searchQuery: "document organizer" }, { name: "Booking confirmations", quantity: "1", reason: "Reservation backup", searchQuery: "travel document folder" }] },
+              { name: "Snacks", items: [{ name: "Crackers", quantity: "2 packs", reason: "Toddler snack", searchQuery: "toddler travel snacks" }, { name: "Fruit pouches", quantity: "4", reason: "Easy snack", searchQuery: "fruit pouch toddler" }] },
+            ],
+          }),
+          candidates: [{ finishReason: "STOP" }],
+        },
+      };
+    },
+  };
+
+  const result = await generatePackingList(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["beach"],
+      children: [{ age: 4 }],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.equal(callCount, 2);
+  assert.equal(result.categories.length, 5);
 });

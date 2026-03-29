@@ -126,15 +126,20 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
  * Uses responseMimeType: "application/json" for native JSON enforcement
  * when the system prompt requests JSON output.
  */
-async function callGemini(model, { system, user, maxTokens, temperature }) {
+async function callGemini(model, { system, user, maxTokens, temperature, responseMimeType = "application/json", responseSchema }) {
+  const generationConfig = {
+    temperature,
+    maxOutputTokens: maxTokens,
+    responseMimeType,
+  };
+  if (responseSchema) {
+    generationConfig.responseSchema = responseSchema;
+  }
+
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: user }] }],
     systemInstruction: { parts: [{ text: system }] },
-    generationConfig: {
-      temperature,
-      maxOutputTokens: maxTokens,
-      responseMimeType: "application/json",
-    },
+    generationConfig,
   });
 
   const response = result.response;
@@ -232,6 +237,8 @@ export async function callModel(prompt, deps = {}) {
     maxTokens = DEFAULT_MAX_TOKENS,
     temperature = DEFAULT_TEMPERATURE,
     cacheSystemPrompt = false,
+    responseMimeType = "application/json",
+    responseSchema,
   } = prompt;
 
   const provider = resolveProvider(prompt);
@@ -245,7 +252,11 @@ export async function callModel(prompt, deps = {}) {
   if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
 
   try {
-    const result = await callProvider(provider, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId }, deps);
+    const result = await callProvider(
+      provider,
+      { system, user, maxTokens, temperature, cacheSystemPrompt, modelId, responseMimeType, responseSchema },
+      deps,
+    );
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
     metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true });
@@ -260,7 +271,20 @@ export async function callModel(prompt, deps = {}) {
       try {
         const fbT0 = Date.now();
         const fallbackModelId = modelIdForProvider(fb, caller);
-        const result = await callProvider(fb, { system, user, maxTokens, temperature, cacheSystemPrompt: false, modelId: fallbackModelId }, deps);
+        const result = await callProvider(
+          fb,
+          {
+            system,
+            user,
+            maxTokens,
+            temperature,
+            cacheSystemPrompt: false,
+            modelId: fallbackModelId,
+            responseMimeType,
+            responseSchema,
+          },
+          deps,
+        );
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
         metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true });
