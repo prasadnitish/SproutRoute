@@ -30,6 +30,8 @@ import {
 import { buildShopLinks } from "./utils/affiliateLinks.js";
 import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets } from "./services/inputSafety.js";
 import { log } from "./utils/logger.js";
+import { requireAuth, optionalAuth } from "./middleware/auth.js";
+import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
 
 dotenv.config();
 
@@ -1356,6 +1358,266 @@ export function createApp(deps = {}) {
       });
     } catch {
       res.json({ lat: null, lon: null, region: null });
+    }
+  });
+
+  // ─── Profile API routes ─────────────────────────────────────────────────────
+
+  // GET /api/v1/profile/me — get current user's profile
+  app.get("/api/v1/profile/me", requireAuth, async (req, res) => {
+    try {
+      const db = supabaseForUser(req.headers.authorization);
+      const { data, error } = await db
+        .from("profiles")
+        .select("*")
+        .eq("user_id", req.user.id)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return res.json({ profile: null });
+
+      res.json({ profile: data.profile_json, summary: data.profile_summary, version: data.version });
+    } catch (err) {
+      log.error("profile:get-error", { error: err.message, userId: req.user.id });
+      res.status(500).json({ error: "Failed to load profile" });
+    }
+  });
+
+  // PUT /api/v1/profile/me — create or update profile
+  app.put("/api/v1/profile/me", requireAuth, async (req, res) => {
+    try {
+      const { profile, summary } = req.body;
+      if (!profile || typeof profile !== "object") {
+        return res.status(422).json({ error: "profile object is required" });
+      }
+
+      const db = supabaseForUser(req.headers.authorization);
+      const admin = getSupabaseAdmin();
+
+      // Get current version
+      const { data: existing } = await db
+        .from("profiles")
+        .select("id, version")
+        .eq("user_id", req.user.id)
+        .order("version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const newVersion = (existing?.version || 0) + 1;
+
+      if (existing) {
+        // Update existing profile
+        const { error } = await db
+          .from("profiles")
+          .update({
+            version: newVersion,
+            profile_json: profile,
+            profile_summary: summary || "",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+
+        if (error) throw error;
+      } else {
+        // Create new profile
+        const { error } = await db
+          .from("profiles")
+          .insert({
+            user_id: req.user.id,
+            version: newVersion,
+            profile_json: profile,
+            profile_summary: summary || "",
+            source: "manual",
+          });
+
+        if (error) throw error;
+      }
+
+      // Save revision (admin client bypasses RLS for insert into revisions)
+      await admin
+        .from("profile_revisions")
+        .insert({
+          profile_id: existing?.id || null, // will be null for first save, fixed on next read
+          version: newVersion,
+          change_source: req.body.source || "user_edit",
+          change_summary: req.body.changeSummary || "Profile updated",
+          profile_json: profile,
+        });
+
+      log.info("profile:saved", { userId: req.user.id, version: newVersion });
+      res.json({ version: newVersion, saved: true });
+    } catch (err) {
+      log.error("profile:save-error", { error: err.message, userId: req.user.id });
+      res.status(500).json({ error: "Failed to save profile" });
+    }
+  });
+
+  // DELETE /api/v1/profile/me — delete profile
+  app.delete("/api/v1/profile/me", requireAuth, async (req, res) => {
+    try {
+      const db = supabaseForUser(req.headers.authorization);
+      const { error } = await db
+        .from("profiles")
+        .delete()
+        .eq("user_id", req.user.id);
+
+      if (error) throw error;
+      log.info("profile:deleted", { userId: req.user.id });
+      res.json({ deleted: true });
+    } catch (err) {
+      log.error("profile:delete-error", { error: err.message, userId: req.user.id });
+      res.status(500).json({ error: "Failed to delete profile" });
+    }
+  });
+
+  // POST /api/v1/profile/import/validate — validate pasted JSON (no auth required)
+  app.post("/api/v1/profile/import/validate", apiLimiter, async (req, res) => {
+    try {
+      const { rawText } = req.body;
+      if (!rawText || typeof rawText !== "string") {
+        return res.status(422).json({ error: "rawText is required" });
+      }
+
+      // Try to parse as JSON
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        return res.json({
+          valid: false,
+          errors: ["Invalid JSON format. Please paste valid JSON."],
+          warnings: [],
+          detectedFormat: "unknown",
+        });
+      }
+
+      // Basic validation — check if it has any recognizable profile fields
+      const knownFields = ["food_preferences", "travel_style", "activity_preferences",
+        "personality_profile", "family_context", "constraints", "trip_priorities",
+        "food", "travelStyle", "activities", "personality", "family", "priorities"];
+
+      const foundFields = Object.keys(parsed).filter(k => knownFields.includes(k));
+      const warnings = [];
+
+      if (foundFields.length === 0) {
+        return res.json({
+          valid: false,
+          errors: ["No recognized profile fields found. Expected fields like food_preferences, travel_style, etc."],
+          warnings: [],
+          detectedFormat: "unknown",
+        });
+      }
+
+      if (foundFields.length < 3) {
+        warnings.push("Missing sections were filled with defaults during validation preview.");
+      }
+
+      res.json({
+        valid: true,
+        errors: [],
+        warnings,
+        detectedFormat: "external_profile_v1",
+      });
+    } catch (err) {
+      log.error("profile:validate-error", { error: err.message });
+      res.status(500).json({ error: "Validation failed" });
+    }
+  });
+
+  // POST /api/v1/profile/import/normalize — normalize external JSON to internal schema
+  app.post("/api/v1/profile/import/normalize", apiLimiter, async (req, res) => {
+    try {
+      const { providerHint, rawText } = req.body;
+      if (!rawText || typeof rawText !== "string") {
+        return res.status(422).json({ error: "rawText is required" });
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch {
+        return res.status(422).json({ error: "Invalid JSON" });
+      }
+
+      // Normalize external format to internal UserTravelProfile shape
+      const now = new Date().toISOString();
+      const defaultMeta = (conf = "medium", src = ["inference"]) => ({
+        confidence: conf,
+        sourceBasis: src,
+        updatedAt: now,
+      });
+
+      const fp = parsed.food_preferences || parsed.food || {};
+      const ts = parsed.travel_style || parsed.travelStyle || {};
+      const ap = parsed.activity_preferences || parsed.activities || {};
+      const pp = parsed.personality_profile || parsed.personality || {};
+      const fc = parsed.family_context || parsed.family || {};
+      const cp = parsed.constraints || {};
+      const tp = parsed.trip_priorities || parsed.priorities || {};
+
+      const normalizedProfile = {
+        food: {
+          cuisinesLiked: fp.cuisines_liked || fp.cuisinesLiked || [],
+          cuisinesDisliked: fp.cuisines_disliked || fp.cuisinesDisliked || [],
+          dietaryRestrictions: fp.dietary_restrictions || fp.dietaryRestrictions || [],
+          kidFoods: fp.kid_foods || fp.kidFoods || [],
+          foodAdventurousness: fp.food_adventurousness || fp.foodAdventurousness || "unknown",
+          notes: fp.notes || "",
+          meta: defaultMeta(fp.confidence, fp.source_basis || fp.sourceBasis),
+        },
+        travelStyle: {
+          pace: ts.pace || "unknown",
+          planningStyle: ts.planning_style || ts.planningStyle || "unknown",
+          accommodationPreference: ts.accommodation_preference || ts.accommodationPreference || "",
+          transportPreference: ts.transport_preference || ts.transportPreference || "",
+          notes: ts.notes || "",
+          meta: defaultMeta(ts.confidence, ts.source_basis || ts.sourceBasis),
+        },
+        activities: {
+          preferredActivities: ap.preferred_activities || ap.preferredActivities || [],
+          dislikedActivities: ap.disliked_activities || ap.dislikedActivities || [],
+          activityIntensity: ap.activity_intensity || ap.activityIntensity || "unknown",
+          notes: ap.notes || "",
+          meta: defaultMeta(ap.confidence, ap.source_basis || ap.sourceBasis),
+        },
+        personality: {
+          travelerType: pp.traveler_type || pp.travelerType || "",
+          noveltyVsComfort: pp.novelty_vs_comfort ?? pp.noveltyVsComfort ?? null,
+          crowdTolerance: pp.crowd_tolerance || pp.crowdTolerance || "unknown",
+          notes: pp.notes || "",
+          meta: defaultMeta(pp.confidence, pp.source_basis || pp.sourceBasis),
+        },
+        family: {
+          travelingWith: fc.traveling_with || fc.travelingWith || "",
+          kidsDetails: fc.kids_details || fc.kidsDetails || "",
+          kidPreferences: fc.kid_preferences || fc.kidPreferences || "",
+          petContext: fc.pet_context || fc.petContext || "",
+          notes: fc.notes || "",
+          meta: defaultMeta(fc.confidence, fc.source_basis || fc.sourceBasis),
+        },
+        constraints: {
+          budgetRange: cp.budget_range || cp.budgetRange || "",
+          timeConstraints: cp.time_constraints || cp.timeConstraints || "",
+          accessibilityNeeds: cp.accessibility_needs || cp.accessibilityNeeds || "",
+          notes: cp.notes || "",
+          meta: defaultMeta(cp.confidence, cp.source_basis || cp.sourceBasis),
+        },
+        priorities: {
+          mustHaves: tp.must_haves || tp.mustHaves || [],
+          avoidances: tp.avoidances || [],
+          notes: tp.notes || "",
+          meta: defaultMeta(tp.confidence, tp.source_basis || tp.sourceBasis),
+        },
+        profileSummary: parsed.profile_summary || parsed.profileSummary || "",
+        unknowns: parsed.unknowns || [],
+      };
+
+      res.json({ normalizedProfile, providerHint: providerHint || "other" });
+    } catch (err) {
+      log.error("profile:normalize-error", { error: err.message });
+      res.status(500).json({ error: "Normalization failed" });
     }
   });
 
