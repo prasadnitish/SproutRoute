@@ -55,3 +55,55 @@ export type {
   PetTravelCheckRequest,
   PetTravelCheckResponse,
 } from "./pet.js";
+
+export type {
+  // User travel profile
+  Confidence,
+  SourceBasis,
+  ProfileSectionMeta,
+  FoodProfile,
+  TravelStyleProfile,
+  ActivityProfile,
+  PersonalityTravelProfile,
+  FamilyContextProfile,
+  ConstraintProfile,
+  TripPriorityProfile,
+  UserTravelProfile,
+  ProfileRevision,
+} from "./profile.js";
+
+export type {
+  // Profile import
+  ProfileImportValidation,
+  ProfileImportRequest,
+  ProfileImportRecord,
+} from "./profileImport.js";
+
+export type {
+  // Expanded trip intent
+  TripPet,
+  SuggestedDestination,
+  TripFoodPreferences,
+  ParsedTripIntent,
+  TripRequestRecord,
+  FeedbackSignalType,
+  TripFeedback,
+} from "./tripIntent.js";
+
+export type {
+  // Attraction intelligence
+  PriorityTier,
+  City,
+  VerificationStatus,
+  IndoorOutdoor,
+  DurationBucket,
+  PaceFit,
+  CrowdLevel,
+  BudgetTier,
+  AgeBand,
+  CityAttraction,
+  AttractionTag,
+  RunStatus,
+  AttractionPrecomputeRun,
+  AttractionVerificationCache,
+} from "./attraction.js";
