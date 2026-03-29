@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import ProfileImportModal from "../components/ProfileImportModal.jsx";
 
 const VIBES = [
   { emoji: "\u{1F3D6}", label: "Beach trip" },
@@ -22,6 +23,10 @@ export default function InputScreen({ onSubmit }) {
     try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
   });
   const [tags, setTags] = useState({});
+  const [showImport, setShowImport] = useState(false);
+  const [savedProfile, setSavedProfile] = useState(() => {
+    try { const p = localStorage.getItem("sprout:profile"); return p ? JSON.parse(p) : null; } catch { return null; }
+  });
   const textareaRef = useRef(null);
 
   useEffect(() => {
@@ -130,6 +135,38 @@ export default function InputScreen({ onSubmit }) {
           </button>
         ))}
       </div>
+
+      {/* Profile section */}
+      <div className="w-full flex justify-center">
+        {savedProfile ? (
+          <div className="flex items-center gap-2 bg-meadow-50 border border-meadow-200 rounded-full px-4 py-2">
+            <span className="text-meadow-700 text-sm font-medium">
+              Profile active: {savedProfile.profileSummary?.slice(0, 40) || "Custom profile"}
+            </span>
+            <button
+              onClick={() => setShowImport(true)}
+              className="text-meadow-600 hover:text-meadow-800 text-xs underline cursor-pointer"
+            >
+              Update
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowImport(true)}
+            className="text-gray-500 hover:text-meadow-600 text-sm underline cursor-pointer transition"
+            aria-label="Import profile from AI"
+          >
+            Import profile from ChatGPT, Claude, or Gemini
+          </button>
+        )}
+      </div>
+
+      {/* Import modal */}
+      <ProfileImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onSaved={(profile) => setSavedProfile(profile)}
+      />
     </div>
   );
 }
