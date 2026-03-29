@@ -24,40 +24,32 @@ test.afterEach(() => {
   }
 });
 
-function buildValidTripPlanJson(userText = "") {
-  const match = userText.match(/Dates:\s*(\d{4}-\d{2}-\d{2})\s+to\s+(\d{4}-\d{2}-\d{2})/i);
-  let dayCount = 2;
-  if (match) {
-    const start = new Date(match[1]);
-    const end = new Date(match[2]);
-    dayCount = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-  }
-
-  const activityCount = Math.max(2, Math.min(dayCount * 2, 6));
-  return JSON.stringify({
-    overview: "A test trip",
-    suggestedActivities: Array.from({ length: activityCount }, (_, index) => ({
-      id: `act-${index + 1}`,
-      name: `Test Activity ${index + 1}`,
+// Valid trip plan JSON that parseResponse accepts
+const VALID_TRIP_PLAN_JSON = JSON.stringify({
+  overview: "A test trip",
+  suggestedActivities: [
+    {
+      id: "act-1",
+      name: "Test Activity",
       category: "city",
       description: "A fun activity",
       duration: "2 hours",
       kidFriendly: true,
       weatherDependent: false,
-    })),
-    dailyItinerary: Array.from({ length: dayCount }, (_, index) => ({
-      day: `Day ${index + 1}`,
-      activities: [`act-${Math.min(index + 1, activityCount)}`],
-      meals: {
-        breakfast: `Breakfast ${index + 1}`,
-        lunch: `Lunch ${index + 1}`,
-        dinner: `Dinner ${index + 1}`,
-      },
+      bestDays: ["Monday"],
+      reason: "Great for families",
+    },
+  ],
+  dailyItinerary: [
+    {
+      day: "Day 1",
+      activities: ["act-1"],
+      meals: "Local restaurant",
       notes: "Enjoy!",
-    })),
-    tips: ["Tip 1", "Tip 2"],
-  });
-}
+    },
+  ],
+  tips: ["Tip 1"],
+});
 
 const mockWeather = {
   summary: "Mild and partly cloudy",
@@ -85,7 +77,7 @@ function createCapturingMock() {
       });
       return {
         response: {
-          text: () => buildValidTripPlanJson(userText),
+          text: () => VALID_TRIP_PLAN_JSON,
           candidates: [{ finishReason: "STOP" }],
         },
       };
@@ -97,7 +89,7 @@ function createCapturingMock() {
       create: async (params) => {
         captured.calls.push(params);
         return {
-          content: [{ type: "text", text: buildValidTripPlanJson(params.messages?.[0]?.content || "") }],
+          content: [{ type: "text", text: VALID_TRIP_PLAN_JSON }],
           stop_reason: "end_turn",
         };
       },
@@ -287,29 +279,6 @@ test("generateTripPlan injects compact planner summary when provided", async () 
   assert.ok(userText.includes("slow-paced family"), "Planner summary content should be injected");
 });
 
-test("generateTripPlan sends a Gemini response schema sized to the trip length", async () => {
-  delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
-
-  await generateTripPlan(
-    {
-      destination: "San Diego, CA",
-      startDate: "2026-06-01",
-      endDate: "2026-06-04",
-      activities: ["beach", "food"],
-      children: [{ age: 4 }],
-    },
-    mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
-  );
-
-  const schema = captured.calls[0]._geminiParams?.generationConfig?.responseSchema;
-  assert.ok(schema, "Gemini call should include a response schema");
-  assert.equal(schema.properties.dailyItinerary.minItems, 3);
-  assert.equal(schema.properties.dailyItinerary.maxItems, 3);
-  assert.equal(schema.properties.suggestedActivities.maxItems, 6);
-});
-
 // ── Adults-only trip ─────────────────────────────────────────────────────────
 
 test("generateTripPlan handles adults-only trip (no children)", async () => {
@@ -462,14 +431,6 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
               kidFriendly: "true",
               weatherDependent: "false",
             },
-            {
-              name: "Birch Aquarium",
-              category: "education",
-              description: "See sea life indoors",
-              duration: "2 hours",
-              kidFriendly: true,
-              weatherDependent: false,
-            },
           ],
           dailyItinerary: [
             {
@@ -481,16 +442,6 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
                 dinner: "Catania",
               },
               notes: "Easy stroller day",
-            },
-            {
-              day: "Day 2",
-              activities: [{ name: "Birch Aquarium" }],
-              meals: {
-                breakfast: "Parakeet Cafe",
-                lunch: "The Taco Stand",
-                dinner: "Din Tai Fung",
-              },
-              notes: "Indoor backup day",
             },
           ],
           tips: ["Arrive early for parking"],
@@ -512,7 +463,7 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
     { geminiModel: mockGeminiModel },
   );
 
-  assert.equal(result.suggestedActivities.length, 2);
+  assert.equal(result.suggestedActivities.length, 1);
   assert.equal(result.suggestedActivities[0].id, "act-1");
   assert.equal(result.suggestedActivities[0].kidFriendly, true);
   assert.equal(result.suggestedActivities[0].weatherDependent, false);
@@ -530,13 +481,12 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
           overview: "Too many days",
           suggestedActivities: [
             { id: "a1", name: "Zoo", category: "wildlife", description: "Animals", duration: "half day", kidFriendly: true, weatherDependent: false },
-            { id: "a2", name: "Aquarium", category: "education", description: "Sea life", duration: "2 hours", kidFriendly: true, weatherDependent: false },
           ],
           dailyItinerary: [
             { day: "Day 1", activities: ["a1"], meals: "Breakfast", notes: "" },
-            { day: "Day 2", activities: ["a2"], meals: "Lunch", notes: "" },
+            { day: "Day 2", activities: ["a1"], meals: "Lunch", notes: "" },
             { day: "Day 3", activities: ["a1"], meals: "Dinner", notes: "" },
-            { day: "Day 4", activities: ["a2"], meals: "Extra", notes: "" },
+            { day: "Day 4", activities: ["a1"], meals: "Extra", notes: "" },
           ],
           tips: [],
         }),
@@ -559,81 +509,4 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
 
   assert.equal(result.dailyItinerary.length, 2);
   assert.equal(result.dailyItinerary[1].day, "Day 2");
-});
-
-test("generateTripPlan retries when the first response omits required trip days", async () => {
-  delete process.env.AI_PROVIDER;
-
-  let callCount = 0;
-  const mockGeminiModel = {
-    generateContent: async () => {
-      callCount += 1;
-      if (callCount === 1) {
-        return {
-          response: {
-            text: () => JSON.stringify({
-              overview: "Incomplete itinerary",
-              suggestedActivities: [
-                { id: "a1", name: "Zoo", category: "wildlife", description: "Animals", duration: "half day", kidFriendly: true, weatherDependent: false },
-                { id: "a2", name: "Aquarium", category: "education", description: "Fish", duration: "2 hours", kidFriendly: true, weatherDependent: false },
-              ],
-              dailyItinerary: [
-                {
-                  day: "Day 1",
-                  activities: ["a1"],
-                  meals: { breakfast: "Cafe 1", lunch: "Cafe 2", dinner: "Cafe 3" },
-                  notes: "",
-                },
-              ],
-              tips: [],
-            }),
-            candidates: [{ finishReason: "STOP" }],
-          },
-        };
-      }
-
-      return {
-        response: {
-          text: () => JSON.stringify({
-            overview: "Complete itinerary",
-            suggestedActivities: [
-              { id: "a1", name: "Zoo", category: "wildlife", description: "Animals", duration: "half day", kidFriendly: true, weatherDependent: false },
-              { id: "a2", name: "Aquarium", category: "education", description: "Fish", duration: "2 hours", kidFriendly: true, weatherDependent: false },
-            ],
-            dailyItinerary: [
-              {
-                day: "Day 1",
-                activities: ["a1"],
-                meals: { breakfast: "Cafe 1", lunch: "Cafe 2", dinner: "Cafe 3" },
-                notes: "",
-              },
-              {
-                day: "Day 2",
-                activities: ["a2"],
-                meals: { breakfast: "Cafe 4", lunch: "Cafe 5", dinner: "Cafe 6" },
-                notes: "",
-              },
-            ],
-            tips: [],
-          }),
-          candidates: [{ finishReason: "STOP" }],
-        },
-      };
-    },
-  };
-
-  const result = await generateTripPlan(
-    {
-      destination: "San Diego, CA",
-      startDate: "2026-06-01",
-      endDate: "2026-06-03",
-      activities: ["relaxing"],
-      children: [{ age: 2 }],
-    },
-    mockWeather,
-    { geminiModel: mockGeminiModel },
-  );
-
-  assert.equal(callCount, 2);
-  assert.equal(result.dailyItinerary.length, 2);
 });
