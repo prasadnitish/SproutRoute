@@ -1625,6 +1625,141 @@ export function createApp(deps = {}) {
     }
   });
 
+  // ─── Feedback endpoint (Phase 7) ───────────────────────────────────────────
+
+  // POST /api/v1/profile/me/feedback — store user feedback signal
+  app.post("/api/v1/profile/me/feedback", requireAuth, async (req, res) => {
+    try {
+      const { tripRequestId, signalType, payload } = req.body;
+      if (!signalType || !["more_like_this", "less_like_this", "save_as_preference"].includes(signalType)) {
+        return res.status(422).json({ error: "signalType must be more_like_this, less_like_this, or save_as_preference" });
+      }
+      if (!tripRequestId) {
+        return res.status(422).json({ error: "tripRequestId is required" });
+      }
+
+      const admin = getSupabaseAdmin();
+      const { error } = await admin
+        .from("trip_feedback")
+        .insert({
+          user_id: req.user.id,
+          trip_request_id: tripRequestId,
+          signal_type: signalType,
+          payload_json: payload || {},
+        });
+
+      if (error) throw error;
+
+      log.info("feedback:saved", { userId: req.user.id, signalType, tripRequestId });
+      res.json({ saved: true });
+    } catch (err) {
+      log.error("feedback:save-error", { error: err.message, userId: req.user?.id });
+      res.status(500).json({ error: "Failed to save feedback" });
+    }
+  });
+
+  // ─── Attraction Intelligence endpoints (Phase 6) ──────────────────────────
+
+  // POST /api/v1/attractions/rank — rank attractions for a city based on trip context
+  app.post("/api/v1/attractions/rank", apiLimiter, async (req, res) => {
+    try {
+      const { cityName, countryCode, childrenAges, pace, vibe, limit: maxResults } = req.body;
+      if (!cityName) return res.status(422).json({ error: "cityName is required" });
+
+      const admin = getSupabaseAdmin();
+
+      // Find the city
+      let query = admin.from("cities").select("id, city_name, display_name");
+      if (countryCode) query = query.eq("country_code", countryCode);
+      query = query.ilike("city_name", `%${cityName}%`).limit(1);
+      const { data: cities, error: cityErr } = await query;
+
+      if (cityErr) throw cityErr;
+      if (!cities || cities.length === 0) {
+        return res.json({ attractions: [], city: null, source: "no_precomputed_data" });
+      }
+
+      const city = cities[0];
+
+      // Fetch attractions for the city
+      let attractionQuery = admin
+        .from("city_attractions")
+        .select("*")
+        .eq("city_id", city.id)
+        .neq("verification_status", "rejected")
+        .order("kid_appeal_score", { ascending: false });
+
+      // Filter by kid-friendliness if children present
+      if (childrenAges?.length > 0) {
+        attractionQuery = attractionQuery.gte("kid_appeal_score", 5);
+      }
+
+      // Filter by pace
+      if (pace && pace !== "unknown") {
+        attractionQuery = attractionQuery.or(`pace_fit.eq.${pace},pace_fit.eq.any`);
+      }
+
+      attractionQuery = attractionQuery.limit(maxResults || 20);
+
+      const { data: attractions, error: attrErr } = await attractionQuery;
+      if (attrErr) throw attrErr;
+
+      res.json({
+        attractions: attractions || [],
+        city: { id: city.id, name: city.display_name },
+        source: "precomputed",
+      });
+    } catch (err) {
+      log.error("attractions:rank-error", { error: err.message });
+      res.status(500).json({ error: "Failed to rank attractions" });
+    }
+  });
+
+  // GET /api/v1/attractions/city/:cityId — get all attractions for a city
+  app.get("/api/v1/attractions/city/:cityId", apiLimiter, async (req, res) => {
+    try {
+      const admin = getSupabaseAdmin();
+      const { data, error } = await admin
+        .from("city_attractions")
+        .select("*, city_attraction_tags(*)")
+        .eq("city_id", req.params.cityId)
+        .order("kid_appeal_score", { ascending: false });
+
+      if (error) throw error;
+      res.json({ attractions: data || [] });
+    } catch (err) {
+      log.error("attractions:city-error", { error: err.message });
+      res.status(500).json({ error: "Failed to fetch attractions" });
+    }
+  });
+
+  // POST /api/v1/attractions/verify — verify an attraction via Google Places
+  app.post("/api/v1/attractions/verify", apiLimiter, async (req, res) => {
+    try {
+      const { attractionId, googlePlaceId } = req.body;
+      if (!attractionId) return res.status(422).json({ error: "attractionId is required" });
+
+      const admin = getSupabaseAdmin();
+
+      // Update attraction with place ID and mark as verified
+      const { error } = await admin
+        .from("city_attractions")
+        .update({
+          google_place_id: googlePlaceId || null,
+          verification_status: googlePlaceId ? "verified" : "unverified",
+          last_verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", attractionId);
+
+      if (error) throw error;
+      res.json({ verified: true });
+    } catch (err) {
+      log.error("attractions:verify-error", { error: err.message });
+      res.status(500).json({ error: "Failed to verify attraction" });
+    }
+  });
+
   // ── Serve the built Vite frontend in production.
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
