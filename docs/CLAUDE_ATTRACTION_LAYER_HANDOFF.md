@@ -9,14 +9,16 @@ This document is the tactical handoff for continuing the attraction intelligence
 - [x] `/api/v1/attractions/rank` can return stored attractions from memory.
 - [x] Trip generation can consume cached attractions via `cachedAttractions` in the planner prompt.
 - [x] Google Place identity resolution and verification-cache writes are implemented on the current branch.
-- [ ] Canonical duplicate cleanup for previously stored rows is not yet run as a backfill.
-- [ ] Runtime shortlist verification with freshness TTL is not yet used to filter itinerary candidates.
+- [x] Runtime shortlist ranking now uses verification-cache freshness buckets: `fresh`, `aging`, `stale`, `unverified`.
+- [x] Manual city backfill exists for legacy rows missing `google_place_id`.
+- [ ] Canonical duplicate cleanup for previously stored rows is not yet run as a bulk backfill.
+- [ ] Runtime shortlist verification refresh for stale candidates is not yet used before itinerary generation.
 - [ ] Offline precompute is not started.
 
 ## Branches and Recent Commits
 
 - Live production baseline for attraction memory: commit `203fb26` on `main`
-- Current working branch for next slice: `codex/attraction-canonicalization`
+- Current working branch for next slice: `codex/attraction-freshness-backfill`
 
 ## Files To Know First
 
@@ -24,6 +26,7 @@ Backend:
 - [src/backend/services/attractionMemory.js](/Users/nitish/VS%20Code%20Projects/tpm-portfolio/strollerscout/src/backend/services/attractionMemory.js)
 - [src/backend/services/tripPlanAI.js](/Users/nitish/VS%20Code%20Projects/tpm-portfolio/strollerscout/src/backend/services/tripPlanAI.js)
 - [src/backend/services/placesEnrich.js](/Users/nitish/VS%20Code%20Projects/tpm-portfolio/strollerscout/src/backend/services/placesEnrich.js)
+- [src/backend/scripts/backfillAttractionIdentity.mjs](/Users/nitish/VS%20Code%20Projects/tpm-portfolio/strollerscout/src/backend/scripts/backfillAttractionIdentity.mjs)
 - [src/backend/server.js](/Users/nitish/VS%20Code%20Projects/tpm-portfolio/strollerscout/src/backend/server.js)
 - [src/backend/db/migrations/20260329_017_add_attraction_memory_columns.sql](/Users/nitish/VS%20Code%20Projects/tpm-portfolio/strollerscout/src/backend/db/migrations/20260329_017_add_attraction_memory_columns.sql)
 
@@ -57,9 +60,9 @@ Acceptance:
 
 ### Phase 2: Freshness-Based Runtime Reuse
 
-- [ ] Add a helper that reads the latest verification cache row per attraction.
-- [ ] Compute freshness buckets: `fresh`, `aging`, `stale`, `unverified`.
-- [ ] Make `getPlanningCandidates()` prefer `fresh` and `verified` rows.
+- [x] Add a helper that reads the latest verification cache row per attraction.
+- [x] Compute freshness buckets: `fresh`, `aging`, `stale`, `unverified`.
+- [x] Make `getPlanningCandidates()` prefer `fresh` and `verified` rows.
 - [ ] Re-check only top shortlist candidates if the cached verification is stale.
 - [ ] Do not block trip generation if Places refresh fails.
 
@@ -70,6 +73,7 @@ Acceptance:
 
 ### Phase 3: Cleanup and Backfill
 
+- [x] Add a manual city backfill script for existing rows missing place identity.
 - [ ] Add a one-time dedupe script for existing rows in high-traffic cities.
 - [ ] Merge rows sharing the same `google_place_id`.
 - [ ] Review top duplicate clusters by normalized name for manual-safe merges.
@@ -104,6 +108,12 @@ npm test
 node --test tests/unit/attractionMemory.test.js
 node --test tests/unit/placesEnrich.test.js
 node --test tests/unit/tripPlanAI.test.js
+```
+
+Manual legacy-city backfill:
+
+```bash
+node src/backend/scripts/backfillAttractionIdentity.mjs --city "Santa Barbara, CA" --country US --limit 25
 ```
 
 Build:

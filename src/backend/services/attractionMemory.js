@@ -90,6 +90,51 @@ function tokenizeName(value) {
   return normalizeName(value).split(" ").filter(Boolean);
 }
 
+export function classifyVerificationFreshness(verification, now = Date.now()) {
+  if (!verification?.verified_at && !verification?.verifiedAt) return "unverified";
+
+  const expiresAt = new Date(verification.expires_at || verification.expiresAt || 0).getTime();
+  if (!Number.isFinite(expiresAt) || expiresAt <= now) return "stale";
+
+  const remainingDays = (expiresAt - now) / (1000 * 60 * 60 * 24);
+  if (remainingDays <= 3) return "aging";
+  return "fresh";
+}
+
+function freshnessScore(bucket) {
+  switch (safeLower(bucket)) {
+    case "fresh":
+      return 6;
+    case "aging":
+      return 3;
+    case "stale":
+      return -2;
+    default:
+      return 0;
+  }
+}
+
+export function attachVerificationFreshness(attractions, verificationMap, now = Date.now()) {
+  return toArray(attractions).map((attraction) => {
+    const latestVerification = verificationMap?.get?.(attraction.id) || null;
+    const freshnessBucket = classifyVerificationFreshness(latestVerification, now);
+    const verificationStatus = latestVerification?.verified_at
+      ? (freshnessBucket === "stale" ? "stale" : "verified")
+      : firstNonEmpty(attraction.verification_status, "unverified");
+
+    return {
+      ...attraction,
+      verification_status: verificationStatus,
+      freshness_bucket: freshnessBucket,
+      last_verified_at: firstNonEmpty(
+        latestVerification?.verified_at,
+        latestVerification?.verifiedAt,
+        attraction.last_verified_at,
+      ),
+    };
+  });
+}
+
 export function areNamesNearDuplicate(left, right) {
   const a = normalizeName(left);
   const b = normalizeName(right);
@@ -172,6 +217,7 @@ export function rankCandidateAttractions(attractions, context = {}) {
       score += Number(attraction.parent_appeal_score || 0) * 0.5;
       score += Number(attraction.confidence_score || 0) * 4;
       score += verificationScore(attraction.verification_status);
+      score += freshnessScore(attraction.freshness_bucket);
       score += recencyScore(attraction.last_seen_at || attraction.updated_at);
       score += Math.min(Number(attraction.times_seen || 0), 5);
       score += keywordScore(attraction, requestedActivities);
@@ -300,6 +346,27 @@ async function fetchExistingAttractions(admin, cityId) {
   return data || [];
 }
 
+async function fetchLatestVerificationMap(admin, attractionIds) {
+  const ids = toArray(attractionIds).filter(Boolean);
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await admin
+    .from("attraction_verification_cache")
+    .select("attraction_id, provider, verified_at, expires_at")
+    .in("attraction_id", ids)
+    .order("verified_at", { ascending: false })
+    .limit(Math.max(ids.length * 5, 50));
+
+  if (error) throw error;
+
+  const latestByAttraction = new Map();
+  for (const row of toArray(data)) {
+    if (!row?.attraction_id || latestByAttraction.has(row.attraction_id)) continue;
+    latestByAttraction.set(row.attraction_id, row);
+  }
+  return latestByAttraction;
+}
+
 function findExistingAttraction(existingRows, stored) {
   return existingRows.find((row) => {
     if (stored.google_place_id && row.google_place_id && stored.google_place_id === row.google_place_id) {
@@ -386,6 +453,35 @@ async function persistOneAttraction(admin, cityId, destination, activity, resolv
   return insertedId;
 }
 
+async function backfillOneAttraction(admin, row, destination, resolvePlaceIdentity) {
+  if (!row?.id || row.google_place_id) {
+    return { updated: false, skipped: true };
+  }
+
+  const place = await resolvePlaceIdentity?.(row.canonical_name, destination, row.category);
+  if (!place?.placeId) {
+    return { updated: false, skipped: true };
+  }
+
+  const now = new Date().toISOString();
+  const payload = {
+    canonical_name: firstNonEmpty(place.name, row.canonical_name),
+    google_place_id: place.placeId,
+    verification_status: "verified",
+    last_verified_at: now,
+    updated_at: now,
+  };
+
+  const { error } = await admin
+    .from("city_attractions")
+    .update(payload)
+    .eq("id", row.id);
+
+  if (error) throw error;
+  await writeVerificationCache(admin, row.id, place);
+  return { updated: true, skipped: false };
+}
+
 export function createAttractionMemoryService({
   getAdmin = getSupabaseAdmin,
   logger = log,
@@ -424,7 +520,12 @@ export function createAttractionMemoryService({
           .limit(50);
 
         if (error) throw error;
-        return rankCandidateAttractions(data || [], {
+        const withFreshness = attachVerificationFreshness(
+          data || [],
+          await fetchLatestVerificationMap(admin, (data || []).map((row) => row.id)),
+        );
+
+        return rankCandidateAttractions(withFreshness, {
           childrenAges,
           requestedActivities,
           pace,
@@ -451,6 +552,43 @@ export function createAttractionMemoryService({
           await persistOneAttraction(admin, city.id, destination, activity, resolvePlaceIdentity);
         }
       });
+    },
+
+    async backfillCityAttractions({
+      destination,
+      coords,
+      countryCode = "US",
+      limit = 25,
+    }) {
+      return withAdmin(async (admin) => {
+        const city = await resolveCityRecord(admin, destination, coords, countryCode);
+        if (!city?.id) return { cityId: null, scanned: 0, updated: 0, skipped: 0 };
+
+        const { data, error } = await admin
+          .from("city_attractions")
+          .select("id, canonical_name, category, google_place_id, verification_status")
+          .eq("city_id", city.id)
+          .limit(limit);
+
+        if (error) throw error;
+
+        let updated = 0;
+        let skipped = 0;
+        const cityDestination = firstNonEmpty(city.display_name, city.city_name, destination);
+
+        for (const row of toArray(data)) {
+          const result = await backfillOneAttraction(admin, row, cityDestination, resolvePlaceIdentity);
+          if (result.updated) updated += 1;
+          if (result.skipped) skipped += 1;
+        }
+
+        return {
+          cityId: city.id,
+          scanned: toArray(data).length,
+          updated,
+          skipped,
+        };
+      }, { cityId: null, scanned: 0, updated: 0, skipped: 0 });
     },
   };
 }
