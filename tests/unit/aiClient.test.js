@@ -11,7 +11,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callModel } from "../../src/backend/utils/aiClient.js";
+import { callModel, __test } from "../../src/backend/utils/aiClient.js";
 
 const ORIGINAL_AI_PROVIDER = process.env.AI_PROVIDER;
 
@@ -400,4 +400,156 @@ test("callModel with cacheSystemPrompt=true still returns responseText correctly
 
   assert.strictEqual(result.responseText, "Cached response content");
   assert.strictEqual(result.stopReason, "end_turn");
+});
+
+// ── Gemini provider ─────────────────────────────────────────────────────────
+
+test("callModel with gemini provider calls generateContent and returns responseText", async () => {
+  delete process.env.AI_PROVIDER;
+
+  let capturedConfig = null;
+  const mockGeminiModel = {
+    generateContent: async (params) => {
+      capturedConfig = params;
+      return {
+        response: {
+          text: () => '{"overview":"Gemini trip plan"}',
+          candidates: [{ finishReason: "STOP" }],
+        },
+      };
+    },
+  };
+
+  const result = await callModel(
+    { system: "You are a planner.", user: "Plan a trip.", provider: "gemini", caller: "tripPlan" },
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.strictEqual(result.responseText, '{"overview":"Gemini trip plan"}');
+  assert.strictEqual(result.stopReason, "STOP");
+  assert.ok(capturedConfig, "generateContent must have been called");
+  assert.strictEqual(capturedConfig.generationConfig.responseMimeType, "application/json");
+});
+
+test("callModel with gemini provider passes system as systemInstruction", async () => {
+  let captured = null;
+  const mockGeminiModel = {
+    generateContent: async (params) => {
+      captured = params;
+      return {
+        response: {
+          text: () => "{}",
+          candidates: [{ finishReason: "STOP" }],
+        },
+      };
+    },
+  };
+
+  await callModel(
+    { system: "System instruction text", user: "Hello", provider: "gemini" },
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.ok(captured.systemInstruction, "systemInstruction must be set");
+  assert.strictEqual(captured.systemInstruction.parts[0].text, "System instruction text");
+});
+
+test("callModel with gemini provider passes maxTokens and temperature", async () => {
+  let captured = null;
+  const mockGeminiModel = {
+    generateContent: async (params) => {
+      captured = params;
+      return {
+        response: {
+          text: () => "{}",
+          candidates: [{ finishReason: "STOP" }],
+        },
+      };
+    },
+  };
+
+  await callModel(
+    { system: "s", user: "u", provider: "gemini", maxTokens: 2048, temperature: 0.5 },
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.strictEqual(captured.generationConfig.maxOutputTokens, 2048);
+  assert.strictEqual(captured.generationConfig.temperature, 0.5);
+});
+
+// ── Per-task provider override ──────────────────────────────────────────────
+
+test("callModel per-task provider override routes to correct provider", async () => {
+  delete process.env.AI_PROVIDER; // default is anthropic
+
+  let geminiCalled = false;
+  let anthropicCalled = false;
+  const mockGeminiModel = {
+    generateContent: async () => {
+      geminiCalled = true;
+      return { response: { text: () => "{}", candidates: [{ finishReason: "STOP" }] } };
+    },
+  };
+  const mockAnthropicClient = {
+    messages: {
+      create: async () => {
+        anthropicCalled = true;
+        return { content: [{ type: "text", text: "ok" }], stop_reason: "end_turn" };
+      },
+    },
+  };
+
+  // With provider: "gemini", should use Gemini even when default is anthropic
+  await callModel(
+    { system: "s", user: "u", provider: "gemini" },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  assert.ok(geminiCalled, "Gemini must be called when provider='gemini'");
+  assert.ok(!anthropicCalled, "Anthropic must NOT be called when provider='gemini'");
+});
+
+test("callModel falls back to anthropic when gemini fails", async () => {
+  delete process.env.AI_PROVIDER;
+  // Ensure ANTHROPIC_API_KEY is set for fallback
+  const origKey = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  let anthropicCalled = false;
+  const mockGeminiModel = {
+    generateContent: async () => { throw new Error("Gemini quota exceeded"); },
+  };
+  const mockAnthropicClient = {
+    messages: {
+      create: async () => {
+        anthropicCalled = true;
+        return { content: [{ type: "text", text: "fallback ok" }], stop_reason: "end_turn" };
+      },
+    },
+  };
+
+  const result = await callModel(
+    { system: "s", user: "u", provider: "gemini" },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  assert.ok(anthropicCalled, "Anthropic fallback must be called when Gemini fails");
+  assert.strictEqual(result.responseText, "fallback ok");
+
+  // Restore
+  if (origKey !== undefined) process.env.ANTHROPIC_API_KEY = origKey;
+  else delete process.env.ANTHROPIC_API_KEY;
+});
+
+// ── resolveProvider and modelIdForProvider ───────────────────────────────────
+
+test("resolveProvider returns per-task override when set", () => {
+  assert.strictEqual(__test.resolveProvider({ provider: "gemini" }), "gemini");
+  assert.strictEqual(__test.resolveProvider({ provider: "ANTHROPIC" }), "anthropic");
+});
+
+test("modelIdForProvider returns correct model IDs", () => {
+  assert.ok(__test.modelIdForProvider("gemini").includes("gemini"));
+  assert.ok(__test.modelIdForProvider("anthropic").includes("sonnet"));
+  assert.ok(__test.modelIdForProvider("deepseek").includes("deepseek"));
 });
