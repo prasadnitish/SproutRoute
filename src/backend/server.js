@@ -21,6 +21,9 @@ import { getTravelSafety } from "./services/travelSafety.js";
 import { getPetTravelGuidance } from "./services/petSafety.js";
 import { enrichActivity } from "./services/placesEnrich.js";
 import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js";
+import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMerge.js";
+import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
+import { ensureUserRecord } from "./services/userStore.js";
 import {
   sanitizeString,
   sanitizeChildren,
@@ -37,15 +40,18 @@ import { metrics } from "./services/metrics.js";
 
 dotenv.config();
 
-// ── Ops Dashboard — served as static HTML at /ops ───────────────────────────
-// NOTE: This is an internal admin dashboard (not user-facing).
-// The client-side JS uses textContent for data values from our own metrics API.
-// No untrusted user data is rendered — all data comes from our server metrics.
-const OPS_DASHBOARD_HTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SproutRoute Ops</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f0fdf4;color:#1a1a1a;padding:24px}
+// ── Ops Dashboard — served from dashboard.html ──────────────────────────────
+import { readFileSync } from "fs";
+const __dashboardDir = path.dirname(fileURLToPath(import.meta.url));
+let OPS_DASHBOARD_HTML;
+try {
+  OPS_DASHBOARD_HTML = readFileSync(path.join(__dashboardDir, "dashboard.html"), "utf-8");
+} catch {
+  OPS_DASHBOARD_HTML = "<html><body><h1>Dashboard file not found</h1></body></html>";
+}
+
+/* eslint-disable-next-line no-unused-vars */
+const _OLD_DASHBOARD_REMOVED = `
 h1{font-size:24px;font-weight:800;color:#15803d;margin-bottom:16px}
 h2{font-size:16px;font-weight:700;color:#166534;margin:20px 0 8px;border-bottom:2px solid #bbf7d0;padding-bottom:4px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:16px}
@@ -61,7 +67,7 @@ td{padding:8px 12px;font-size:13px;border-top:1px solid #f3f3f3}
 <div id="app" style="display:none"></div>
 <script>
 async function load(){
-  const params=new URLSearchParams(window.location.search);const r=await fetch("/api/v1/ops/metrics?key="+params.get("key"));
+  const params=new URLSearchParams(window.location.search);const key=params.get("key");const r=await fetch("/api/v1/ops/metrics",{headers:key?{"x-ops-secret":key}:{}});
   const d=await r.json();
   document.getElementById("loading").style.display="none";
   const app=document.getElementById("app");
@@ -139,6 +145,50 @@ function buildAllowedOrigins() {
         "http://localhost:3000",
         "http://127.0.0.1:5173",
       ];
+}
+
+async function loadSavedProfileFromDb(req) {
+  if (!req.user || !req.headers.authorization) return null;
+
+  try {
+    const db = supabaseForUser(req.headers.authorization);
+    const { data, error } = await db
+      .from("profiles")
+      .select("profile_json")
+      .eq("user_id", req.user.id)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return sanitizeProfileForPlanning(data?.profile_json || null);
+  } catch (error) {
+    log.warn("profile:load-for-planning-failed", {
+      userId: req.user?.id?.slice(0, 8),
+      error: error.message,
+    });
+    return null;
+  }
+}
+
+async function resolvePlanningContext(req, sanitizedTrip, foodPreferences) {
+  const providedProfile = sanitizeProfileForPlanning(req.body?.savedProfile || null);
+  const savedProfile = providedProfile || await loadSavedProfileFromDb(req);
+
+  const tripIntent = sanitizeTripIntentFields({
+    ...req.body,
+    destination: sanitizedTrip.destination,
+    childrenAges: sanitizedTrip.children.map((child) => child.age),
+    pets: sanitizedTrip.pets,
+    foodPreferences,
+  });
+
+  const merged = mergeProfileAndIntent(savedProfile, tripIntent);
+  return {
+    savedProfile,
+    tripIntent,
+    plannerSummary: buildPlannerSummary(merged),
+  };
 }
 
 export function createApp(deps = {}) {
@@ -273,7 +323,10 @@ export function createApp(deps = {}) {
   const opsGuard = (req, res, next) => {
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
-    if (req.query.key !== secret) return res.status(403).json({ error: "Forbidden" });
+    const headerSecret = req.get("x-ops-secret");
+    const bearerSecret = req.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
+    const providedSecret = headerSecret || bearerSecret || req.query.key;
+    if (providedSecret !== secret) return res.status(403).json({ error: "Forbidden" });
     next();
   };
 
@@ -681,7 +734,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/plan
-  app.post("/api/v1/trip/plan", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -696,18 +749,29 @@ export function createApp(deps = {}) {
         });
       }
 
-      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
       const safeActivities =
         Array.isArray(activities) && activities.length > 0
           ? activities
           : ["family-friendly", "parks", "city"];
+      const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
 
       devLog("v1/trip/plan: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       const tripPlan = await generateTripPlanFn(
-        { destination, startDate, endDate, activities: safeActivities, children },
+        {
+          destination,
+          startDate,
+          endDate,
+          activities: safeActivities,
+          children,
+          pets,
+          foodPreferences,
+          plannerSummary: planningContext.plannerSummary,
+        },
         weather,
       );
 
@@ -772,7 +836,7 @@ export function createApp(deps = {}) {
   // POST /api/v1/trip/bundle
   // Single endpoint: geocode once → weather once → trip plan + packing list in parallel.
   // Eliminates redundant geocoding + weather round-trip, runs AI calls concurrently.
-  app.post("/api/v1/trip/bundle", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/bundle", optionalAuth, aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const timings = {};
     try {
@@ -788,11 +852,13 @@ export function createApp(deps = {}) {
         });
       }
 
-      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
       const safeActivities =
         Array.isArray(activities) && activities.length > 0
           ? activities
           : ["family-friendly", "parks", "city"];
+      const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
 
       // Phase 1: Geocode
       const geocodeStart = Date.now();
@@ -810,7 +876,16 @@ export function createApp(deps = {}) {
       // Phase 3: Trip plan + Packing list in parallel
       const aiStart = Date.now();
       devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
-      const tripPayload = { destination, startDate, endDate, activities: safeActivities, children };
+      const tripPayload = {
+        destination,
+        startDate,
+        endDate,
+        activities: safeActivities,
+        children,
+        pets,
+        foodPreferences,
+        plannerSummary: planningContext.plannerSummary,
+      };
       const [tripPlan, packingList] = await Promise.all([
         generateTripPlanFn(tripPayload, weather),
         generatePackingListFn(tripPayload, weather),
@@ -895,7 +970,7 @@ export function createApp(deps = {}) {
   // Server-Sent Events endpoint: streams trip results progressively.
   // Events: destination → weather → itinerary-chunk → packing → done
   // No batch enrichment — frontend enriches on-demand via usePlacesEnrich.
-  app.post("/api/v1/trip/stream", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/stream", optionalAuth, aiLimiter, async (req, res) => {
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -960,9 +1035,11 @@ export function createApp(deps = {}) {
 
       // Phase 3: AI itinerary + packing in parallel (~10-20s)
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
       const tripPayload = {
         destination, startDate, endDate,
         activities: safeActivities, children, pets, foodPreferences,
+        plannerSummary: planningContext.plannerSummary,
       };
 
       // Determine if we need chunked generation (trips > 7 days)
@@ -1028,7 +1105,15 @@ export function createApp(deps = {}) {
 
       timing.total = Date.now() - streamStart;
       log.info("stream:done", { reqId, destination, timing });
-      metrics.recordTrip({ destination, duration: tripDuration, timing, childCount: children?.length || 0, petCount: pets?.length || 0, reqId });
+      metrics.recordTrip({
+        destination, duration: tripDuration, timing,
+        childCount: children?.length || 0,
+        childAges: (children || []).map(c => c.age).filter(Boolean),
+        petCount: pets?.length || 0,
+        petTypes: (pets || []).map(p => p.type).filter(Boolean),
+        vibe: safeActivities?.[0] || "",
+        reqId,
+      });
 
       send("done", {});
       res.end();
@@ -1050,7 +1135,7 @@ export function createApp(deps = {}) {
   // Regenerates ONLY the trip itinerary (no geocoding or weather fetch).
   // Used when the user customizes activities after the initial plan is generated.
   // Requires: destination, startDate, endDate, activities, children, weather (cached).
-  app.post("/api/v1/trip/replan", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/replan", optionalAuth, aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1065,7 +1150,7 @@ export function createApp(deps = {}) {
         });
       }
 
-      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
 
       // weather must be provided by the client — we skip geocoding and weather fetch.
       const rawWeather = req.body.weather;
@@ -1090,9 +1175,21 @@ export function createApp(deps = {}) {
         })),
       };
 
+      const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
+
       devLog("v1/trip/replan: regenerating itinerary with activities:", activities);
       const tripPlan = await generateTripPlanFn(
-        { destination, startDate, endDate, activities, children },
+        {
+          destination,
+          startDate,
+          endDate,
+          activities,
+          children,
+          pets,
+          foodPreferences,
+          plannerSummary: planningContext.plannerSummary,
+        },
         weather,
       );
 
@@ -1110,7 +1207,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/packing
-  app.post("/api/v1/trip/packing", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/packing", optionalAuth, aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1125,14 +1222,25 @@ export function createApp(deps = {}) {
         });
       }
 
-      const { destination, startDate, endDate, activities, children } = sanitizedData;
+      const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
+      const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
 
       devLog("v1/trip/packing: geocoding...");
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       const packingList = await generatePackingListFn(
-        { destination, startDate, endDate, activities, children },
+        {
+          destination,
+          startDate,
+          endDate,
+          activities,
+          children,
+          pets,
+          foodPreferences,
+          plannerSummary: planningContext.plannerSummary,
+        },
         weather,
       );
 
@@ -1417,7 +1525,14 @@ export function createApp(deps = {}) {
       const result = await parseInput(sanitizedText, { detectedRegion });
       const parseMs = Date.now() - t0;
       log.info("parse-input:done", { reqId, ms: parseMs, destination: result?.destination });
-      metrics.recordParse({ destination: result?.destination, ms: parseMs, model: "gemini" });
+      metrics.recordSearch({
+        text: sanitizedText.slice(0, 100),
+        destination: result?.destination,
+        vibe: result?.vibe,
+        childCount: result?.childrenAges?.length || 0,
+        petCount: result?.pets?.length || 0,
+        ms: parseMs,
+      });
       res.json(result);
     } catch (err) {
       log.error("parse-input:error", { reqId, error: err.message, ms: Date.now() - t0 });
@@ -1522,6 +1637,7 @@ export function createApp(deps = {}) {
 
       const db = supabaseForUser(req.headers.authorization);
       const admin = getSupabaseAdmin();
+      await ensureUserRecord(admin, req.user);
 
       // Get current version
       const { data: existing } = await db
@@ -1581,7 +1697,7 @@ export function createApp(deps = {}) {
       }
 
       if (profileId) {
-        await admin
+        const { error: revisionError } = await admin
           .from("profile_revisions")
           .insert({
             profile_id: profileId,
@@ -1590,6 +1706,7 @@ export function createApp(deps = {}) {
             change_summary: changeSummary,
             profile_json: profile,
           });
+        if (revisionError) throw revisionError;
       }
 
       log.info("profile:saved", { userId: req.user.id?.slice(0, 8), version: newVersion });
@@ -1624,6 +1741,9 @@ export function createApp(deps = {}) {
       const { rawText } = req.body;
       if (!rawText || typeof rawText !== "string") {
         return res.status(422).json({ error: "rawText is required" });
+      }
+      if (rawText.length > 50000) {
+        return res.status(413).json({ error: "rawText is too large" });
       }
 
       // Try to parse as JSON
@@ -1678,6 +1798,9 @@ export function createApp(deps = {}) {
       const { providerHint, rawText } = req.body;
       if (!rawText || typeof rawText !== "string") {
         return res.status(422).json({ error: "rawText is required" });
+      }
+      if (rawText.length > 50000) {
+        return res.status(413).json({ error: "rawText is too large" });
       }
 
       let parsed;
@@ -1781,6 +1904,7 @@ export function createApp(deps = {}) {
       }
 
       const admin = getSupabaseAdmin();
+      await ensureUserRecord(admin, req.user);
       const { error } = await admin
         .from("trip_feedback")
         .insert({
@@ -1883,24 +2007,12 @@ export function createApp(deps = {}) {
   // POST /api/v1/attractions/verify — verify an attraction via Google Places
   app.post("/api/v1/attractions/verify", requireAuth, apiLimiter, async (req, res) => {
     try {
-      const { attractionId, googlePlaceId } = req.body;
+      const { attractionId } = req.body;
       if (!attractionId) return res.status(422).json({ error: "attractionId is required" });
-
-      const admin = getSupabaseAdmin();
-
-      // Update attraction with place ID and mark as verified
-      const { error } = await admin
-        .from("city_attractions")
-        .update({
-          google_place_id: googlePlaceId || null,
-          verification_status: googlePlaceId ? "verified" : "unverified",
-          last_verified_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", attractionId);
-
-      if (error) throw error;
-      res.json({ verified: true });
+      res.status(501).json({
+        error: "Attraction verification is not enabled until Google Places verification is implemented server-side.",
+        attractionId,
+      });
     } catch (err) {
       log.error("attractions:verify-error", { error: err.message });
       res.status(500).json({ error: "Failed to verify attraction" });

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SproutRoute Mission Control</title>
+<style>
+:root{--green:#15803d;--green-light:#dcfce7;--green-bg:#f0fdf4;--amber:#92400e;--amber-light:#fef3c7;--red:#991b1b;--red-light:#fee2e2;--gray:#6b7280;--gray-light:#f9fafb;--border:#e5e7eb}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--gray-light);color:#1a1a1a}
+.header{background:linear-gradient(135deg,#166534,#15803d,#22c55e);color:white;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.header h1{font-size:20px;font-weight:800;letter-spacing:-.5px}
+.header .meta{font-size:11px;opacity:.8}
+.container{max-width:1400px;margin:0 auto;padding:16px}
+.section{margin-bottom:20px}
+.section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+/* Cards grid */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.card{background:white;border-radius:10px;padding:14px;border:1px solid var(--border)}
+.card .label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);margin-bottom:2px}
+.card .val{font-size:26px;font-weight:800;color:var(--green);line-height:1.1}
+.card .sub{font-size:10px;color:var(--gray);margin-top:2px}
+.card.warn .val{color:var(--amber)}.card.err .val{color:var(--red)}
+/* Tables */
+table{width:100%;border-collapse:collapse;background:white;border-radius:10px;overflow:hidden;border:1px solid var(--border);font-size:13px}
+th{background:var(--green-bg);font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--gray);padding:8px 10px;text-align:left;white-space:nowrap}
+td{padding:7px 10px;border-top:1px solid #f3f3f3;white-space:nowrap}
+td.wrap{white-space:normal;max-width:300px;overflow:hidden;text-overflow:ellipsis}
+tr:hover td{background:#fafffe}
+.mono{font-family:'SF Mono',Monaco,monospace;font-size:11px}
+/* Badges */
+.badge{display:inline-block;padding:1px 7px;border-radius:99px;font-size:10px;font-weight:600}
+.badge-g{background:var(--green-light);color:var(--green)}
+.badge-a{background:var(--amber-light);color:var(--amber)}
+.badge-r{background:var(--red-light);color:var(--red)}
+/* Two column layout */
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.cols{grid-template-columns:1fr}}
+/* Bar chart */
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;font-size:12px}
+.bar-label{width:100px;text-align:right;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:20px;background:#f0f0f0;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;background:linear-gradient(90deg,#22c55e,#15803d);border-radius:4px;min-width:2px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:10px;color:white;font-weight:600}
+.bar-count{width:40px;font-size:11px;color:var(--gray);font-weight:600}
+/* Segments */
+.seg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.seg{background:white;border-radius:8px;padding:10px;border:1px solid var(--border);text-align:center}
+.seg .num{font-size:22px;font-weight:800;color:var(--green)}
+.seg .lbl{font-size:10px;color:var(--gray);text-transform:uppercase;letter-spacing:.3px}
+/* Pill tags */
+.pills{display:flex;flex-wrap:wrap;gap:4px}
+.pill{background:var(--green-light);color:var(--green);padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600}
+.pill-a{background:var(--amber-light);color:var(--amber)}
+/* Loading */
+#loading{text-align:center;padding:60px;color:var(--gray);font-size:14px}
+#app{display:none}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#22c55e;display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head><body>
+
+<div class="header">
+  <div>
+    <h1>SproutRoute Mission Control</h1>
+    <div class="meta" id="hdr-meta">Loading...</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span class="live-dot"></span>
+    <span style="font-size:11px;opacity:.8">Live</span>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loading">Connecting to metrics API...</div>
+  <div id="app"></div>
+</div>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const KEY = params.get("key") || "";
+
+async function load() {
+  try {
+    const r = await fetch("/api/v1/ops/metrics?key=" + KEY);
+    if (!r.ok) { document.getElementById("loading").textContent = "Access denied (HTTP " + r.status + "). Add ?key=YOUR_OPS_SECRET to the URL."; return; }
+    const d = await r.json();
+    document.getElementById("loading").style.display = "none";
+    const app = document.getElementById("app");
+    app.style.display = "block";
+    // Clear and rebuild
+    while (app.firstChild) app.removeChild(app.firstChild);
+    render(app, d);
+  } catch (e) {
+    document.getElementById("loading").textContent = "Error: " + e.message;
+  }
+}
+
+function render(root, d) {
+  const s = d.summary || {};
+  const seg = d.segments || {};
+
+  // Header meta
+  document.getElementById("hdr-meta").textContent =
+    "Up since " + timeSince(d.uptime) + " | Last refresh: " + new Date().toLocaleTimeString();
+
+  // ── Summary Cards ──
+  const cards = section(root, "Overview");
+  const cg = el("div", "", "cards");
+  addCard(cg, "Trips Generated", s.tripsGenerated, "24h total");
+  addCard(cg, "Last Hour", s.tripsLastHour, "trips");
+  addCard(cg, "API Calls", s.totalApiCalls, "24h");
+  addCard(cg, "AI Calls", s.totalAiCalls, "24h");
+  addCard(cg, "Errors", s.totalErrors, s.errorRate + "% rate", s.totalErrors > 0 ? "err" : "");
+  addCard(cg, "Est. Cost", "$" + s.estTotalCost, "24h AI spend");
+  addCard(cg, "Output Tokens", fmtK(s.estOutputTokens), "estimated");
+  addCard(cg, "Input Tokens", fmtK(s.estInputTokens), "estimated");
+  cards.appendChild(cg);
+
+  // ── User Segments ──
+  const segs = section(root, "User Segments");
+  const sg = el("div", "", "seg-grid");
+  addSeg(sg, seg.withKids || 0, "With Kids");
+  addSeg(sg, seg.withPets || 0, "With Pets");
+  addSeg(sg, seg.adultsOnly || 0, "Adults Only");
+  segs.appendChild(sg);
+
+  // Vibes + durations + kid ages side by side
+  const cols1 = el("div", "", "cols");
+  if (Object.keys(seg.vibes || {}).length > 0) {
+    const vSec = el("div");
+    vSec.appendChild(el("div", "Trip Vibes", "section-title"));
+    const pills = el("div", "", "pills");
+    Object.entries(seg.vibes).sort((a,b) => b[1]-a[1]).forEach(([v, c]) => {
+      pills.appendChild(el("span", v + " (" + c + ")", "pill"));
+    });
+    vSec.appendChild(pills);
+    cols1.appendChild(vSec);
+  }
+  if (Object.keys(seg.durations || {}).length > 0) {
+    const dSec = el("div");
+    dSec.appendChild(el("div", "Trip Lengths", "section-title"));
+    const pills = el("div", "", "pills");
+    Object.entries(seg.durations).forEach(([b, c]) => {
+      pills.appendChild(el("span", b + " (" + c + ")", "pill pill-a"));
+    });
+    dSec.appendChild(pills);
+    cols1.appendChild(dSec);
+  }
+  segs.appendChild(cols1);
+
+  // ── Latency by Stage ──
+  const latSec = section(root, "Latency by Stage");
+  const lt = document.createElement("table");
+  lt.appendChild(mkRow(true, ["Stage", "p50", "p95", "Avg", "Min", "Max", "Count"]));
+  const ltb = document.createElement("tbody");
+  for (const [k, v] of Object.entries(d.latencyByStage || {})) {
+    ltb.appendChild(mkRow(false, [k, fmtMs(v.p50), fmtMs(v.p95), fmtMs(v.avg), fmtMs(v.min), fmtMs(v.max), v.count]));
+  }
+  lt.appendChild(ltb);
+  latSec.appendChild(lt);
+
+  // ── Top Destinations (bar chart) ──
+  const destSec = section(root, "Top Destinations");
+  const maxCount = Math.max(...(d.topDestinations || []).map(d => d.count), 1);
+  for (const dd of (d.topDestinations || []).slice(0, 15)) {
+    const row = el("div", "", "bar-row");
+    row.appendChild(el("span", dd.name, "bar-label"));
+    const track = el("div", "", "bar-track");
+    const fill = el("div", "", "bar-fill");
+    fill.style.width = Math.max(5, (dd.count / maxCount * 100)) + "%";
+    fill.textContent = dd.count;
+    track.appendChild(fill);
+    row.appendChild(track);
+    destSec.appendChild(row);
+  }
+
+  // ── Model Usage + AI by Task ──
+  const cols2 = el("div", "", "cols");
+  // Models
+  const mSec = el("div");
+  mSec.appendChild(el("div", "Model Usage", "section-title"));
+  const mt = document.createElement("table");
+  mt.appendChild(mkRow(true, ["Model", "Calls", "Avg", "Errors", "Out Tokens", "Cost"]));
+  const mtb = document.createElement("tbody");
+  for (const [k, v] of Object.entries(d.modelUsage || {})) {
+    mtb.appendChild(mkRow(false, [
+      k, v.calls, fmtMs(v.avgLatency),
+      v.errors > 0 ? badgeHTML(v.errors, "r") : "0",
+      fmtK(v.estOutputTokens), "$" + (v.estCost || 0).toFixed(4)
+    ]));
+  }
+  mt.appendChild(mtb);
+  mSec.appendChild(mt);
+  cols2.appendChild(mSec);
+
+  // AI by task
+  const aSec = el("div");
+  aSec.appendChild(el("div", "AI Calls by Task", "section-title"));
+  const at = document.createElement("table");
+  at.appendChild(mkRow(true, ["Task", "Calls", "Avg Latency", "Errors"]));
+  const atb = document.createElement("tbody");
+  for (const [k, v] of Object.entries(d.aiByTask || {})) {
+    atb.appendChild(mkRow(false, [k, v.calls, fmtMs(v.avgMs), v.errors > 0 ? badgeHTML(v.errors, "r") : "0"]));
+  }
+  at.appendChild(atb);
+  aSec.appendChild(at);
+  cols2.appendChild(aSec);
+  root.appendChild(cols2);
+
+  // ── Recent Trips ──
+  const tripSec = section(root, "Recent Trips");
+  const tt = document.createElement("table");
+  tt.appendChild(mkRow(true, ["When", "Destination", "Days", "Vibe", "Kids", "Pets", "1st Chunk", "AI Total", "Total"]));
+  const ttb = document.createElement("tbody");
+  for (const t of (d.recentTrips || [])) {
+    const tm = t.timing || {};
+    ttb.appendChild(mkRow(false, [
+      ago(t.ts), t.destination || "?", t.duration || "?", t.vibe || "-",
+      t.childCount || 0, t.petCount || 0,
+      fmtMs(tm.firstChunk), fmtMs(tm.ai), fmtMs(tm.total)
+    ]));
+  }
+  tt.appendChild(ttb);
+  tripSec.appendChild(tt);
+
+  // ── Recent Searches ──
+  const sSec = section(root, "Recent Searches");
+  const st = document.createElement("table");
+  st.appendChild(mkRow(true, ["When", "Search Text", "Destination", "Vibe", "Kids", "Pets", "Parse Time"]));
+  const stb = document.createElement("tbody");
+  for (const s of (d.recentSearches || [])) {
+    stb.appendChild(mkRow(false, [
+      ago(s.ts), s.text || "?", s.destination || "-", s.vibe || "-",
+      s.childCount || 0, s.petCount || 0, fmtMs(s.ms)
+    ], [false, true]));
+  }
+  st.appendChild(stb);
+  sSec.appendChild(st);
+
+  // ── Recent Errors ──
+  if ((d.recentErrors || []).length > 0) {
+    const eSec = section(root, "Recent Errors");
+    const et = document.createElement("table");
+    et.appendChild(mkRow(true, ["When", "Path", "Error"]));
+    const etb = document.createElement("tbody");
+    for (const e of (d.recentErrors || [])) {
+      etb.appendChild(mkRow(false, [ago(e.ts), e.path || "", String(e.error || "").slice(0, 120)], [false, false, true]));
+    }
+    et.appendChild(etb);
+    eSec.appendChild(et);
+  }
+}
+
+// ── Helpers ──
+function el(tag, text, cls) {
+  const e = document.createElement(tag);
+  if (text) e.textContent = text;
+  if (cls) e.className = cls;
+  return e;
+}
+function section(root, title) {
+  const s = el("div", "", "section");
+  s.appendChild(el("div", title, "section-title"));
+  root.appendChild(s);
+  return s;
+}
+function addCard(grid, label, value, sub, cls) {
+  const c = el("div", "", "card" + (cls ? " " + cls : ""));
+  c.appendChild(el("div", label, "label"));
+  c.appendChild(el("div", String(value != null ? value : "0"), "val"));
+  if (sub) c.appendChild(el("div", sub, "sub"));
+  grid.appendChild(c);
+}
+function addSeg(grid, num, label) {
+  const s = el("div", "", "seg");
+  s.appendChild(el("div", String(num), "num"));
+  s.appendChild(el("div", label, "lbl"));
+  grid.appendChild(s);
+}
+function mkRow(isHead, cells, wrapCols) {
+  const tr = document.createElement("tr");
+  const tag = isHead ? "th" : "td";
+  cells.forEach((c, i) => {
+    const cell = document.createElement(tag);
+    if (typeof c === "string" && c.includes("badge-")) {
+      // Badge content created via badgeHTML — parse it safely
+      const m = c.match(/^badge:(\w+):(.+)$/);
+      if (m) {
+        const badge = el("span", m[2], "badge badge-" + m[1]);
+        cell.appendChild(badge);
+      } else {
+        cell.textContent = c;
+      }
+    } else {
+      cell.textContent = String(c != null ? c : "");
+    }
+    if (!isHead && wrapCols && wrapCols[i]) cell.className = "wrap";
+    if (!isHead && i > 2) cell.classList?.add("mono");
+    tr.appendChild(cell);
+  });
+  return tr;
+}
+function badgeHTML(val, type) { return "badge:" + type + ":" + val; }
+function fmtMs(ms) { if (!ms && ms !== 0) return "-"; if (ms < 1000) return ms + "ms"; return (ms/1000).toFixed(1) + "s"; }
+function fmtK(n) { if (!n) return "0"; if (n < 1000) return String(n); if (n < 1000000) return (n/1000).toFixed(1) + "K"; return (n/1000000).toFixed(2) + "M"; }
+function ago(ts) { if (!ts) return "?"; const d = Date.now() - new Date(ts).getTime(); if (d<60000) return Math.round(d/1000)+"s ago"; if (d<3600000) return Math.round(d/60000)+"m ago"; return Math.round(d/3600000)+"h ago"; }
+function timeSince(ts) { const d=Date.now()-new Date(ts).getTime(); const h=Math.floor(d/3600000); const m=Math.floor((d%3600000)/60000); return h+"h "+m+"m"; }
+
+load();
+setInterval(load, 10000);
+</script>
+</body></html>
