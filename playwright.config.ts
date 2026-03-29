@@ -24,7 +24,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "cd src/frontend && npm run build && npm run preview -- --port 4173",
+    command: "cd src/frontend && VITE_API_URL=http://localhost:4173 npm run build && npm run preview -- --port 4173",
     port: 4173,
     reuseExistingServer: true,
     timeout: 120000,
