@@ -309,7 +309,7 @@ test("generateTripPlan includes cached attraction candidates when provided", asy
   const systemText = extractSystemText(captured.calls[0]);
   const userText = captured.calls[0].user;
 
-  assert.ok(systemText.includes("VETTED ATTRACTION CANDIDATES"), "System prompt should include cached-attraction instructions");
+  assert.ok(systemText.includes("VERIFIED ATTRACTION SHORTLIST"), "System prompt should include cached-attraction instructions");
   assert.ok(userText.includes("Balboa Park"), "User prompt should include cached attraction names");
   assert.ok(userText.includes("stroller-friendly"), "User prompt should include cached attraction rationale");
 });
@@ -550,4 +550,90 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
 
   assert.equal(result.dailyItinerary.length, 2);
   assert.equal(result.dailyItinerary[1].day, "Day 2");
+});
+
+// ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────
+
+test("generateTripPlan includes VERIFIED ATTRACTION SHORTLIST in prompt when cachedAttractions provided", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["aquariums", "parks"],
+      children: [{ age: 4 }],
+      cachedAttractions: [
+        {
+          canonical_name: "Test Aquarium",
+          category: "aquarium",
+          short_summary: "A large public aquarium with marine exhibits.",
+          what_it_is: "A popular aquarium with interactive tide pools.",
+          why_recommended: "Great for toddlers who love sea creatures.",
+          timing_tip: "Visit before noon for smaller crowds.",
+          verification_status: "verified",
+        },
+      ],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  const userText = captured.calls[0].user;
+
+  assert.ok(systemText.includes("VERIFIED ATTRACTION SHORTLIST"), "System prompt should include VERIFIED ATTRACTION SHORTLIST header");
+  assert.ok(systemText.includes("keep the name EXACTLY as shown"), "System prompt should instruct exact name usage");
+  assert.ok(userText.includes("Test Aquarium"), "User prompt should include cached attraction name");
+});
+
+test("generateTripPlan omits shortlist section when no cached attractions", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "Portland, OR",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["hiking"],
+      children: [{ age: 5 }],
+      cachedAttractions: [],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  assert.ok(!systemText.includes("VERIFIED ATTRACTION SHORTLIST"), "System prompt should NOT include shortlist when no cached attractions");
+});
+
+test("generateTripPlan adds 60% shortlist guideline when cachedAttractions >= 5", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  const fiveAttractions = Array.from({ length: 5 }, (_, i) => ({
+    canonical_name: `Attraction ${i + 1}`,
+    category: "parks",
+    short_summary: `Summary ${i + 1}`,
+    verification_status: "verified",
+  }));
+
+  await generateTripPlan(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["parks"],
+      children: [{ age: 4 }],
+      cachedAttractions: fiveAttractions,
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  assert.ok(systemText.includes("60%"), "System prompt should include 60% shortlist guideline when 5+ cached attractions");
 });

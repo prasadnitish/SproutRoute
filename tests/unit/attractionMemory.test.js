@@ -9,6 +9,7 @@ import {
   classifyVerificationFreshness,
   createAttractionMemoryService,
   rankCandidateAttractions,
+  refreshStaleCandidates,
 } from "../../src/backend/services/attractionMemory.js";
 
 test("rankCandidateAttractions prioritizes kid-friendly fresh verified matches", () => {
@@ -443,4 +444,134 @@ test("backfillCityAttractions resolves missing place ids for legacy rows", async
   assert.equal(state.attractions[0].google_place_id, "place-stearns");
   assert.equal(state.attractions[0].verification_status, "verified");
   assert.equal(state.verification.length, 1);
+});
+
+// ── Phase 2: refreshStaleCandidates ─────────────────────────────────────────
+
+test("refreshStaleCandidates returns original candidates when none are stale", async () => {
+  const candidates = [
+    { id: "a1", canonical_name: "Zoo", freshness_bucket: "fresh", category: "wildlife" },
+    { id: "a2", canonical_name: "Park", freshness_bucket: "aging", category: "parks" },
+  ];
+
+  const mockAdmin = { from() { throw new Error("should not touch DB"); } };
+  let resolveCalled = false;
+  const mockResolve = async () => { resolveCalled = true; return null; };
+
+  const result = await refreshStaleCandidates(mockAdmin, candidates, "Santa Barbara", mockResolve);
+
+  assert.equal(result.length, 2);
+  assert.equal(resolveCalled, false, "resolvePlaceIdentity should not be called when nothing is stale");
+  assert.equal(result[0].id, "a1");
+});
+
+test("refreshStaleCandidates refreshes stale candidates without blocking", async () => {
+  const state = {
+    attractions: [
+      { id: "a1", city_id: "c1", canonical_name: "Stale Wharf", freshness_bucket: "stale", category: "waterfront", verification_status: "stale" },
+    ],
+    verification: [],
+  };
+
+  function makeQuery(table) {
+    const ctx = { filters: [] };
+    const api = {
+      select() { return api; },
+      eq(col, val) { ctx.filters.push((r) => r[col] === val); return api; },
+      in(col, vals) { ctx.filters.push((r) => vals.includes(r[col])); return api; },
+      order() { return api; },
+      limit() { return api; },
+      then(resolve, reject) {
+        const source = table === "city_attractions" ? state.attractions : state.verification;
+        const rows = source.filter((r) => ctx.filters.every((f) => f(r)));
+        return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+      },
+      insert(payload) {
+        const rows = Array.isArray(payload) ? payload : [payload];
+        rows.forEach((r) => state.verification.push({ id: `v-${state.verification.length + 1}`, ...r }));
+        return { then(resolve) { return Promise.resolve({ data: rows, error: null }).then(resolve); } };
+      },
+      update(payload) {
+        return {
+          eq: async (col, val) => {
+            const source = table === "city_attractions" ? state.attractions : state.verification;
+            source.filter((r) => r[col] === val).forEach((r) => Object.assign(r, payload));
+            return { data: [], error: null };
+          },
+        };
+      },
+    };
+    return api;
+  }
+
+  const mockAdmin = { from(t) { return makeQuery(t); } };
+  const mockResolve = async () => ({
+    placeId: "place-wharf",
+    name: "Stale Wharf",
+    address: "123 Pier St",
+    mapsUrl: "https://maps.google.com/wharf",
+    rating: 4.5,
+    userRatingsTotal: 200,
+  });
+
+  const candidates = [
+    { id: "a1", canonical_name: "Stale Wharf", freshness_bucket: "stale", category: "waterfront", verification_status: "stale" },
+    { id: "a2", canonical_name: "Fresh Park", freshness_bucket: "fresh", category: "parks", verification_status: "verified" },
+  ];
+
+  const result = await refreshStaleCandidates(mockAdmin, candidates, "Santa Barbara", mockResolve);
+
+  assert.equal(result.length, 2);
+  // The stale candidate should be updated in the DB
+  assert.equal(state.attractions[0].verification_status, "verified");
+  assert.equal(state.verification.length, 1);
+  // The returned list should have the refreshed candidate
+  const refreshed = result.find((c) => c.id === "a1");
+  assert.equal(refreshed.freshness_bucket, "fresh");
+});
+
+test("refreshStaleCandidates returns original candidates on timeout/error", async () => {
+  const candidates = [
+    { id: "a1", canonical_name: "Slow Place", freshness_bucket: "stale", category: "general" },
+  ];
+
+  const mockAdmin = { from() { throw new Error("DB exploded"); } };
+  const mockResolve = async () => { throw new Error("Places API down"); };
+
+  const result = await refreshStaleCandidates(mockAdmin, candidates, "Anywhere", mockResolve);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, "a1");
+  assert.equal(result[0].freshness_bucket, "stale", "should return original unchanged candidates");
+});
+
+// ── Phase 3: collapseDuplicateAttractions merges by google_place_id ─────────
+
+test("collapseDuplicateAttractions merges rows sharing the same google_place_id", () => {
+  const deduped = collapseDuplicateAttractions([
+    {
+      canonical_name: "Santa Barbara Zoo",
+      google_place_id: "ChIJ_zoo_123",
+      times_seen: 5,
+      _score: 20,
+      confidence_score: 0.9,
+    },
+    {
+      canonical_name: "SB Zoo",
+      google_place_id: "ChIJ_zoo_123",
+      times_seen: 2,
+      _score: 10,
+      confidence_score: 0.7,
+    },
+  ]);
+
+  assert.equal(deduped.length, 1);
+  assert.equal(deduped[0].canonical_name, "Santa Barbara Zoo");
+  assert.equal(deduped[0].times_seen, 5);
+});
+
+test("areNamesNearDuplicate catches case-insensitive matches", () => {
+  assert.equal(areNamesNearDuplicate("Stearns Wharf", "stearns wharf"), true);
+  assert.equal(areNamesNearDuplicate("Stearns Wharf", "STEARNS WHARF"), true);
+  assert.equal(areNamesNearDuplicate("Balboa Park", "Central Park"), false);
 });

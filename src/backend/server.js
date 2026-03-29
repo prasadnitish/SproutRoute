@@ -1120,6 +1120,7 @@ export function createApp(deps = {}) {
         pets,
         planningContext,
       });
+      log.info("stream:attractions", { reqId, cachedAttractionCount: cachedAttractions.length });
       const tripPayload = {
         destination, startDate, endDate,
         activities: safeActivities, children, pets, foodPreferences,
