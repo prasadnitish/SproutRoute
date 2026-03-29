@@ -146,10 +146,12 @@ export function validateTripData(data, options = {}) {
     errors.push("End date must be after start date");
   }
 
-  // Validate dates are not in the past
-  const now = new Date();
-  now.setHours(0, 0, 0, 0); // Compare dates only, not time
-  if (!isNaN(start.getTime()) && start < now) {
+  // Validate dates are not in the past (allow today; tolerate timezone drift by
+  // subtracting 1 day — users in western timezones can see "today" as yesterday on a UTC server)
+  const yesterday = new Date();
+  yesterday.setHours(0, 0, 0, 0);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (!isNaN(start.getTime()) && start < yesterday) {
     errors.push("Start date cannot be in the past");
   }
 
