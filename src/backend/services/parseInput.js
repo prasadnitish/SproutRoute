@@ -54,7 +54,9 @@ Food preference extraction rules:
 - If no food preferences mentioned, return foodPreferences with all empty arrays and null budget.
 
 If the user mentions "spring break" and no dates, use April 12-19 of the current year.
-If no kids mentioned, childrenAges should be [].
+If "kids" or "children" mentioned without specific ages, default to childrenAges: [5] (one child, age 5).
+If "toddler" mentioned without age, use age 2. If "baby" or "infant", use age 1. If "teenager" or "teen", use age 14.
+If no kids or children mentioned at all, childrenAges should be [].
 If destination is vague ("beach trip", "somewhere warm"), set destination to null and provide 3 suggestedDestinations based on the user's location and season.`;
 
 export async function parseInput(text, deps = {}) {
