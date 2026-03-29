@@ -254,6 +254,31 @@ test("generateTripPlan user prompt includes tripType label", async () => {
   );
 });
 
+test("generateTripPlan injects compact planner summary when provided", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["beach", "food"],
+      children: [{ age: 4 }],
+      plannerSummary: "Traveler: slow-paced family. Avoid: crowds. Must include: aquariums.",
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  const userText = captured.calls[0].user;
+
+  assert.ok(systemText.includes("PROFILE-AWARE PLANNING"), "System prompt should include profile-aware planning rules");
+  assert.ok(userText.includes("Known Traveler Preferences"), "User prompt should include the planner summary section");
+  assert.ok(userText.includes("slow-paced family"), "Planner summary content should be injected");
+});
+
 // ── Adults-only trip ─────────────────────────────────────────────────────────
 
 test("generateTripPlan handles adults-only trip (no children)", async () => {

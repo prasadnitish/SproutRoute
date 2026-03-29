@@ -9,7 +9,7 @@ import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MAX_TOKENS = 8192;
+const MAX_TOKENS = 4096;
 const CHUNK_SIZE_DAYS = 7;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 
@@ -38,10 +38,19 @@ function parseTripPlanResponse(responseText) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
-async function requestTripPlan({ system, user }, deps, { cache = false } = {}) {
+function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+  const base = compact ? 1200 : 1800;
+  const perDay = compact ? 250 : 350;
+  return Math.min(MAX_TOKENS, Math.max(1400, base + days * perDay));
+}
+
+async function requestTripPlan({ system, user, maxTokens }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "gemini" }, deps);
+  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "gemini" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -104,6 +113,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     countryCode = "US",
     foodPreferences = null,
     pets = [],
+    plannerSummary = "",
   } = tripData;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
@@ -114,15 +124,16 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     destination,
     startDate,
     endDate,
-    activities,
-    children,
-    weatherForecast,
-    { compact: false, tripType, countryCode, foodPreferences, pets },
-  );
+      activities,
+      children,
+      weatherForecast,
+      { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary },
+    );
+  const primaryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: false });
 
   try {
-    const firstAttempt = await requestWithRetry(
-      () => requestTripPlan(primaryPrompt, deps, { cache: true }),
+      const firstAttempt = await requestWithRetry(
+      () => requestTripPlan({ ...primaryPrompt, maxTokens: primaryMaxTokens }, deps, { cache: true }),
       MAX_RETRIES,
     );
 
@@ -143,11 +154,12 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         activities,
         children,
         weatherForecast,
-        { compact: true, tripType, countryCode, foodPreferences, pets },
+        { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary },
       );
+      const retryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: true });
 
       const secondAttempt = await requestWithRetry(
-        () => requestTripPlan(retryPrompt, deps),
+        () => requestTripPlan({ ...retryPrompt, maxTokens: retryMaxTokens }, deps),
         MAX_RETRIES,
       );
 
@@ -326,7 +338,14 @@ function buildTripPlanPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false, tripType = null, countryCode = "US", foodPreferences = null, pets = [] } = options;
+  const {
+    compact = false,
+    tripType = null,
+    countryCode = "US",
+    foodPreferences = null,
+    pets = [],
+    plannerSummary = "",
+  } = options;
 
   const isCruise = tripType === "cruise";
   const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
@@ -365,7 +384,7 @@ function buildTripPlanPrompt(
   const hasPets = Array.isArray(pets) && pets.length > 0;
   const petContext = hasPets ? `
 **PETS TRAVELING:**
-${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weightLbs} lbs${p.specialNeeds ? ", " + p.specialNeeds : ""}`).join("\n")}
+${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weightLb || p.weightLbs || "unknown"} lbs${p.specialNeeds ? ", " + p.specialNeeds : ""}`).join("\n")}
 
 **PET-AWARE PLANNING RULES:**
 1. All restaurant suggestions MUST be pet-friendly (outdoor seating or explicitly pet-welcoming)
@@ -384,6 +403,15 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
 - Note any entry requirements or useful language phrases if destination is non-English-speaking
 - Include a tip about local emergency number (e.g., EU 112, UK 999) in the tips array
 - Consider time zone adjustment in the first-day itinerary if cross-continental travel` : "";
+
+  const profileContext = plannerSummary
+    ? `
+**PROFILE-AWARE PLANNING (must respect):**
+- Treat these preferences as the default travel style unless they conflict with explicit trip constraints.
+- Prioritize must-haves and avoidances when choosing activities and meal pacing.
+- Use dietary/accessibility context to filter recommendations.
+- If a preference conflicts with destination reality or weather, adapt gracefully and explain in notes.`
+    : "";
 
   const system = `You are a helpful travel planning assistant${isAdultsOnly ? "" : " specialising in family trips"}. Generate trip itineraries as strict JSON only.
 
@@ -424,6 +452,7 @@ Generate a trip plan with the following structure:
 ${cruiseInstructions}
 ${internationalContext}
 ${petContext}
+${profileContext}
 **Requirements:**
 1. Include a mix of indoor and outdoor activities based on weather
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
@@ -450,6 +479,10 @@ Return ONLY the JSON, no additional text.`;
 - Dates: ${startDate} to ${endDate}
 - Interested Activities: ${activities.join(", ")}
 - ${isAdultsOnly ? "Travelers: Adults only (no children)" : `Children: ${children.length} child(ren) - ${childrenInfo}`}
+${plannerSummary ? `
+
+**Known Traveler Preferences:**
+${plannerSummary}` : ""}
 
 **Weather Forecast:**
 ${weatherForecast.summary}

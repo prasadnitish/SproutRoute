@@ -48,7 +48,7 @@ export default function InputScreen({ onSubmit }) {
       .filter(t => tags[t.key] && !lower.includes(t.key === "kids" ? "kid" : "dog") && !lower.includes(t.key === "kids" ? "child" : "pet"))
       .map(t => t.hint);
     const finalText = extras.length > 0 ? `${trimmed} — ${extras.join(", ")}` : trimmed;
-    onSubmit(finalText);
+    onSubmit({ text: finalText, savedProfile });
   };
 
   const handleKeyDown = (e) => {

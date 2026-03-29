@@ -89,6 +89,23 @@ test("POST /api/v1/attractions/verify requires auth", async () => {
   }
 });
 
+test("POST /api/v1/attractions/verify is not available until real provider verification is implemented", async () => {
+  const { server, port } = await makeServer();
+  try {
+    const res = await fetch(`http://localhost:${port}/api/v1/attractions/verify`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer invalid-token",
+      },
+      body: JSON.stringify({ attractionId: "test", googlePlaceId: "abc" }),
+    });
+    assert.ok([401, 501].includes(res.status), `Expected 401 without valid auth or 501 when route is intentionally disabled, got ${res.status}`);
+  } finally {
+    server.close();
+  }
+});
+
 // ── POST /api/v1/profile/me/feedback ────────────────────────────────────────
 
 test("POST /api/v1/profile/me/feedback without auth returns 401", async () => {

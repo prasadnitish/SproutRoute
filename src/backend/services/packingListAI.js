@@ -10,7 +10,7 @@ import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MAX_TOKENS = 8192;
+const MAX_TOKENS = 3072;
 const REPAIR_INPUT_MAX_CHARS = 24000;
 
 function parsePackingListResponse(responseText) {
@@ -33,10 +33,21 @@ function parsePackingListResponse(responseText) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
-async function requestPackingList({ system, user }, deps, { cache = false } = {}) {
+function getPackingMaxTokens(startDate, endDate, { compact = false, children = [], pets = [] } = {}) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+  const base = compact ? 900 : 1200;
+  const perDay = compact ? 140 : 180;
+  const childBonus = children.length * 100;
+  const petBonus = pets.length * 120;
+  return Math.min(MAX_TOKENS, Math.max(1200, base + days * perDay + childBonus + petBonus));
+}
+
+async function requestPackingList({ system, user, maxTokens }, deps, { cache = false } = {}) {
   // Single model call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "gemini" }, deps);
+  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "gemini" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -87,6 +98,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     tripType = null,
     pets = [],
     travelMode = null,
+    plannerSummary = "",
   } = tripData;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
@@ -97,15 +109,16 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     destination,
     startDate,
     endDate,
-    activities,
-    children,
-    weatherForecast,
-    { compact: false, tripType, pets, travelMode },
-  );
+      activities,
+      children,
+      weatherForecast,
+      { compact: false, tripType, pets, travelMode, plannerSummary },
+    );
+  const primaryMaxTokens = getPackingMaxTokens(startDate, endDate, { compact: false, children, pets });
 
   try {
-    const firstAttempt = await requestWithRetry(
-      () => requestPackingList(primaryPrompt, deps, { cache: true }),
+      const firstAttempt = await requestWithRetry(
+      () => requestPackingList({ ...primaryPrompt, maxTokens: primaryMaxTokens }, deps, { cache: true }),
       MAX_RETRIES,
     );
 
@@ -125,11 +138,12 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
         activities,
         children,
         weatherForecast,
-        { compact: true, tripType, pets, travelMode },
+        { compact: true, tripType, pets, travelMode, plannerSummary },
       );
+      const retryMaxTokens = getPackingMaxTokens(startDate, endDate, { compact: true, children, pets });
 
       const secondAttempt = await requestWithRetry(
-        () => requestPackingList(retryPrompt, deps),
+        () => requestPackingList({ ...retryPrompt, maxTokens: retryMaxTokens }, deps),
         MAX_RETRIES,
       );
 
@@ -178,7 +192,7 @@ function buildPrompt(
 ) {
   // Returns { system, user } so static instructions are isolated from user-controlled data,
   // which prevents injected content in trip fields from overriding model instructions.
-  const { compact = false, tripType = null, pets = [], travelMode = null } = options;
+  const { compact = false, tripType = null, pets = [], travelMode = null, plannerSummary = "" } = options;
   const isCruise = tripType === "cruise";
   const childrenInfo =
     children.length > 0
@@ -253,6 +267,7 @@ ${ageGuards}
    - Sunscreen (SPF 50+ for poolside and beach port stops)
    - Small backpack or daypack (for shore excursions)
    - Do NOT include car seat, stroller, or booster unless children are under 3` : ""}
+7.5. PROFILE-AWARE PACKING: if traveler preferences are provided, tailor food, comfort, schedule, and kid-specific items to match them
 ${sizeGuardrail}
 For EACH item, include a "searchQuery" field: a short, specific Amazon/retail search query
 (3-8 words) optimized for finding the best product. Include qualifiers like "kids",
@@ -273,7 +288,7 @@ Return ONLY the JSON, no additional text.`;
     ? `
 
 PET PACKING NEEDS:
-Pets traveling: ${pets.map((p) => `${p.name || "Unnamed"} (${p.type}, ${p.breed || "unknown breed"}, ${p.weightLbs || "unknown"} lbs${p.specialNeeds ? `, special needs: ${p.specialNeeds}` : ""})`).join("; ")}
+Pets traveling: ${pets.map((p) => `${p.name || "Unnamed"} (${p.type}, ${p.breed || "unknown breed"}, ${p.weightLb || p.weightLbs || "unknown"} lbs${p.specialNeeds ? `, special needs: ${p.specialNeeds}` : ""})`).join("; ")}
 Travel mode: ${travelMode || "unknown"}
 
 Generate a "Pet Supplies" category with items for each pet including:
@@ -297,6 +312,10 @@ Generate a "Pet Supplies" category with items for each pet including:
 - Dates: ${startDate} to ${endDate}
 - Activities: ${activities.join(", ")}
 - Children: ${children.length} child(ren) — ages: ${childrenInfo} (oldest is ${oldestAge} years old)
+${plannerSummary ? `
+
+**Known Traveler Preferences:**
+${plannerSummary}` : ""}
 
 **Weather Forecast:**
 ${weatherForecast.summary}

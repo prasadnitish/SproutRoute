@@ -51,7 +51,7 @@ export default function App() {
       {/* Screen Router */}
       <main className="max-w-5xl mx-auto">
         {trip.screen === "input" && (
-          <InputScreen onSubmit={(text) => trip.submitTrip(text, geolocation)} />
+          <InputScreen onSubmit={({ text, savedProfile }) => trip.submitTrip(text, geolocation, savedProfile)} />
         )}
 
         {trip.screen === "generating" && (

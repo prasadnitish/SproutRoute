@@ -334,6 +334,31 @@ test("generatePackingList user prompt includes tripType", async () => {
   );
 });
 
+test("generatePackingList injects compact planner summary when provided", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+
+  await generatePackingList(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["beach"],
+      children: [{ age: 4 }],
+      plannerSummary: "Traveler: low-crowd family. Must include: early dinners. Avoid: spicy food.",
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  const userText = captured.calls[0].user;
+
+  assert.ok(systemText.includes("PROFILE-AWARE PACKING"), "System prompt should include profile-aware packing rules");
+  assert.ok(userText.includes("Known Traveler Preferences"), "User prompt should include the planner summary section");
+  assert.ok(userText.includes("low-crowd family"), "Planner summary should be present in packing prompt");
+});
+
 // ── Prompt caching ───────────────────────────────────────────────────────────
 
 // ── Pet packing category ────────────────────────────────────────────────────

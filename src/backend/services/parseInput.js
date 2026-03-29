@@ -2,6 +2,17 @@
 import { callModel } from "../utils/aiClient.js";
 
 const fmt = (d) => d.toISOString().split("T")[0];
+const PARSE_MAX_TOKENS = 1200;
+
+const VALID_PACES = new Set(["slow", "moderate", "fast"]);
+
+const normalizeStringArray = (value, maxLength = 8) =>
+  Array.isArray(value)
+    ? value
+      .map((item) => (typeof item === "string" ? item.trim() : String(item || "").trim()))
+      .filter(Boolean)
+      .slice(0, maxLength)
+    : [];
 
 function defaultDates() {
   const start = new Date();
@@ -26,6 +37,18 @@ Return ONLY valid JSON with these fields:
   "adults": number (default 2),
   "childrenAges": [numbers] or [],
   "vibe": one of "beach","adventure","theme_parks","international","cruise","camping","city","relaxing","general",
+  "tripGoals": ["short strings about what this trip should achieve"] or [],
+  "mustHaves": ["hard requirements or places to include"] or [],
+  "avoidances": ["things to avoid"] or [],
+  "pacePreference": "slow" | "moderate" | "fast" | "unknown",
+  "budgetSignals": ["budget cues like budget, moderate, splurge"] or [],
+  "accommodationPreferences": ["short phrases"] or [],
+  "transportPreferences": ["short phrases"] or [],
+  "accessibilityNeeds": ["short phrases"] or [],
+  "scheduleConstraints": ["short phrases"] or [],
+  "celebrationContext": "birthday | anniversary | reunion | etc" or null,
+  "specialNotes": ["important notes"] or [],
+  "extraContext": ["any additional useful context not captured above"] or [],
   "pets": [{"type":"dog"|"cat"|"bird"|"other","breed":"string or null","ageMonths":number or null,"weightLb":number or null,"name":"string or null"}] or [],
   "foodPreferences": {
     "dietary": [] (e.g. ["vegetarian","gluten-free","halal","kosher","vegan","dairy-free","nut-free"]),
@@ -66,6 +89,8 @@ export async function parseInput(text, deps = {}) {
       user: promptText,
       caller: "parseInput",
       provider: "gemini",
+      maxTokens: PARSE_MAX_TOKENS,
+      temperature: 0,
     });
     return responseText;
   });
@@ -90,6 +115,18 @@ export async function parseInput(text, deps = {}) {
       childrenAges: [],
       pets: [],
       vibe: "general",
+      tripGoals: [],
+      mustHaves: [],
+      avoidances: [],
+      pacePreference: "unknown",
+      budgetSignals: [],
+      accommodationPreferences: [],
+      transportPreferences: [],
+      accessibilityNeeds: [],
+      scheduleConstraints: [],
+      celebrationContext: null,
+      specialNotes: [],
+      extraContext: [],
       foodPreferences: emptyFood,
       detectedRegion,
     };
@@ -106,6 +143,20 @@ export async function parseInput(text, deps = {}) {
     childrenAges: Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [],
     pets: Array.isArray(parsed.pets) ? parsed.pets : [],
     vibe: parsed.vibe || "general",
+    tripGoals: normalizeStringArray(parsed.tripGoals, 6),
+    mustHaves: normalizeStringArray(parsed.mustHaves, 8),
+    avoidances: normalizeStringArray(parsed.avoidances, 8),
+    pacePreference: VALID_PACES.has(parsed.pacePreference) ? parsed.pacePreference : "unknown",
+    budgetSignals: normalizeStringArray(parsed.budgetSignals, 4),
+    accommodationPreferences: normalizeStringArray(parsed.accommodationPreferences, 5),
+    transportPreferences: normalizeStringArray(parsed.transportPreferences, 5),
+    accessibilityNeeds: normalizeStringArray(parsed.accessibilityNeeds, 5),
+    scheduleConstraints: normalizeStringArray(parsed.scheduleConstraints, 6),
+    celebrationContext: typeof parsed.celebrationContext === "string" && parsed.celebrationContext.trim()
+      ? parsed.celebrationContext.trim()
+      : null,
+    specialNotes: normalizeStringArray(parsed.specialNotes, 6),
+    extraContext: normalizeStringArray(parsed.extraContext, 8),
     foodPreferences: {
       dietary: Array.isArray(fp.dietary) ? fp.dietary : [],
       cuisines: Array.isArray(fp.cuisines) ? fp.cuisines : [],

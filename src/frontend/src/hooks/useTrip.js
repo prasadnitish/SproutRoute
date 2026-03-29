@@ -64,7 +64,7 @@ export function useTrip() {
     }
   }, []);
 
-  const submitTrip = useCallback(async (text, geolocation) => {
+  const submitTrip = useCallback(async (text, geolocation, savedProfile = null) => {
     // Abort any in-flight background fetches from a previous submission
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
@@ -88,18 +88,21 @@ export function useTrip() {
         detectedLat: geolocation?.lat || null,
         detectedLon: geolocation?.lon || null,
       });
-      setParsedInput(parsed);
-      // Attach user origin coords for distance-based travel mode derivation
-      parsed.originLat = geolocation?.lat || null;
-      parsed.originLon = geolocation?.lon || null;
+      const parsedWithContext = {
+        ...parsed,
+        originLat: geolocation?.lat || null,
+        originLon: geolocation?.lon || null,
+        savedProfile: savedProfile || null,
+      };
+      setParsedInput(parsedWithContext);
       markStep("resolve", "done");
 
       // If no destination, show destination picker (don't continue generation)
-      if (!parsed.destination && parsed.suggestedDestinations?.length > 0) {
+      if (!parsedWithContext.destination && parsedWithContext.suggestedDestinations?.length > 0) {
         return;
       }
 
-      await generateTrip(parsed);
+      await generateTrip(parsedWithContext);
     } catch (err) {
       if (err.name === "AbortError") return;
       setError(err.message || "Something went wrong");
@@ -131,6 +134,19 @@ export function useTrip() {
       activities: [parsed.vibe],
       foodPreferences: parsed.foodPreferences || null,
       pets,
+      tripGoals: parsed.tripGoals || [],
+      mustHaves: parsed.mustHaves || [],
+      avoidances: parsed.avoidances || [],
+      pacePreference: parsed.pacePreference || "unknown",
+      budgetSignals: parsed.budgetSignals || [],
+      accommodationPreferences: parsed.accommodationPreferences || [],
+      transportPreferences: parsed.transportPreferences || [],
+      accessibilityNeeds: parsed.accessibilityNeeds || [],
+      scheduleConstraints: parsed.scheduleConstraints || [],
+      celebrationContext: parsed.celebrationContext || null,
+      specialNotes: parsed.specialNotes || [],
+      extraContext: parsed.extraContext || [],
+      savedProfile: parsed.savedProfile || null,
     };
 
     const signal = abortRef.current?.signal;
