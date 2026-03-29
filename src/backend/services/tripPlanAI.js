@@ -40,7 +40,7 @@ function parseTripPlanResponse(responseText) {
 async function requestTripPlan({ system, user }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan" }, deps);
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "gemini" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
