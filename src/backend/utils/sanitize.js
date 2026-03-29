@@ -163,8 +163,8 @@ export function validateTripData(data, options = {}) {
   }
 
   const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-  if (duration > 14) {
-    errors.push("Trip duration cannot exceed 14 days");
+  if (duration > 21) {
+    errors.push("Trip duration cannot exceed 21 days");
   }
 
   if (

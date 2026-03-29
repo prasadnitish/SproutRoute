@@ -12,7 +12,7 @@ import {
 } from "./services/geocoding.js";
 import { getWeatherForecast } from "./services/weather.js";
 import { generatePackingList } from "./services/packingListAI.js";
-import { generateTripPlan } from "./services/tripPlanAI.js";
+import { generateTripPlan, generateTripPlanChunked, computeChunks } from "./services/tripPlanAI.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
@@ -868,31 +868,54 @@ export function createApp(deps = {}) {
         activities: safeActivities, children, pets, foodPreferences,
       };
 
-      // Run both AI calls concurrently
-      t0 = Date.now();
-      const [tripPlan, packingResult] = await Promise.allSettled([
-        generateTripPlanFn(tripPayload, weather),
-        generatePackingListFn(tripPayload, weather),
-      ]);
-      timing.ai = Date.now() - t0;
+      // Determine if we need chunked generation (trips > 7 days)
+      const chunks = computeChunks(startDate, endDate);
+      const needsChunking = chunks.length > 1;
 
-      // Send itinerary as soon as it's ready (with scheduled version if possible)
-      if (tripPlan.status === "fulfilled") {
-        let scheduled = null;
-        try {
-          scheduled = scheduleItinerary(tripPlan.value, {}, startDate);
-        } catch { /* non-fatal — fall back to raw itinerary */ }
-        send("itinerary-chunk", { tripPlan: tripPlan.value, scheduledItinerary: scheduled });
-      } else {
-        log.error("stream:itinerary-fail", { reqId, error: tripPlan.reason?.message });
+      // Start packing in parallel with first chunk
+      t0 = Date.now();
+      const packingPromise = generatePackingListFn(tripPayload, weather);
+
+      // Generate itinerary (chunked for long trips, single for short)
+      let firstChunkSent = false;
+      let fullTripPlan = null;
+
+      try {
+        fullTripPlan = await generateTripPlanChunked(
+          tripPayload, weather,
+          (chunkResult, meta) => {
+            // Send each chunk as it completes
+            let scheduled = null;
+            try {
+              const chunkStartDate = chunks[meta.chunk - 1]?.startDate || startDate;
+              scheduled = scheduleItinerary(chunkResult, {}, chunkStartDate);
+            } catch { /* non-fatal */ }
+
+            send("itinerary-chunk", {
+              tripPlan: chunkResult,
+              scheduledItinerary: scheduled,
+              chunk: meta.chunk,
+              totalChunks: meta.totalChunks,
+              dayOffset: meta.dayOffset,
+            });
+
+            if (!firstChunkSent) {
+              firstChunkSent = true;
+              timing.firstChunk = Date.now() - t0;
+            }
+          },
+        );
+      } catch (err) {
+        log.error("stream:itinerary-fail", { reqId, error: err.message });
         send("error", { message: "Failed to generate itinerary. Please try again." });
         return res.end();
       }
 
-      // Send packing list (may have failed independently)
-      if (packingResult.status === "fulfilled") {
-        const packingList = packingResult.value;
-        // Add shopLinks
+      timing.ai = Date.now() - t0;
+
+      // Wait for packing (may already be done if trip was short)
+      try {
+        const packingList = await packingPromise;
         if (packingList?.categories) {
           for (const category of packingList.categories) {
             category.items = category.items.map(item => ({
@@ -902,8 +925,8 @@ export function createApp(deps = {}) {
           }
         }
         send("packing", { packingList });
-      } else {
-        log.warn("stream:packing-fail", { reqId, error: packingResult.reason?.message });
+      } catch (packErr) {
+        log.warn("stream:packing-fail", { reqId, error: packErr.message });
       }
 
       timing.total = Date.now() - streamStart;

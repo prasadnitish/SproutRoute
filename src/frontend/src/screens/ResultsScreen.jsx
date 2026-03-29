@@ -166,6 +166,8 @@ export default function ResultsScreen({
               onActivityTap={handleActivityTap}
               onDayChange={setActiveDayActivities}
               hasPets={hasPets}
+              totalChunks={tripData?._totalChunks || 1}
+              receivedChunks={tripData?._receivedChunks || 1}
             />
             <div className="hidden lg:block">
               <DayRouteMap

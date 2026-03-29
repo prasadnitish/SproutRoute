@@ -164,9 +164,21 @@ export function useTrip() {
             ...prev,
             tripPlan: event.data,
             scheduledItinerary: event.scheduledItinerary || null,
+            _totalChunks: event.totalChunks || 1,
+            _receivedChunks: 1,
           }));
-          // Transition to results screen once we have the itinerary
+          // Transition to results screen once we have the first chunk
           setScreenWithHistory("results");
+          break;
+
+        case "itinerary-update":
+          // Subsequent chunks — merge more days into existing itinerary
+          setTripData(prev => ({
+            ...prev,
+            tripPlan: event.data,
+            scheduledItinerary: event.scheduledItinerary || prev?.scheduledItinerary,
+            _receivedChunks: event.chunk || ((prev?._receivedChunks || 1) + 1),
+          }));
           break;
 
         case "packing":
