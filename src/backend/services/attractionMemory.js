@@ -482,6 +482,82 @@ async function backfillOneAttraction(admin, row, destination, resolvePlaceIdenti
   return { updated: true, skipped: false };
 }
 
+export async function refreshStaleCandidates(admin, candidates, destination, resolvePlaceIdentity) {
+  const original = toArray(candidates);
+  if (original.length === 0) return original;
+
+  const stale = original.filter((c) => c.freshness_bucket === "stale");
+  if (stale.length === 0) return original;
+
+  const toRefresh = stale.slice(0, 5);
+
+  async function doRefresh() {
+    const refreshedIds = new Map();
+
+    for (const candidate of toRefresh) {
+      try {
+        const place = await resolvePlaceIdentity(candidate.canonical_name, destination, candidate.category);
+        if (!place?.placeId) continue;
+
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+        await admin
+          .from("city_attractions")
+          .update({
+            verification_status: "verified",
+            last_verified_at: now.toISOString(),
+            updated_at: now.toISOString(),
+          })
+          .eq("id", candidate.id);
+
+        await admin
+          .from("attraction_verification_cache")
+          .insert({
+            attraction_id: candidate.id,
+            provider: "google_places_identity",
+            verification_payload_json: {
+              attractionName: candidate.canonical_name,
+              resolvedName: firstNonEmpty(place.name),
+              placeId: firstNonEmpty(place.placeId),
+              address: firstNonEmpty(place.address),
+              mapsUrl: firstNonEmpty(place.mapsUrl),
+              rating: place.rating ?? null,
+              userRatingsTotal: place.userRatingsTotal ?? null,
+            },
+            verified_at: now.toISOString(),
+            expires_at: expiresAt.toISOString(),
+          });
+
+        refreshedIds.set(candidate.id, {
+          verification_status: "verified",
+          freshness_bucket: "fresh",
+          last_verified_at: now.toISOString(),
+        });
+      } catch (_) {
+        // Skip individual failures — stale data is better than no data
+      }
+    }
+
+    if (refreshedIds.size === 0) return original;
+
+    return original.map((c) => {
+      const update = refreshedIds.get(c.id);
+      return update ? { ...c, ...update } : c;
+    });
+  }
+
+  try {
+    const result = await Promise.race([
+      doRefresh(),
+      new Promise((resolve) => setTimeout(() => resolve(original), 3000)),
+    ]);
+    return result;
+  } catch (_) {
+    return original;
+  }
+}
+
 export function createAttractionMemoryService({
   getAdmin = getSupabaseAdmin,
   logger = log,
@@ -525,13 +601,15 @@ export function createAttractionMemoryService({
           await fetchLatestVerificationMap(admin, (data || []).map((row) => row.id)),
         );
 
-        return rankCandidateAttractions(withFreshness, {
+        const ranked = rankCandidateAttractions(withFreshness, {
           childrenAges,
           requestedActivities,
           pace,
           pets,
           maxResults,
         });
+
+        return refreshStaleCandidates(admin, ranked, destination, resolvePlaceIdentity);
       }, []);
     },
 

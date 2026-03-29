@@ -493,6 +493,7 @@ function buildTripPlanPrompt(
   const isCruise = tripType === "cruise";
   const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
   const isAdultsOnly = children.length === 0;
+  const hasShortlist = Array.isArray(cachedAttractions) && cachedAttractions.length > 0;
   const childrenInfo = isAdultsOnly
     ? "Adults-only trip, no children"
     : children.map((c) => `age ${c.age}`).join(", ");
@@ -509,7 +510,7 @@ function buildTripPlanPrompt(
 3. Keep descriptions to 1 short sentence (under 70 chars).
 4. Meal entries should be restaurant names or tiny objects only.
 5. Keep tips to 3-4 items max.
-6. Minimize JSON size — no unnecessary whitespace.`;
+6. Minimize JSON size — no unnecessary whitespace.${hasShortlist && cachedAttractions.length >= 5 ? "\n7. At least 60% of suggested activities should come from the verified shortlist." : ""}`;
 
   // Cruise-specific itinerary format instructions
   const cruiseInstructions = isCruise ? `
@@ -556,12 +557,16 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
 - If a preference conflicts with destination reality or weather, adapt gracefully and explain in notes.`
     : "";
 
-  const attractionMemoryContext = Array.isArray(cachedAttractions) && cachedAttractions.length > 0
+  const attractionMemoryContext = hasShortlist
     ? `
-**VETTED ATTRACTION CANDIDATES:**
-- Prefer choosing from the vetted attraction candidates below before inventing new places.
-- Only skip a vetted candidate if it clearly conflicts with weather, age fit, or trip constraints.
-- Keep the "whatItIs" and "whyRecommended" fields aligned with the vetted context when you use one of these candidates.`
+**VERIFIED ATTRACTION SHORTLIST (prefer these over inventing new ones):**
+${buildCachedAttractionsSummary(cachedAttractions)}
+
+When building the itinerary:
+- USE attractions from this shortlist whenever they fit the day's theme and weather
+- You may add 1-2 NEW discoveries per day beyond the shortlist, but prioritize verified places
+- For each shortlisted attraction used, keep the name EXACTLY as shown (do not rename or paraphrase)
+- Shortlisted attractions are already verified as real, open, and family-appropriate`
     : "";
 
   const system = `You are a helpful travel planning assistant${isAdultsOnly ? "" : " specialising in family trips"}. Generate trip itineraries as strict JSON only.
