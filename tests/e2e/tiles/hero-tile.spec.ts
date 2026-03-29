@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { mockAllApis, goToResults } from "../fixtures/mock-api";
+import { mockAllApis, goToResults, overrideSSE, buildSSEBody } from "../fixtures/mock-api";
 import { MOCK_TRIP_PLAN } from "../fixtures/trip-data";
 
 test.describe("HeroTile", () => {
@@ -40,13 +40,10 @@ test.describe("HeroTile", () => {
         body: JSON.stringify({ destination: "Maui, Hawaii", startDate: "2026-04-12", endDate: "2026-04-19", adults: 2, childrenAges: [], vibe: "beach", suggestedDestinations: [] }),
       })
     );
-    await page.route("**/api/trip-plan", (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ ...MOCK_TRIP_PLAN, trip: { ...MOCK_TRIP_PLAN.trip, children: [] } }),
-      })
-    );
+    // Override SSE stream with no children
+    await overrideSSE(page, {
+      body: buildSSEBody({ trip: { ...MOCK_TRIP_PLAN.trip, children: [] } }),
+    });
     await page.goto("/");
     await page.locator("textarea").fill("Adults trip to Maui");
     await page.getByRole("button", { name: /plan it/i }).click();
@@ -57,7 +54,7 @@ test.describe("HeroTile", () => {
   });
 
   test("shows international badge for non-US destination", async ({ page }) => {
-    // Override both parse-input and trip-plan to return Tokyo
+    // Override parse-input to return Tokyo
     await page.route("**/api/v1/trip/parse-input", (r) =>
       r.fulfill({
         status: 200,
@@ -73,16 +70,12 @@ test.describe("HeroTile", () => {
         }),
       })
     );
-    await page.route("**/api/trip-plan", (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          ...MOCK_TRIP_PLAN,
-          trip: { ...MOCK_TRIP_PLAN.trip, destination: "Tokyo, Japan", countryCode: "JP", lat: 35.6762, lon: 139.6503 },
-        }),
-      })
-    );
+    // Override SSE stream to return Tokyo destination with countryCode JP
+    await overrideSSE(page, {
+      body: buildSSEBody({
+        trip: { ...MOCK_TRIP_PLAN.trip, destination: "Tokyo, Japan", countryCode: "JP", lat: 35.6762, lon: 139.6503 },
+      }),
+    });
     await page.goto("/");
     await page.locator("textarea").fill("Family trip to Tokyo");
     await page.getByRole("button", { name: /plan it/i }).click();
@@ -98,13 +91,10 @@ test.describe("HeroTile", () => {
         body: JSON.stringify({ destination: "Maui, Hawaii", startDate: "2026-04-12", endDate: "2026-04-19", adults: 2, childrenAges: [5], vibe: "beach", suggestedDestinations: [] }),
       })
     );
-    await page.route("**/api/trip-plan", (r) =>
-      r.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ ...MOCK_TRIP_PLAN, trip: { ...MOCK_TRIP_PLAN.trip, children: [{ age: 5 }] } }),
-      })
-    );
+    // Override SSE stream with single child
+    await overrideSSE(page, {
+      body: buildSSEBody({ trip: { ...MOCK_TRIP_PLAN.trip, children: [{ age: 5 }] } }),
+    });
     await page.goto("/");
     await page.locator("textarea").fill("Maui trip");
     await page.getByRole("button", { name: /plan it/i }).click();

@@ -10,11 +10,11 @@ test.describe("Happy Path — full input → results journey", () => {
     await expect(page.getByRole("heading", { name: /Maui, Hawaii/i })).toBeVisible();
     // Weather tile — high temp
     await expect(page.getByText("76", { exact: false }).first()).toBeVisible();
-    // Itinerary tile — first activity
-    await expect(page.getByText("Road to Hana")).toBeVisible();
+    // Itinerary tile — first activity (use .first() because the name appears in both the card and the route panel)
+    await expect(page.getByText("Road to Hana").first()).toBeVisible();
     // Safety tile — emergency number
     await expect(page.getByText("911")).toBeVisible();
-    // Map tile — iframe
-    await expect(page.locator("iframe")).toBeVisible();
+    // Map tile — iframe (multiple iframes may exist: map + day route map)
+    await expect(page.locator("iframe").first()).toBeVisible();
   });
 });
