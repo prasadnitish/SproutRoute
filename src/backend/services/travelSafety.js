@@ -32,6 +32,7 @@ export async function getTravelSafety(destination, childrenAges, countryCode, de
       system: "You are a travel safety advisor. Return ONLY valid JSON.",
       user: prompt,
       maxTokens: 1024,
+      caller: "travelSafety",
     });
     return responseText;
   });
