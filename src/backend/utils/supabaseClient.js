@@ -54,7 +54,6 @@ export function supabaseForUser(authHeader) {
   });
 }
 
-// Convenience alias
-export const supabaseAdmin = {
-  get client() { return getSupabaseAdmin(); },
-};
+// NOTE: Only export getSupabaseAdmin() and supabaseForUser().
+// Callers that need the admin client must call getSupabaseAdmin() explicitly,
+// making it visible at every call site that RLS is being bypassed.

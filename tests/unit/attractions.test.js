@@ -61,12 +61,12 @@ test("POST /api/v1/attractions/rank returns empty for unknown city (no Supabase 
 
 // ── GET /api/v1/attractions/city/:cityId ────────────────────────────────────
 
-test("GET /api/v1/attractions/city/:id returns 500 without Supabase", async () => {
+test("GET /api/v1/attractions/city/:id rejects invalid UUID format", async () => {
   const { server, port } = await makeServer();
   try {
     const res = await fetch(`http://localhost:${port}/api/v1/attractions/city/test-id`);
-    // Without Supabase configured, this will error
-    assert.strictEqual(res.status, 500);
+    // UUID validation should reject non-UUID strings
+    assert.strictEqual(res.status, 400);
   } finally {
     server.close();
   }
@@ -74,17 +74,16 @@ test("GET /api/v1/attractions/city/:id returns 500 without Supabase", async () =
 
 // ── POST /api/v1/attractions/verify ─────────────────────────────────────────
 
-test("POST /api/v1/attractions/verify requires attractionId", async () => {
+test("POST /api/v1/attractions/verify requires auth", async () => {
   const { server, port } = await makeServer();
   try {
     const res = await fetch(`http://localhost:${port}/api/v1/attractions/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ attractionId: "test" }),
     });
-    assert.strictEqual(res.status, 422);
-    const data = await res.json();
-    assert.ok(data.error.includes("attractionId"));
+    // Now requires auth — should return 401 without token
+    assert.strictEqual(res.status, 401);
   } finally {
     server.close();
   }
