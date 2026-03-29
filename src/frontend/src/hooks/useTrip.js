@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
 import {
   parseInput,
@@ -28,6 +28,42 @@ export function useTrip() {
 
   const markStep = (step, status) => setProgress(p => ({ ...p, [step]: status }));
 
+  // ─── Browser back-button support ───
+  // Push history entry on screen transitions; listen for popstate to go back.
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+
+  useEffect(() => {
+    const onPopState = (e) => {
+      const target = e.state?.screen || "input";
+      // If we're going back, abort in-flight fetches and reset to target screen
+      if (target === "input" && screenRef.current !== "input") {
+        if (abortRef.current) abortRef.current.abort();
+        setScreen("input");
+        setParsedInput(null);
+        setProgress({});
+        setError(null);
+        setPackingError(null);
+      } else if (target === "generating" && screenRef.current === "results") {
+        setScreen("generating");
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    // Seed initial history entry
+    if (!window.history.state?.screen) {
+      window.history.replaceState({ screen: "input" }, "");
+    }
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Push history when screen advances (not on back)
+  const setScreenWithHistory = useCallback((next) => {
+    setScreen(next);
+    if (next !== "input") {
+      window.history.pushState({ screen: next }, "");
+    }
+  }, []);
+
   const submitTrip = useCallback(async (text, geolocation) => {
     // Abort any in-flight background fetches from a previous submission
     if (abortRef.current) abortRef.current.abort();
@@ -41,7 +77,7 @@ export function useTrip() {
     setSafetyData(null);
     setPetSafetyData(null);
     setCarSeatData(null);
-    setScreen("generating");
+    setScreenWithHistory("generating");
     setProgress({});
 
     try {
@@ -129,7 +165,7 @@ export function useTrip() {
             tripPlan: event.data,
           }));
           // Transition to results screen once we have the itinerary
-          setScreen("results");
+          setScreenWithHistory("results");
           break;
 
         case "packing":
@@ -156,7 +192,7 @@ export function useTrip() {
           if (result.packingList) {
             setPackingList(result.packingList);
           }
-          setScreen("results");
+          setScreenWithHistory("results");
           break;
         }
       }
