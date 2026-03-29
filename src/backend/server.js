@@ -32,6 +32,7 @@ import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets } from "./se
 import { log } from "./utils/logger.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
+// NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
 import { metrics } from "./services/metrics.js";
 
 dotenv.config();
@@ -60,7 +61,7 @@ td{padding:8px 12px;font-size:13px;border-top:1px solid #f3f3f3}
 <div id="app" style="display:none"></div>
 <script>
 async function load(){
-  const r=await fetch("/api/v1/ops/metrics");
+  const params=new URLSearchParams(window.location.search);const r=await fetch("/api/v1/ops/metrics?key="+params.get("key"));
   const d=await r.json();
   document.getElementById("loading").style.display="none";
   const app=document.getElementById("app");
@@ -268,12 +269,19 @@ export function createApp(deps = {}) {
     });
   });
 
-  // ─── Ops Dashboard ─────────────────────────────────────────────────────────
-  app.get("/api/v1/ops/metrics", (req, res) => {
+  // ─── Ops Dashboard (protected — requires OPS_SECRET query param or env match) ─
+  const opsGuard = (req, res, next) => {
+    const secret = process.env.OPS_SECRET;
+    if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
+    if (req.query.key !== secret) return res.status(403).json({ error: "Forbidden" });
+    next();
+  };
+
+  app.get("/api/v1/ops/metrics", opsGuard, (req, res) => {
     res.json(metrics.getSnapshot());
   });
 
-  app.get("/ops", (req, res) => {
+  app.get("/ops", opsGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");
     res.send(OPS_DASHBOARD_HTML);
   });
@@ -1499,7 +1507,7 @@ export function createApp(deps = {}) {
 
       res.json({ profile: data.profile_json, summary: data.profile_summary, version: data.version });
     } catch (err) {
-      log.error("profile:get-error", { error: err.message, userId: req.user.id });
+      log.error("profile:get-error", { error: err.message, userId: req.user.id?.slice(0, 8) });
       res.status(500).json({ error: "Failed to load profile" });
     }
   });
@@ -1554,21 +1562,40 @@ export function createApp(deps = {}) {
         if (error) throw error;
       }
 
-      // Save revision (admin client bypasses RLS for insert into revisions)
-      await admin
-        .from("profile_revisions")
-        .insert({
-          profile_id: existing?.id || null, // will be null for first save, fixed on next read
-          version: newVersion,
-          change_source: req.body.source || "user_edit",
-          change_summary: req.body.changeSummary || "Profile updated",
-          profile_json: profile,
-        });
+      // Save revision — validate change_source and cap changeSummary
+      const VALID_CHANGE_SOURCES = new Set(["user_edit", "import", "feedback", "merge"]);
+      const changeSource = VALID_CHANGE_SOURCES.has(req.body.source) ? req.body.source : "user_edit";
+      const changeSummary = sanitizeString(req.body.changeSummary || "Profile updated", 200);
 
-      log.info("profile:saved", { userId: req.user.id, version: newVersion });
+      // Fetch the profile ID (needed for first save where existing is null)
+      let profileId = existing?.id;
+      if (!profileId) {
+        const { data: newProfile } = await db
+          .from("profiles")
+          .select("id")
+          .eq("user_id", req.user.id)
+          .order("version", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        profileId = newProfile?.id;
+      }
+
+      if (profileId) {
+        await admin
+          .from("profile_revisions")
+          .insert({
+            profile_id: profileId,
+            version: newVersion,
+            change_source: changeSource,
+            change_summary: changeSummary,
+            profile_json: profile,
+          });
+      }
+
+      log.info("profile:saved", { userId: req.user.id?.slice(0, 8), version: newVersion });
       res.json({ version: newVersion, saved: true });
     } catch (err) {
-      log.error("profile:save-error", { error: err.message, userId: req.user.id });
+      log.error("profile:save-error", { error: err.message, userId: req.user.id?.slice(0, 8) });
       res.status(500).json({ error: "Failed to save profile" });
     }
   });
@@ -1583,10 +1610,10 @@ export function createApp(deps = {}) {
         .eq("user_id", req.user.id);
 
       if (error) throw error;
-      log.info("profile:deleted", { userId: req.user.id });
+      log.info("profile:deleted", { userId: req.user.id?.slice(0, 8) });
       res.json({ deleted: true });
     } catch (err) {
-      log.error("profile:delete-error", { error: err.message, userId: req.user.id });
+      log.error("profile:delete-error", { error: err.message, userId: req.user.id?.slice(0, 8) });
       res.status(500).json({ error: "Failed to delete profile" });
     }
   });
@@ -1765,10 +1792,10 @@ export function createApp(deps = {}) {
 
       if (error) throw error;
 
-      log.info("feedback:saved", { userId: req.user.id, signalType, tripRequestId });
+      log.info("feedback:saved", { userId: req.user.id?.slice(0, 8), signalType, tripRequestId });
       res.json({ saved: true });
     } catch (err) {
-      log.error("feedback:save-error", { error: err.message, userId: req.user?.id });
+      log.error("feedback:save-error", { error: err.message, userId: req.user?.id?.slice(0, 8) });
       res.status(500).json({ error: "Failed to save feedback" });
     }
   });
@@ -1809,8 +1836,9 @@ export function createApp(deps = {}) {
         attractionQuery = attractionQuery.gte("kid_appeal_score", 5);
       }
 
-      // Filter by pace
-      if (pace && pace !== "unknown") {
+      // Filter by pace (allowlist to prevent injection via .or() filter string)
+      const VALID_PACES = new Set(["slow", "moderate", "fast"]);
+      if (pace && VALID_PACES.has(pace)) {
         attractionQuery = attractionQuery.or(`pace_fit.eq.${pace},pace_fit.eq.any`);
       }
 
@@ -1833,6 +1861,10 @@ export function createApp(deps = {}) {
   // GET /api/v1/attractions/city/:cityId — get all attractions for a city
   app.get("/api/v1/attractions/city/:cityId", apiLimiter, async (req, res) => {
     try {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(req.params.cityId)) {
+        return res.status(400).json({ error: "Invalid cityId format" });
+      }
       const admin = getSupabaseAdmin();
       const { data, error } = await admin
         .from("city_attractions")
@@ -1849,7 +1881,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/attractions/verify — verify an attraction via Google Places
-  app.post("/api/v1/attractions/verify", apiLimiter, async (req, res) => {
+  app.post("/api/v1/attractions/verify", requireAuth, apiLimiter, async (req, res) => {
     try {
       const { attractionId, googlePlaceId } = req.body;
       if (!attractionId) return res.status(422).json({ error: "attractionId is required" });
