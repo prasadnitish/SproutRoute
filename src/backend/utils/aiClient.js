@@ -34,7 +34,7 @@ import { log } from "./logger.js";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ANTHROPIC_MODEL_ID = "claude-sonnet-4-6";
-const GEMINI_MODEL_ID    = "gemini-3-flash-preview";
+const GEMINI_MODEL_ID    = "gemini-2.5-flash";
 const DEEPSEEK_MODEL_ID  = "deepseek-chat";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
