@@ -337,7 +337,8 @@ export async function streamTripPlan(tripData, onEvent, signal) {
             } else if (type === "itinerary-chunk") {
               if (data.tripPlan) {
                 result.tripPlan = data.tripPlan;
-                onEvent({ type: "itinerary", data: result.tripPlan });
+                result.scheduledItinerary = data.scheduledItinerary || null;
+                onEvent({ type: "itinerary", data: result.tripPlan, scheduledItinerary: result.scheduledItinerary });
               } else {
                 onEvent({ type: "itinerary-status", data });
               }

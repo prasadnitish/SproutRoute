@@ -876,9 +876,13 @@ export function createApp(deps = {}) {
       ]);
       timing.ai = Date.now() - t0;
 
-      // Send itinerary as soon as it's ready
+      // Send itinerary as soon as it's ready (with scheduled version if possible)
       if (tripPlan.status === "fulfilled") {
-        send("itinerary-chunk", { tripPlan: tripPlan.value });
+        let scheduled = null;
+        try {
+          scheduled = scheduleItinerary(tripPlan.value, {}, startDate);
+        } catch { /* non-fatal — fall back to raw itinerary */ }
+        send("itinerary-chunk", { tripPlan: tripPlan.value, scheduledItinerary: scheduled });
       } else {
         log.error("stream:itinerary-fail", { reqId, error: tripPlan.reason?.message });
         send("error", { message: "Failed to generate itinerary. Please try again." });

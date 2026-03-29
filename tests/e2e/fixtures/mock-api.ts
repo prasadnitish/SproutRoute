@@ -30,7 +30,7 @@ function buildSSEBody(): string {
   const trip = MOCK_TRIP_PLAN.trip;
   events.push(`event: destination\ndata: ${JSON.stringify(trip)}\n`);
   events.push(`event: weather\ndata: ${JSON.stringify({ weather: MOCK_TRIP_PLAN.weather })}\n`);
-  events.push(`event: itinerary-chunk\ndata: ${JSON.stringify({ tripPlan: MOCK_TRIP_PLAN.tripPlan })}\n`);
+  events.push(`event: itinerary-chunk\ndata: ${JSON.stringify({ tripPlan: MOCK_TRIP_PLAN.tripPlan, scheduledItinerary: MOCK_TRIP_PLAN.scheduledItinerary })}\n`);
   events.push(`event: packing\ndata: ${JSON.stringify({ packingList: MOCK_PACKING_LIST })}\n`);
   events.push(`event: done\ndata: {}\n`);
 
