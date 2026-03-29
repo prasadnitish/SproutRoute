@@ -23,6 +23,7 @@ import { enrichActivity } from "./services/placesEnrich.js";
 import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js";
 import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMerge.js";
 import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
+import { createAttractionMemoryService } from "./services/attractionMemory.js";
 import { ensureUserRecord } from "./services/userStore.js";
 import {
   sanitizeString,
@@ -191,6 +192,42 @@ async function resolvePlanningContext(req, sanitizedTrip, foodPreferences) {
   };
 }
 
+async function loadCachedAttractionsForTrip(attractionMemoryService, {
+  destination,
+  coords,
+  countryCode,
+  children,
+  activities,
+  pets,
+  planningContext,
+}) {
+  if (!attractionMemoryService?.getPlanningCandidates) return [];
+
+  const pacePreference = planningContext?.tripIntent?.pacePreference;
+  const pace = typeof pacePreference === "string" && pacePreference !== "unknown"
+    ? pacePreference
+    : "";
+
+  return attractionMemoryService.getPlanningCandidates({
+    destination,
+    coords,
+    countryCode,
+    childrenAges: (children || []).map((child) => child.age).filter(Number.isFinite),
+    requestedActivities: activities || [],
+    pace,
+    pets: pets || [],
+    maxResults: 8,
+  });
+}
+
+function persistTripAttractionsInBackground(attractionMemoryService, payload) {
+  if (!attractionMemoryService?.persistTripAttractions) return;
+
+  Promise.resolve(attractionMemoryService.persistTripAttractions(payload)).catch((error) => {
+    log.warn("attraction-memory:persist-failed", { error: error.message });
+  });
+}
+
 export function createApp(deps = {}) {
   // App factory enables dependency injection for fast, isolated integration tests.
   const {
@@ -204,6 +241,7 @@ export function createApp(deps = {}) {
     getNeighborhoodSafetyFn = getNeighborhoodSafety,
     enrichActivityFn = enrichActivity,
     getPetTravelGuidanceFn = getPetTravelGuidance,
+    attractionMemoryService = createAttractionMemoryService(),
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -763,6 +801,15 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       const resolvedCountry = coords.countryCode || "US";
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
+      const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
+        destination,
+        coords,
+        countryCode: resolvedCountry,
+        children,
+        activities: safeActivities,
+        pets,
+        planningContext,
+      });
       const tripPlan = await generateTripPlanFn(
         {
           destination,
@@ -773,9 +820,17 @@ export function createApp(deps = {}) {
           pets,
           foodPreferences,
           plannerSummary: planningContext.plannerSummary,
+          cachedAttractions,
         },
         weather,
       );
+
+      persistTripAttractionsInBackground(attractionMemoryService, {
+        destination,
+        coords,
+        countryCode: resolvedCountry,
+        tripPlan,
+      });
 
       const tripDuration = Math.ceil(
         (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
@@ -878,6 +933,15 @@ export function createApp(deps = {}) {
       // Phase 3: Trip plan + Packing list in parallel
       const aiStart = Date.now();
       devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
+      const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
+        destination,
+        coords,
+        countryCode: resolvedCountry,
+        children,
+        activities: safeActivities,
+        pets,
+        planningContext,
+      });
       const tripPayload = {
         destination,
         startDate,
@@ -887,6 +951,7 @@ export function createApp(deps = {}) {
         pets,
         foodPreferences,
         plannerSummary: planningContext.plannerSummary,
+        cachedAttractions,
       };
       const [tripPlan, packingList] = await Promise.all([
         generateTripPlanFn(tripPayload, weather),
@@ -904,6 +969,13 @@ export function createApp(deps = {}) {
           }));
         }
       }
+
+      persistTripAttractionsInBackground(attractionMemoryService, {
+        destination,
+        coords,
+        countryCode: resolvedCountry,
+        tripPlan,
+      });
 
       devLog(`v1/trip/bundle timings: geocode=${timings.geocode}ms, weather=${timings.weather}ms, ai=${timings.ai}ms, total=${timings.total}ms`);
 
@@ -1039,10 +1111,20 @@ export function createApp(deps = {}) {
       // Phase 3: AI itinerary only on the hot path (~10-20s)
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
+      const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
+        destination,
+        coords,
+        countryCode: resolvedCountry,
+        children,
+        activities: safeActivities,
+        pets,
+        planningContext,
+      });
       const tripPayload = {
         destination, startDate, endDate,
         activities: safeActivities, children, pets, foodPreferences,
         plannerSummary: planningContext.plannerSummary,
+        cachedAttractions,
       };
 
       // Determine if we need chunked generation (trips > 7 days)
@@ -1098,6 +1180,13 @@ export function createApp(deps = {}) {
         petTypes: (pets || []).map(p => p.type).filter(Boolean),
         vibe: safeActivities?.[0] || "",
         reqId,
+      });
+
+      persistTripAttractionsInBackground(attractionMemoryService, {
+        destination,
+        coords,
+        countryCode: resolvedCountry,
+        tripPlan: fullTripPlan,
       });
 
       send("done", {});
@@ -1162,6 +1251,19 @@ export function createApp(deps = {}) {
 
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
+      const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
+        destination,
+        coords: {
+          displayName: destination,
+          countryCode: req.body?.countryCode || "US",
+          regionCode: req.body?.regionCode || null,
+        },
+        countryCode: req.body?.countryCode || "US",
+        children,
+        activities,
+        pets,
+        planningContext,
+      });
 
       devLog("v1/trip/replan: regenerating itinerary with activities:", activities);
       const tripPlan = await generateTripPlanFn(
@@ -1174,9 +1276,21 @@ export function createApp(deps = {}) {
           pets,
           foodPreferences,
           plannerSummary: planningContext.plannerSummary,
+          cachedAttractions,
         },
         weather,
       );
+
+      persistTripAttractionsInBackground(attractionMemoryService, {
+        destination,
+        coords: {
+          displayName: destination,
+          countryCode: req.body?.countryCode || "US",
+          regionCode: req.body?.regionCode || null,
+        },
+        countryCode: req.body?.countryCode || "US",
+        tripPlan,
+      });
 
       return res.json({ requestId, tripPlan });
     } catch (error) {
@@ -1916,50 +2030,23 @@ export function createApp(deps = {}) {
     try {
       const { cityName, countryCode, childrenAges, pace, vibe, limit: maxResults } = req.body;
       if (!cityName) return res.status(422).json({ error: "cityName is required" });
-
-      const admin = getSupabaseAdmin();
-
-      // Find the city
-      let query = admin.from("cities").select("id, city_name, display_name");
-      if (countryCode) query = query.eq("country_code", countryCode);
-      query = query.ilike("city_name", `%${cityName}%`).limit(1);
-      const { data: cities, error: cityErr } = await query;
-
-      if (cityErr) throw cityErr;
-      if (!cities || cities.length === 0) {
-        return res.json({ attractions: [], city: null, source: "no_precomputed_data" });
-      }
-
-      const city = cities[0];
-
-      // Fetch attractions for the city
-      let attractionQuery = admin
-        .from("city_attractions")
-        .select("*")
-        .eq("city_id", city.id)
-        .neq("verification_status", "rejected")
-        .order("kid_appeal_score", { ascending: false });
-
-      // Filter by kid-friendliness if children present
-      if (childrenAges?.length > 0) {
-        attractionQuery = attractionQuery.gte("kid_appeal_score", 5);
-      }
-
-      // Filter by pace (allowlist to prevent injection via .or() filter string)
-      const VALID_PACES = new Set(["slow", "moderate", "fast"]);
-      if (pace && VALID_PACES.has(pace)) {
-        attractionQuery = attractionQuery.or(`pace_fit.eq.${pace},pace_fit.eq.any`);
-      }
-
-      attractionQuery = attractionQuery.limit(maxResults || 20);
-
-      const { data: attractions, error: attrErr } = await attractionQuery;
-      if (attrErr) throw attrErr;
+      const attractions = await attractionMemoryService.getPlanningCandidates({
+        destination: cityName,
+        coords: {
+          displayName: cityName,
+          countryCode: countryCode || "US",
+        },
+        countryCode: countryCode || "US",
+        childrenAges: childrenAges || [],
+        requestedActivities: vibe ? [vibe] : [],
+        pace,
+        maxResults: maxResults || 20,
+      });
 
       res.json({
         attractions: attractions || [],
-        city: { id: city.id, name: city.display_name },
-        source: "precomputed",
+        city: attractions?.length > 0 ? { name: cityName } : null,
+        source: attractions?.length > 0 ? "attraction_memory" : "no_precomputed_data",
       });
     } catch (err) {
       log.error("attractions:rank-error", { error: err.message });

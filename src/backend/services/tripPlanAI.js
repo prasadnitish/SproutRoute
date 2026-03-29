@@ -3,6 +3,7 @@
 import { callModel } from "../utils/aiClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
+import { buildCachedAttractionsSummary } from "./attractionMemory.js";
 import {
   MAX_RETRIES,
   requestWithRetry,
@@ -252,6 +253,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     foodPreferences = null,
     pets = [],
     plannerSummary = "",
+    cachedAttractions = [],
   } = tripData;
   const expectedDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
   const maxActivities = Math.min(Math.max(expectedDays * 2, 4), 10);
@@ -267,7 +269,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       activities,
       children,
       weatherForecast,
-      { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary },
+      { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions },
     );
   const primaryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: false });
 
@@ -294,7 +296,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         activities,
         children,
         weatherForecast,
-        { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary },
+        { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions },
       );
       const retryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: true });
 
@@ -485,6 +487,7 @@ function buildTripPlanPrompt(
     foodPreferences = null,
     pets = [],
     plannerSummary = "",
+    cachedAttractions = [],
   } = options;
 
   const isCruise = tripType === "cruise";
@@ -553,6 +556,14 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
 - If a preference conflicts with destination reality or weather, adapt gracefully and explain in notes.`
     : "";
 
+  const attractionMemoryContext = Array.isArray(cachedAttractions) && cachedAttractions.length > 0
+    ? `
+**VETTED ATTRACTION CANDIDATES:**
+- Prefer choosing from the vetted attraction candidates below before inventing new places.
+- Only skip a vetted candidate if it clearly conflicts with weather, age fit, or trip constraints.
+- Keep the "whatItIs" and "whyRecommended" fields aligned with the vetted context when you use one of these candidates.`
+    : "";
+
   const system = `You are a helpful travel planning assistant${isAdultsOnly ? "" : " specialising in family trips"}. Generate trip itineraries as strict JSON only.
 
 Generate a trip plan with the following structure:
@@ -594,6 +605,7 @@ ${cruiseInstructions}
 ${internationalContext}
 ${petContext}
 ${profileContext}
+${attractionMemoryContext}
 **Requirements:**
 1. Include a mix of indoor and outdoor activities based on weather
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
@@ -626,6 +638,10 @@ ${plannerSummary ? `
 
 **Known Traveler Preferences:**
 ${plannerSummary}` : ""}
+${Array.isArray(cachedAttractions) && cachedAttractions.length > 0 ? `
+
+**Vetted attraction candidates for this destination:**
+${buildCachedAttractionsSummary(cachedAttractions)}` : ""}
 
 **Weather Forecast:**
 ${weatherForecast.summary}
