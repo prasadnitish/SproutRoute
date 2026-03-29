@@ -14,12 +14,33 @@ import assert from "node:assert/strict";
 import { callModel, __test } from "../../src/backend/utils/aiClient.js";
 
 const ORIGINAL_AI_PROVIDER = process.env.AI_PROVIDER;
+const ORIGINAL_GOOGLE_GEMINI_MODEL = process.env.GOOGLE_GEMINI_MODEL;
+const ORIGINAL_GOOGLE_GEMINI_MODEL_PARSE_INPUT = process.env.GOOGLE_GEMINI_MODEL_PARSE_INPUT;
+const ORIGINAL_GOOGLE_GEMINI_MODEL_TRIP_PLAN = process.env.GOOGLE_GEMINI_MODEL_TRIP_PLAN;
 
 test.afterEach(() => {
   if (ORIGINAL_AI_PROVIDER !== undefined) {
     process.env.AI_PROVIDER = ORIGINAL_AI_PROVIDER;
   } else {
     delete process.env.AI_PROVIDER;
+  }
+
+  if (ORIGINAL_GOOGLE_GEMINI_MODEL !== undefined) {
+    process.env.GOOGLE_GEMINI_MODEL = ORIGINAL_GOOGLE_GEMINI_MODEL;
+  } else {
+    delete process.env.GOOGLE_GEMINI_MODEL;
+  }
+
+  if (ORIGINAL_GOOGLE_GEMINI_MODEL_PARSE_INPUT !== undefined) {
+    process.env.GOOGLE_GEMINI_MODEL_PARSE_INPUT = ORIGINAL_GOOGLE_GEMINI_MODEL_PARSE_INPUT;
+  } else {
+    delete process.env.GOOGLE_GEMINI_MODEL_PARSE_INPUT;
+  }
+
+  if (ORIGINAL_GOOGLE_GEMINI_MODEL_TRIP_PLAN !== undefined) {
+    process.env.GOOGLE_GEMINI_MODEL_TRIP_PLAN = ORIGINAL_GOOGLE_GEMINI_MODEL_TRIP_PLAN;
+  } else {
+    delete process.env.GOOGLE_GEMINI_MODEL_TRIP_PLAN;
   }
 });
 
@@ -552,4 +573,20 @@ test("modelIdForProvider returns correct model IDs", () => {
   assert.ok(__test.modelIdForProvider("gemini").includes("gemini"));
   assert.ok(__test.modelIdForProvider("anthropic").includes("sonnet"));
   assert.ok(__test.modelIdForProvider("deepseek").includes("deepseek"));
+});
+
+test("normalizeCallerKey converts caller labels to env-safe keys", () => {
+  assert.strictEqual(__test.normalizeCallerKey("parseInput"), "PARSE_INPUT");
+  assert.strictEqual(__test.normalizeCallerKey("tripPlan"), "TRIP_PLAN");
+  assert.strictEqual(__test.normalizeCallerKey("tripPlan:repair"), "TRIP_PLAN_REPAIR");
+});
+
+test("resolveModelId uses caller-specific Gemini override when set", () => {
+  process.env.GOOGLE_GEMINI_MODEL = "gemini-2.5-flash";
+  process.env.GOOGLE_GEMINI_MODEL_PARSE_INPUT = "gemini-2.5-flash";
+  process.env.GOOGLE_GEMINI_MODEL_TRIP_PLAN = "gemini-3-flash-preview";
+
+  assert.strictEqual(__test.resolveModelId("gemini", "parseInput"), "gemini-2.5-flash");
+  assert.strictEqual(__test.resolveModelId("gemini", "tripPlan"), "gemini-3-flash-preview");
+  assert.strictEqual(__test.resolveModelId("gemini", "packingList"), "gemini-2.5-flash");
 });
