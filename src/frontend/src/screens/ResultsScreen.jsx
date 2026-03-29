@@ -17,14 +17,16 @@ const TABS = [
 function resolveItinerary(rawDays, suggestedActivities) {
   if (!rawDays || rawDays.length === 0) return [];
   const activityMap = {};
+  const activityNameMap = {};
   (suggestedActivities || []).forEach((a) => {
     if (a.id) activityMap[a.id] = a;
+    if (a.name) activityNameMap[a.name.toLowerCase()] = a;
   });
   return rawDays.map((day) => {
     const rawActivities = day.activities || day.items || [];
     const resolvedActivities = rawActivities.map((act) =>
       typeof act === "string"
-        ? activityMap[act] || { name: act, description: "" }
+        ? activityMap[act] || activityNameMap[act.toLowerCase()] || { name: act, description: "" }
         : act
     );
     return {

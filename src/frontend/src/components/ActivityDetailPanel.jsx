@@ -5,6 +5,9 @@ export default function ActivityDetailPanel({ activity, placesData, isOpen, onCl
   const emoji = activity.emoji || "\u{1F3AF}";
   const category = activity.category || activity.tags?.[0] || "Activity";
   const description = activity.description || "";
+  const whatItIs = activity.whatItIs || description;
+  const whyRecommended = activity.whyRecommended || "";
+  const timingTip = activity.timingTip || "";
 
   const priceLevelMap = { 0: "Free", 1: "$", 2: "$$", 3: "$$$", 4: "$$$$" };
   const priceLabel = placesData?.priceLevel != null
@@ -81,11 +84,37 @@ export default function ActivityDetailPanel({ activity, placesData, isOpen, onCl
             </div>
           )}
 
-          {/* Description */}
-          {description && (
-            <p className="text-sm text-gray-500 leading-relaxed mb-5">
-              {description}
-            </p>
+          {whatItIs && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                What It Is
+              </p>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                {whatItIs}
+              </p>
+            </div>
+          )}
+
+          {whyRecommended && (
+            <div className="mb-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                Why We Picked It
+              </p>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                {whyRecommended}
+              </p>
+            </div>
+          )}
+
+          {timingTip && (
+            <div className="mb-5 bg-meadow-50 rounded-xl p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-meadow-700 mb-0.5">
+                Timing Tip
+              </p>
+              <p className="text-sm text-meadow-800">
+                {timingTip}
+              </p>
+            </div>
           )}
 
           {/* Info grid */}

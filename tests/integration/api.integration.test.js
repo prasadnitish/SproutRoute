@@ -171,6 +171,44 @@ test("POST /api/generate returns trip, weather, and packing list", async () => {
   assert.equal(res.body.packingList.categories.length, 1);
 });
 
+test("POST /api/generate uses the deterministic packing generator by default", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({
+    enableRequestLogging: false,
+    geocodeLocationFn: async () => ({
+      lat: 32.7157,
+      lon: -117.1611,
+      displayName: "San Diego, California",
+      countryCode: "US",
+    }),
+    getWeatherForecastFn: async () => ({
+      summary: "Warm and sunny",
+      forecast: [
+        { name: "Monday", high: 82, low: 64, precipitation: 5 },
+        { name: "Tuesday", high: 83, low: 65, precipitation: 5 },
+        { name: "Wednesday", high: 81, low: 63, precipitation: 0 },
+      ],
+    }),
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/generate", {
+    destination: "San Diego, CA",
+    startDate: "2026-06-01",
+    endDate: "2026-06-08",
+    activities: ["beach", "parks"],
+    children: [{ age: 2 }],
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.ok(res.body.packingList.categories.length >= 5);
+  const allItemNames = res.body.packingList.categories.flatMap((category) =>
+    category.items.map((item) => item.name),
+  );
+  assert.ok(allItemNames.includes("Stroller"));
+  assert.ok(allItemNames.includes("Sunscreen"));
+});
+
 // ── Rate limit header tests (Phase 2, Fix #14) ──────────────────────────────
 // express-rate-limit v8 with standardHeaders:true sends IETF draft headers:
 //   RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, RateLimit-Policy
