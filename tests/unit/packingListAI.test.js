@@ -494,3 +494,44 @@ test("generatePackingList enables prompt caching on first attempt", async () => 
   assert.ok(firstCall, "First call must have been made");
   assert.ok(firstCall.system.length > 0, "System prompt must be non-empty");
 });
+
+test("generatePackingList normalizes simplified category and item shapes without repair", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const mockGeminiModel = {
+    generateContent: async () => ({
+      response: {
+        text: () => JSON.stringify({
+          categories: [
+            {
+              name: "Clothing",
+              entries: [
+                { title: "Sun hat", quantity: 1, search: "kids sun hat beach" },
+                "Sandals",
+              ],
+            },
+          ],
+        }),
+        candidates: [{ finishReason: "STOP" }],
+      },
+    }),
+  };
+
+  const result = await generatePackingList(
+    {
+      destination: "San Diego, CA",
+      startDate: "2026-06-01",
+      endDate: "2026-06-04",
+      activities: ["beach"],
+      children: [{ age: 4 }],
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel },
+  );
+
+  assert.equal(result.categories.length, 1);
+  assert.equal(result.categories[0].name, "Clothing");
+  assert.equal(result.categories[0].items[0].name, "Sun hat");
+  assert.equal(result.categories[0].items[0].searchQuery, "kids sun hat beach");
+  assert.equal(result.categories[0].items[1].name, "Sandals");
+});

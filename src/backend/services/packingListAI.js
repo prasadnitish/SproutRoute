@@ -13,7 +13,61 @@ import {
 const MAX_TOKENS = 3072;
 const REPAIR_INPUT_MAX_CHARS = 24000;
 
-function parsePackingListResponse(responseText) {
+function normalizePackingListShape(parsed, { maxCategories = 6, maxItemsPerCategory = 5 } = {}) {
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Packing list response was not an object");
+  }
+
+  const rawCategories = Array.isArray(parsed.categories)
+    ? parsed.categories
+    : Array.isArray(parsed.items)
+      ? [{ name: "Essentials", items: parsed.items }]
+      : [];
+
+  const categories = rawCategories
+    .map((category, categoryIndex) => {
+      const safeCategory = category && typeof category === "object"
+        ? category
+        : { name: `Category ${categoryIndex + 1}`, items: [] };
+      const rawItems = Array.isArray(safeCategory.items)
+        ? safeCategory.items
+        : Array.isArray(safeCategory.entries)
+          ? safeCategory.entries
+          : [];
+
+      const items = rawItems
+        .map((item) => {
+          const safeItem = typeof item === "string" ? { name: item } : (item || {});
+          const name = String(safeItem.name || safeItem.title || "").trim();
+          if (!name) return null;
+          return {
+            name,
+            quantity: String(safeItem.quantity || "1").trim(),
+            reason: String(safeItem.reason || "").trim(),
+            searchQuery: String(safeItem.searchQuery || safeItem.search || name).trim(),
+          };
+        })
+        .filter(Boolean)
+        .slice(0, maxItemsPerCategory);
+
+      if (items.length === 0) return null;
+
+      return {
+        name: String(safeCategory.name || `Category ${categoryIndex + 1}`).trim(),
+        items,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, maxCategories);
+
+  if (categories.length === 0) {
+    throw new Error("Missing categories array");
+  }
+
+  return { categories };
+}
+
+function parsePackingListResponse(responseText, options = {}) {
   // Attempts multiple parse strategies because LLM output may include wrappers/fences.
   const candidates = extractJsonCandidates(responseText);
 
@@ -21,10 +75,7 @@ function parsePackingListResponse(responseText) {
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
-      if (parsed && Array.isArray(parsed.categories)) {
-        return parsed;
-      }
-      lastError = new Error("Missing categories array");
+      return normalizePackingListShape(parsed, options);
     } catch (error) {
       lastError = error;
     }
@@ -100,6 +151,8 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     travelMode = null,
     plannerSummary = "",
   } = tripData;
+  const maxCategories = compactCategoryCount(children, pets, tripType);
+  const maxItemsPerCategory = 5;
 
   // Sanitize user-supplied fields before interpolating into AI prompts
   const destination = sanitizeDestination(rawDestination);
@@ -127,7 +180,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
     }
 
     try {
-      return parsePackingListResponse(firstAttempt.responseText);
+      return parsePackingListResponse(firstAttempt.responseText, { maxCategories, maxItemsPerCategory });
     } catch (firstParseError) {
       log.warn("Packing-list parse failed (attempt 1), retrying compact", { error: firstParseError.message });
 
@@ -148,7 +201,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
       );
 
       try {
-        return parsePackingListResponse(secondAttempt.responseText);
+        return parsePackingListResponse(secondAttempt.responseText, { maxCategories, maxItemsPerCategory });
       } catch (secondParseError) {
         log.warn("Packing-list parse failed (attempt 2), trying repair", { error: secondParseError.message });
 
@@ -156,7 +209,7 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
         const repairAttempt = await repairPackingListJson(repairSource, deps);
 
         try {
-          return parsePackingListResponse(repairAttempt.responseText);
+          return parsePackingListResponse(repairAttempt.responseText, { maxCategories, maxItemsPerCategory });
         } catch (repairParseError) {
           log.error("Packing-list parse failed after all 3 attempts", {
             error: repairParseError.message,
@@ -181,6 +234,14 @@ export async function generatePackingList(tripData, weatherForecast, deps = {}) 
   }
 }
 
+function compactCategoryCount(children, pets, tripType) {
+  let count = 5;
+  if ((children || []).length > 0) count += 1;
+  if ((pets || []).length > 0) count += 1;
+  if (tripType === "cruise") count += 1;
+  return Math.min(count, 7);
+}
+
 function buildPrompt(
   destination,
   startDate,
@@ -201,14 +262,14 @@ function buildPrompt(
 
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
-- Include exactly 6-8 categories.
+- Include exactly 5-6 categories.
 - Include 3-5 items per category.
 - Keep total items <= 30.
 - Keep each reason <= 90 characters.`
     : `**Output Size Limits:**
-- Include 6-8 categories.
+- Include 5-7 categories.
 - Include 3-6 items per category.
-- Keep total items <= 36.
+- Keep total items <= 30.
 - Keep each reason concise.`;
 
   // Build strict age-based guardrails from actual child ages
