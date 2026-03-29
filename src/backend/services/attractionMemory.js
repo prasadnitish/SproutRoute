@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination } from "./inputSafety.js";
+import { enrichActivity } from "./placesEnrich.js";
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -85,6 +86,75 @@ function keywordScore(attraction, requestedActivities = []) {
   }, 0);
 }
 
+function tokenizeName(value) {
+  return normalizeName(value).split(" ").filter(Boolean);
+}
+
+export function areNamesNearDuplicate(left, right) {
+  const a = normalizeName(left);
+  const b = normalizeName(right);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.startsWith(`${b} `) || b.startsWith(`${a} `)) {
+    return Math.min(tokenizeName(a).length, tokenizeName(b).length) >= 2;
+  }
+
+  const tokensA = new Set(tokenizeName(a));
+  const tokensB = new Set(tokenizeName(b));
+  let overlap = 0;
+  for (const token of tokensA) {
+    if (tokensB.has(token)) overlap += 1;
+  }
+  const denominator = Math.max(tokensA.size, tokensB.size, 1);
+  return overlap / denominator >= 0.75;
+}
+
+function canonicalDedupKey(attraction) {
+  return firstNonEmpty(attraction.google_place_id, attraction.googlePlaceId) || normalizeName(
+    firstNonEmpty(attraction.canonical_name, attraction.canonicalName, attraction.name),
+  );
+}
+
+export function collapseDuplicateAttractions(attractions) {
+  const deduped = [];
+
+  for (const attraction of toArray(attractions)) {
+    const directKey = canonicalDedupKey(attraction);
+    const existingIndex = deduped.findIndex((candidate) => {
+      const candidateKey = canonicalDedupKey(candidate);
+      if (directKey && candidateKey && directKey === candidateKey) return true;
+      return areNamesNearDuplicate(
+        firstNonEmpty(candidate.canonical_name, candidate.canonicalName, candidate.name),
+        firstNonEmpty(attraction.canonical_name, attraction.canonicalName, attraction.name),
+      );
+    });
+
+    if (existingIndex === -1) {
+      deduped.push(attraction);
+      continue;
+    }
+
+    const current = deduped[existingIndex];
+    const currentScore = Number(current._score || 0) + Number(current.times_seen || 0);
+    const incomingScore = Number(attraction._score || 0) + Number(attraction.times_seen || 0);
+
+    if (incomingScore > currentScore) {
+      deduped[existingIndex] = {
+        ...current,
+        ...attraction,
+        times_seen: Math.max(Number(current.times_seen || 0), Number(attraction.times_seen || 0)),
+      };
+    } else {
+      deduped[existingIndex] = {
+        ...current,
+        times_seen: Math.max(Number(current.times_seen || 0), Number(attraction.times_seen || 0)),
+      };
+    }
+  }
+
+  return deduped;
+}
+
 export function rankCandidateAttractions(attractions, context = {}) {
   const {
     childrenAges = [],
@@ -94,7 +164,7 @@ export function rankCandidateAttractions(attractions, context = {}) {
     maxResults = 8,
   } = context;
 
-  return [...toArray(attractions)]
+  return collapseDuplicateAttractions([...toArray(attractions)]
     .filter((attraction) => safeLower(attraction.verification_status) !== "rejected")
     .map((attraction) => {
       let score = 0;
@@ -120,7 +190,7 @@ export function rankCandidateAttractions(attractions, context = {}) {
       }
 
       return { ...attraction, _score: score };
-    })
+    }))
     .sort((a, b) => b._score - a._score)
     .slice(0, maxResults);
 }
@@ -207,19 +277,80 @@ function buildStoredAttraction(activity) {
   };
 }
 
-async function persistOneAttraction(admin, cityId, activity) {
-  const stored = buildStoredAttraction(activity);
-  const now = new Date().toISOString();
+function buildVerifiedPayload(activity, place) {
+  return {
+    attractionName: firstNonEmpty(activity.name),
+    resolvedName: firstNonEmpty(place?.name),
+    placeId: firstNonEmpty(place?.placeId),
+    address: firstNonEmpty(place?.address),
+    mapsUrl: firstNonEmpty(place?.mapsUrl),
+    rating: place?.rating ?? null,
+    userRatingsTotal: place?.userRatingsTotal ?? null,
+  };
+}
 
-  const { data: existing, error: existingError } = await admin
+async function fetchExistingAttractions(admin, cityId) {
+  const { data, error } = await admin
     .from("city_attractions")
-    .select("id, times_seen")
+    .select("id, canonical_name, google_place_id, times_seen, verification_status")
     .eq("city_id", cityId)
-    .ilike("canonical_name", stored.canonical_name)
-    .limit(1)
-    .maybeSingle();
+    .limit(100);
 
-  if (existingError) throw existingError;
+  if (error) throw error;
+  return data || [];
+}
+
+function findExistingAttraction(existingRows, stored) {
+  return existingRows.find((row) => {
+    if (stored.google_place_id && row.google_place_id && stored.google_place_id === row.google_place_id) {
+      return true;
+    }
+    return areNamesNearDuplicate(row.canonical_name, stored.canonical_name);
+  }) || null;
+}
+
+async function writeVerificationCache(admin, attractionId, place) {
+  if (!attractionId || !place?.placeId) return;
+  const verifiedAt = new Date();
+  const expiresAt = new Date(verifiedAt.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+  const { error } = await admin
+    .from("attraction_verification_cache")
+    .insert({
+      attraction_id: attractionId,
+      provider: "google_places_identity",
+      verification_payload_json: buildVerifiedPayload({ name: place.name }, place),
+      verified_at: verifiedAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    });
+
+  if (error) throw error;
+}
+
+async function resolveStoredAttraction(activity, destination, resolvePlaceIdentity) {
+  const stored = buildStoredAttraction(activity);
+  if (!resolvePlaceIdentity) return stored;
+
+  const place = await resolvePlaceIdentity(activity.name, destination, activity.category);
+  if (!place?.placeId) return stored;
+
+  return {
+    ...stored,
+    canonical_name: firstNonEmpty(place.name, stored.canonical_name),
+    google_place_id: place.placeId,
+    verification_status: "verified",
+    last_verified_at: new Date().toISOString(),
+    short_summary: firstNonEmpty(stored.short_summary, place.address),
+    _resolvedPlace: place,
+  };
+}
+
+async function persistOneAttraction(admin, cityId, destination, activity, resolvePlaceIdentity) {
+  const now = new Date().toISOString();
+  const resolved = await resolveStoredAttraction(activity, destination, resolvePlaceIdentity);
+  const { _resolvedPlace, ...stored } = resolved;
+  const existingRows = await fetchExistingAttractions(admin, cityId);
+  const existing = findExistingAttraction(existingRows, stored);
 
   if (existing?.id) {
     const { error: updateError } = await admin
@@ -233,6 +364,7 @@ async function persistOneAttraction(admin, cityId, activity) {
       .eq("id", existing.id);
 
     if (updateError) throw updateError;
+    await writeVerificationCache(admin, existing.id, _resolvedPlace);
     return existing.id;
   }
 
@@ -249,10 +381,16 @@ async function persistOneAttraction(admin, cityId, activity) {
     .limit(1);
 
   if (insertError) throw insertError;
-  return inserted?.[0]?.id || null;
+  const insertedId = inserted?.[0]?.id || null;
+  await writeVerificationCache(admin, insertedId, _resolvedPlace);
+  return insertedId;
 }
 
-export function createAttractionMemoryService({ getAdmin = getSupabaseAdmin, logger = log } = {}) {
+export function createAttractionMemoryService({
+  getAdmin = getSupabaseAdmin,
+  logger = log,
+  resolvePlaceIdentity = enrichActivity,
+} = {}) {
   async function withAdmin(work, fallback) {
     try {
       const admin = getAdmin();
@@ -310,7 +448,7 @@ export function createAttractionMemoryService({ getAdmin = getSupabaseAdmin, log
         if (!city?.id) return;
 
         for (const activity of activities.slice(0, 16)) {
-          await persistOneAttraction(admin, city.id, activity);
+          await persistOneAttraction(admin, city.id, destination, activity, resolvePlaceIdentity);
         }
       });
     },
