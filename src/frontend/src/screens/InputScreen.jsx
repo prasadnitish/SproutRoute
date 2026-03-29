@@ -15,8 +15,12 @@ const TRAVELER_TAGS = [
   { key: "pet", emoji: "\u{1F43E}", label: "With a pet", hint: "traveling with our dog" },
 ];
 
+const SESSION_KEY = "sprout:lastInput";
+
 export default function InputScreen({ onSubmit }) {
-  const [text, setText] = useState("");
+  const [text, setText] = useState(() => {
+    try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
+  });
   const [tags, setTags] = useState({});
   const textareaRef = useRef(null);
 
@@ -31,6 +35,8 @@ export default function InputScreen({ onSubmit }) {
   const handleSubmit = () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    // Persist raw input for back-button restoration (sessionStorage dies on tab close)
+    try { sessionStorage.setItem(SESSION_KEY, trimmed); } catch { /* quota */ }
     // Append context hints from toggles if user didn't already mention them
     const lower = trimmed.toLowerCase();
     const extras = TRAVELER_TAGS
