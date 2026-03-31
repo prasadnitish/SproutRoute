@@ -140,16 +140,6 @@ export default function ResultsScreen({
             <MapTile destination={destination} lat={lat} lon={lon} />
           </div>
 
-          {/* Safety & Tips — visible by default */}
-          <div className="mb-3">
-            <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
-            {petSafetyData && (
-              <div className="mt-2">
-                <PetSafetyTile petSafetyData={petSafetyData} />
-              </div>
-            )}
-          </div>
-
           {/* Itinerary + Day Route Map — side by side on desktop */}
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3">
             <ItineraryTile
@@ -171,6 +161,16 @@ export default function ResultsScreen({
                 lon={lon}
               />
             </div>
+          </div>
+
+          {/* Safety & Tips — below itinerary */}
+          <div className="mt-3">
+            <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
+            {petSafetyData && (
+              <div className="mt-2">
+                <PetSafetyTile petSafetyData={petSafetyData} />
+              </div>
+            )}
           </div>
         </div>
       )}

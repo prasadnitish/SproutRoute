@@ -98,7 +98,8 @@ function getPackingMaxTokens(startDate, endDate, { compact = false, children = [
 async function requestPackingList({ system, user, maxTokens }, deps, { cache = false } = {}) {
   // Single model call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "gemini" }, deps);
+  // Anthropic for packing — Gemini truncates JSON too often
+  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "anthropic" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
