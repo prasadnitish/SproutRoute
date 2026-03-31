@@ -210,15 +210,43 @@ async function main() {
       const ms = Date.now() - t0;
       console.log(`  LLM response: ${text.length} chars in ${(ms/1000).toFixed(1)}s`);
 
-      // Parse JSON
+      // Parse JSON — strip markdown fences first, then parse
+      let cleanText = text.trim();
+      // Strip markdown fences if present
+      if (cleanText.startsWith("```")) {
+        cleanText = cleanText.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+      }
+
       let parsed;
       try {
-        parsed = JSON.parse(text);
-      } catch {
-        // Try to extract JSON from markdown fences
-        const match = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-        if (match) parsed = JSON.parse(match[1]);
-        else throw new Error("Failed to parse JSON from LLM response");
+        parsed = JSON.parse(cleanText);
+      } catch (e1) {
+        // Strategy 2: find the outermost { ... } block
+        const braceStart = cleanText.indexOf("{");
+        const braceEnd = cleanText.lastIndexOf("}");
+        if (braceStart >= 0 && braceEnd > braceStart) {
+          try { parsed = JSON.parse(cleanText.slice(braceStart, braceEnd + 1)); } catch {}
+        }
+        // Strategy 3: find the outermost [ ... ] block
+        if (!parsed) {
+          const bracketStart = cleanText.indexOf("[");
+          const bracketEnd = cleanText.lastIndexOf("]");
+          if (bracketStart >= 0 && bracketEnd > bracketStart) {
+            try { const arr = JSON.parse(cleanText.slice(bracketStart, bracketEnd + 1)); parsed = { attractions: arr }; } catch {}
+          }
+        }
+        // Strategy 4: truncated JSON — find last complete object and close array
+        if (!parsed) {
+          const lastComplete = cleanText.lastIndexOf("},");
+          if (lastComplete > 0) {
+            const truncated = cleanText.slice(braceStart, lastComplete + 1) + "]}";
+            try { parsed = JSON.parse(truncated); } catch {}
+          }
+        }
+        if (!parsed) {
+          console.error(`  Parse failed (${e1.message}). First 300 chars: ${cleanText.slice(0, 300)}`);
+          throw new Error("Failed to parse JSON from LLM response");
+        }
       }
 
       const attractions = parsed.attractions || parsed;
