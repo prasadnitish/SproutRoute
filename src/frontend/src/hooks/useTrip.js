@@ -158,12 +158,14 @@ export function useTrip() {
       switch (event.type) {
         case "destination":
           markStep("weather", "active");
-          // Show results screen immediately with destination data
+          // Show results screen IMMEDIATELY with destination data
           setTripData(prev => ({
             ...prev,
             trip: event.data,
             parsed,
           }));
+          // Skip the generating screen — go straight to results
+          setScreenWithHistory("results");
           break;
 
         case "weather":
@@ -183,8 +185,7 @@ export function useTrip() {
             _totalChunks: event.totalChunks || 1,
             _receivedChunks: 1,
           }));
-          // Transition to results screen once we have the first chunk
-          setScreenWithHistory("results");
+          // Results screen already shown from destination event
           break;
 
         case "itinerary-update":
