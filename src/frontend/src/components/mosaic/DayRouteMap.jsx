@@ -1,141 +1,133 @@
-// Day route map — shows the current day's activities as numbered markers on an OpenStreetMap embed.
-// When enriched activities have coordinates, markers are positioned over the map.
+import { useEffect, useRef } from "react";
+import L from "leaflet";
+
+// Fix default marker icons
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
+
+function createNumberedIcon(number, isMeal) {
+  const color = isMeal ? "#f59e0b" : "#16a34a";
+  return L.divIcon({
+    className: "custom-numbered-marker",
+    html: `<div style="
+      width:28px;height:28px;border-radius:50%;
+      background:${color};color:white;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;font-weight:700;
+      border:2px solid white;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    ">${number}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
+  });
+}
 
 export default function DayRouteMap({ activities, destination, lat, lon }) {
-  if (!lat || !lon) return null;
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
 
-  // Extract locations with coordinates from enriched data
+  // Extract activities with coordinates
   const markers = (activities || [])
     .filter(a => a.status !== "closed")
     .map((a, i) => ({
-      name: a.name,
+      name: a.name || "Stop",
       index: i + 1,
       isMeal: !!a.isMeal,
       lat: a.enriched?.latitude,
       lon: a.enriched?.longitude,
-      scheduledStart: a.scheduledStart,
+      time: a.scheduledStart || "",
+      rating: a.enriched?.rating,
+      address: a.enriched?.address,
     }));
 
   const geoMarkers = markers.filter(m => m.lat && m.lon);
+  const mealCount = markers.filter(m => m.isMeal).length;
+  const activityCount = markers.length - mealCount;
 
-  // Compute bounding box from all marker coords (or fallback to destination)
-  let bbox;
-  if (geoMarkers.length >= 2) {
-    const lats = geoMarkers.map(m => m.lat);
-    const lons = geoMarkers.map(m => m.lon);
-    const pad = 0.01;
-    bbox = {
-      left: Math.min(...lons) - pad,
-      bottom: Math.min(...lats) - pad,
-      right: Math.max(...lons) + pad,
-      top: Math.max(...lats) + pad,
-    };
-  } else {
-    bbox = {
-      left: lon - 0.08,
-      bottom: lat - 0.05,
-      right: lon + 0.08,
-      top: lat + 0.05,
-    };
-  }
+  useEffect(() => {
+    if (!mapRef.current) return;
 
-  const centerLat = (bbox.top + bbox.bottom) / 2;
-  const centerLon = (bbox.left + bbox.right) / 2;
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
 
-  const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox.left},${bbox.bottom},${bbox.right},${bbox.top}&layer=mapnik&marker=${centerLat},${centerLon}`;
+    const map = L.map(mapRef.current, { zoomControl: true, attributionControl: true });
 
-  const zoom = 13;
-  const fullMapUrl = `https://www.openstreetmap.org/?mlat=${centerLat}&mlon=${centerLon}#map=${zoom}/${centerLat}/${centerLon}`;
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      maxZoom: 18,
+    }).addTo(map);
 
-  const activityCount = activities?.filter(a => !a.isMeal && a.status !== "closed").length || 0;
-  const mealCount = activities?.filter(a => a.isMeal).length || 0;
+    if (geoMarkers.length >= 2) {
+      const latLngs = [];
+      geoMarkers.forEach(m => {
+        const icon = createNumberedIcon(m.index, m.isMeal);
+        const stars = m.rating ? "\u2605".repeat(Math.round(m.rating)) + ` ${m.rating}` : "";
+        const popup = `<b>${m.name}</b>${m.time ? `<br/><span style="color:#666">${m.time}</span>` : ""}${stars ? `<br/>${stars}` : ""}${m.address ? `<br/><small>${m.address}</small>` : ""}`;
+        L.marker([m.lat, m.lon], { icon }).addTo(map).bindPopup(popup);
+        latLngs.push([m.lat, m.lon]);
+      });
 
-  // Convert lat/lon to pixel position within the map container
-  // This is approximate — works well for city-scale maps
-  function toPixel(markerLat, markerLon, mapWidth, mapHeight) {
-    const x = ((markerLon - bbox.left) / (bbox.right - bbox.left)) * mapWidth;
-    const y = ((bbox.top - markerLat) / (bbox.top - bbox.bottom)) * mapHeight;
-    return { x: Math.round(x), y: Math.round(y) };
-  }
+      if (latLngs.length >= 2) {
+        L.polyline(latLngs, { color: "#16a34a", weight: 3, opacity: 0.6, dashArray: "8, 8" }).addTo(map);
+      }
 
-  const MAP_HEIGHT = 350;
+      map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30], maxZoom: 14 });
+    } else if (lat && lon) {
+      map.setView([lat, lon], 12);
+      L.marker([lat, lon]).addTo(map).bindPopup(destination || "Destination");
+    } else {
+      map.setView([0, 0], 2);
+    }
+
+    mapInstanceRef.current = map;
+    setTimeout(() => map.invalidateSize(), 100);
+
+    return () => { map.remove(); mapInstanceRef.current = null; };
+  }, [activities, lat, lon]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!lat && !lon) return null;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden sticky top-4">
-      {/* Label */}
+    <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600">
-          {"\u{1F5FA}"} Today's Route
+          {"\u{1F5FA}"} Today&rsquo;s Route
         </p>
         <span className="text-[10px] text-gray-400">
-          {activityCount} stops {mealCount > 0 ? `+ ${mealCount} meals` : ""}
+          {activityCount} stop{activityCount !== 1 ? "s" : ""} + {mealCount} meal{mealCount !== 1 ? "s" : ""}
         </span>
       </div>
 
-      {/* Map with overlay markers */}
-      <div className="relative w-full" style={{ height: `${MAP_HEIGHT}px` }}>
-        <iframe
-          title="Day route map"
-          src={embedUrl}
-          className="w-full h-full border-0"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-        />
-        {/* Numbered marker overlays */}
-        {geoMarkers.map((m) => {
-          // Use parentElement width approximation (container is full-width)
-          const pos = toPixel(m.lat, m.lon, 400, MAP_HEIGHT);
-          return (
-            <div
-              key={m.index}
-              className="absolute pointer-events-none"
-              style={{
-                left: `${(pos.x / 400) * 100}%`,
-                top: `${pos.y}px`,
-                transform: "translate(-50%, -100%)",
-                zIndex: 10,
-              }}
-            >
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-lg border-2 border-white ${
-                  m.isMeal ? "bg-amber-500" : "bg-meadow-600"
-                }`}
-              >
-                {m.index}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <div ref={mapRef} style={{ height: 350 }} className="z-0" />
 
-      {/* Activity list for the day */}
-      <div className="px-4 py-3 space-y-1.5">
-        {markers.map((m) => (
-          <div key={m.index} className="flex items-center gap-2">
-            <span className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${
-              m.isMeal ? "bg-amber-500" : "bg-meadow-600"
-            }`}>
+      <div className="px-3 py-2 space-y-1">
+        {markers.slice(0, 8).map((m, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 ${m.isMeal ? "bg-amber-500" : "bg-meadow-600"}`}>
               {m.index}
             </span>
-            <span className="text-xs text-gray-700 truncate">{m.name}</span>
-            {m.scheduledStart && (
-              <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0">{m.scheduledStart}</span>
-            )}
+            <span className="text-gray-700 truncate flex-1">{m.name}</span>
+            {m.time && <span className="text-gray-400 flex-shrink-0">{m.time}</span>}
           </div>
         ))}
       </div>
 
-      {/* Full map link */}
-      <div className="px-4 pb-3">
-        <a
-          href={fullMapUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-meadow-600 hover:underline"
-        >
-          Open full map &rarr;
-        </a>
-      </div>
+      {lat && lon && (
+        <div className="px-4 py-2 border-t border-gray-100">
+          <a
+            href={`https://www.google.com/maps/dir/${geoMarkers.map(m => `${m.lat},${m.lon}`).join("/") || `${lat},${lon}`}`}
+            target="_blank" rel="noopener noreferrer"
+            className="text-xs text-meadow-600 hover:underline"
+          >
+            Open route in Google Maps &rarr;
+          </a>
+        </div>
+      )}
     </div>
   );
 }
