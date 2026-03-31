@@ -593,11 +593,11 @@ Generate a trip plan with the following structure:
   "dailyItinerary": [
     {
       "day": "${isCruise ? "Day 1: Embarkation" : "Day 1 (date)"}",
-      "activities": ["activity-id-1", "activity-id-2"],
+      "activities": ["activity-id-1", "activity-id-2", "activity-id-3"],
       "meals": {
-        "breakfast": "Specific restaurant name",
-        "lunch": "Specific restaurant name",
-        "dinner": "Specific restaurant name"
+        "breakfast": { "name": "Specific REAL restaurant name", "cuisine": "American", "note": "Why this restaurant" },
+        "lunch": { "name": "Specific REAL restaurant name", "cuisine": "Seafood", "note": "Why this restaurant" },
+        "dinner": { "name": "Specific REAL restaurant name", "cuisine": "Italian", "note": "Why this restaurant" }
       },
       "notes": "Short note"
     }
@@ -611,16 +611,17 @@ ${internationalContext}
 ${petContext}
 ${profileContext}
 ${attractionMemoryContext}
-**Requirements:**
-1. Include a mix of indoor and outdoor activities based on weather
+**CRITICAL Requirements:**
+1. Include a mix of indoor and outdoor activities based on weather.
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
-3. Prioritise activities that match their stated interests
-4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs)
-5. Be specific to the destination (not generic advice)
-6. Create a balanced daily itinerary that's not too packed
-7. Return one day object for each trip day in the requested date range whenever possible
-8. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended"
-7. For each meal (breakfast, lunch, dinner), suggest only a SPECIFIC, REAL restaurant name at the destination.
+3. Prioritise activities that match their stated interests.
+4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs).
+5. Be specific to the destination — only suggest REAL places that actually exist and are currently open.
+6. Create a balanced daily itinerary: 3-4 activities per day, not too packed.
+7. IMPORTANT: Return one day object for EACH day of the trip. A 3-day trip MUST have 3 day objects. A 7-day trip must have 7.
+8. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended".
+9. MEALS ARE CRITICAL: For EVERY meal (breakfast, lunch, dinner) in EVERY day, suggest a SPECIFIC REAL restaurant name as an object: {"name": "Real Restaurant Name", "cuisine": "Type", "note": "Brief reason"}. NEVER use generic labels like "Breakfast" or "local restaurant". Vary restaurants across days — do NOT repeat the same restaurant on multiple days.
+10. Only suggest restaurants that are currently operating. Do not suggest permanently closed restaurants.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
    - Preferred cuisines: ${foodPreferences.cuisines?.length ? foodPreferences.cuisines.join(", ") : "open to all"}
