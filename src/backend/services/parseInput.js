@@ -112,7 +112,7 @@ export async function parseInput(text, deps = {}) {
       system: "You are a trip planner assistant. Return ONLY valid JSON, no markdown or explanation.",
       user: promptText,
       caller: "parseInput",
-      provider: "gemini",
+      provider: "anthropic",
       maxTokens: PARSE_MAX_TOKENS,
       temperature: 0,
     });
