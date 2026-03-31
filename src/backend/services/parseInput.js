@@ -79,17 +79,32 @@ Food preference extraction rules:
 Date interpretation rules:
 - If the user says "in september" or "in June" without specific dates, default to a 7-day trip starting on the 1st of that month.
 - If "spring break" → April 12-19 of the current year.
-- If "next weekend" → the upcoming Saturday-Sunday.
+- If "next weekend" → the upcoming Saturday-Sunday (2 days).
 - If "this summer" → July 1-8 of the current year.
-- If no dates at all, default to 2 weeks from today for 7 days.
+- If "day trip" or "roadtrip" or "2-3 hour" → startDate = next Saturday, endDate = same day or next day (1-2 day trip).
+- If no dates at all, default to 2 weeks from today for 5 days.
 - CRITICAL: endDate must ALWAYS be after startDate. Never return an endDate before startDate.
-- Trip duration should be 3-14 days unless the user specifies otherwise.
+- Match trip duration to the user's intent: day trips = 1-2 days, weekends = 2-3 days, vacations = 5-14 days.
+
+Vibe interpretation rules:
+- "mountain", "hiking", "trail", "nature" → vibe: "adventure"
+- "beach", "ocean", "coast" → vibe: "beach"
+- "city", "urban", "downtown" → vibe: "city"
+- "theme park", "amusement", "disney" → vibe: "theme_parks"
+- "roadtrip", "road trip", "drive" → vibe: "adventure"
+
+Location-aware destination rules:
+- If the user says "near me", "close by", "nearby", or "X hours away", use the detectedRegion to suggest 3 destinations within that radius.
+- For "mountain near me" from Bellevue, WA → suggest Mt. Rainier, Snoqualmie Pass, North Cascades.
+- For "beach near me" from Chicago → suggest Indiana Dunes, Saugatuck, Lake Geneva.
+- ALWAYS provide 3 suggestedDestinations with emojis, descriptions, and season notes when destination is vague or relative.
+- The suggestedDestinations MUST be real places reachable within the user's stated travel time from their location.
 
 If "kids" or "children" mentioned without specific ages, default to childrenAges: [5] (one child, age 5).
 If "toddler" mentioned without age, use age 2. If "baby" or "infant", use age 1. If "teenager" or "teen", use age 14.
 If no kids or children mentioned at all, childrenAges should be [].
 If the user explicitly names a destination like "San Diego", "Maui", or "Paris", destination must NOT be null.
-If destination is vague ("beach trip", "somewhere warm"), set destination to null and provide 3 suggestedDestinations based on the user's location and season.`;
+If destination is vague ("beach trip", "somewhere warm", "near me", "mountain nearby"), set destination to null and provide 3 suggestedDestinations based on the user's location and season.`;
 
 export async function parseInput(text, deps = {}) {
   const callAI = deps.callAI || (async (promptText) => {
