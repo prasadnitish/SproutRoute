@@ -188,7 +188,8 @@ function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
 async function requestTripPlan({ system, user, maxTokens }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "gemini" }, deps);
+  // Anthropic for trip planning — Gemini truncates JSON too often (429-char failures)
+  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "anthropic" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -509,7 +510,7 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 7 day objects.
 3. Keep activity descriptions to 1-2 sentences.
 4. For each meal, suggest a SPECIFIC real restaurant with cuisine type and a brief note.
-5. Include 5-8 practical travel tips (booking advice, timing tips, local insights, safety, money-saving tips).
+5. Include 6-10 practical tips: MUST include money-saving hacks (city passes like CityPASS/Go City, free museum days, combo tickets, happy hour deals, free activities), plus booking advice, timing tips, local insights, and safety.
 6. Keep JSON compact but complete.${hasShortlist && cachedAttractions.length >= 5 ? "\n7. At least 60% of suggested activities should come from the verified shortlist." : ""}`;
 
   // Cruise-specific itinerary format instructions
@@ -603,7 +604,7 @@ Generate a trip plan with the following structure:
     }
   ],
   "tips": [
-    "Helpful tips for the trip (booking advice, timing, local insights)"
+    "Include 6-10 practical tips covering: booking advice, timing tips, money-saving hacks (city passes, free days at museums, combo tickets, happy hour deals, free activities), local customs, safety, transportation, and family-specific advice"
   ]
 }
 ${cruiseInstructions}

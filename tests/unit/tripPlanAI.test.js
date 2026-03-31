@@ -83,11 +83,19 @@ function createCapturingMock() {
       };
     },
   };
-  // Keep anthropic mock for fallback tests
+  // Anthropic mock — normalize to same shape as Gemini mock for test assertions
   const mockAnthropicClient = {
     messages: {
       create: async (params) => {
-        captured.calls.push(params);
+        const systemText = typeof params.system === "string"
+          ? params.system
+          : Array.isArray(params.system) ? params.system.map(b => b.text).join("") : "";
+        const userText = params.messages?.[0]?.content || "";
+        captured.calls.push({
+          ...params,
+          system: systemText,
+          user: userText,
+        });
         return {
           content: [{ type: "text", text: VALID_TRIP_PLAN_JSON }],
           stop_reason: "end_turn",
@@ -498,7 +506,7 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
       children: [{ age: 2 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel },
+    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async (p) => ({ content: [{ type: "text", text: mockGeminiModel.generateContent ? (await mockGeminiModel.generateContent()).response.text() : "{}" }], stop_reason: "end_turn" }) } } },
   );
 
   assert.equal(result.suggestedActivities.length, 1);
@@ -545,7 +553,7 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
       children: [{ age: 2 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel },
+    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: (await mockGeminiModel.generateContent()).response.text() }], stop_reason: "end_turn" }) } } },
   );
 
   assert.equal(result.dailyItinerary.length, 2);

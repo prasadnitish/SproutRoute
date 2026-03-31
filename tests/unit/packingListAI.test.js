@@ -76,7 +76,15 @@ function createCapturingMock() {
   const mockAnthropicClient = {
     messages: {
       create: async (params) => {
-        captured.calls.push(params);
+        const systemText = typeof params.system === "string"
+          ? params.system
+          : Array.isArray(params.system) ? params.system.map(b => b.text).join("") : "";
+        const userText = params.messages?.[0]?.content || "";
+        captured.calls.push({
+          ...params,
+          system: systemText,
+          user: userText,
+        });
         return {
           content: [{ type: "text", text: VALID_PACKING_JSON }],
           stop_reason: "end_turn",
@@ -526,7 +534,7 @@ test("generatePackingList normalizes simplified category and item shapes without
       children: [{ age: 4 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel },
+    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: (await mockGeminiModel.generateContent()).response.text() }], stop_reason: "end_turn" }) } } },
   );
 
   assert.equal(result.categories.length, 1);
