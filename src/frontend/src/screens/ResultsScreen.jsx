@@ -140,19 +140,9 @@ export default function ResultsScreen({
             <MapTile destination={destination} lat={lat} lon={lon} />
           </div>
 
-          {/* Safety — collapsed by default */}
+          {/* Safety & Tips — visible by default */}
           <div className="mb-3">
-            <details className="group">
-              <summary className="bg-white border border-gray-200 rounded-2xl p-4 cursor-pointer list-none flex items-center justify-between">
-                <span className="text-xs uppercase tracking-wide font-semibold text-meadow-600">
-                  {"\u{1F6E1}"} Safety & Tips
-                </span>
-                <span className="text-gray-400 text-xs group-open:rotate-180 transition-transform">{"\u25BC"}</span>
-              </summary>
-              <div className="mt-1">
-                <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
-              </div>
-            </details>
+            <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
             {petSafetyData && (
               <div className="mt-2">
                 <PetSafetyTile petSafetyData={petSafetyData} />
@@ -171,6 +161,7 @@ export default function ResultsScreen({
               hasPets={hasPets}
               totalChunks={tripData?._totalChunks || 1}
               receivedChunks={tripData?._receivedChunks || 1}
+              tips={tripData?.tripPlan?.tips || []}
             />
             <div className="hidden lg:block">
               <DayRouteMap
