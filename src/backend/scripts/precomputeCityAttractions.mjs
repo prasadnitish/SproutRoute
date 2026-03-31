@@ -103,9 +103,11 @@ Requirements:
 - Include at least 3 options great for teens
 - Include parks, museums, beaches/nature, and entertainment
 - Only include REAL places that currently exist and are open
-- Be specific to ${cityName} — no generic suggestions`,
+- Be specific to ${cityName} and surrounding area — no generic suggestions
+- IMPORTANT: Include attractions within a 35-mile / 55km radius of the city center. Families visiting a city will drive to nearby attractions. For example: San Diego should include Legoland (Carlsbad), Orlando should include Kennedy Space Center, LA should include Santa Monica Pier, etc.
+- For each attraction, note if it's in a nearby town (e.g., "Legoland California (Carlsbad, 30 min from downtown)")`,
 
-  user: `Generate a comprehensive family attraction list for ${cityName}${countryCode !== "US" ? ` (${countryCode})` : ""}.`,
+  user: `Generate a comprehensive family attraction list for ${cityName}${countryCode !== "US" ? ` (${countryCode})` : ""}. Include attractions within a 35-mile radius of the city, not just within city limits.`,
 });
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -200,7 +202,7 @@ async function main() {
     try {
       const message = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 8192,
+        max_tokens: 48000,
         temperature: 0,
         system: prompt.system,
         messages: [{ role: "user", content: prompt.user }],
