@@ -504,13 +504,13 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 5 day objects.
 3. Keep each activity description <= 80 characters.
 4. Keep tips to max 4 items.`
-    : `**Output Size Limits (important for speed):**
-1. Suggest 1-2 activities per day, maximum ${Math.min(Math.max(Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) * 2, 4), 10)} activities total.
+    : `**Output Size Limits:**
+1. Suggest 3-4 activities per day (mix of sightseeing, outdoor, cultural, and dining experiences).
 2. Keep dailyItinerary to max 7 day objects.
-3. Keep descriptions to 1 short sentence (under 70 chars).
-4. Meal entries should be restaurant names or tiny objects only.
-5. Keep tips to 3-4 items max.
-6. Minimize JSON size — no unnecessary whitespace.${hasShortlist && cachedAttractions.length >= 5 ? "\n7. At least 60% of suggested activities should come from the verified shortlist." : ""}`;
+3. Keep activity descriptions to 1-2 sentences.
+4. For each meal, suggest a SPECIFIC real restaurant with cuisine type and a brief note.
+5. Include 5-8 practical travel tips (booking advice, timing tips, local insights, safety, money-saving tips).
+6. Keep JSON compact but complete.${hasShortlist && cachedAttractions.length >= 5 ? "\n7. At least 60% of suggested activities should come from the verified shortlist." : ""}`;
 
   // Cruise-specific itinerary format instructions
   const cruiseInstructions = isCruise ? `

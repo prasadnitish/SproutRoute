@@ -192,6 +192,25 @@ function ActivityCard({ activity, onTap, hasPets }) {
   );
 }
 
+function TripTips({ tips }) {
+  if (!tips || tips.length === 0) return null;
+  return (
+    <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <p className="text-xs uppercase tracking-wide font-semibold text-amber-700 mb-2">
+        {"\u{1F4A1}"} Trip Tips
+      </p>
+      <ul className="space-y-1.5">
+        {tips.map((tip, i) => (
+          <li key={i} className="flex gap-2 text-sm text-gray-700">
+            <span className="text-amber-500 flex-shrink-0">{"\u2022"}</span>
+            <span>{tip}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export default function ItineraryTile({
   dailyItinerary,
   scheduledItinerary,
@@ -201,6 +220,7 @@ export default function ItineraryTile({
   hasPets = false,
   totalChunks = 1,
   receivedChunks = 1,
+  tips = [],
 }) {
   const [activeDay, setActiveDay] = useState(0);
 
@@ -341,6 +361,9 @@ export default function ItineraryTile({
           &uarr; Tap any activity for details
         </p>
       )}
+
+      {/* Trip tips — shown below itinerary */}
+      <TripTips tips={tips} />
     </div>
   );
 }
