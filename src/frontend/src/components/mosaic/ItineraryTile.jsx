@@ -251,6 +251,25 @@ export default function ItineraryTile({
         <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600 mb-2">
           {"\u{1F4C5}"} Itinerary
         </p>
+        {/* Loading skeleton while itinerary generates */}
+        <div className="animate-pulse space-y-3 mt-3">
+          <div className="flex gap-2">
+            <div className="h-8 w-20 bg-meadow-100 rounded-full"></div>
+            <div className="h-8 w-20 bg-gray-100 rounded-full"></div>
+            <div className="h-8 w-20 bg-gray-100 rounded-full"></div>
+          </div>
+          <div className="h-4 bg-gray-100 rounded w-3/4"></div>
+          {[1,2,3].map(i => (
+            <div key={i} className="flex gap-3 items-start">
+              <div className="w-14 h-14 bg-gray-100 rounded-lg flex-shrink-0"></div>
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-100 rounded w-2/3"></div>
+                <div className="h-3 bg-gray-50 rounded w-full"></div>
+              </div>
+            </div>
+          ))}
+          <p className="text-sm text-gray-400 text-center">Crafting your itinerary...</p>
+        </div>
         <p className="text-sm text-gray-400">No itinerary data yet</p>
       </div>
     );

@@ -10,7 +10,7 @@ import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 
-const MAX_TOKENS = 4096;
+const MAX_TOKENS = 16384;
 const CHUNK_SIZE_DAYS = 7;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 
@@ -180,9 +180,9 @@ function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-  const base = compact ? 1200 : 1800;
-  const perDay = compact ? 250 : 350;
-  return Math.min(MAX_TOKENS, Math.max(1400, base + days * perDay));
+  const base = compact ? 2000 : 3000;
+  const perDay = compact ? 400 : 600;
+  return Math.min(MAX_TOKENS, Math.max(3000, base + days * perDay));
 }
 
 async function requestTripPlan({ system, user, maxTokens }, deps, { cache = false } = {}) {
