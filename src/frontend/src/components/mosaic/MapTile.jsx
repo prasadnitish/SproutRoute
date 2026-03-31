@@ -1,45 +1,67 @@
-// Map tile using OpenStreetMap embed with activity markers.
-// Shows destination area with a centered pin. Taller to be useful.
+import { useEffect, useRef } from "react";
+import L from "leaflet";
+
+// Fix Leaflet default marker icons (broken by bundlers)
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+L.Icon.Default.mergeOptions({ iconUrl: markerIcon, iconRetinaUrl: markerIcon2x, shadowUrl: markerShadow });
 
 export default function MapTile({ destination, lat, lon }) {
-  if (!destination && !lat) {
-    return null;
-  }
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
 
-  // Wider bbox for better overview (0.15 degree ~= 10 miles)
-  const embedUrl = lat && lon
-    ? `https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.12},${lat - 0.08},${lon + 0.12},${lat + 0.08}&layer=mapnik&marker=${lat},${lon}`
-    : `https://www.openstreetmap.org/export/embed.html?bbox=-180,-90,180,90&layer=mapnik`;
+  useEffect(() => {
+    if (!mapRef.current || !lat || !lon) return;
 
-  const fullMapUrl = lat && lon
+    // Destroy previous instance
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
+
+    const map = L.map(mapRef.current, {
+      center: [lat, lon],
+      zoom: 12,
+      zoomControl: true,
+      attributionControl: true,
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(map);
+
+    L.marker([lat, lon])
+      .addTo(map)
+      .bindPopup(`<b>${destination || "Destination"}</b>`)
+      .openPopup();
+
+    mapInstanceRef.current = map;
+
+    // Fix map rendering in flex containers
+    setTimeout(() => map.invalidateSize(), 100);
+
+    return () => {
+      map.remove();
+      mapInstanceRef.current = null;
+    };
+  }, [lat, lon, destination]);
+
+  if (!destination && !lat) return null;
+
+  const googleMapsUrl = lat && lon
     ? `https://www.google.com/maps/search/things+to+do/@${lat},${lon},12z`
     : `https://www.google.com/maps/search/${encodeURIComponent(destination)}`;
 
   return (
     <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden h-full flex flex-col">
-      {/* Label */}
       <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600 px-4 pt-3 pb-2">
         {"\u{1F5FA}"} Map
       </p>
-
-      <div className="relative flex-1 min-h-[250px]">
-        <iframe
-          title="Trip destination map"
-          src={embedUrl}
-          className="w-full h-full border-0"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-        />
-      </div>
-
-      {/* Link to Google Maps (much more useful than OSM for trip planning) */}
+      <div ref={mapRef} className="flex-1 min-h-[250px] z-0" />
       <div className="px-4 py-2">
-        <a
-          href={fullMapUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-meadow-600 hover:underline"
-        >
+        <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-meadow-600 hover:underline">
           Explore on Google Maps &rarr;
         </a>
       </div>
