@@ -69,7 +69,7 @@ export default function GeneratingScreen({
             <span className="mr-1">{"\u{1F468}\u200D\u{1F467}\u200D\u{1F466}"}</span>
             {parsedInput.adults || 2} adult{(parsedInput.adults || 2) !== 1 ? "s" : ""}
             {parsedInput.childrenAges?.length > 0 &&
-              ` + kids ${parsedInput.childrenAges.join(" & ")}`}
+              ` + ${parsedInput.childrenAges.length} kid${parsedInput.childrenAges.length !== 1 ? "s" : ""}, age${parsedInput.childrenAges.length !== 1 ? "s" : ""} ${parsedInput.childrenAges.join(" & ")}`}
           </p>
           {parsedInput.vibe && (
             <p>
