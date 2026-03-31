@@ -59,7 +59,7 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
           <span className="text-xs opacity-70 hidden sm:inline">
             {adults} adult{adults !== 1 ? "s" : ""}
             {childrenAges.length > 0 &&
-              ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}`}
+              ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}, age${childrenAges.length !== 1 ? "s" : ""} ${childrenAges.join(" & ")}`}
           </span>
           {onEdit && (
             <button
