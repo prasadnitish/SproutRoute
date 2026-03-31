@@ -97,8 +97,13 @@ export function useTrip() {
       setParsedInput(parsedWithContext);
       markStep("resolve", "done");
 
-      // If no destination, show destination picker (don't continue generation)
-      if (!parsedWithContext.destination && parsedWithContext.suggestedDestinations?.length > 0) {
+      // If no destination, show destination picker or error
+      if (!parsedWithContext.destination) {
+        if (parsedWithContext.suggestedDestinations?.length > 0) {
+          return; // Show destination picker
+        }
+        // No destination and no suggestions — show helpful error
+        setError("We couldn't determine a destination from your input. Try being more specific, like 'beach trip to San Diego' or 'weekend in Boca Raton'.");
         return;
       }
 
