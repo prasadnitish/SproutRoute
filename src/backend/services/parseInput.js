@@ -76,7 +76,15 @@ Food preference extraction rules:
 - "nice restaurants" or "fine dining" → budget: "fine_dining"
 - If no food preferences mentioned, return foodPreferences with all empty arrays and null budget.
 
-If the user mentions "spring break" and no dates, use April 12-19 of the current year.
+Date interpretation rules:
+- If the user says "in september" or "in June" without specific dates, default to a 7-day trip starting on the 1st of that month.
+- If "spring break" → April 12-19 of the current year.
+- If "next weekend" → the upcoming Saturday-Sunday.
+- If "this summer" → July 1-8 of the current year.
+- If no dates at all, default to 2 weeks from today for 7 days.
+- CRITICAL: endDate must ALWAYS be after startDate. Never return an endDate before startDate.
+- Trip duration should be 3-14 days unless the user specifies otherwise.
+
 If "kids" or "children" mentioned without specific ages, default to childrenAges: [5] (one child, age 5).
 If "toddler" mentioned without age, use age 2. If "baby" or "infant", use age 1. If "teenager" or "teen", use age 14.
 If no kids or children mentioned at all, childrenAges should be [].
@@ -135,11 +143,31 @@ export async function parseInput(text, deps = {}) {
 
   const fp = parsed.foodPreferences || {};
 
+  // ── Post-parse date correction ──────────────────────────────────────────
+  let startDate = parsed.startDate || defaults.startDate;
+  let endDate = parsed.endDate || defaults.endDate;
+
+  const startMs = new Date(startDate).getTime();
+  const endMs = new Date(endDate).getTime();
+
+  // Fix: endDate before startDate
+  if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs <= startMs) {
+    endDate = new Date(startMs + 7 * 86400000).toISOString().split("T")[0];
+  }
+
+  // Fix: duration too long (>21 days) — cap at 7 days
+  if (Number.isFinite(startMs) && Number.isFinite(endMs)) {
+    const days = (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000;
+    if (days > 21) {
+      endDate = new Date(new Date(startDate).getTime() + 7 * 86400000).toISOString().split("T")[0];
+    }
+  }
+
   return {
     destination: parsed.destination || null,
     suggestedDestinations: parsed.suggestedDestinations || [],
-    startDate: parsed.startDate || defaults.startDate,
-    endDate: parsed.endDate || defaults.endDate,
+    startDate,
+    endDate,
     adults: parsed.adults || 2,
     childrenAges: Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [],
     pets: Array.isArray(parsed.pets) ? parsed.pets : [],
