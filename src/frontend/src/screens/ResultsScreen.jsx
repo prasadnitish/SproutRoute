@@ -131,17 +131,16 @@ export default function ResultsScreen({
             />
           </div>
 
-          {/* Info tiles: Weather + Map side by side */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+          {/* Weather */}
+          <div className="mb-3">
             <WeatherTile
               forecast={forecast}
               tripStart={tripData?.parsed?.startDate || parsedInput?.startDate}
             />
-            <MapTile destination={destination} lat={lat} lon={lon} />
           </div>
 
-          {/* Itinerary + Day Route Map — side by side on desktop */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-3">
+          {/* Itinerary — full width */}
+          <div className="mb-3">
             <ItineraryTile
               dailyItinerary={dailyItinerary}
               scheduledItinerary={scheduledItinerary}
@@ -153,14 +152,6 @@ export default function ResultsScreen({
               receivedChunks={tripData?._receivedChunks || 1}
               tips={tripData?.tripPlan?.tips || []}
             />
-            <div className="hidden lg:block">
-              <DayRouteMap
-                activities={activeDayActivities}
-                destination={destination}
-                lat={lat}
-                lon={lon}
-              />
-            </div>
           </div>
 
           {/* Safety & Tips — below itinerary */}
