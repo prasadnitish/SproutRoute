@@ -505,13 +505,14 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 5 day objects.
 3. Keep each activity description <= 80 characters.
 4. Keep tips to max 4 items.`
-    : `**Output Size Limits:**
-1. Suggest 3-4 activities per day (mix of sightseeing, outdoor, cultural, and dining experiences).
+    : `**Output Size Limits (SPEED IS CRITICAL — be concise):**
+1. Suggest 3-4 activities per day.${hasShortlist ? " Use the provided attraction list — do NOT re-describe them in detail." : ""}
 2. Keep dailyItinerary to max 7 day objects.
-3. Keep activity descriptions to 1-2 sentences.
-4. For each meal, suggest a SPECIFIC real restaurant with cuisine type and a brief note.
-5. Include 6-10 practical tips: MUST include money-saving hacks (city passes like CityPASS/Go City, free museum days, combo tickets, happy hour deals, free activities), plus booking advice, timing tips, local insights, and safety.
-6. Keep JSON compact but complete.${hasShortlist && cachedAttractions.length >= 5 ? "\n7. At least 60% of suggested activities should come from the verified shortlist." : ""}`;
+3. Activity descriptions: 1 sentence max (under 100 chars).${hasShortlist ? " For shortlisted attractions, just reference the name — skip description/reason." : ""}
+4. Meals: suggest a SPECIFIC real restaurant as {name, cuisine, note} — note under 40 chars.
+5. Include 5-8 practical tips including money-saving hacks (CityPASS, free days, combo tickets).
+6. Keep JSON compact — no unnecessary whitespace, short field values.
+7. TOTAL OUTPUT MUST BE UNDER 8000 CHARACTERS. Be concise.${hasShortlist && cachedAttractions.length >= 5 ? "\n8. Use verified shortlist attractions — do not re-discover what's already provided." : ""}`;
 
   // Cruise-specific itinerary format instructions
   const cruiseInstructions = isCruise ? `
@@ -560,14 +561,15 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
 
   const attractionMemoryContext = hasShortlist
     ? `
-**VERIFIED ATTRACTION SHORTLIST (prefer these over inventing new ones):**
-${buildCachedAttractionsSummary(cachedAttractions)}
+**MANDATORY ATTRACTION LIST — USE THESE (do not invent replacements):**
+${buildCachedAttractionsSummary(cachedAttractions, { maxItems: 12 })}
 
-When building the itinerary:
-- USE attractions from this shortlist whenever they fit the day's theme and weather
-- You may add 1-2 NEW discoveries per day beyond the shortlist, but prioritize verified places
-- For each shortlisted attraction used, keep the name EXACTLY as shown (do not rename or paraphrase)
-- Shortlisted attractions are already verified as real, open, and family-appropriate`
+CRITICAL RULES FOR ATTRACTIONS:
+- You MUST use attractions from this list for your suggestedActivities. These are VERIFIED REAL PLACES.
+- Do NOT invent or hallucinate attraction names. If you need more variety, pick from different categories above.
+- You may add at most 1 new discovery per day that is NOT on this list — but it must be a real, well-known place.
+- Keep each attraction name EXACTLY as shown above (do not rename, abbreviate, or paraphrase).
+- This saves significant processing time — the places are already researched and verified.`
     : "";
 
   const system = `You are a helpful travel planning assistant${isAdultsOnly ? "" : " specialising in family trips"}. Generate trip itineraries as strict JSON only.

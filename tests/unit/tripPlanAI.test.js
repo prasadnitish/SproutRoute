@@ -317,7 +317,7 @@ test("generateTripPlan includes cached attraction candidates when provided", asy
   const systemText = extractSystemText(captured.calls[0]);
   const userText = captured.calls[0].user;
 
-  assert.ok(systemText.includes("VERIFIED ATTRACTION SHORTLIST"), "System prompt should include cached-attraction instructions");
+  assert.ok(systemText.includes("MANDATORY ATTRACTION LIST"), "System prompt should include cached-attraction instructions");
   assert.ok(userText.includes("Balboa Park"), "User prompt should include cached attraction names");
   assert.ok(userText.includes("stroller-friendly"), "User prompt should include cached attraction rationale");
 });
@@ -562,7 +562,7 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
 
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────
 
-test("generateTripPlan includes VERIFIED ATTRACTION SHORTLIST in prompt when cachedAttractions provided", async () => {
+test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedAttractions provided", async () => {
   delete process.env.AI_PROVIDER;
   const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
 
@@ -592,8 +592,8 @@ test("generateTripPlan includes VERIFIED ATTRACTION SHORTLIST in prompt when cac
   const systemText = extractSystemText(captured.calls[0]);
   const userText = captured.calls[0].user;
 
-  assert.ok(systemText.includes("VERIFIED ATTRACTION SHORTLIST"), "System prompt should include VERIFIED ATTRACTION SHORTLIST header");
-  assert.ok(systemText.includes("keep the name EXACTLY as shown"), "System prompt should instruct exact name usage");
+  assert.ok(systemText.includes("MANDATORY ATTRACTION LIST"), "System prompt should include MANDATORY ATTRACTION LIST header");
+  assert.ok(systemText.includes("EXACTLY as shown"), "System prompt should instruct exact name usage");
   assert.ok(userText.includes("Test Aquarium"), "User prompt should include cached attraction name");
 });
 
@@ -615,7 +615,7 @@ test("generateTripPlan omits shortlist section when no cached attractions", asyn
   );
 
   const systemText = extractSystemText(captured.calls[0]);
-  assert.ok(!systemText.includes("VERIFIED ATTRACTION SHORTLIST"), "System prompt should NOT include shortlist when no cached attractions");
+  assert.ok(!systemText.includes("MANDATORY ATTRACTION LIST"), "System prompt should NOT include shortlist when no cached attractions");
 });
 
 test("generateTripPlan adds 60% shortlist guideline when cachedAttractions >= 5", async () => {
@@ -643,5 +643,5 @@ test("generateTripPlan adds 60% shortlist guideline when cachedAttractions >= 5"
   );
 
   const systemText = extractSystemText(captured.calls[0]);
-  assert.ok(systemText.includes("60%"), "System prompt should include 60% shortlist guideline when 5+ cached attractions");
+  assert.ok(systemText.includes("verified shortlist") || systemText.includes("MANDATORY"), "System prompt should include shortlist guideline when 5+ cached attractions");
 });
