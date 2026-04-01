@@ -151,6 +151,9 @@ export default function ResultsScreen({
               totalChunks={tripData?._totalChunks || 1}
               receivedChunks={tripData?._receivedChunks || 1}
               tips={tripData?.tripPlan?.tips || []}
+              destination={destination}
+              tripDuration={tripData?.trip?.duration || 0}
+              childCount={tripData?.parsed?.childrenAges?.length || parsedInput?.childrenAges?.length || 0}
             />
           </div>
 
