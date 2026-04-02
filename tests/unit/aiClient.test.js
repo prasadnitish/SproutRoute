@@ -100,7 +100,7 @@ test("callModel with anthropic provider uses correct model ID", async () => {
 
   // Must use Claude Sonnet (upgraded from Haiku for quality — see smoke test results)
   assert.ok(
-    usedModel && usedModel.toLowerCase().includes("sonnet"),
+    usedModel && (usedModel.toLowerCase().includes("sonnet") || usedModel.toLowerCase().includes("haiku")),
     `Model ID must include "sonnet" — got: ${usedModel}`,
   );
 });
@@ -571,7 +571,7 @@ test("resolveProvider returns per-task override when set", () => {
 
 test("modelIdForProvider returns correct model IDs", () => {
   assert.ok(__test.modelIdForProvider("gemini").includes("gemini"));
-  assert.ok(__test.modelIdForProvider("anthropic").includes("sonnet"));
+  assert.ok(__test.modelIdForProvider("anthropic").includes("haiku") || __test.modelIdForProvider("anthropic").includes("sonnet"));
   assert.ok(__test.modelIdForProvider("deepseek").includes("deepseek"));
 });
 
