@@ -36,6 +36,7 @@ import { metrics } from "../services/metrics.js";
 
 const ANTHROPIC_MODEL_ID = process.env.ANTHROPIC_MODEL_ID || "claude-sonnet-4-6";
 const GEMINI_MODEL_ID = process.env.GOOGLE_GEMINI_MODEL || process.env.GEMINI_MODEL_ID || "gemini-2.5-flash";
+const OPENAI_MODEL_ID = process.env.OPENAI_MODEL_ID || "gpt-5.4-nano";
 const DEEPSEEK_MODEL_ID = process.env.DEEPSEEK_MODEL_ID || "deepseek-chat";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
@@ -63,6 +64,13 @@ function resolveModelId(provider, caller = "") {
         if (callerSpecific) return callerSpecific;
       }
       return GEMINI_MODEL_ID;
+    }
+    case "openai": {
+      if (callerKey) {
+        const callerSpecific = process.env[`OPENAI_MODEL_ID_${callerKey}`];
+        if (callerSpecific) return callerSpecific;
+      }
+      return OPENAI_MODEL_ID;
     }
     case "deepseek": {
       if (callerKey) {
@@ -145,6 +153,30 @@ async function callGemini(model, { system, user, maxTokens, temperature }) {
 }
 
 /**
+ * Call OpenAI (GPT-5.4 nano/mini) via OpenAI SDK.
+ * Uses native JSON mode + max_completion_tokens (not max_tokens).
+ * Returns { responseText, stopReason }.
+ */
+async function callOpenAI(client, { system, user, maxTokens, temperature, modelId }) {
+  const completion = await client.chat.completions.create({
+    model: modelId,
+    temperature,
+    max_completion_tokens: maxTokens,
+    response_format: { type: "json_object" },
+    messages: [
+      { role: "system", content: system },
+      { role: "user",   content: user   },
+    ],
+  });
+
+  const choice = completion.choices?.[0];
+  const responseText = choice?.message?.content ?? "";
+  const stopReason = choice?.finish_reason ?? null;
+
+  return { responseText, stopReason };
+}
+
+/**
  * Call DeepSeek V3 via OpenAI-compatible API.
  * Returns { responseText, stopReason }.
  */
@@ -182,6 +214,11 @@ function makeGeminiModel(modelId) {
     _geminiInstance = new GoogleGenerativeAI(apiKey);
   }
   return _geminiInstance.getGenerativeModel({ model: modelId });
+}
+
+async function makeOpenAIClient() {
+  const { default: OpenAI } = await import("openai");
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 }
 
 async function makeDeepSeekClient() {
@@ -241,6 +278,7 @@ export async function callModel(prompt, deps = {}) {
 
   // Determine fallback chain: gemini → anthropic → deepseek
   const fallbackProviders = [];
+  if (provider === "openai" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
 
@@ -284,6 +322,10 @@ async function callProvider(provider, params, deps) {
     case "gemini": {
       const model = deps.geminiModel ?? makeGeminiModel(params.modelId);
       return await callGemini(model, params);
+    }
+    case "openai": {
+      const client = deps.openaiClient ?? (await makeOpenAIClient());
+      return await callOpenAI(client, params);
     }
     case "deepseek": {
       const client = deps.deepseekClient ?? (await makeDeepSeekClient());

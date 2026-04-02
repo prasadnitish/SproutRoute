@@ -112,8 +112,8 @@ export async function parseInput(text, deps = {}) {
       system: "You are a trip planner assistant. Return ONLY valid JSON, no markdown or explanation.",
       user: promptText,
       caller: "parseInput",
-      provider: "anthropic",
-      model: "claude-haiku-4-5-20251001",
+      provider: "openai",
+      model: "gpt-5.4-nano",
       maxTokens: PARSE_MAX_TOKENS,
       temperature: 0,
     });
