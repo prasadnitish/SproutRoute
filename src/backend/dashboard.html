@@ -110,9 +110,15 @@ function render(root, d) {
   addCard(cg, "AI Calls", s.totalAiCalls, "24h");
   addCard(cg, "Errors", s.totalErrors, s.errorRate + "% rate", s.totalErrors > 0 ? "err" : "");
   addCard(cg, "Est. Cost", "$" + s.estTotalCost, "24h AI spend");
-  addCard(cg, "Output Tokens", fmtK(s.estOutputTokens), "estimated");
-  addCard(cg, "Input Tokens", fmtK(s.estInputTokens), "estimated");
+  addCard(cg, "Est. Cost", "$" + (s.estTotalCost || 0), "all time");
   cards.appendChild(cg);
+
+  // Data source indicator
+  if (d.dataSource) {
+    const src = el("p", "Data: " + d.dataSource, "");
+    src.style.cssText = "font-size:11px;color:#9ca3af;margin-bottom:8px;";
+    root.insertBefore(src, root.children[1]);
+  }
 
   // ── User Segments ──
   const segs = section(root, "User Segments");
