@@ -34,7 +34,7 @@ import { metrics } from "../services/metrics.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ANTHROPIC_MODEL_ID = process.env.ANTHROPIC_MODEL_ID || "claude-sonnet-4-6";
+const ANTHROPIC_MODEL_ID = process.env.ANTHROPIC_MODEL_ID || "claude-haiku-4-5-20251001";
 const GEMINI_MODEL_ID = process.env.GOOGLE_GEMINI_MODEL || process.env.GEMINI_MODEL_ID || "gemini-2.5-flash";
 const OPENAI_MODEL_ID = process.env.OPENAI_MODEL_ID || "gpt-5.4-nano";
 const DEEPSEEK_MODEL_ID = process.env.DEEPSEEK_MODEL_ID || "deepseek-chat";
