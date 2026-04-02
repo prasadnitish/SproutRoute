@@ -644,7 +644,19 @@ Return ONLY the JSON, no additional text.`;
 **Trip Details:**
 - Destination: ${destination}${isCruise ? " (cruise itinerary)" : ""}
 - Trip Type: ${tripType || "general"}
-- Dates: ${startDate} to ${endDate}
+- Dates: ${startDate} to ${endDate} (${(() => {
+    const s = new Date(startDate + "T12:00:00Z");
+    const e = new Date(endDate + "T12:00:00Z");
+    const days = Math.max(1, Math.ceil((e - s) / 86400000));
+    const dates = [];
+    for (let i = 0; i < days; i++) {
+      const d = new Date(s);
+      d.setUTCDate(d.getUTCDate() + i);
+      dates.push(d.toISOString().split("T")[0]);
+    }
+    return `${days} days: ${dates.join(", ")}`;
+  })()})
+- **YOU MUST RETURN EXACTLY ${Math.max(1, Math.ceil((new Date(endDate + "T12:00:00Z") - new Date(startDate + "T12:00:00Z")) / 86400000))} DAY OBJECTS in dailyItinerary. One for each date listed above.**
 - Interested Activities: ${activities.join(", ")}
 - ${isAdultsOnly ? "Travelers: Adults only (no children)" : `Children: ${children.length} child(ren) - ${childrenInfo}`}
 ${plannerSummary ? `
