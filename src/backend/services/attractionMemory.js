@@ -596,6 +596,8 @@ export function createAttractionMemoryService({
           .limit(50);
 
         if (error) throw error;
+        logger.info("attraction-memory:loaded", { destination, rawCount: (data || []).length });
+
         const withFreshness = attachVerificationFreshness(
           data || [],
           await fetchLatestVerificationMap(admin, (data || []).map((row) => row.id)),
@@ -608,6 +610,8 @@ export function createAttractionMemoryService({
           pets,
           maxResults,
         });
+
+        logger.info("attraction-memory:ranked", { destination, rankedCount: ranked.length, maxResults });
 
         return refreshStaleCandidates(admin, ranked, destination, resolvePlaceIdentity);
       }, []);
