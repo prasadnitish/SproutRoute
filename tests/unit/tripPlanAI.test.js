@@ -297,7 +297,7 @@ test("generateTripPlan injects compact planner summary when provided", async () 
   const systemText = extractSystemText(captured.calls[0]);
   const userText = captured.calls[0].user;
 
-  assert.ok(systemText.includes("PROFILE-AWARE PLANNING"), "System prompt should include profile-aware planning rules");
+  assert.ok(systemText.includes("SAVED TRAVEL PROFILE") || systemText.includes("PROFILE-AWARE"), "System prompt should include profile planning rules");
   assert.ok(userText.includes("Known Traveler Preferences"), "User prompt should include the planner summary section");
   assert.ok(userText.includes("slow-paced family"), "Planner summary content should be injected");
 });

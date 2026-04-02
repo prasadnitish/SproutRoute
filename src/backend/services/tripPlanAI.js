@@ -552,11 +552,13 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
 
   const profileContext = plannerSummary
     ? `
-**PROFILE-AWARE PLANNING (must respect):**
-- Treat these preferences as the default travel style unless they conflict with explicit trip constraints.
-- Prioritize must-haves and avoidances when choosing activities and meal pacing.
-- Use dietary/accessibility context to filter recommendations.
-- If a preference conflicts with destination reality or weather, adapt gracefully and explain in notes.`
+**USER'S SAVED TRAVEL PROFILE (MUST respect — this is personalized data):**
+- These preferences are from the user's imported travel profile. They STRONGLY influence the trip.
+- Dietary restrictions: apply to ALL dinner recommendations.
+- Activity preferences and avoidances: prioritize what they like, AVOID what they don't.
+- Pace preference: controls how many activities per day and travel gaps.
+- If they avoid crowds, don't suggest peak-hour attractions.
+- If they prefer budget options, include free/cheap activities and mention costs.`
     : "";
 
   const attractionMemoryContext = hasShortlist
@@ -598,9 +600,7 @@ Generate a trip plan with the following structure:
       "day": "${isCruise ? "Day 1: Embarkation" : "Day 1 (date)"}",
       "activities": ["activity-id-1", "activity-id-2", "activity-id-3"],
       "meals": {
-        "breakfast": { "name": "Specific REAL restaurant name", "cuisine": "American", "note": "Why this restaurant" },
-        "lunch": { "name": "Specific REAL restaurant name", "cuisine": "Seafood", "note": "Why this restaurant" },
-        "dinner": { "name": "Specific REAL restaurant name", "cuisine": "Italian", "note": "Why this restaurant" }
+        "dinner": { "name": "A must-visit, highly recommended restaurant", "cuisine": "Type", "note": "Why it's special — not a chain" }
       },
       "notes": "Short note"
     }
@@ -623,11 +623,11 @@ ${attractionMemoryContext}
 6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
 7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects.
 8. For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity.
-9. **ABSOLUTE RULE — NO REPEATS**: NEVER repeat the same activity on multiple days. Each activity ID should appear in ONLY ONE day. If the trip is 3 days and you have 15 unique attractions, spread them across all 3 days with different activities each day. Going to the same beach or park twice is INVALID.
-10. **SCHEDULING**: Start activities in the MORNING after breakfast (around 9 AM). A typical family day: breakfast 8AM → morning activity 9AM → activity 10:30AM → lunch 12PM → afternoon activity 1:30PM → activity 3PM → free time 4:30PM → dinner 6PM. Do NOT schedule activities only in the afternoon or evening.
-11. **VARIETY**: Each day should have a DIFFERENT theme or area of the city. Day 1 might focus on downtown/waterfront, Day 2 on a theme park or zoo, Day 3 on beaches and nature. Cover the FULL breadth of what the destination offers — not just beaches, not just museums.
-12. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended".
-13. MEALS: For EVERY meal suggest a SPECIFIC REAL restaurant as {name, cuisine, note}. NEVER generic labels. Vary restaurants across days.
+9. **ABSOLUTE RULE — NO REPEATS**: NEVER use the same activity on multiple days. Each activity ID must appear in ONLY ONE day's activities array. Before returning JSON, CHECK every day — if any activity name appears in more than one day, REPLACE the duplicate with a different attraction. Going to the same beach/park/museum twice across the trip is INVALID.
+10. **SCHEDULING**: Start activities in the MORNING (9 AM). All activities must finish by 7 PM. A family day: activity 9AM → activity 11AM → activity 1PM → activity 3PM → activity 5PM → dinner 7PM. NO activities after 7 PM for trips with children.
+11. **VARIETY**: Each day MUST have a DIFFERENT theme/area. Day 1: downtown/waterfront. Day 2: theme park/zoo. Day 3: beaches/nature. Day 4: museums/culture. Cover the FULL breadth — not the same neighborhood repeated.
+12. For every activity, include a short "whatItIs" and "whyRecommended".
+13. **DINNER ONLY**: Suggest ONLY dinner (no breakfast or lunch). The dinner must be a highly-rated, locally famous restaurant — NOT a chain like Olive Garden, Denny's, IHOP, or California Pizza Kitchen. Match the user's dietary preferences. One dinner per day as {"name": "Famous Local Restaurant", "cuisine": "Type", "note": "Why it's a must-visit"}.
 14. Only suggest currently operating places and restaurants.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
