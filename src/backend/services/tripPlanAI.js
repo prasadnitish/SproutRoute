@@ -647,7 +647,7 @@ Return ONLY the JSON, no additional text.`;
 - Dates: ${startDate} to ${endDate} (${(() => {
     const s = new Date(startDate + "T12:00:00Z");
     const e = new Date(endDate + "T12:00:00Z");
-    const days = Math.max(1, Math.ceil((e - s) / 86400000));
+    const days = Math.max(1, Math.ceil((e - s) / 86400000) + 1); // Inclusive: Apr 4-5 = 2 days
     const dates = [];
     for (let i = 0; i < days; i++) {
       const d = new Date(s);
@@ -656,7 +656,7 @@ Return ONLY the JSON, no additional text.`;
     }
     return `${days} days: ${dates.join(", ")}`;
   })()})
-- **YOU MUST RETURN EXACTLY ${Math.max(1, Math.ceil((new Date(endDate + "T12:00:00Z") - new Date(startDate + "T12:00:00Z")) / 86400000))} DAY OBJECTS in dailyItinerary. One for each date listed above.**
+- **YOU MUST RETURN EXACTLY ${Math.max(1, Math.ceil((new Date(endDate + "T12:00:00Z") - new Date(startDate + "T12:00:00Z")) / 86400000) + 1)} DAY OBJECTS in dailyItinerary. One for each date listed above.**
 - Interested Activities: ${activities.join(", ")}
 - ${isAdultsOnly ? "Travelers: Adults only (no children)" : `Children: ${children.length} child(ren) - ${childrenInfo}`}
 ${plannerSummary ? `
