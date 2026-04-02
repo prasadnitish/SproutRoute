@@ -236,7 +236,7 @@ export async function callModel(prompt, deps = {}) {
 
   const provider = resolveProvider(prompt);
   const caller = prompt.caller || "unknown";
-  const modelId = modelIdForProvider(provider, caller);
+  const modelId = prompt.model || modelIdForProvider(provider, caller);
   const t0 = Date.now();
 
   // Determine fallback chain: gemini → anthropic → deepseek

@@ -99,7 +99,7 @@ async function requestPackingList({ system, user, maxTokens }, deps, { cache = f
   // Single model call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
   // Anthropic for packing — Gemini truncates JSON too often
-  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "anthropic" }, deps);
+  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "packingList", provider: "anthropic", model: "claude-haiku-4-5-20251001" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
