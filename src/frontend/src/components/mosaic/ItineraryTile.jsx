@@ -301,6 +301,9 @@ export default function ItineraryTile({
       {/* Day tabs */}
       <DayTabs days={dayTabs} activeDay={activeDay} onSelectDay={handleDayChange} />
 
+      {/* Trip tips — highlighted at top, right after tabs */}
+      {activeDay === 0 && <TripTips tips={tips} />}
+
       {/* Loading indicator for additional chunks */}
       {totalChunks > 1 && receivedChunks < totalChunks && (
         <div className="flex items-center gap-2 mt-1 mb-1 text-xs text-meadow-600 animate-pulse">
@@ -323,6 +326,15 @@ export default function ItineraryTile({
           </span>
         )}
       </div>
+
+      {/* Day notes/highlights — PROMINENT at top */}
+      {currentDay.notes && (
+        <div className="bg-meadow-50 border border-meadow-200 rounded-xl p-3 mb-3">
+          <p className="text-sm text-meadow-800 font-medium">
+            {"\u{1F4CC}"} {currentDay.notes}
+          </p>
+        </div>
+      )}
 
       {/* Day-level warnings */}
       {warnings.filter(w => w.type === "closed").length > 0 && (
@@ -351,12 +363,7 @@ export default function ItineraryTile({
         ))}
       </div>
 
-      {/* Notes */}
-      {currentDay.notes && (
-        <p className="text-xs text-gray-400 mt-3 px-2 italic">
-          {"\u{1F4DD}"} {currentDay.notes}
-        </p>
-      )}
+      {/* Notes moved to top of day — see line 328 */}
 
       {/* Hint */}
       {activities.length > 0 && !activities.every(a => a.isMeal) && (
@@ -365,8 +372,7 @@ export default function ItineraryTile({
         </p>
       )}
 
-      {/* Trip tips — shown below itinerary */}
-      <TripTips tips={tips} />
+      {/* Tips moved to top — see after DayTabs */}
     </div>
   );
 }

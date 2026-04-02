@@ -172,7 +172,9 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
   };
 }
 
-function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
+const MAX_END_TIME = 1200; // 8:00 PM — no activities after this for family trips
+
+function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds = null) {
   const activityMap = {};
   const activityNameMap = {};
   (suggestedActivities || []).forEach((a) => {
@@ -190,14 +192,8 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
   const scheduled = [];
   const warnings = [];
 
-  // ── Always insert breakfast at the start of the day ──
-  const breakfastCard = buildMealCard("breakfast", meals.breakfast, enrichedMap, "Breakfast", dayOfWeek);
-  if (breakfastCard) {
-    scheduled.push(breakfastCard);
-    currentTime = 540 + estimateTravelMinutes(); // after breakfast, start activities at ~9:15
-  }
-
-  let lunchInserted = false;
+  // No breakfast/lunch — families find those on their own
+  // Only dinner is scheduled (at 7 PM)
   let dinnerInserted = false;
 
   for (const actRef of rawActivities) {
@@ -251,21 +247,8 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
       startTime = hours.open;
     }
 
-    // ── Insert lunch when crossing noon (or force it by 1 PM) ──
-    if (!lunchInserted && (startTime >= 720 || (currentTime < 720 && startTime + duration > 720))) {
-      const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch", dayOfWeek);
-      if (lunchCard) {
-        const lunchStart = Math.max(startTime, 720);
-        lunchCard.scheduledStart = formatTime(lunchStart);
-        lunchCard.scheduledEnd = formatTime(lunchStart + 75);
-        scheduled.push(lunchCard);
-        startTime = lunchStart + 75 + estimateTravelMinutes();
-        lunchInserted = true;
-      }
-    }
-
-    // ── Insert dinner when crossing 6 PM ──
-    if (!dinnerInserted && startTime >= 1080) {
+    // ── Insert dinner when crossing 7 PM (1260 min) ──
+    if (!dinnerInserted && startTime >= 1140) {
       const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek);
       if (dinnerCard) {
         scheduled.push(dinnerCard);
@@ -274,7 +257,14 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
       }
     }
 
-    const endTime = startTime + duration;
+    // ── 8 PM hard cap — no activities after this for family trips ──
+    if (startTime >= MAX_END_TIME) break;
+
+    const endTime = Math.min(startTime + duration, MAX_END_TIME);
+
+    // ── Cross-day dedup — skip activities already used on previous days ──
+    const actId = activity.id || name;
+    if (usedActivityIds && usedActivityIds.has(actId)) continue;
 
     // Check if activity runs past closing time
     let closeWarning = null;
@@ -305,14 +295,13 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
       } : null,
     });
 
+    // Track this activity as used for cross-day dedup
+    if (usedActivityIds) usedActivityIds.add(actId);
+
     currentTime = endTime + estimateTravelMinutes();
   }
 
-  // ── Guarantee lunch and dinner even if no activity triggered them ──
-  if (!lunchInserted) {
-    const lunchCard = buildMealCard("lunch", meals.lunch, enrichedMap, "Lunch", dayOfWeek);
-    if (lunchCard) scheduled.push(lunchCard);
-  }
+  // ── Guarantee dinner even if no activity triggered it ──
   if (!dinnerInserted) {
     const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek);
     if (dinnerCard) scheduled.push(dinnerCard);
@@ -337,6 +326,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr) {
  */
 export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) {
   const { dailyItinerary = [], suggestedActivities = [] } = tripPlan;
+  const usedActivityIds = new Set(); // Cross-day dedup
 
   return dailyItinerary.map((day, i) => {
     let dateStr = null;
@@ -345,7 +335,7 @@ export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) 
       d.setDate(d.getDate() + i);
       dateStr = d.toISOString().split("T")[0];
     }
-    return scheduleDay(day, suggestedActivities, enrichedMap, dateStr);
+    return scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds);
   });
 }
 
