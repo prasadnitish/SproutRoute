@@ -103,7 +103,22 @@ function createCapturingMock() {
       },
     },
   };
-  return { captured, mockGeminiModel, mockAnthropicClient };
+  // OpenAI mock — for GPT-5.4 nano
+  const mockOpenAIClient = {
+    chat: {
+      completions: {
+        create: async (params) => {
+          const systemText = params.messages?.find(m => m.role === "system")?.content || "";
+          const userText = params.messages?.find(m => m.role === "user")?.content || "";
+          captured.calls.push({ system: systemText, user: userText, ...params });
+          return {
+            choices: [{ message: { content: VALID_TRIP_PLAN_JSON }, finish_reason: "stop" }],
+          };
+        },
+      },
+    },
+  };
+  return { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient };
 }
 
 /** Normalize system param (string or typed block array) to plain text. */
@@ -117,7 +132,7 @@ function extractSystemText(call) {
 
 test("generateTripPlan includes cruise format rules when tripType=cruise", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -129,7 +144,7 @@ test("generateTripPlan includes cruise format rules when tripType=cruise", async
       tripType: "cruise",
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   assert.ok(captured.calls.length >= 1, "Should have made at least 1 AI call");
@@ -144,7 +159,7 @@ test("generateTripPlan includes cruise format rules when tripType=cruise", async
 
 test("generateTripPlan does NOT include cruise rules for non-cruise tripType", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -156,7 +171,7 @@ test("generateTripPlan does NOT include cruise rules for non-cruise tripType", a
       tripType: "adventure",
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -167,7 +182,7 @@ test("generateTripPlan does NOT include cruise rules for non-cruise tripType", a
 
 test("generateTripPlan includes international context for non-US/CA countries", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -180,7 +195,7 @@ test("generateTripPlan includes international context for non-US/CA countries", 
       countryCode: "JP",
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -192,7 +207,7 @@ test("generateTripPlan includes international context for non-US/CA countries", 
 
 test("generateTripPlan does NOT include international context for US trips", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -204,7 +219,7 @@ test("generateTripPlan does NOT include international context for US trips", asy
       countryCode: "US",
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -215,7 +230,7 @@ test("generateTripPlan does NOT include international context for US trips", asy
 
 test("generateTripPlan enables prompt caching on first attempt", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -226,7 +241,7 @@ test("generateTripPlan enables prompt caching on first attempt", async () => {
       children: [{ age: 3 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   // With Gemini provider, caching is a no-op but the call should still succeed.
@@ -240,7 +255,7 @@ test("generateTripPlan enables prompt caching on first attempt", async () => {
 
 test("generateTripPlan user prompt includes tripType label", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -252,7 +267,7 @@ test("generateTripPlan user prompt includes tripType label", async () => {
       tripType: "beach",
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const firstUser = captured.calls[0].user;
@@ -264,7 +279,7 @@ test("generateTripPlan user prompt includes tripType label", async () => {
 
 test("generateTripPlan injects compact planner summary when provided", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -276,7 +291,7 @@ test("generateTripPlan injects compact planner summary when provided", async () 
       plannerSummary: "Traveler: slow-paced family. Avoid: crowds. Must include: aquariums.",
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -289,7 +304,7 @@ test("generateTripPlan injects compact planner summary when provided", async () 
 
 test("generateTripPlan includes cached attraction candidates when provided", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -311,7 +326,7 @@ test("generateTripPlan includes cached attraction candidates when provided", asy
       ],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -326,7 +341,7 @@ test("generateTripPlan includes cached attraction candidates when provided", asy
 
 test("generateTripPlan handles adults-only trip (no children)", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -337,7 +352,7 @@ test("generateTripPlan handles adults-only trip (no children)", async () => {
       children: [],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -357,7 +372,7 @@ test("generateTripPlan handles adults-only trip (no children)", async () => {
 
 test("generateTripPlan includes pet planning rules when pets are present", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -371,7 +386,7 @@ test("generateTripPlan includes pet planning rules when pets are present", async
       ],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   assert.ok(captured.calls.length >= 1, "Should have made at least 1 AI call");
@@ -386,7 +401,7 @@ test("generateTripPlan includes pet planning rules when pets are present", async
 
 test("generateTripPlan does NOT include pet rules when no pets", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -397,7 +412,7 @@ test("generateTripPlan does NOT include pet rules when no pets", async () => {
       children: [{ age: 5 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -407,7 +422,7 @@ test("generateTripPlan does NOT include pet rules when no pets", async () => {
 
 test("generateTripPlan includes petFriendly field in activity schema when pets present", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -421,7 +436,7 @@ test("generateTripPlan includes petFriendly field in activity schema when pets p
       ],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -430,7 +445,7 @@ test("generateTripPlan includes petFriendly field in activity schema when pets p
 
 test("generateTripPlan lists all pets with details in prompt", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -445,7 +460,7 @@ test("generateTripPlan lists all pets with details in prompt", async () => {
       ],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -506,7 +521,7 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
       children: [{ age: 2 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async (p) => ({ content: [{ type: "text", text: mockGeminiModel.generateContent ? (await mockGeminiModel.generateContent()).response.text() : "{}" }], stop_reason: "end_turn" }) } } },
+    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: (await mockGeminiModel.generateContent()).response.text() }], stop_reason: "end_turn" }) } }, openaiClient: { chat: { completions: { create: async () => ({ choices: [{ message: { content: (await mockGeminiModel.generateContent()).response.text() }, finish_reason: "stop" }] }) } } } },
   );
 
   assert.equal(result.suggestedActivities.length, 1);
@@ -553,7 +568,7 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
       children: [{ age: 2 }],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: (await mockGeminiModel.generateContent()).response.text() }], stop_reason: "end_turn" }) } } },
+    { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: (await mockGeminiModel.generateContent()).response.text() }], stop_reason: "end_turn" }) } }, openaiClient: { chat: { completions: { create: async () => ({ choices: [{ message: { content: (await mockGeminiModel.generateContent()).response.text() }, finish_reason: "stop" }] }) } } } },
   );
 
   assert.equal(result.dailyItinerary.length, 2);
@@ -564,7 +579,7 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
 
 test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedAttractions provided", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -586,7 +601,7 @@ test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedA
       ],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -599,7 +614,7 @@ test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedA
 
 test("generateTripPlan omits shortlist section when no cached attractions", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   await generateTripPlan(
     {
@@ -611,7 +626,7 @@ test("generateTripPlan omits shortlist section when no cached attractions", asyn
       cachedAttractions: [],
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);
@@ -620,7 +635,7 @@ test("generateTripPlan omits shortlist section when no cached attractions", asyn
 
 test("generateTripPlan adds 60% shortlist guideline when cachedAttractions >= 5", async () => {
   delete process.env.AI_PROVIDER;
-  const { captured, mockGeminiModel, mockAnthropicClient } = createCapturingMock();
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
 
   const fiveAttractions = Array.from({ length: 5 }, (_, i) => ({
     canonical_name: `Attraction ${i + 1}`,
@@ -639,7 +654,7 @@ test("generateTripPlan adds 60% shortlist guideline when cachedAttractions >= 5"
       cachedAttractions: fiveAttractions,
     },
     mockWeather,
-    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient },
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
   );
 
   const systemText = extractSystemText(captured.calls[0]);

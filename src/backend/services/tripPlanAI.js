@@ -188,8 +188,8 @@ function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
 async function requestTripPlan({ system, user, maxTokens }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  // Haiku 4.5 for trip planning — 2x faster than Sonnet 4.6 (104 t/s vs 51 t/s)
-  return callModel({ system, user, maxTokens, temperature: 0, cacheSystemPrompt: cache, caller: "tripPlan", provider: "anthropic", model: "claude-haiku-4-5-20251001" }, deps);
+  // GPT-5.4 nano — 200 t/s, native JSON, $0.003/trip. Fallback: Anthropic.
+  return callModel({ system, user, maxTokens, temperature: 0, caller: "tripPlan", provider: "openai", model: "gpt-5.4-nano" }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
