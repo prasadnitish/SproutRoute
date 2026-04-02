@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import ProfileImportModal from "../components/ProfileImportModal.jsx";
+import { analytics } from "../utils/analytics.js";
 
 const VIBES = [
   { emoji: "\u{1F3D6}", label: "Beach trip" },
@@ -128,7 +129,7 @@ export default function InputScreen({ onSubmit }) {
           <button
             key={label}
             type="button"
-            onClick={() => setText(`${emoji} ${label}`)}
+            onClick={() => { setText(`${emoji} ${label}`); analytics.vibeChipClicked(label); }}
             className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-600 cursor-pointer hover:border-meadow-400 hover:text-meadow-700 hover:bg-meadow-50 transition"
           >
             {emoji} {label}
