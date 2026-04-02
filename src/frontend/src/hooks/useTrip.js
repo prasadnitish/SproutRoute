@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
+import { analytics } from "../utils/analytics.js";
 import {
   parseInput,
   generateTripPlan,
@@ -70,6 +71,7 @@ export function useTrip() {
     abortRef.current = new AbortController();
 
     setTripInput(text);
+    analytics.tripSearched(text, { hasProfile: !!savedProfile });
     setError(null);
     setTripData(null);
     setPackingList(null);
@@ -95,6 +97,7 @@ export function useTrip() {
         savedProfile: savedProfile || null,
       };
       setParsedInput(parsedWithContext);
+      analytics.tripParsed(parsedWithContext);
       markStep("resolve", "done");
 
       // If no destination, show destination picker or error
@@ -110,6 +113,7 @@ export function useTrip() {
       await generateTrip(parsedWithContext);
     } catch (err) {
       if (err.name === "AbortError") return;
+      analytics.tripError(err.message, text);
       setError(err.message || "Something went wrong");
     }
   }, []);
@@ -171,6 +175,7 @@ export function useTrip() {
           }));
           // Skip the generating screen — go straight to results
           setScreenWithHistory("results");
+          analytics.tripResultsViewed(event.data?.destination, Date.now() - (abortRef.current?._startTime || Date.now()));
           break;
 
         case "weather":
@@ -228,6 +233,7 @@ export function useTrip() {
           if (result.packingList) {
             setPackingList(result.packingList);
           }
+          analytics.tripCompleted(parsed?.destination, fullData.trip?.duration);
           setScreenWithHistory("results");
           break;
         }
