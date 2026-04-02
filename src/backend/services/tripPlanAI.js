@@ -505,14 +505,14 @@ function buildTripPlanPrompt(
 2. Keep dailyItinerary to max 5 day objects.
 3. Keep each activity description <= 80 characters.
 4. Keep tips to max 4 items.`
-    : `**Output Size Limits (SPEED IS CRITICAL — be concise):**
-1. Suggest 3-4 activities per day.${hasShortlist ? " Use the provided attraction list — do NOT re-describe them in detail." : ""}
-2. Keep dailyItinerary to max 7 day objects.
-3. Activity descriptions: 1 sentence max (under 100 chars).${hasShortlist ? " For shortlisted attractions, just reference the name — skip description/reason." : ""}
-4. Meals: suggest a SPECIFIC real restaurant as {name, cuisine, note} — note under 40 chars.
-5. Include 5-8 practical tips including money-saving hacks (CityPASS, free days, combo tickets).
-6. Keep JSON compact — no unnecessary whitespace, short field values.
-7. TOTAL OUTPUT MUST BE UNDER 8000 CHARACTERS. Be concise.${hasShortlist && cachedAttractions.length >= 5 ? "\n8. Use verified shortlist attractions — do not re-discover what's already provided." : ""}`;
+    : `**Output Rules:**
+1. Suggest 4-6 activities per day (NOT including meals). Activities should include sightseeing, tours, outdoor, cultural, and entertainment.
+2. For short city trips (2-3 days), MUST include a half-day walking/city tour as one activity that covers 4-5 landmarks in one go (e.g., "Downtown Walking Tour covering Times Square, Rockefeller Center, Grand Central, Bryant Park, and the Public Library"). This is how real families explore cities.
+3. Keep dailyItinerary to max 7 day objects.
+4. Activity descriptions: 1-2 sentences.${hasShortlist ? " For shortlisted attractions, keep descriptions brief." : ""}
+5. Meals: SPECIFIC real restaurant as {name, cuisine, note}.
+6. Include 5-8 practical tips including money-saving hacks (CityPASS, free days, combo tickets).
+7. Keep JSON compact.${hasShortlist && cachedAttractions.length >= 5 ? "\n8. Use verified shortlist attractions — do not re-discover what's already provided." : ""}`;
 
   // Cruise-specific itinerary format instructions
   const cruiseInstructions = isCruise ? `
@@ -614,14 +614,15 @@ ${internationalContext}
 ${petContext}
 ${profileContext}
 ${attractionMemoryContext}
-**CRITICAL Requirements:**
+**CRITICAL Requirements (MUST follow ALL of these):**
 1. Include a mix of indoor and outdoor activities based on weather.
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
 3. Prioritise activities that match their stated interests.
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs).
 5. Be specific to the destination — only suggest REAL places that actually exist and are currently open.
-6. Create a balanced daily itinerary: 3-4 activities per day, not too packed.
-7. IMPORTANT: Return one day object for EACH day of the trip. A 3-day trip MUST have 3 day objects. A 7-day trip must have 7.
+6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc. A family in a city for 2-3 days will visit 10-15+ places total.
+7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects. If you return fewer days than requested, the response is INVALID. Count the days: Apr 15-17 = Day 1 (Apr 15), Day 2 (Apr 16), Day 3 (Apr 17) = 3 days.
+8. For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity. This is how tourists actually explore cities.
 8. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended".
 9. MEALS ARE CRITICAL: For EVERY meal (breakfast, lunch, dinner) in EVERY day, suggest a SPECIFIC REAL restaurant name as an object: {"name": "Real Restaurant Name", "cuisine": "Type", "note": "Brief reason"}. NEVER use generic labels like "Breakfast" or "local restaurant". Vary restaurants across days — do NOT repeat the same restaurant on multiple days.
 10. Only suggest restaurants that are currently operating. Do not suggest permanently closed restaurants.
