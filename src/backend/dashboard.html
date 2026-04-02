@@ -253,6 +253,60 @@ function render(root, d) {
     et.appendChild(etb);
     eSec.appendChild(et);
   }
+
+  // ── PostHog Analytics ──
+  const phSec = section(root, "User Analytics (PostHog)");
+
+  const phInfo = el("div", "", "");
+  phInfo.style.cssText = "background:white;border:1px solid #e5e7eb;border-radius:10px;padding:16px;margin-bottom:12px;";
+
+  const phDesc = el("p", "Session recordings, funnels, and user behavior tracked in PostHog.", "");
+  phDesc.style.cssText = "font-size:13px;color:#6b7280;margin-bottom:12px;";
+  phInfo.appendChild(phDesc);
+
+  const phLinks = el("div", "", "");
+  phLinks.style.cssText = "display:flex;gap:8px;flex-wrap:wrap;";
+
+  const links = [
+    { text: "Open PostHog Dashboard", url: "https://us.posthog.com/project", primary: true },
+    { text: "Session Recordings", url: "https://us.posthog.com/replay" },
+    { text: "Funnels", url: "https://us.posthog.com/insights" },
+    { text: "Events", url: "https://us.posthog.com/events" },
+  ];
+
+  links.forEach(({ text: label, url, primary }) => {
+    const a = document.createElement("a");
+    a.textContent = label;
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.style.cssText = primary
+      ? "display:inline-block;padding:6px 16px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;background:#15803d;color:white;"
+      : "display:inline-block;padding:6px 16px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;background:#f0fdf4;color:#15803d;border:1px solid #d1fae5;";
+    phLinks.appendChild(a);
+  });
+
+  phInfo.appendChild(phLinks);
+
+  // Events being tracked
+  const evtTitle = el("p", "Events being tracked:", "");
+  evtTitle.style.cssText = "font-size:11px;font-weight:700;color:#6b7280;margin-top:12px;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px;";
+  phInfo.appendChild(evtTitle);
+
+  const events = [
+    "trip_searched", "trip_parsed", "trip_results_viewed", "trip_completed",
+    "trip_error", "vibe_chip_clicked", "share_clicked", "activity_tapped",
+    "tab_switched", "itinerary_day_changed", "profile_imported", "back_clicked"
+  ];
+  const evtPills = el("div", "", "pills");
+  events.forEach(e => {
+    const pill = el("span", e, "pill");
+    pill.style.cssText = "background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:600;font-family:monospace;";
+    evtPills.appendChild(pill);
+  });
+  phInfo.appendChild(evtPills);
+
+  phSec.appendChild(phInfo);
 }
 
 // ── Helpers ──
