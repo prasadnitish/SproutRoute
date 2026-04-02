@@ -1,55 +1,152 @@
 /**
- * metrics.js — Comprehensive in-memory metrics collector for Mission Control
+ * metrics.js — Persistent + in-memory metrics for ops dashboard
  *
- * Tracks: trips, searches, AI calls, user segments, latency, tokens, costs, errors.
- * Rolling 1000-entry window. Resets on deploy (use Supabase for persistent analytics).
+ * Writes every metric to Supabase trip_metrics table (survives deploys).
+ * Also keeps in-memory rolling window for real-time dashboard.
+ * Dashboard reads from Supabase for historical, in-memory for live.
  */
 
-const MAX_ENTRIES = 1000;
+import { getSupabaseAdmin } from "../utils/supabaseClient.js";
+import { log } from "../utils/logger.js";
 
-const store = {
-  trips: [],      // full trip data with timing, destination, segments
-  searches: [],   // parse-input raw text + results
-  aiCalls: [],    // every AI call with timing + tokens
-  errors: [],     // errors with context
-  requests: [],   // all API requests
+const MAX_MEMORY = 200;
+
+const mem = {
+  trips: [],
+  searches: [],
+  aiCalls: [],
+  errors: [],
   startedAt: new Date().toISOString(),
 };
 
-function push(arr, entry) {
+function pushMem(arr, entry) {
   arr.push({ ...entry, ts: new Date().toISOString() });
-  if (arr.length > MAX_ENTRIES) arr.shift();
+  if (arr.length > MAX_MEMORY) arr.shift();
+}
+
+// Fire-and-forget Supabase insert — never blocks the request
+function persistAsync(row) {
+  try {
+    const admin = getSupabaseAdmin();
+    admin.from("trip_metrics").insert(row).then(({ error }) => {
+      if (error) log.warn("metrics:persist-fail", { error: error.message });
+    });
+  } catch { /* Supabase not configured — silently skip */ }
 }
 
 export const metrics = {
-  recordTrip(data) { push(store.trips, data); },
-  recordSearch(data) { push(store.searches, data); },
-  recordParse(data) { push(store.searches, data); }, // alias for backward compat
-  recordAiCall(data) { push(store.aiCalls, data); },
-  recordError(data) { push(store.errors, data); },
-  recordRequest(data) { push(store.requests, data); },
+  recordTrip(data) {
+    pushMem(mem.trips, data);
+    persistAsync({
+      event_type: "trip",
+      destination: data.destination,
+      duration_days: data.duration,
+      child_count: data.childCount || 0,
+      pet_count: data.petCount || 0,
+      vibe: data.vibe || null,
+      timing_json: data.timing || {},
+      latency_ms: data.timing?.total || null,
+      req_id: data.reqId,
+    });
+  },
 
-  getSnapshot() {
+  recordSearch(data) {
+    pushMem(mem.searches, data);
+    persistAsync({
+      event_type: "search",
+      destination: data.destination,
+      search_text: (data.text || "").slice(0, 200),
+      vibe: data.vibe || null,
+      child_count: data.childCount || 0,
+      pet_count: data.petCount || 0,
+      latency_ms: data.ms || null,
+    });
+  },
+
+  recordParse(data) { this.recordSearch(data); },
+
+  recordAiCall(data) {
+    pushMem(mem.aiCalls, data);
+    persistAsync({
+      event_type: "ai_call",
+      provider: data.provider,
+      model: data.model,
+      caller: data.caller,
+      latency_ms: data.ms || null,
+      output_chars: data.outChars || 0,
+      success: data.success !== false,
+    });
+  },
+
+  recordError(data) {
+    pushMem(mem.errors, data);
+    persistAsync({
+      event_type: "error",
+      error_message: (data.error || "").slice(0, 500),
+      req_id: data.reqId,
+    });
+  },
+
+  recordRequest(data) {
+    // Don't persist every request (too noisy) — only errors
+    if (data.status >= 500) {
+      persistAsync({
+        event_type: "error",
+        latency_ms: data.ms,
+        error_message: `HTTP ${data.status} on ${data.path}`,
+        req_id: data.reqId,
+      });
+    }
+  },
+
+  // ── Dashboard data ──────────────────────────────────────────────────
+  async getSnapshot() {
+    // Try Supabase for historical data; fall back to in-memory
+    let dbTrips = [], dbSearches = [], dbAiCalls = [], dbErrors = [];
+    let dbTimeRange = "in-memory only";
+
+    try {
+      const admin = getSupabaseAdmin();
+
+      const [tripsRes, searchesRes, aiRes, errorsRes] = await Promise.all([
+        admin.from("trip_metrics").select("*").eq("event_type", "trip").order("created_at", { ascending: false }).limit(200),
+        admin.from("trip_metrics").select("*").eq("event_type", "search").order("created_at", { ascending: false }).limit(200),
+        admin.from("trip_metrics").select("*").eq("event_type", "ai_call").order("created_at", { ascending: false }).limit(500),
+        admin.from("trip_metrics").select("*").eq("event_type", "error").order("created_at", { ascending: false }).limit(50),
+      ]);
+
+      dbTrips = tripsRes.data || [];
+      dbSearches = searchesRes.data || [];
+      dbAiCalls = aiRes.data || [];
+      dbErrors = errorsRes.data || [];
+
+      if (dbTrips.length > 0) {
+        const oldest = dbTrips[dbTrips.length - 1]?.created_at;
+        dbTimeRange = `since ${new Date(oldest).toLocaleDateString()}`;
+      }
+    } catch {
+      // Fall back to in-memory
+      dbTrips = mem.trips.map(t => ({ ...t, created_at: t.ts, timing_json: t.timing }));
+      dbSearches = mem.searches.map(s => ({ ...s, created_at: s.ts, search_text: s.text }));
+      dbAiCalls = mem.aiCalls.map(a => ({ ...a, created_at: a.ts, latency_ms: a.ms, output_chars: a.outChars }));
+      dbErrors = mem.errors.map(e => ({ ...e, created_at: e.ts, error_message: e.error }));
+      dbTimeRange = "in-memory (Supabase unavailable)";
+    }
+
+    // Compute stats from DB data
     const now = Date.now();
-    const last24h = (arr) => arr.filter(e => now - new Date(e.ts).getTime() < 86400000);
-    const lastHour = (arr) => arr.filter(e => now - new Date(e.ts).getTime() < 3600000);
+    const last24h = (arr) => arr.filter(e => now - new Date(e.created_at).getTime() < 86400000);
+    const lastHour = (arr) => arr.filter(e => now - new Date(e.created_at).getTime() < 3600000);
 
-    const trips = last24h(store.trips);
-    const searches = last24h(store.searches);
-    const aiCalls = last24h(store.aiCalls);
-    const requests = last24h(store.requests);
-    const errors = last24h(store.errors);
-    const tripsHour = lastHour(store.trips);
+    const trips24h = last24h(dbTrips);
+    const tripsHour = lastHour(dbTrips);
 
-    // ── Summary cards ───────────────────────────────────────────────────
-    const errorCount = requests.filter(r => r.status >= 500).length;
-    const errorRate = requests.length > 0 ? (errorCount / requests.length * 100) : 0;
-
-    // ── Latency by stage ────────────────────────────────────────────────
+    // Latency by stage (from timing_json)
     const latencyByStage = {};
-    for (const trip of trips) {
-      if (!trip.timing) continue;
-      for (const [stage, ms] of Object.entries(trip.timing)) {
+    for (const trip of dbTrips) {
+      const timing = trip.timing_json || trip.timing || {};
+      for (const [stage, ms] of Object.entries(timing)) {
+        if (typeof ms !== "number") continue;
         if (!latencyByStage[stage]) latencyByStage[stage] = [];
         latencyByStage[stage].push(ms);
       }
@@ -67,163 +164,107 @@ export const metrics = {
       };
     }
 
-    // ── Destinations ────────────────────────────────────────────────────
+    // Destinations
     const destCounts = {};
-    for (const t of trips) {
+    for (const t of dbTrips) {
       const d = t.destination || "unknown";
       destCounts[d] = (destCounts[d] || 0) + 1;
     }
     const topDestinations = Object.entries(destCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
+      .sort((a, b) => b[1] - a[1]).slice(0, 20)
       .map(([name, count]) => ({ name, count }));
 
-    // ── User segments ───────────────────────────────────────────────────
-    const withKids = trips.filter(t => (t.childCount || 0) > 0).length;
-    const withPets = trips.filter(t => (t.petCount || 0) > 0).length;
-    const adultsOnly = trips.filter(t => (t.childCount || 0) === 0 && (t.petCount || 0) === 0).length;
+    // Segments
+    const withKids = dbTrips.filter(t => (t.child_count || t.childCount || 0) > 0).length;
+    const withPets = dbTrips.filter(t => (t.pet_count || t.petCount || 0) > 0).length;
+    const adultsOnly = dbTrips.length - withKids - withPets;
 
-    // Kid age distribution
-    const kidAges = {};
-    for (const t of trips) {
-      for (const age of (t.childAges || [])) {
-        kidAges[age] = (kidAges[age] || 0) + 1;
-      }
-    }
-
-    // Vibe distribution
+    // Vibes
     const vibes = {};
-    for (const s of searches) {
-      if (s.vibe) vibes[s.vibe] = (vibes[s.vibe] || 0) + 1;
-    }
+    for (const s of dbSearches) { if (s.vibe) vibes[s.vibe] = (vibes[s.vibe] || 0) + 1; }
 
-    // Pet types
-    const petTypes = {};
-    for (const t of trips) {
-      for (const pt of (t.petTypes || [])) {
-        petTypes[pt] = (petTypes[pt] || 0) + 1;
-      }
-    }
-
-    // Trip duration distribution
-    const durations = {};
-    for (const t of trips) {
-      const d = t.duration || 0;
-      const bucket = d <= 3 ? "1-3 days" : d <= 7 ? "4-7 days" : d <= 14 ? "8-14 days" : "15+ days";
-      durations[bucket] = (durations[bucket] || 0) + 1;
-    }
-
-    // ── Model usage & tokens ────────────────────────────────────────────
+    // Model usage
     const modelUsage = {};
-    let totalOutputTokens = 0;
-    let totalInputTokensEst = 0;
-    for (const call of aiCalls) {
-      const key = `${call.provider}/${call.model}`;
+    const COST_OUT = { "gemini-2.5-flash": 2.50, "claude-sonnet-4-6": 15.00 };
+    const COST_IN = { "gemini-2.5-flash": 0.30, "claude-sonnet-4-6": 3.00 };
+    let totalCost = 0;
+    for (const call of dbAiCalls) {
+      const key = `${call.provider || "?"}/${call.model || "?"}`;
       if (!modelUsage[key]) modelUsage[key] = { calls: 0, totalMs: 0, totalOutChars: 0, errors: 0, callers: {} };
       modelUsage[key].calls++;
-      modelUsage[key].totalMs += call.ms || 0;
-      modelUsage[key].totalOutChars += call.outChars || 0;
-      if (!call.success) modelUsage[key].errors++;
-      // Track which callers use this model
+      modelUsage[key].totalMs += call.latency_ms || call.ms || 0;
+      modelUsage[key].totalOutChars += call.output_chars || call.outChars || 0;
+      if (call.success === false) modelUsage[key].errors++;
       const c = call.caller || "unknown";
       modelUsage[key].callers[c] = (modelUsage[key].callers[c] || 0) + 1;
-      totalOutputTokens += (call.outChars || 0) / 4;
     }
-
-    // Cost estimation
-    const COST_PER_M_OUT = {
-      "gemini-2.5-flash": 2.50,
-      "claude-sonnet-4-6": 15.00,
-      "deepseek-chat": 1.10,
-    };
-    const COST_PER_M_IN = {
-      "gemini-2.5-flash": 0.30,
-      "claude-sonnet-4-6": 3.00,
-      "deepseek-chat": 0.27,
-    };
-    let totalCost = 0;
     for (const [key, usage] of Object.entries(modelUsage)) {
       const model = key.split("/").pop();
       const outTokens = usage.totalOutChars / 4;
-      const inTokensEst = outTokens * 2; // rough: input usually 2x output
-      const outCostRate = COST_PER_M_OUT[model] || 5.0;
-      const inCostRate = COST_PER_M_IN[model] || 1.0;
+      const inTokensEst = outTokens * 2;
       usage.estOutputTokens = Math.round(outTokens);
       usage.estInputTokens = Math.round(inTokensEst);
-      usage.estCost = parseFloat(((outTokens / 1e6 * outCostRate) + (inTokensEst / 1e6 * inCostRate)).toFixed(4));
+      usage.estCost = parseFloat(((outTokens / 1e6 * (COST_OUT[model] || 5)) + (inTokensEst / 1e6 * (COST_IN[model] || 1))).toFixed(4));
       usage.avgLatency = usage.calls > 0 ? Math.round(usage.totalMs / usage.calls) : 0;
       totalCost += usage.estCost;
-      totalOutputTokens += outTokens;
-      totalInputTokensEst += inTokensEst;
     }
 
-    // ── AI call breakdown by caller ─────────────────────────────────────
+    // AI by task
     const aiByTask = {};
-    for (const call of aiCalls) {
+    for (const call of dbAiCalls) {
       const c = call.caller || "unknown";
       if (!aiByTask[c]) aiByTask[c] = { calls: 0, totalMs: 0, avgMs: 0, errors: 0 };
       aiByTask[c].calls++;
-      aiByTask[c].totalMs += call.ms || 0;
-      if (!call.success) aiByTask[c].errors++;
+      aiByTask[c].totalMs += call.latency_ms || call.ms || 0;
+      if (call.success === false) aiByTask[c].errors++;
     }
-    for (const v of Object.values(aiByTask)) {
-      v.avgMs = v.calls > 0 ? Math.round(v.totalMs / v.calls) : 0;
-    }
-
-    // ── Search analysis ─────────────────────────────────────────────────
-    const searchTexts = searches.slice(-20).reverse().map(s => ({
-      ts: s.ts,
-      text: (s.text || s.rawText || "").slice(0, 100),
-      destination: s.destination,
-      vibe: s.vibe,
-      childCount: s.childCount,
-      petCount: s.petCount,
-      ms: s.ms,
-    }));
+    for (const v of Object.values(aiByTask)) { v.avgMs = v.calls > 0 ? Math.round(v.totalMs / v.calls) : 0; }
 
     return {
-      uptime: store.startedAt,
+      uptime: mem.startedAt,
+      dataSource: dbTimeRange,
       asOf: new Date().toISOString(),
 
       summary: {
-        tripsGenerated: trips.length,
+        tripsTotal: dbTrips.length,
+        trips24h: trips24h.length,
         tripsLastHour: tripsHour.length,
-        totalApiCalls: requests.length,
-        totalAiCalls: aiCalls.length,
-        totalErrors: errorCount,
-        errorRate: parseFloat(errorRate.toFixed(1)),
+        totalAiCalls: dbAiCalls.length,
+        totalErrors: dbErrors.length,
         estTotalCost: parseFloat(totalCost.toFixed(4)),
-        estOutputTokens: Math.round(totalOutputTokens),
-        estInputTokens: Math.round(totalInputTokensEst),
       },
 
-      segments: {
-        withKids,
-        withPets,
-        adultsOnly,
-        kidAges,
-        petTypes,
-        vibes,
-        durations,
-      },
-
+      segments: { withKids, withPets, adultsOnly, vibes },
       latencyByStage: latencyStats,
       topDestinations,
       modelUsage,
       aiByTask,
-      recentSearches: searchTexts,
 
-      recentTrips: trips.slice(-15).reverse().map(t => ({
-        ts: t.ts,
+      recentSearches: dbSearches.slice(0, 20).map(s => ({
+        ts: s.created_at || s.ts,
+        text: (s.search_text || s.text || "").slice(0, 100),
+        destination: s.destination,
+        vibe: s.vibe,
+        childCount: s.child_count || s.childCount || 0,
+        petCount: s.pet_count || s.petCount || 0,
+        ms: s.latency_ms || s.ms,
+      })),
+
+      recentTrips: dbTrips.slice(0, 15).map(t => ({
+        ts: t.created_at || t.ts,
         destination: t.destination,
-        duration: t.duration,
-        timing: t.timing,
-        childCount: t.childCount,
-        petCount: t.petCount,
+        duration: t.duration_days || t.duration,
+        timing: t.timing_json || t.timing || {},
+        childCount: t.child_count || t.childCount || 0,
+        petCount: t.pet_count || t.petCount || 0,
         vibe: t.vibe,
       })),
 
-      recentErrors: errors.slice(-10).reverse(),
+      recentErrors: dbErrors.slice(0, 10).map(e => ({
+        ts: e.created_at || e.ts,
+        error: e.error_message || e.error,
+        reqId: e.req_id || e.reqId,
+      })),
     };
   },
 };

@@ -368,8 +368,13 @@ export function createApp(deps = {}) {
     next();
   };
 
-  app.get("/api/v1/ops/metrics", opsGuard, (req, res) => {
-    res.json(metrics.getSnapshot());
+  app.get("/api/v1/ops/metrics", opsGuard, async (req, res) => {
+    try {
+      const snapshot = await metrics.getSnapshot();
+      res.json(snapshot);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to load metrics", message: err.message });
+    }
   });
 
   app.get("/ops", opsGuard, (req, res) => {
