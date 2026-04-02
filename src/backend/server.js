@@ -216,7 +216,7 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
     requestedActivities: activities || [],
     pace,
     pets: pets || [],
-    maxResults: 12,
+    maxResults: 20,
   });
 }
 

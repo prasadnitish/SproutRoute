@@ -562,7 +562,7 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
   const attractionMemoryContext = hasShortlist
     ? `
 **MANDATORY ATTRACTION LIST — USE THESE (do not invent replacements):**
-${buildCachedAttractionsSummary(cachedAttractions, { maxItems: 12 })}
+${buildCachedAttractionsSummary(cachedAttractions, { maxItems: 20 })}
 
 CRITICAL RULES FOR ATTRACTIONS:
 - You MUST use attractions from this list for your suggestedActivities. These are VERIFIED REAL PLACES.
@@ -620,12 +620,15 @@ ${attractionMemoryContext}
 3. Prioritise activities that match their stated interests.
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs).
 5. Be specific to the destination — only suggest REAL places that actually exist and are currently open.
-6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc. A family in a city for 2-3 days will visit 10-15+ places total.
-7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects. If you return fewer days than requested, the response is INVALID. Count the days: Apr 15-17 = Day 1 (Apr 15), Day 2 (Apr 16), Day 3 (Apr 17) = 3 days.
-8. For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity. This is how tourists actually explore cities.
-8. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended".
-9. MEALS ARE CRITICAL: For EVERY meal (breakfast, lunch, dinner) in EVERY day, suggest a SPECIFIC REAL restaurant name as an object: {"name": "Real Restaurant Name", "cuisine": "Type", "note": "Brief reason"}. NEVER use generic labels like "Breakfast" or "local restaurant". Vary restaurants across days — do NOT repeat the same restaurant on multiple days.
-10. Only suggest restaurants that are currently operating. Do not suggest permanently closed restaurants.
+6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
+7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects.
+8. For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity.
+9. **ABSOLUTE RULE — NO REPEATS**: NEVER repeat the same activity on multiple days. Each activity ID should appear in ONLY ONE day. If the trip is 3 days and you have 15 unique attractions, spread them across all 3 days with different activities each day. Going to the same beach or park twice is INVALID.
+10. **SCHEDULING**: Start activities in the MORNING after breakfast (around 9 AM). A typical family day: breakfast 8AM → morning activity 9AM → activity 10:30AM → lunch 12PM → afternoon activity 1:30PM → activity 3PM → free time 4:30PM → dinner 6PM. Do NOT schedule activities only in the afternoon or evening.
+11. **VARIETY**: Each day should have a DIFFERENT theme or area of the city. Day 1 might focus on downtown/waterfront, Day 2 on a theme park or zoo, Day 3 on beaches and nature. Cover the FULL breadth of what the destination offers — not just beaches, not just museums.
+12. For every activity, include a short factual "whatItIs" and a short personalized "whyRecommended".
+13. MEALS: For EVERY meal suggest a SPECIFIC REAL restaurant as {name, cuisine, note}. NEVER generic labels. Vary restaurants across days.
+14. Only suggest currently operating places and restaurants.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
    - Preferred cuisines: ${foodPreferences.cuisines?.length ? foodPreferences.cuisines.join(", ") : "open to all"}
