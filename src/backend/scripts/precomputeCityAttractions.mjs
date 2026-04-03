@@ -57,6 +57,88 @@ const WAVE_2_CITIES = [
   { name: "Kochi", country: "IN", region: "KL", lat: 9.9312, lon: 76.2673 },
   { name: "Mysuru", country: "IN", region: "KA", lat: 12.2958, lon: 76.6394 },
   { name: "Ooty", country: "IN", region: "TN", lat: 11.4102, lon: 76.6950 },
+  { name: "Kyoto", country: "JP", region: "KY", lat: 35.0116, lon: 135.7681 },
+  { name: "Osaka", country: "JP", region: "OS", lat: 34.6937, lon: 135.5023 },
+  { name: "Maui", country: "US", region: "HI", lat: 20.7984, lon: -156.3319 },
+  { name: "Kauai", country: "US", region: "HI", lat: 22.0964, lon: -159.5261 },
+  { name: "Big Island Hawaii", country: "US", region: "HI", lat: 19.8968, lon: -155.5828 },
+  { name: "Barcelona", country: "ES", region: "CT", lat: 41.3874, lon: 2.1686 },
+  { name: "Mexico City", country: "MX", region: "DF", lat: 19.4326, lon: -99.1332 },
+];
+
+// Wave 3: Top 100 North American tourist destinations (cities we don't already cover)
+const WAVE_3_CITIES = [
+  // Major US cities
+  { name: "Nashville", country: "US", region: "TN", lat: 36.1627, lon: -86.7816 },
+  { name: "New Orleans", country: "US", region: "LA", lat: 29.9511, lon: -90.0715 },
+  { name: "Denver", country: "US", region: "CO", lat: 39.7392, lon: -104.9903 },
+  { name: "Austin", country: "US", region: "TX", lat: 30.2672, lon: -97.7431 },
+  { name: "San Antonio", country: "US", region: "TX", lat: 29.4241, lon: -98.4936 },
+  { name: "Houston", country: "US", region: "TX", lat: 29.7604, lon: -95.3698 },
+  { name: "Dallas", country: "US", region: "TX", lat: 32.7767, lon: -96.7970 },
+  { name: "Phoenix", country: "US", region: "AZ", lat: 33.4484, lon: -112.0740 },
+  { name: "Scottsdale", country: "US", region: "AZ", lat: 33.4942, lon: -111.9261 },
+  { name: "Sedona", country: "US", region: "AZ", lat: 34.8697, lon: -111.7610 },
+  { name: "Minneapolis", country: "US", region: "MN", lat: 44.9778, lon: -93.2650 },
+  { name: "St. Louis", country: "US", region: "MO", lat: 38.6270, lon: -90.1994 },
+  { name: "Kansas City", country: "US", region: "MO", lat: 39.0997, lon: -94.5786 },
+  { name: "Cleveland", country: "US", region: "OH", lat: 41.4993, lon: -81.6944 },
+  { name: "Pittsburgh", country: "US", region: "PA", lat: 40.4406, lon: -79.9959 },
+  { name: "Baltimore", country: "US", region: "MD", lat: 39.2904, lon: -76.6122 },
+  { name: "Detroit", country: "US", region: "MI", lat: 42.3314, lon: -83.0458 },
+  { name: "Milwaukee", country: "US", region: "WI", lat: 43.0389, lon: -87.9065 },
+  { name: "Indianapolis", country: "US", region: "IN", lat: 39.7684, lon: -86.1581 },
+  { name: "Salt Lake City", country: "US", region: "UT", lat: 40.7608, lon: -111.8910 },
+  // Beach & resort destinations
+  { name: "Myrtle Beach", country: "US", region: "SC", lat: 33.6891, lon: -78.8867 },
+  { name: "Virginia Beach", country: "US", region: "VA", lat: 36.8529, lon: -75.9780 },
+  { name: "Savannah", country: "US", region: "GA", lat: 32.0809, lon: -81.0912 },
+  { name: "Key West", country: "US", region: "FL", lat: 24.5551, lon: -81.7800 },
+  { name: "Palm Beach", country: "US", region: "FL", lat: 26.7056, lon: -80.0364 },
+  { name: "Destin", country: "US", region: "FL", lat: 30.3935, lon: -86.4958 },
+  { name: "Gulf Shores", country: "US", region: "AL", lat: 30.2460, lon: -87.7008 },
+  { name: "Outer Banks", country: "US", region: "NC", lat: 35.5585, lon: -75.4665 },
+  { name: "Hilton Head Island", country: "US", region: "SC", lat: 32.2163, lon: -80.7526 },
+  { name: "Cape May", country: "US", region: "NJ", lat: 38.9351, lon: -74.9060 },
+  // National park gateway cities
+  { name: "Jackson Hole", country: "US", region: "WY", lat: 43.4799, lon: -110.7624 },
+  { name: "Moab", country: "US", region: "UT", lat: 38.5733, lon: -109.5498 },
+  { name: "Gatlinburg", country: "US", region: "TN", lat: 35.7143, lon: -83.5102 },
+  { name: "Bar Harbor", country: "US", region: "ME", lat: 44.3876, lon: -68.2039 },
+  { name: "Estes Park", country: "US", region: "CO", lat: 40.3772, lon: -105.5217 },
+  { name: "Yellowstone", country: "US", region: "WY", lat: 44.4280, lon: -110.5885 },
+  { name: "Grand Canyon Village", country: "US", region: "AZ", lat: 36.0544, lon: -112.1401 },
+  // Historic & cultural
+  { name: "Williamsburg", country: "US", region: "VA", lat: 37.2707, lon: -76.7075 },
+  { name: "St. Augustine", country: "US", region: "FL", lat: 29.9012, lon: -81.3124 },
+  { name: "Napa Valley", country: "US", region: "CA", lat: 38.2975, lon: -122.2869 },
+  { name: "Santa Fe", country: "US", region: "NM", lat: 35.6870, lon: -105.9378 },
+  { name: "Asheville", country: "US", region: "NC", lat: 35.5951, lon: -82.5515 },
+  // West Coast
+  { name: "San Jose", country: "US", region: "CA", lat: 37.3382, lon: -121.8863 },
+  { name: "Sacramento", country: "US", region: "CA", lat: 38.5816, lon: -121.4944 },
+  { name: "Palm Springs", country: "US", region: "CA", lat: 33.8303, lon: -116.5453 },
+  { name: "Carmel-by-the-Sea", country: "US", region: "CA", lat: 36.5554, lon: -121.9233 },
+  // Pacific Northwest
+  { name: "Bend", country: "US", region: "OR", lat: 44.0582, lon: -121.3153 },
+  { name: "Cannon Beach", country: "US", region: "OR", lat: 45.8918, lon: -123.9615 },
+  // Alaska
+  { name: "Anchorage", country: "US", region: "AK", lat: 61.2181, lon: -149.9003 },
+  { name: "Juneau", country: "US", region: "AK", lat: 58.3005, lon: -134.4197 },
+  // Canada
+  { name: "Montreal", country: "CA", region: "QC", lat: 45.5017, lon: -73.5673 },
+  { name: "Quebec City", country: "CA", region: "QC", lat: 46.8139, lon: -71.2080 },
+  { name: "Calgary", country: "CA", region: "AB", lat: 51.0447, lon: -114.0719 },
+  { name: "Ottawa", country: "CA", region: "ON", lat: 45.4215, lon: -75.6972 },
+  { name: "Victoria", country: "CA", region: "BC", lat: 48.4284, lon: -123.3656 },
+  { name: "Banff", country: "CA", region: "AB", lat: 51.1784, lon: -115.5708 },
+  { name: "Whistler", country: "CA", region: "BC", lat: 50.1163, lon: -122.9574 },
+  { name: "Niagara Falls", country: "CA", region: "ON", lat: 43.0896, lon: -79.0849 },
+  // Mexico
+  { name: "Playa del Carmen", country: "MX", region: "QR", lat: 20.6296, lon: -87.0739 },
+  { name: "Puerto Vallarta", country: "MX", region: "JA", lat: 20.6534, lon: -105.2253 },
+  { name: "Cabo San Lucas", country: "MX", region: "BS", lat: 22.8905, lon: -109.9167 },
+  { name: "Tulum", country: "MX", region: "QR", lat: 20.2115, lon: -87.4654 },
 ];
 
 const PRECOMPUTE_PROMPT = (cityName, countryCode) => ({
@@ -130,15 +212,17 @@ async function main() {
 
   let cities;
   if (singleCity) {
-    const allCities = [...WAVE_1_CITIES, ...WAVE_2_CITIES];
+    const allCities = [...WAVE_1_CITIES, ...WAVE_2_CITIES, ...WAVE_3_CITIES];
     cities = allCities.filter(c => c.name.toLowerCase().includes(singleCity.toLowerCase()));
     if (cities.length === 0) { console.error(`City "${singleCity}" not found in seed list`); process.exit(1); }
   } else if (wave === 1) {
     cities = WAVE_1_CITIES;
   } else if (wave === 2) {
     cities = WAVE_2_CITIES;
+  } else if (wave === 3) {
+    cities = WAVE_3_CITIES;
   } else {
-    console.log("Usage: --wave 1|2 or --city 'City Name' [--dry-run]");
+    console.log("Usage: --wave 1|2|3 or --city 'City Name' [--dry-run]");
     process.exit(0);
   }
 
