@@ -394,8 +394,12 @@ export async function streamTripPlan(tripData, onEvent, signal) {
 
     // Fallback to bundle API
     console.warn("SSE stream failed, falling back to bundle:", err.message);
+    // Check abort before fallback — prevents stale data overwriting new trip
+    if (signal?.aborted) throw Object.assign(new Error("Aborted"), { name: "AbortError" });
     onEvent({ type: "fallback", data: null });
-    const bundleResult = await bundleTripPlan(tripData, {});
+    const bundleResult = await bundleTripPlan(tripData, { signal });
+    // Check abort again after bundle completes
+    if (signal?.aborted) throw Object.assign(new Error("Aborted"), { name: "AbortError" });
     result.trip = bundleResult.trip || tripData;
     result.weather = bundleResult.weather;
     result.tripPlan = bundleResult.tripPlan;

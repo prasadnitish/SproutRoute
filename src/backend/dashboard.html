@@ -79,7 +79,7 @@ const KEY = params.get("key") || "";
 
 async function load() {
   try {
-    const r = await fetch("/api/v1/ops/metrics?key=" + KEY);
+    const r = await fetch("/api/v1/ops/metrics", { headers: { "x-ops-secret": KEY } });
     if (!r.ok) { document.getElementById("loading").textContent = "Access denied (HTTP " + r.status + "). Add ?key=YOUR_OPS_SECRET to the URL."; return; }
     const d = await r.json();
     document.getElementById("loading").style.display = "none";

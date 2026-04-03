@@ -363,7 +363,8 @@ export function createApp(deps = {}) {
     if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
     const headerSecret = req.get("x-ops-secret");
     const bearerSecret = req.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
-    const providedSecret = headerSecret || bearerSecret || req.query.key;
+    // Security: secret via headers only — never in query params (avoids log exposure)
+    const providedSecret = headerSecret || bearerSecret;
     if (providedSecret !== secret) return res.status(403).json({ error: "Forbidden" });
     next();
   };
@@ -377,7 +378,14 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.get("/ops", opsGuard, (req, res) => {
+  // /ops page: allow query param for initial browser navigation only
+  const opsPageGuard = (req, res, next) => {
+    const secret = process.env.OPS_SECRET;
+    if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
+    if (req.query.key !== secret) return res.status(403).send("Forbidden");
+    next();
+  };
+  app.get("/ops", opsPageGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");
     // Override CSP for admin dashboard — allows inline script (auth-gated, not user-facing)
     res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src https://us.posthog.com");
@@ -666,7 +674,9 @@ export function createApp(deps = {}) {
   app.post("/api/safety/travel-tips", apiLimiter, async (req, res) => {
     try {
       const destination = sanitizeString(req.body?.destination || "", 120);
-      const childrenAges = req.body?.childrenAges || [];
+      // Sanitize childrenAges to prevent prompt injection (only allow numbers 0-18)
+      const rawAges = Array.isArray(req.body?.childrenAges) ? req.body.childrenAges : [];
+      const childrenAges = rawAges.map(a => parseInt(String(a), 10)).filter(n => Number.isFinite(n) && n >= 0 && n <= 18);
       const countryCode = sanitizeString(req.body?.countryCode || "", 5);
 
       if (!destination) {
@@ -1648,11 +1658,13 @@ export function createApp(deps = {}) {
   // ─── Enrich activity with Google Places data ───
   app.post("/api/v1/places/enrich", apiLimiter, async (req, res) => {
     try {
-      const { activityName, destination, category } = req.body;
-      if (!activityName || !destination) {
+      const activityName = sanitizeString(req.body?.activityName || "", 100);
+      const enrichDest = sanitizeString(req.body?.destination || "", 120);
+      const category = sanitizeString(req.body?.category || "", 50);
+      if (!activityName || !enrichDest) {
         return res.status(422).json({ error: "activityName and destination required" });
       }
-      const result = await enrichActivity(activityName, destination, category || "");
+      const result = await enrichActivity(activityName, enrichDest, category);
       if (!result) return res.json(null);
       res.json(result);
     } catch (err) {
@@ -2034,19 +2046,22 @@ export function createApp(deps = {}) {
   // POST /api/v1/attractions/rank — rank attractions for a city based on trip context
   app.post("/api/v1/attractions/rank", apiLimiter, async (req, res) => {
     try {
-      const { cityName, countryCode, childrenAges, pace, vibe, limit: maxResults } = req.body;
+      const cityName = sanitizeString(req.body?.cityName || "", 100);
       if (!cityName) return res.status(422).json({ error: "cityName is required" });
+      const safeCountryCode = sanitizeString(req.body?.countryCode || "US", 2).toUpperCase();
+      const safePace = sanitizeString(req.body?.pace || "", 20);
+      const safeVibe = sanitizeString(req.body?.vibe || "", 50);
+      const safeLimit = Math.min(Math.max(1, parseInt(req.body?.limit) || 20), 50);
+      const rawAges = Array.isArray(req.body?.childrenAges) ? req.body.childrenAges : [];
+      const safeAges = rawAges.map(a => parseInt(String(a), 10)).filter(n => Number.isFinite(n) && n >= 0 && n <= 18);
       const attractions = await attractionMemoryService.getPlanningCandidates({
         destination: cityName,
-        coords: {
-          displayName: cityName,
-          countryCode: countryCode || "US",
-        },
-        countryCode: countryCode || "US",
-        childrenAges: childrenAges || [],
-        requestedActivities: vibe ? [vibe] : [],
-        pace,
-        maxResults: maxResults || 20,
+        coords: { displayName: cityName, countryCode: safeCountryCode },
+        countryCode: safeCountryCode,
+        childrenAges: safeAges,
+        requestedActivities: safeVibe ? [safeVibe] : [],
+        pace: safePace,
+        maxResults: safeLimit,
       });
 
       res.json({
@@ -2075,7 +2090,9 @@ export function createApp(deps = {}) {
         .order("kid_appeal_score", { ascending: false });
 
       if (error) throw error;
-      res.json({ attractions: data || [] });
+      // Strip internal scoring/operational fields before returning
+      const publicAttractions = (data || []).map(({ llm_notes, confidence_score, times_seen, last_seen_at, source_type, why_recommended, timing_tip, ...pub }) => pub);
+      res.json({ attractions: publicAttractions });
     } catch (err) {
       log.error("attractions:city-error", { error: err.message });
       res.status(500).json({ error: "Failed to fetch attractions" });
