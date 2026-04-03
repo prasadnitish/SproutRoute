@@ -56,7 +56,11 @@ async function parseSafeResponse(response) {
   let rateLimitReset;
   try {
     const resetHeader = response.headers?.get?.("RateLimit-Reset");
-    if (resetHeader) rateLimitReset = Number(resetHeader);
+    if (resetHeader) {
+      const raw = Number(resetHeader);
+      // express-rate-limit sends relative seconds; normalize to epoch
+      rateLimitReset = raw > 1_000_000_000 ? raw : Math.floor(Date.now() / 1000) + raw;
+    }
   } catch { /* ignore */ }
 
   // Try to get message from body
@@ -115,15 +119,29 @@ async function fetchWithRetry(url, options = {}, config = {}) {
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    // Propagate external abort signal (from useTrip's abortRef) alongside timeout
+    const externalSignal = options.signal;
+    if (externalSignal?.aborted) throw Object.assign(new Error("Aborted"), { name: "AbortError" });
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    // If external signal fires, abort our internal controller too
+    const onExternalAbort = () => controller.abort();
+    externalSignal?.addEventListener("abort", onExternalAbort);
 
     try {
       const response = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", onExternalAbort);
       return await parseSafeResponse(response);
     } catch (err) {
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", onExternalAbort);
+
+      // Distinguish user-initiated abort from timeout
+      if (err.name === "AbortError" && externalSignal?.aborted) {
+        throw Object.assign(new Error("Aborted"), { name: "AbortError" });
+      }
 
       if (err.name === "AbortError") {
         lastError = Object.assign(

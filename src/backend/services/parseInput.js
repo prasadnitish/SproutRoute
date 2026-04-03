@@ -22,11 +22,11 @@ function defaultDates() {
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 
-const PARSE_PROMPT = (userText, region) => `You are a trip planner assistant. Parse this trip request into structured JSON.
+const PARSE_PROMPT = (userText, region, clientDate = null) => `You are a trip planner assistant. Parse this trip request into structured JSON.
 
 User input: "${userText}"
 ${region ? `User is located near: ${region}` : ""}
-Current date: ${new Date().toISOString().split("T")[0]}
+Current date: ${clientDate || new Date().toISOString().split("T")[0]}
 
 Return ONLY valid JSON with these fields:
 {
@@ -120,8 +120,9 @@ export async function parseInput(text, deps = {}) {
     return responseText;
   });
   const detectedRegion = deps.detectedRegion || null;
+  const clientDate = deps.clientDate || null;
 
-  const prompt = PARSE_PROMPT(text, detectedRegion);
+  const prompt = PARSE_PROMPT(text, detectedRegion, clientDate);
   const raw = await callAI(prompt);
 
   const defaults = defaultDates();
