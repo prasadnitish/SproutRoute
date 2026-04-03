@@ -11,14 +11,14 @@
 
 import posthog from "posthog-js";
 
-const POSTHOG_KEY = "phc_wBjTWgSgehJihP26nm7fAuTtWW8QBqBXiv6Siuv3UWtc";
+const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
 const IS_PROD = import.meta.env.PROD;
 
 // Initialize PostHog (only in production to avoid dev noise)
 let initialized = false;
 
 function init() {
-  if (initialized || !IS_PROD) return;
+  if (initialized || !IS_PROD || !POSTHOG_KEY) return;
   try {
     posthog.init(POSTHOG_KEY, {
       api_host: "https://us.i.posthog.com",
@@ -27,7 +27,7 @@ function init() {
       capture_pageleave: true,
       autocapture: true, // Clicks, form submits, page views
       session_recording: {
-        maskAllInputs: false, // Show what users type (trip queries)
+        maskAllInputs: true, // Protect user trip text (contains PII: ages, locations, names)
         maskInputOptions: { password: true },
       },
       persistence: "localStorage",
