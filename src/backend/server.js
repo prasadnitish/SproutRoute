@@ -1084,6 +1084,14 @@ export function createApp(deps = {}) {
       }
 
       const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
+
+      // Early duration check — before any expensive calls
+      const earlyDuration = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+      if (earlyDuration <= 0 || !destination) {
+        send("error", { message: destination ? "End date must be after start date." : "Destination is required." });
+        return res.end();
+      }
+
       const safeActivities =
         Array.isArray(activities) && activities.length > 0
           ? activities
@@ -1601,7 +1609,7 @@ export function createApp(deps = {}) {
     const t0 = Date.now();
     const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
     try {
-      const { text, detectedLat, detectedLon } = req.body;
+      const { text, detectedLat, detectedLon, clientDate } = req.body;
       if (!text || typeof text !== "string" || text.trim().length === 0) {
         return res.status(422).json({ error: "text is required" });
       }
@@ -1637,7 +1645,9 @@ export function createApp(deps = {}) {
           log.info("parse-input:geo", { reqId, ms: Date.now() - geoT0, region: detectedRegion });
         } catch { /* silent — region is optional */ }
       }
-      const result = await parseInput(sanitizedText, { detectedRegion });
+      // Pass client's local date for timezone-correct relative date parsing
+      const safeClientDate = /^\d{4}-\d{2}-\d{2}$/.test(clientDate) ? clientDate : null;
+      const result = await parseInput(sanitizedText, { detectedRegion, clientDate: safeClientDate });
       const parseMs = Date.now() - t0;
       log.info("parse-input:done", { reqId, ms: parseMs, destination: result?.destination });
       metrics.recordSearch({

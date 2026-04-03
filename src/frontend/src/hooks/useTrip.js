@@ -89,6 +89,7 @@ export function useTrip() {
         text,
         detectedLat: geolocation?.lat || null,
         detectedLon: geolocation?.lon || null,
+        clientDate: new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD in user's timezone
       });
       const parsedWithContext = {
         ...parsed,
@@ -234,7 +235,8 @@ export function useTrip() {
             setPackingList(result.packingList);
           }
           analytics.tripCompleted(parsed?.destination, fullData.trip?.duration);
-          setScreenWithHistory("results");
+          // Only transition if not already on results (destination event handles this)
+          if (screenRef.current !== "results") setScreenWithHistory("results");
           break;
         }
       }
