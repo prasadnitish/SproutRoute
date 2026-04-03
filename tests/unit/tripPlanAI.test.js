@@ -571,8 +571,8 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
     { geminiModel: mockGeminiModel, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: (await mockGeminiModel.generateContent()).response.text() }], stop_reason: "end_turn" }) } }, openaiClient: { chat: { completions: { create: async () => ({ choices: [{ message: { content: (await mockGeminiModel.generateContent()).response.text() }, finish_reason: "stop" }] }) } } } },
   );
 
-  assert.equal(result.dailyItinerary.length, 2);
-  assert.equal(result.dailyItinerary[1].day, "Day 2");
+  assert.equal(result.dailyItinerary.length, 3);
+  assert.equal(result.dailyItinerary[2].day, "Day 3");
 });
 
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────

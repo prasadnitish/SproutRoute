@@ -256,8 +256,8 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     plannerSummary = "",
     cachedAttractions = [],
   } = tripData;
-  const expectedDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
-  const maxActivities = Math.min(Math.max(expectedDays * 2, 4), 10);
+  const expectedDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1);
+  const maxActivities = Math.max(expectedDays * 6, 10);
 
   // Sanitize user-supplied fields before interpolating into AI prompts
   const destination = sanitizeDestination(rawDestination);
