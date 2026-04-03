@@ -1,768 +1,463 @@
-# Architecture Documentation: SproutRoute (Web MVP)
+# Architecture Documentation: SproutRoute
+
+**Last Updated: April 2, 2026**
 
 ## System Overview
 
-SproutRoute is a **client-server web application** that helps parents transform trip intent into a detailed itinerary and AI-powered, weather-appropriate packing list. The system consists of:
+SproutRoute is an **AI-powered family trip planner** that generates personalized itineraries, packing lists, safety guidance, and pet travel requirements from a single free-text input. The system consists of:
 
-- **Frontend (React/Vite):** Single-page application for user interaction
-- **Backend (Node.js/Express):** API server that orchestrates external API calls
-- **External APIs:** Weather.gov (forecast data), AI API (itinerary + packing lists), OpenStreetMap (Nominatim + Overpass for location resolution)
-- **Storage:** Browser local storage (no database required for MVP)
+- **Frontend (React 18 / Vite / Tailwind):** Single-page application with progressive rendering via SSE
+- **Backend (Node.js / Express):** API server orchestrating AI models, external APIs, and database queries
+- **Database (Supabase PostgreSQL):** 19 tables with RLS, 15+ migrations -- stores users, profiles, attractions, trip metrics, and feedback
+- **AI Pipeline:** Multi-model routing -- GPT-5.4 nano (primary), Claude Haiku 4.5 (fallback), Claude Sonnet 4.6 (offline precompute)
+- **Analytics (PostHog):** Full funnel tracking with session recordings and PII masking
+- **External APIs:** Visual Crossing (weather), Nominatim/Overpass (geocoding), Google Places (enrichment)
 
-**Architecture Pattern:** Simple 3-tier architecture (Presentation → API Layer → External Services)
+**Architecture Pattern:** Progressive SSE rendering with background enrichment. Results screen appears in ~2s; itinerary streams in background. Packing, safety, and pet checks run non-blocking.
 
 ---
 
 ## Component Diagram
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│              User Browser                                │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │         React Frontend (SPA)                       │ │
-│  │  - Step-by-step Trip Wizard                        │ │
-│  │    - FamilyStep (children + pets input)            │ │
-│  │  - Weather Display                                 │ │
-│  │  - Itinerary Display (pet-friendly badges)         │ │
-│  │  - Packing Checklist (pet packing category)        │ │
-│  │  - Travel Safety Card (car seat guidance)          │ │
-│  │  - Pet Safety Tile (airline + entry rules)         │ │
-│  │  - Local Storage Manager                           │ │
-│  └────────────┬───────────────────────────────────────┘ │
-└───────────────┼──────────────────────────────────────────┘
-                │ HTTP/REST
-                ▼
-┌──────────────────────────────────────────────────────────┐
-│        Backend API Server (Express)                      │
-│  ┌────────────────────────────────────────────────────┐ │
-│  │  GET  /api/health                                  │ │
-│  │  POST /api/resolve-destination                     │ │
-│  │  POST /api/trip-plan          (pets → AI prompt)   │ │
-│  │  POST /api/generate           (pets → packing)     │ │
-│  │  POST /api/safety/car-seat-check                   │ │
-│  │  POST /api/v1/safety/pet-travel-check   ← NEW     │ │
-│  └────┬──────────────────────┬────────────────────────┘ │
-└───────┼──────────────────────┼──────────────────────────┘
-        │                      │
-        ▼                      ▼
-┌──────────────────┐   ┌────────────────────────────┐
-│   Weather.gov    │   │   AI API                   │
-│   (NWS API)      │   │                            │
-│                  │   │  - Itinerary + packing     │
-│  - Forecast data │   │    (pet-aware prompts)     │
-│  - US locations  │   │  - Car seat law research   │
-└──────────────────┘   │  - Pet contextual advice   │
-        ▲              └────────────────────────────┘
-        │
-┌────────────────────────────────────────┐
-│ OpenStreetMap (Nominatim + Overpass)   │
-│ - Geocoding + nearby city suggestions  │
-└────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│                     User Browser                                  │
+│  ┌─────────────────────────────────────────────────────────────┐ │
+│  │              React Frontend (SPA)                            │ │
+│  │                                                              │ │
+│  │  Screens:                                                    │ │
+│  │    InputScreen.jsx    ← Single textarea + vibe chips         │ │
+│  │    GeneratingScreen.jsx ← Progress steps + destination picker│ │
+│  │    ResultsScreen.jsx  ← Tab layout: Plan (mosaic) + Pack    │ │
+│  │                                                              │ │
+│  │  Hooks:                                                      │ │
+│  │    useTrip.js         ← ORCHESTRATOR: parse → plan → enrich │ │
+│  │    useGeolocation.js  ← IP-based location detection          │ │
+│  │    usePlacesEnrich.js ← Google Places enrichment             │ │
+│  │                                                              │ │
+│  │  Mosaic Tiles:                                               │ │
+│  │    HeroTile / WeatherTile / ItineraryTile / SafetyTile      │ │
+│  │    PetSafetyTile / MapTile / DayRouteMap                    │ │
+│  │                                                              │ │
+│  │  Other Components:                                           │ │
+│  │    PackingChecklist / ActivityDetailPanel / ResultTabs        │ │
+│  │    Profile import/review UI                                  │ │
+│  │                                                              │ │
+│  │  PostHog Analytics (full funnel + session recordings)        │ │
+│  └────────────────┬────────────────────────────────────────────┘ │
+└───────────────────┼──────────────────────────────────────────────┘
+                    │ HTTP/REST + SSE (streaming)
+                    ▼
+┌───────────────────────────────────────────────────────────────────┐
+│               Backend API Server (Express on Railway)             │
+│                                                                   │
+│  Core Routes:                                                     │
+│    GET  /api/health                                               │
+│    POST /api/v1/trip/parse-input      (AI input parsing)          │
+│    POST /api/v1/trip/stream           (SSE progressive rendering) │
+│    POST /api/resolve-destination      (geocoding)                 │
+│    POST /api/trip-plan                (weather + AI itinerary)    │
+│    POST /api/generate                 (packing list)              │
+│    POST /api/safety/car-seat-check    (car seat guidance)         │
+│    POST /api/safety/travel-tips       (AI safety tips)            │
+│    POST /api/v1/safety/pet-travel-check (airline + entry reqs)   │
+│    POST /api/v1/attractions/rank      (attraction shortlist)      │
+│    GET  /api/v1/ops/metrics           (ops dashboard data)        │
+│                                                                   │
+│  Profile Routes:                                                  │
+│    POST /api/v1/profile/import/validate                           │
+│    POST /api/v1/profile/import/normalize                          │
+│    GET  /api/v1/profile/me                                        │
+│    PUT  /api/v1/profile/me                                        │
+│    POST /api/v1/profile/me/feedback                               │
+│                                                                   │
+│  Middleware: CORS, rate limiter, Supabase auth, input sanitization│
+│  Ops: /ops dashboard with persistent Supabase metrics             │
+└───────┬──────────────┬──────────────┬────────────────────────────┘
+        │              │              │
+        ▼              ▼              ▼
+┌──────────────┐ ┌──────────────┐ ┌─────────────────────────────┐
+│ Supabase     │ │ AI Models    │ │ External APIs               │
+│ PostgreSQL   │ │              │ │                             │
+│              │ │ Primary:     │ │ Visual Crossing (weather)   │
+│ 19 tables    │ │  GPT-5.4    │ │ Nominatim (geocoding)       │
+│ RLS enabled  │ │  nano       │ │ Google Places (enrichment)  │
+│ 15+ migrat.  │ │  $0.003/trip│ │ Overpass (nearby cities)    │
+│              │ │              │ │                             │
+│ Tables:      │ │ Fallback:   │ │                             │
+│  users       │ │  Claude     │ │                             │
+│  profiles    │ │  Haiku 4.5  │ │                             │
+│  trip_reqs   │ │              │ │                             │
+│  cities      │ │ Precompute: │ │                             │
+│  city_attr.. │ │  Claude     │ │                             │
+│  trip_metrics│ │  Sonnet 4.6 │ │                             │
+│  feedback    │ │  (offline)  │ │                             │
+│  ...         │ │              │ │                             │
+└──────────────┘ └──────────────┘ └─────────────────────────────┘
 
-Pet Safety Services (new):
-┌──────────────────────────────────────────────────────┐
-│  petSafety.js ─── Orchestrator (DI pattern)          │
-│    ├── petAirlineRules.js ── Static airline policies │
-│    │   (Delta, United, AA, Southwest, JetBlue, Alaska│
-│    │    cabin/cargo eligibility, breed bans, fees)   │
-│    ├── petEntryRules.js ──── International entry reqs│
-│    │   (microchip, rabies, quarantine, banned breeds)│
-│    └── AI contextual layer (via aiClient.js)         │
-│        (wraps static facts into actionable advice)   │
-└──────────────────────────────────────────────────────┘
+Attraction Intelligence Layer:
+┌──────────────────────────────────────────────────────────────┐
+│  1,452+ curated attractions across 66+ cities                │
+│                                                              │
+│  Offline Precompute (Claude Sonnet 4.6):                     │
+│    Wave 1: 15 cities (US major + international) ✓            │
+│    Wave 2: 20 cities (expanded US + India + Europe) ✓        │
+│    Wave 3: 62 cities (top 100 NA tourist destinations) ◐     │
+│                                                              │
+│  Runtime Flow:                                               │
+│    1. Resolve destination → canonical city                    │
+│    2. Load cached attractions from Supabase (up to 20/city)  │
+│    3. Rank against trip intent + weather + profile            │
+│    4. Inject verified shortlist into AI prompt                │
+│    5. Capture new attractions back into storage               │
+│                                                              │
+│  Freshness Model: fresh / aging / stale / unverified         │
+│  Cross-day dedup in scheduler                                │
+│  8 PM hard cap for family trips                              │
+│  Dinner-only meal recommendations                            │
+└──────────────────────────────────────────────────────────────┘
+
+Pet Safety Services:
+┌──────────────────────────────────────────────────────────────┐
+│  petSafety.js ─── Orchestrator (DI pattern)                  │
+│    ├── petAirlineRules.js ── Static airline policies         │
+│    │   (Delta, United, AA, Southwest, JetBlue, Alaska)       │
+│    ├── petEntryRules.js ──── International entry reqs        │
+│    │   (microchip, rabies, quarantine, banned breeds)        │
+│    └── AI contextual layer (via aiClient.js)                 │
+└──────────────────────────────────────────────────────────────┘
+
+Profile System:
+┌──────────────────────────────────────────────────────────────┐
+│  Profile import from ChatGPT / Claude / Gemini (paste JSON)  │
+│    → Validate → Normalize to internal schema                 │
+│    → Review UI with confidence cues                          │
+│    → Merge with trip intent (mergeProfileAndIntent)          │
+│    → buildPlannerSummary injected into AI prompt             │
+│  Auth: Supabase Auth middleware (magic link UI pending)       │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Data Flow
 
-### Flow 1: Resolve Destination + Generate Plan (Happy Path)
+### Flow 1: Trip Plan Request (Progressive Rendering)
 
-1. **User enters destination intent** → Frontend calls `POST /api/resolve-destination`
-2. **Backend → OpenStreetMap:** Geocode base city + fetch nearby city suggestions
-3. **Frontend displays suggestions** → User selects a destination
-4. **Frontend → Backend:** `POST /api/trip-plan` with destination + dates + kids + pets
-5. **Backend → Weather.gov:** Fetch 7-day forecast using lat/lon
-6. **Backend → AI API:** Generate structured itinerary (pet-aware if pets present)
-7. **Frontend displays itinerary** → User reviews and optionally selects activities
-8. **Frontend → Backend (parallel):**
-   - `POST /api/generate` with selected activities + pets → AI generates packing list (includes pet packing category)
-   - `POST /api/safety/car-seat-check` with children profiles → returns jurisdiction-specific guidance
-   - `POST /api/v1/safety/pet-travel-check` with pets + travelMode → airline eligibility + entry requirements
-9. **Frontend displays:** Weather, itinerary, car seat guidance, pet safety tile, packing checklist
-10. **Frontend saves:** Trip + packing list + checked items → browser local storage
+```
+User types free-text in InputScreen textarea
+→ useTrip.submitTrip(text, geolocation)
+
+Phase 1 — Blocking (results screen in ~2s):
+  → POST /api/v1/trip/parse-input         (GPT-5.4 nano, ~2.4s)
+  → POST /api/resolve-destination          (Nominatim, ~0.5s)
+  → Weather fetch                          (Visual Crossing, ~0.1s)
+  → Load cached attractions from Supabase  (up to 20 per city)
+  → ResultsScreen renders: HeroTile + WeatherTile
+
+Phase 2 — Background streaming:
+  → POST /api/trip-plan                    (GPT-5.4 nano with attraction shortlist, ~14s)
+  → ItineraryTile populates as data arrives
+
+Phase 3 — Non-blocking background:
+  → POST /api/generate                    (packing list → PackingChecklist)
+  → POST /api/safety/travel-tips          (AI safety tips → SafetyTile)
+  → POST /api/safety/car-seat-check       (if children → SafetyTile)
+  → POST /api/v1/safety/pet-travel-check  (if pets → PetSafetyTile)
+  → Attraction capture back into Supabase
+```
 
 ### Flow 1b: Pet Travel Data Flow (when pets present)
 
 ```
-User enters trip with pets in FamilyStep (renamed from KidsStep)
-→ App.jsx calls api.js → POST /api/v1/trip/parse-input (detects pets from text)
+User mentions pets in free-text input
+→ POST /api/v1/trip/parse-input (extracts pets from text)
 → Backend derives travelMode from distance + countryCode
-→ api.js → POST /api/v1/trip/plan (pets injected into AI prompt → pet-friendly itinerary)
-→ api.js → POST /api/v1/trip/packing (pets → pet packing category per pet)
-→ api.js → POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
-→ App.jsx renders:
+→ POST /api/trip-plan (pets injected into AI prompt → pet-friendly itinerary)
+→ POST /api/generate (pets → pet packing category per pet)
+→ POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
+→ ResultsScreen renders:
     ItineraryTile (pet-friendly badges on activities)
     PackingChecklist (pet items + affiliate shop links)
-    PetSafetyTile (airline comparison table + entry requirements + document checklist)
+    PetSafetyTile (airline comparison table + entry requirements)
 ```
 
-### Flow 2: Load Saved List
+### Flow 2: Profile-Aware Planning
 
-1. **User returns to site** → Frontend checks local storage
-2. **TTL check:** If `lastModified` is older than 7 days, purge and show fresh wizard
-3. **If list is valid:** Load trip details, packing items, checked state
-4. **Display saved list** → User continues packing
+```
+1. Load cached profile (if signed in)
+2. Parse trip input into expanded intent
+3. Merge profile + trip intent (mergeProfileAndIntent)
+4. Build compact planner summary (buildPlannerSummary, 150-300 tokens)
+5. Inject summary into AI itinerary prompt
+6. Profile preferences guide but do not override trip-specific constraints
+```
 
 ### Flow 3: Error Handling
 
-- **Invalid location:** Backend returns 422 → Frontend shows "Please enter a US city"
-- **Weather API down:** Backend returns graceful error → Frontend shows retry message
-- **AI API timeout:** Frontend shows error after 30-second client timeout
-- **Location suggestions unavailable:** Overpass failure falls back silently to direct city mode
+- **Invalid location:** Backend returns 422 with message
+- **Weather API down:** Graceful fallback, trip continues without weather
+- **AI API timeout:** Frontend shows error after client timeout
+- **AI model failure:** Automatic fallback from GPT-5.4 nano to Claude Haiku 4.5
 - **Car seat jurisdiction missing:** Returns `status: "Unavailable"` with source link
 
 ---
 
 ## Key Design Decisions
 
-### Decision 1: Web App vs Mobile App for MVP
+### Decision 1: Multi-Model AI Routing
 
-**Context:** Original plan was React Native mobile app, but timeline is 6 months for 5 projects.
+**Context:** Started with Claude Sonnet ($0.24/trip), then Gemini, now GPT-5.4 nano.
 
-**Options Considered:**
+**Current Strategy:**
+- **GPT-5.4 nano** (primary runtime): $0.003/trip, best-case 6-16s for simple trips
+- **Claude Haiku 4.5** (fallback): Activates on GPT nano failure or timeout
+- **Claude Sonnet 4.6** (offline precompute): Rich reasoning for attraction discovery, tagging, and editorial summaries
 
-1. React Native mobile app (original plan)
-2. Web app with React
-3. Hybrid (PWA - Progressive Web App)
+**Rationale:** Cost dropped from $0.24/trip to $0.003/trip (80x reduction). Latency dropped from 83s baseline to p50 33.7s, avg 38.7s. Per-task model configuration allows optimizing each stage independently.
 
-**Decision:** Web app (React + Vite) for MVP
+### Decision 2: Supabase PostgreSQL
 
-**Rationale:**
+**Context:** MVP started with browser localStorage only. Scaled to persistent database for profiles, attractions, and metrics.
 
-- **Faster development:** 1-2 weeks vs 4-6 weeks for mobile
-- **Easier deployment:** Cloudflare Pages vs App Store approval
-- **Better for demos:** Share URL in interviews vs installing app
-- **Still mobile-friendly:** Responsive design works on phone browsers
-- **Future extensibility:** Can build React Native app in V2 using same backend
+**Current State:** 19 tables with RLS, 15+ migrations. Tables include: users, profiles, profile_revisions, profile_imports, trip_requests, trip_feedback, cities, city_attractions, city_attraction_tags, attraction_precompute_runs, attraction_verification_cache, trip_metrics.
 
-### Decision 2: No Database for MVP
+**Rationale:** Profile persistence, attraction intelligence layer, and ops metrics all require structured storage. RLS provides row-level security. Supabase Auth middleware supports magic link authentication (UI pending).
 
-**Context:** Need to store packing lists and user progress.
+### Decision 3: Progressive SSE Rendering
 
-**Options Considered:**
+**Context:** Full trip generation takes 30-40s. Users should not wait for everything.
 
-1. PostgreSQL database (original plan)
-2. SQLite file database
-3. Browser local storage only
-4. Firebase/Supabase
+**Strategy:** Results screen renders in ~2s with hero and weather. Itinerary streams in background (~14s on GPT nano). Packing, safety, and pet checks run non-blocking after itinerary.
 
-**Decision:** Browser local storage only
+**Rationale:** Perceived latency drops dramatically. Users see progress immediately rather than a blank loading screen.
 
-**Rationale:**
+### Decision 4: Attraction Intelligence Layer
 
-- **Simplicity:** No database setup, migrations, or hosting
-- **MVP sufficient:** Users only need 1 trip at a time
-- **Privacy:** Data stays on user's device; 7-day TTL auto-purges children's data
-- **Cost:** Free (no database hosting)
-- **Trade-off:** Data lost if user clears browser, no cross-device sync
-- **V2 path:** Can add Firebase for cloud sync later
+**Context:** Open-ended AI attraction reasoning was slow, inconsistent, and expensive.
 
-### Decision 3: Server-Side API Proxy (Backend)
+**Strategy:** Offline precompute 1,452+ curated attractions across 66+ cities. At runtime, load cached attractions, rank against trip intent, inject verified shortlist into AI prompt.
 
-**Context:** Need to call Weather.gov and the AI API.
+**Rationale:** Reduces AI reasoning load, improves consistency, enables cross-day dedup, and supports 8 PM family hard cap and dinner-only meal recommendations.
 
-**Options Considered:**
+### Decision 5: Visual Crossing for Weather
 
-1. Call APIs directly from frontend (no backend)
-2. Serverless functions (Vercel/Netlify functions)
-3. Express.js backend server
+**Context:** Weather.gov is US-only. Visual Crossing provides international coverage.
 
-**Decision:** Express.js backend server
+**Decision:** Migrated from Weather.gov to Visual Crossing for unified domestic and international weather data.
 
-**Rationale:**
+### Decision 6: PostHog Analytics
 
-- **Security:** Cannot expose AI API key in frontend code
-- **Rate limiting:** Control API usage from single point
-- **Caching:** Cache weather data for 1 hour to reduce API calls
-- **Error handling:** Graceful fallbacks and retries
-- **Learning value:** Shows backend architecture understanding for TPM portfolio
+**Context:** Needed full funnel tracking and session recordings to understand user behavior.
 
-### Decision 4: Weather.gov API (US-Only)
-
-**Context:** Need weather data for packing list generation.
-
-**Options Considered:**
-
-1. OpenWeatherMap (free tier, international)
-2. Weather.gov (free, US-only, unlimited)
-3. WeatherAPI.com (free tier, international)
-
-**Decision:** Weather.gov (National Weather Service)
-
-**Rationale:**
-
-- **Free & unlimited:** No API key required, no rate limits
-- **Reliable:** Government service, high uptime
-- **MVP scope:** US-only acceptable for portfolio project
-- **Trade-off:** Non-US users see error message
-- **V2 path:** Can add OpenWeatherMap for international support
-
-### Decision 5: AI API for Packing List and Itinerary Generation
-
-**Context:** Need AI to generate context-aware packing lists and itineraries.
-
-**Options Considered:**
-
-1. Anthropic AI API
-2. OpenAI GPT-4
-3. Rule-based logic (no AI)
-
-**Decision:** Anthropic AI API
-
-**Rationale:**
-
-- **Quality:** Excellent at structured tasks (JSON output)
-- **Context window:** Large enough for full weather + activities
-- **Cost-effective:** Haiku model is fast and economical for this use case
-- **Portfolio value:** Shows modern AI integration
-
-### Decision 6: Natural-Language Location + Suggestions
-
-**Context:** Users may type "2 hour drive from Seattle" instead of a city.
-
-**Options Considered:**
-
-1. Require strict city/state input only
-2. Natural-language parsing with suggested destinations (MVP)
-3. Full routing-based destination inference (V2)
-
-**Decision:** Natural-language parsing with 1-3 suggested destinations
-
-**Rationale:**
-
-- **Portfolio value:** Shows thoughtful UX and NLP integration
-- **Risk-managed:** Suggestions keep results reliable without complex routing
-- **Extensible:** Can add routing APIs later for true drive-time inference
+**Current State:** Full funnel tracking with session recordings, PII masking enabled. Ops dashboard at /ops shows persistent Supabase metrics.
 
 ---
 
 ## API Endpoints
 
-### GET /api/health
+### Core Trip Routes
 
-**Description:** Liveness probe for hosting health checks
+| Method | Path | Service | Description |
+|--------|------|---------|-------------|
+| GET | `/api/health` | inline | Liveness probe |
+| POST | `/api/v1/trip/parse-input` | parseInput.js + inputSafety.js | AI-powered free-text parsing |
+| POST | `/api/v1/trip/stream` | tripPlanAI.js + SSE | Progressive streaming trip generation |
+| POST | `/api/resolve-destination` | geocoding.js | Nominatim geocoding + suggestions |
+| POST | `/api/trip-plan` | weather.js + tripPlanAI.js | Weather + AI itinerary |
+| POST | `/api/generate` | packingListAI.js | AI packing list |
+| POST | `/api/safety/car-seat-check` | safetyRules.js + carSeatRules.js | Jurisdiction car seat guidance |
+| POST | `/api/safety/travel-tips` | travelSafety.js + travelAdvisory.js | AI safety tips |
+| POST | `/api/v1/safety/pet-travel-check` | petSafety.js | Airline + entry requirements |
 
-**Response:**
+### Attraction Intelligence Routes
 
-```json
-{
-  "status": "ok",
-  "message": "SproutRoute API is running",
-  "timestamp": "2026-02-15T10:00:00.000Z"
-}
-```
+| Method | Path | Service | Description |
+|--------|------|---------|-------------|
+| POST | `/api/v1/attractions/rank` | attractionRanker.js | Rank cached attractions for trip |
 
-### POST /api/resolve-destination
+### Profile Routes
 
-**Description:** Resolve natural-language destination intent into concrete suggestions
+| Method | Path | Service | Description |
+|--------|------|---------|-------------|
+| POST | `/api/v1/profile/import/validate` | profileImport.js | Validate pasted JSON |
+| POST | `/api/v1/profile/import/normalize` | profileNormalize.js | Normalize to internal schema |
+| GET | `/api/v1/profile/me` | profileRepository.js | Fetch user profile |
+| PUT | `/api/v1/profile/me` | profileRepository.js | Update profile |
+| POST | `/api/v1/profile/me/feedback` | feedbackRepository.js | Store feedback signals |
 
-**Request:**
+### Ops Routes
 
-```json
-{
-  "query": "2 hour drive from Seattle"
-}
-```
-
-**Response (suggestions):**
-
-```json
-{
-  "mode": "suggestions",
-  "origin": "Seattle, WA",
-  "suggestions": [
-    {
-      "name": "Tacoma",
-      "displayName": "Tacoma, WA",
-      "distanceMiles": 32
-    }
-  ]
-}
-```
-
-**Response (direct):**
-
-```json
-{
-  "mode": "direct",
-  "destination": "Seattle, WA"
-}
-```
-
-### POST /api/trip-plan
-
-**Description:** Generate a detailed itinerary using destination, dates, and kids
-
-**Request:**
-
-```json
-{
-  "destination": "Seattle, WA",
-  "startDate": "2026-05-15",
-  "endDate": "2026-05-20",
-  "children": [{ "age": 2 }]
-}
-```
-
-**Response:**
-
-```json
-{
-  "trip": {
-    "destination": "Seattle, WA",
-    "duration": 5,
-    "startDate": "2026-05-15",
-    "endDate": "2026-05-20",
-    "jurisdictionCode": "WA",
-    "jurisdictionName": "Washington"
-  },
-  "weather": {
-    "summary": "Expect temperatures between 52°F and 66°F with possible rain."
-  },
-  "tripPlan": {
-    "overview": "A balanced family-friendly itinerary...",
-    "suggestedActivities": [
-      {
-        "id": "activity-1",
-        "name": "Pike Place Market",
-        "category": "city",
-        "duration": "2-3 hours",
-        "kidFriendly": true,
-        "weatherDependent": false
-      }
-    ],
-    "dailyItinerary": [...],
-    "tips": [...]
-  }
-}
-```
-
-### POST /api/generate
-
-**Description:** Generate complete packing list with weather forecast
-
-**Request:**
-
-```json
-{
-  "destination": "Seattle, WA",
-  "startDate": "2026-05-15",
-  "endDate": "2026-05-20",
-  "activities": ["hiking", "city"],
-  "children": [{ "age": 2 }, { "age": 4 }]
-}
-```
-
-**Response:**
-
-```json
-{
-  "trip": { "destination": "Seattle, WA", "duration": 5, ... },
-  "weather": {
-    "forecast": [
-      {
-        "date": "2026-05-15",
-        "high": 62,
-        "low": 50,
-        "condition": "Partly Cloudy",
-        "precipitation": 40
-      }
-    ],
-    "summary": "Expect cool temps (50-65°F) with 40-70% rain chance"
-  },
-  "packingList": {
-    "categories": [
-      {
-        "name": "Clothing",
-        "items": [
-          {
-            "name": "Rain jackets",
-            "quantity": "2",
-            "reason": "High rain probability Wed-Fri"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### POST /api/safety/car-seat-check
-
-**Description:** Return jurisdiction-specific car seat and booster guidance for each child
-
-**Request:**
-
-```json
-{
-  "destination": "Seattle, WA",
-  "jurisdictionCode": "WA",
-  "tripDate": "2026-05-15",
-  "children": [{ "age": 2, "weightLb": 28, "heightIn": 34 }]
-}
-```
-
-**Response:**
-
-```json
-{
-  "status": "Needs review",
-  "jurisdictionCode": "WA",
-  "jurisdictionName": "Washington",
-  "sourceUrl": "https://wtsc.wa.gov/child-passenger-safety/",
-  "effectiveDate": "Not found in repo",
-  "lastUpdated": "2026-02-15",
-  "results": [
-    {
-      "childId": "child-1",
-      "ageYears": 2,
-      "status": "Needs review",
-      "requiredRestraint": "rear_facing",
-      "requiredRestraintLabel": "Rear-facing car seat",
-      "seatPosition": "rear_seat_required_if_available",
-      "rationale": "Age matched but weight/height details are incomplete.",
-      "sourceUrl": "https://wtsc.wa.gov/child-passenger-safety/"
-    }
-  ]
-}
-```
-
-**Error Responses:**
-
-- **400:** Missing or empty children array
-- **500:** Internal evaluation failure
-
-### POST /api/v1/safety/pet-travel-check
-
-**Description:** Return airline eligibility for all carriers + international entry requirements per pet
-
-**Request:**
-
-```json
-{
-  "pets": [{ "type": "dog", "breed": "golden retriever", "weightLbs": 20, "name": "Max" }],
-  "destination": "London, UK",
-  "countryCode": "GB",
-  "travelMode": "fly"
-}
-```
-
-**Response:**
-
-```json
-{
-  "airlineGuidance": [
-    {
-      "pet": "Max",
-      "airlines": [
-        {
-          "carrier": "Delta",
-          "carrierCode": "DL",
-          "cabinEligible": true,
-          "cabinFee": "$95 each way",
-          "cargoEligible": true,
-          "cargoFee": "$300-$700",
-          "breedWarning": null,
-          "requiredDocuments": ["Vet certificate within 10 days"]
-        }
-      ],
-      "recommendation": "Max qualifies for cabin travel on Delta, United, and JetBlue."
-    }
-  ],
-  "entryRequirements": {
-    "country": "United Kingdom",
-    "microchipRequired": true,
-    "rabiesVaccine": "Required, administered 21+ days before travel",
-    "quarantine": false,
-    "bannedBreeds": ["Pit Bull Terrier", "Japanese Tosa", "Dogo Argentino", "Fila Brasileiro"],
-    "healthCertificate": "USDA-endorsed veterinary certificate within 10 days",
-    "advanceNoticeDays": 30,
-    "timelineWarning": null
-  },
-  "source": "gov.uk/bring-pet-to-great-britain"
-}
-```
-
-**Error Responses:**
-
-- **422:** Pets array empty/invalid, travelMode not in `["fly", "drive"]`
-- **404:** countryCode not in database (entry requirements return null, airline guidance still returned)
-- **500:** `{ code: "PET_SAFETY_FAILED", message: "...", retryable: true }`
+| Method | Path | Service | Description |
+|--------|------|---------|-------------|
+| GET | `/api/v1/ops/metrics` | tripMetrics + Supabase | Ops dashboard data |
 
 ---
 
-## Data Models
+## Database Schema (Supabase PostgreSQL)
 
-### Frontend State (React)
+### Tables (19 total)
 
-```typescript
-interface Pet {
-  type: "dog" | "cat" | "small_animal";
-  name?: string;
-  breed: string;
-  weightLbs: number;
-  specialNeeds?: string;
-}
+**User and Profile:**
+- `users` -- auth provider, email
+- `profiles` -- normalized profile JSON, version, summary
+- `profile_revisions` -- non-destructive revision history
+- `profile_imports` -- raw import text, normalized result, validation
 
-interface TripInput {
-  destination: string;
-  startDate: string; // ISO date string (e.g. "2026-05-15")
-  endDate: string;
-  activities: string[];
-  children: { age: number; weightLb?: number; heightIn?: number }[];
-  pets: Pet[];              // NEW — pet travelers
-  travelMode?: "fly" | "drive"; // derived from distance if not set
-}
+**Trip:**
+- `trip_requests` -- raw input, parsed JSON, profile snapshot
+- `trip_feedback` -- signal type (more/less like this, save preference)
+- `trip_metrics` -- latency breakdown, model, cost tracking
 
-interface WeatherForecast {
-  date: string;
-  high: number;
-  low: number | null; // null when night period is unavailable
-  condition: string;
-  precipitation: number; // percentage 0-100
-}
+**Attraction Intelligence:**
+- `cities` -- canonical city records, priority tier, lat/lon
+- `city_attractions` -- 1,452+ curated attractions with metadata
+- `city_attraction_tags` -- tag groups and weights
+- `attraction_precompute_runs` -- offline LLM job tracking
+- `attraction_verification_cache` -- Places verification results
 
-interface PackingItem {
-  name: string;
-  quantity: string;
-  reason: string;
-  // Note: item IDs are computed client-side as "${category.name}-${catIndex}-${itemIndex}"
-  // and are not part of the API response.
-}
-
-interface PackingCategory {
-  name: string;
-  items: PackingItem[];
-}
-```
-
-### Local Storage Structure
-
-```json
-{
-  "sproutroute_trip": {
-    "trip": { "destination": "...", "startDate": "...", "endDate": "...", "children": [...], "jurisdictionCode": "WA", "jurisdictionName": "Washington", "duration": 5 },
-    "weather": { "forecast": [...], "summary": "..." },
-    "tripPlan": { "overview": "...", "suggestedActivities": [...], "dailyItinerary": [...], "tips": [...] },
-    "packingList": { "categories": [...] },
-    "safetyGuidance": { "status": "Needs review", "results": [...] },
-    "petSafetyGuidance": { "airlineGuidance": [...], "entryRequirements": {...} },
-    "lastModified": "2026-05-10T14:32:00Z"
-  },
-  "sproutroute_checked": ["Clothing-0-0", "Clothing-0-1", ...]
-}
-```
-
-**Storage limits:** ~5-10MB (local storage limit), well within bounds for one trip.
-
-**TTL:** Data older than 7 days is automatically purged on next page load.
+All tables have RLS (Row Level Security) enabled.
 
 ---
 
-## Security Considerations
+## Security
+
+### Completed Security Hardening
+
+- 13 OWASP findings fixed
+- 7 race conditions fixed
+- CVE patches applied (express-rate-limit, lodash, path-to-regexp)
+- RLS on all Supabase tables
+- Input sanitization on all endpoints
+- PostHog PII masking enabled
 
 ### API Key Protection
 
-- ✅ **AI API key stored in environment variables** (`.env` file)
-- ✅ **Never exposed to frontend** (backend proxy pattern)
-- ✅ **`.env` in `.gitignore`** (never committed)
-- ✅ **`.env.example` provided** (without real keys)
-- ✅ **Startup validation:** Server exits immediately if key is missing or placeholder
+- AI API keys and Supabase credentials stored in environment variables
+- Never exposed to frontend (backend proxy pattern)
+- Startup validation: server exits if keys are missing
 
 ### Input Validation
 
-- ✅ **Frontend validation:** Date ranges, required fields, client-side clamping
-- ✅ **Backend sanitization:** All string fields through `sanitizeString`; dates sanitized and injection-stripped before reaching AI prompts
-- ✅ **Rate limiting:** 30 requests per 15 minutes per IP across all AI endpoints
-- ✅ **Request body size limit:** 10 KB cap to prevent payload exhaustion
+- Backend sanitization: all string fields through `sanitizeString`
+- Prompt injection protection via `inputSafety.js`
+- Rate limiting: 30 requests per 15 minutes per IP across AI endpoints
+- Request body size limit: 10 KB cap
 
 ### AI Prompt Security
 
-- ✅ **System/user separation:** Static instructions sent via `system:` parameter; only trip data in user message
-- ✅ **Injection marker stripping:** `IGNORE PREVIOUS`, `SYSTEM:`, `ASSISTANT:` removed from all user inputs
-- ✅ **Temperature 0:** Deterministic structured JSON output minimises off-rails responses
-
-### XSS Prevention
-
-- ✅ **React auto-escapes:** User input automatically sanitized
-- ✅ **No `dangerouslySetInnerHTML`:** Avoid unsafe HTML rendering
-- ✅ **Security headers:** `X-Content-Type-Options`, `X-Frame-Options`, `X-XSS-Protection`, HSTS in production
-
-### CORS Configuration
-
-- ✅ **Production:** Enforces explicit `ALLOWED_ORIGINS` allowlist
-- ✅ **Dev:** Only allows localhost origins
-- ✅ **Startup guard:** Server exits if `ALLOWED_ORIGINS` is empty in production mode
-
-### Weather.gov API
-
-- ✅ **No authentication required** (public API)
-- ✅ **Respect rate limits:** Cache responses for 1 hour (in-memory)
-- ✅ **Timeout:** Both Weather.gov fetch calls have a 10-second AbortController timeout
+- System/user separation: static instructions via `system:` parameter
+- Injection marker stripping: `IGNORE PREVIOUS`, `SYSTEM:`, `ASSISTANT:` removed
+- Temperature 0 for deterministic structured JSON output
 
 ---
 
-## Performance Considerations
+## Performance
+
+### Current Latency (Production)
+
+| Metric | Value |
+|--------|-------|
+| p50 latency | 33.7s |
+| Average latency | 38.7s |
+| Baseline (before optimizations) | 83s |
+| Best case (simple trips, GPT nano) | 6-16s |
+| Parse input (GPT-5.4 nano) | ~2.4s |
+| Geocode (Nominatim) | ~0.5s |
+| Weather (Visual Crossing) | ~0.1s |
+| Trip plan AI (GPT nano + shortlist) | ~14s |
+
+### Cost Per Trip
+
+| Model | Cost |
+|-------|------|
+| GPT-5.4 nano (current) | $0.003/trip |
+| Claude Sonnet (previous) | $0.24/trip |
+| Reduction | 80x |
+
+### Test Coverage
+
+| Type | Count |
+|------|-------|
+| Unit tests | 350 |
+| Playwright e2e tests | 59 |
+| Request errors (sampled) | 0 |
 
 ### Caching Strategy
 
-- **Weather data:** In-memory cache, 1 hour TTL, max 100 entries (LRU eviction)
-- **Geocoding:** In-memory cache, 6 hour TTL, max 500 entries
-- **AI API:** No caching (each list is unique per trip)
-
-### Response Times
-
-- **Weather API:** ~500ms
-- **AI API:** ~3-5 seconds (LLM generation)
-- **Total:** ~5-7 seconds for initial plan generation
-- **Car seat check:** ~50ms for in-repo jurisdictions; ~3-5s if AI research fallback triggers
-
-### Bundle Size
-
-- **React:** ~45KB (gzipped with tree-shaking)
-- **Total frontend:** < 200KB (target)
-
----
-
-## Trade-offs
-
-### MVP vs Future Vision
-
-| Feature              | MVP (Web)              | Future V2 (Mobile)  |
-| -------------------- | ---------------------- | ------------------- |
-| Platform             | Web (React)            | React Native        |
-| Storage              | Local storage          | Cloud database      |
-| Weather              | US-only                | International       |
-| Packing list         | AI-generated           | + User templates    |
-| Car seat guidance    | 5 states + AI fallback | All 50 states       |
-| Shopping             | Not included           | Amazon integration  |
-| Offline              | No                     | Yes (cached data)   |
-| Cross-device sync    | No                     | Yes (user accounts) |
-| **Development time** | **1-2 weeks**          | **4-6 weeks**       |
-
-### Technical Debt Accepted for Speed
-
-1. **No user authentication:** Can't save lists across devices
-2. **No database:** Data lost if browser cleared (mitigated by 7-day TTL auto-purge)
-3. **US-only:** Non-US users can't use the app
-4. **No offline mode:** Requires internet connection
-5. **Car seat data covers 5 states:** AI fallback handles others but with "Needs review" status
-
-**Mitigation:** All these are planned for V2 and clearly documented as future enhancements
+- **Weather data:** In-memory cache, 1 hour TTL
+- **Geocoding:** In-memory cache, 6 hour TTL
+- **Attractions:** Supabase persistent storage, freshness model (fresh/aging/stale/unverified)
+- **AI responses:** Not cached (each trip is unique)
 
 ---
 
 ## Deployment Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│        Cloudflare Pages (CDN)           │
-│  ┌───────────────────────────────────┐  │
-│  │     Frontend (Static Files)       │  │
-│  │     - React bundle                │  │
-│  │     - HTML, CSS, JS               │  │
-│  └───────────────────────────────────┘  │
-└─────────────────┬───────────────────────┘
-                  │ HTTPS
-                  ▼
-┌─────────────────────────────────────────┐
-│           Railway                       │
-│  ┌───────────────────────────────────┐  │
-│  │     Backend API (Node.js)         │  │
-│  │     - Express server              │  │
-│  │     - Environment variables       │  │
-│  │     - PORT auto-assigned          │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│              Railway                         │
+│  ┌───────────────────────────────────────┐  │
+│  │  Node.js Backend + Static Frontend    │  │
+│  │  - Express server                     │  │
+│  │  - React build served as static files │  │
+│  │  - Auto-deploys on push to main       │  │
+│  └───────────────┬───────────────────────┘  │
+└──────────────────┼──────────────────────────┘
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+┌──────────┐ ┌──────────┐ ┌──────────┐
+│ Supabase │ │ PostHog  │ │ External │
+│ Postgres │ │ Analytics│ │ APIs     │
+│ + Auth   │ │ + Session│ │          │
+│          │ │ Recording│ │ GPT-5.4  │
+│ 19 tables│ │          │ │ Visual C.│
+│ RLS      │ │ PII mask │ │ Nominatim│
+│ 15+ migr.│ │          │ │ Google P.│
+└──────────┘ └──────────┘ └──────────┘
 ```
 
-**Environment variables required:**
+### Environment Variables (Railway)
 
-| Variable            | Where            | Value                               |
-| ------------------- | ---------------- | ----------------------------------- |
-| `ANTHROPIC_API_KEY` | Railway          | Live key from console.anthropic.com |
-| `NODE_ENV`          | Railway          | `production`                        |
-| `ALLOWED_ORIGINS`   | Railway          | Your Cloudflare Pages URL           |
-| `VITE_API_URL`      | Cloudflare Pages | Your Railway backend URL            |
+| Variable | Purpose |
+|----------|---------|
+| `NODE_ENV` | `production` -- enables static file serving |
+| `OPENAI_API_KEY` | GPT-5.4 nano API calls |
+| `ANTHROPIC_API_KEY` | Claude fallback + precompute |
+| `SUPABASE_URL` | Database connection |
+| `SUPABASE_ANON_KEY` | Supabase client auth |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase admin operations |
+| `VITE_API_URL` | Baked into Vite build |
+| `VITE_POSTHOG_KEY` | PostHog analytics |
+| `ALLOWED_ORIGINS` | CORS allowlist |
 
 ---
 
-## Future Architecture (V2)
+## Technology Stack Summary
 
-When scaling to mobile app + full features:
-
-```
-[React Native Mobile] ←→ [React Web]
-          ↓                     ↓
-      [GraphQL API Gateway]
-          ↓
-   [Microservices]
-   - Auth Service
-   - Packing Service
-   - Weather Service
-   - Shopping Service
-          ↓
-   [PostgreSQL + Redis]
-```
-
-**V2 Enhancements:**
-
-- User authentication (Firebase Auth or Auth0)
-- Cloud database (Supabase or Firebase)
-- Amazon PA-API integration
-- Push notifications
-- Social sharing
-
----
-
-## Appendix
-
-### Technology Stack Summary
-
-| Layer    | Technology                 | Rationale                                              |
-| -------- | -------------------------- | ------------------------------------------------------ |
-| Frontend | React 18 + Vite            | Fast dev experience, modern                            |
-| Backend  | Node.js + Express          | Simple, widely understood                              |
-| AI       | Anthropic API              | Best for structured JSON output                        |
-| Weather  | Weather.gov                | Free, reliable, unlimited                              |
-| Storage  | Local Storage              | Simple, no hosting needed                              |
-| Hosting  | Railway + Cloudflare Pages | Railway for Node; Cloudflare Pages for static frontend |
-| Styling  | Tailwind CSS               | Rapid UI development                                   |
-
-### External Dependencies
-
-**Frontend:**
-
-- `react`, `react-dom` - UI framework
-- `date-fns` - Date handling
-- `tailwindcss` - Styling
-
-**Backend:**
-
-- `express` - Web server
-- `@anthropic-ai/sdk` - AI API client
-- `dotenv` - Environment variables
-- `cors` - CORS handling
-- `express-rate-limit` - Request rate limiting
-
-**Total:** ~9 dependencies (keeping it minimal)
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Frontend | React 18 + Vite + Tailwind | Progressive SSE rendering |
+| Backend | Node.js + Express | Railway auto-deploy |
+| Database | Supabase PostgreSQL | 19 tables, RLS, 15+ migrations |
+| Auth | Supabase Auth | Magic link planned |
+| AI (runtime) | GPT-5.4 nano | $0.003/trip |
+| AI (fallback) | Claude Haiku 4.5 | Automatic failover |
+| AI (precompute) | Claude Sonnet 4.6 | Offline attraction intelligence |
+| Weather | Visual Crossing | Domestic + international |
+| Geocoding | Nominatim + Overpass | OpenStreetMap |
+| Enrichment | Google Places | Hours, ratings, reviews |
+| Analytics | PostHog | Full funnel + session recordings |
+| Styling | Tailwind CSS | Responsive, dark mode |
+| Testing | Node.js test + Playwright | 350 unit + 59 e2e |
 
 ---
 
 ## References
 
-- [Weather.gov API Docs](https://www.weather.gov/documentation/services-web-api)
-- [React Docs](https://react.dev/)
 - [Railway Deployment](https://docs.railway.app/)
-- [Cloudflare Pages Docs](https://developers.cloudflare.com/pages/)
+- [Supabase Docs](https://supabase.com/docs)
+- [PostHog Docs](https://posthog.com/docs)
+- [Visual Crossing API](https://www.visualcrossing.com/resources/documentation/)
+- [React Docs](https://react.dev/)
