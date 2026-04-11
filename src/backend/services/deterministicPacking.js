@@ -1,4 +1,5 @@
 import { detectClimateZone, getPackingBaseTemplate } from "./ragTemplates.js";
+import { inclusiveDayCount } from "../utils/dateCalc.js";
 
 const CATEGORY_ORDER = [
   "Clothing",
@@ -13,7 +14,7 @@ const CATEGORY_ORDER = [
 ];
 
 function tripDays(startDate, endDate) {
-  return Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
+  return inclusiveDayCount(startDate, endDate);
 }
 
 function inferTripType(activities = [], explicitTripType = null) {

@@ -20,7 +20,7 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
   let durationLabel = "";
   if (startDate && endDate) {
     const ms = new Date(endDate) - new Date(startDate);
-    const days = Math.max(1, Math.round(ms / 86400000));
+    const days = Math.max(1, Math.ceil(ms / 86400000) + 1);
     durationLabel = `${days} day${days !== 1 ? "s" : ""}`;
   }
 

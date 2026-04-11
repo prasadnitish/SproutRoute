@@ -9,6 +9,7 @@ import {
   requestWithRetry,
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
+import { inclusiveDayCount } from "../utils/dateCalc.js";
 
 const MAX_TOKENS = 16384;
 const CHUNK_SIZE_DAYS = 7;
@@ -177,9 +178,7 @@ function parseTripPlanResponse(responseText, options = {}) {
 }
 
 function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+  const days = inclusiveDayCount(startDate, endDate);
   const base = compact ? 2000 : 3000;
   const perDay = compact ? 400 : 600;
   return Math.min(MAX_TOKENS, Math.max(3000, base + days * perDay));
@@ -256,8 +255,8 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     plannerSummary = "",
     cachedAttractions = [],
   } = tripData;
-  const expectedDays = Math.max(1, Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)));
-  const maxActivities = Math.min(Math.max(expectedDays * 2, 4), 10);
+  const expectedDays = inclusiveDayCount(startDate, endDate);
+  const maxActivities = Math.max(expectedDays * 6, 10);
 
   // Sanitize user-supplied fields before interpolating into AI prompts
   const destination = sanitizeDestination(rawDestination);
@@ -351,7 +350,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
 export function computeChunks(startDate, endDate) {
   const start = new Date(startDate + "T12:00:00Z");
   const end = new Date(endDate + "T12:00:00Z");
-  const totalDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+  const totalDays = inclusiveDayCount(startDate, endDate);
 
   if (totalDays <= CHUNK_SIZE_DAYS) {
     return [{ startDate, endDate, dayOffset: 0, chunkIndex: 0, totalChunks: 1 }];
