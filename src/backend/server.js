@@ -294,7 +294,7 @@ export function createApp(deps = {}) {
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com; frame-src https://*.openstreetmap.org; frame-ancestors 'none';",
+      "default-src 'self'; script-src 'self' https://us-assets.i.posthog.com https://static.cloudflareinsights.com 'sha256-s+7jOOYxIrv7lbotAD7exW+lzM2WDS0OuRdGWFFJKWo='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com; frame-src https://*.openstreetmap.org; frame-ancestors 'none';",
     );
     if (process.env.NODE_ENV === "production") {
       res.setHeader(
