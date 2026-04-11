@@ -137,15 +137,22 @@ function validateEnvironmentVariables() {
 }
 
 function buildAllowedOrigins() {
-  // In production (Option A), frontend is same-origin so CORS isn't triggered.
-  // ALLOWED_ORIGINS can optionally allow external callers; defaults to empty (same-origin only).
-  return process.env.NODE_ENV === "production"
-    ? (process.env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean)
-    : [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-      ];
+  // Production: always allow the custom domain + Railway domain.
+  // ALLOWED_ORIGINS env var can add additional external callers.
+  if (process.env.NODE_ENV === "production") {
+    const extra = (process.env.ALLOWED_ORIGINS || "").split(",").map((s) => s.trim()).filter(Boolean);
+    return [
+      "https://www.sproutroute.app",
+      "https://sproutroute.app",
+      "https://sproutroute-production.up.railway.app",
+      ...extra,
+    ];
+  }
+  return [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+  ];
 }
 
 async function loadSavedProfileFromDb(req) {
@@ -287,7 +294,7 @@ export function createApp(deps = {}) {
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' https://us-assets.i.posthog.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com; font-src 'self' https://fonts.gstatic.com; frame-src https://*.openstreetmap.org; frame-ancestors 'none';",
+      "default-src 'self'; script-src 'self' https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.openstreetmap.org https://*.tile.openstreetmap.org; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com; frame-src https://*.openstreetmap.org; frame-ancestors 'none';",
     );
     if (process.env.NODE_ENV === "production") {
       res.setHeader(
