@@ -13,6 +13,7 @@ import {
 import { getWeatherForecast } from "./services/weather.js";
 import { generatePackingList } from "./services/deterministicPacking.js";
 import { generateTripPlan, generateTripPlanChunked, computeChunks } from "./services/tripPlanAI.js";
+import { inclusiveDayCount } from "./utils/dateCalc.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
@@ -476,10 +477,8 @@ export function createApp(deps = {}) {
         devLog(`Schedule failed (non-blocking): ${scheduleErr.message}`);
       }
 
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
-      if (tripDuration <= 0) {
+      const tripDuration = inclusiveDayCount(startDate, endDate);
+      if (new Date(endDate) < new Date(startDate)) {
         return res.status(400).json({ error: "End date must be after start date." });
       }
 
@@ -582,10 +581,8 @@ export function createApp(deps = {}) {
         }
       }
 
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
-      if (tripDuration <= 0) {
+      const tripDuration = inclusiveDayCount(startDate, endDate);
+      if (new Date(endDate) < new Date(startDate)) {
         return res.status(400).json({ error: "End date must be after start date." });
       }
 
@@ -854,10 +851,8 @@ export function createApp(deps = {}) {
         tripPlan,
       });
 
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
-      if (tripDuration <= 0) {
+      const tripDuration = inclusiveDayCount(startDate, endDate);
+      if (new Date(endDate) < new Date(startDate)) {
         return res.status(400).json({ error: "End date must be after start date." });
       }
 
@@ -1001,10 +996,8 @@ export function createApp(deps = {}) {
 
       devLog(`v1/trip/bundle timings: geocode=${timings.geocode}ms, weather=${timings.weather}ms, ai=${timings.ai}ms, total=${timings.total}ms`);
 
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
-      if (tripDuration <= 0) {
+      const tripDuration = inclusiveDayCount(startDate, endDate);
+      if (new Date(endDate) < new Date(startDate)) {
         return res.status(400).json({ error: "End date must be after start date." });
       }
 
@@ -1093,8 +1086,8 @@ export function createApp(deps = {}) {
       const { destination, startDate, endDate, activities, children, pets } = sanitizedData;
 
       // Early duration check — before any expensive calls
-      const earlyDuration = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-      if (earlyDuration <= 0 || !destination) {
+      const earlyDuration = new Date(endDate) < new Date(startDate) ? -1 : 1;
+      if (earlyDuration < 0 || !destination) {
         send("error", { message: destination ? "End date must be after start date." : "Destination is required." });
         return res.end();
       }
@@ -1111,9 +1104,7 @@ export function createApp(deps = {}) {
       const coords = await geocodeLocationFn(destination);
       timing.geocode = Date.now() - t0;
       const resolvedCountry = coords.countryCode || "US";
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
+      const tripDuration = inclusiveDayCount(startDate, endDate);
 
       send("destination", {
         destination: coords.displayName || destination,
@@ -1384,10 +1375,8 @@ export function createApp(deps = {}) {
         }
       }
 
-      const tripDuration = Math.ceil(
-        (new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24),
-      );
-      if (tripDuration <= 0) {
+      const tripDuration = inclusiveDayCount(startDate, endDate);
+      if (new Date(endDate) < new Date(startDate)) {
         return res.status(400).json({ error: "End date must be after start date." });
       }
 

@@ -3,6 +3,9 @@
  *
  * Tests that long trips (8-21 days) are split into 7-day chunks,
  * generated independently, and merged into a single tripPlan.
+ *
+ * NOTE: All date ranges use INCLUSIVE day counting.
+ * May 1–7 = 7 days (fits in 1 chunk), May 1–8 = 8 days (2 chunks).
  */
 
 import test from "node:test";
@@ -12,52 +15,72 @@ import { computeChunks, mergeTripPlanChunks } from "../../src/backend/services/t
 // ── computeChunks — splits date range into 7-day chunks ────────────────────
 
 test("computeChunks: 7-day trip → 1 chunk", () => {
-  const chunks = computeChunks("2026-05-01", "2026-05-08");
+  // May 1-7 inclusive = 7 days
+  const chunks = computeChunks("2026-05-01", "2026-05-07");
   assert.strictEqual(chunks.length, 1);
   assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[0].endDate, "2026-05-08");
+  assert.strictEqual(chunks[0].endDate, "2026-05-07");
   assert.strictEqual(chunks[0].chunkIndex, 0);
   assert.strictEqual(chunks[0].totalChunks, 1);
 });
 
 test("computeChunks: 5-day trip → 1 chunk", () => {
-  const chunks = computeChunks("2026-05-01", "2026-05-06");
+  // May 1-5 inclusive = 5 days
+  const chunks = computeChunks("2026-05-01", "2026-05-05");
   assert.strictEqual(chunks.length, 1);
   assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[0].endDate, "2026-05-06");
+  assert.strictEqual(chunks[0].endDate, "2026-05-05");
+});
+
+test("computeChunks: 2-day weekend trip → 1 chunk", () => {
+  // Apr 18-19 inclusive = 2 days (the original bug scenario)
+  const chunks = computeChunks("2026-04-18", "2026-04-19");
+  assert.strictEqual(chunks.length, 1);
+  assert.strictEqual(chunks[0].startDate, "2026-04-18");
+  assert.strictEqual(chunks[0].endDate, "2026-04-19");
+});
+
+test("computeChunks: same-day trip → 1 chunk", () => {
+  const chunks = computeChunks("2026-04-18", "2026-04-18");
+  assert.strictEqual(chunks.length, 1);
+  assert.strictEqual(chunks[0].startDate, "2026-04-18");
+  assert.strictEqual(chunks[0].endDate, "2026-04-18");
 });
 
 test("computeChunks: 12-day trip → 2 chunks (7 + 5)", () => {
-  const chunks = computeChunks("2026-05-01", "2026-05-13");
+  // May 1-12 inclusive = 12 days
+  const chunks = computeChunks("2026-05-01", "2026-05-12");
   assert.strictEqual(chunks.length, 2);
   assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[0].endDate, "2026-05-08");
   assert.strictEqual(chunks[0].dayOffset, 0);
-  assert.strictEqual(chunks[1].startDate, "2026-05-08");
-  assert.strictEqual(chunks[1].endDate, "2026-05-13");
+  assert.strictEqual(chunks[1].endDate, "2026-05-12");
   assert.strictEqual(chunks[1].dayOffset, 7);
 });
 
 test("computeChunks: 14-day trip → 2 chunks (7 + 7)", () => {
+  // May 1-14 inclusive = 14 days
+  const chunks = computeChunks("2026-05-01", "2026-05-14");
+  assert.strictEqual(chunks.length, 2);
+  assert.strictEqual(chunks[0].startDate, "2026-05-01");
+  assert.strictEqual(chunks[1].endDate, "2026-05-14");
+  assert.strictEqual(chunks[1].totalChunks, 2);
+});
+
+test("computeChunks: 15-day trip → 2 chunks", () => {
+  // May 1-15 inclusive = 15 days → chunks at 7-day boundaries: May 1-8, May 8-15
   const chunks = computeChunks("2026-05-01", "2026-05-15");
   assert.strictEqual(chunks.length, 2);
   assert.strictEqual(chunks[0].endDate, "2026-05-08");
   assert.strictEqual(chunks[1].startDate, "2026-05-08");
   assert.strictEqual(chunks[1].endDate, "2026-05-15");
-  assert.strictEqual(chunks[1].totalChunks, 2);
 });
 
-test("computeChunks: 15-day trip → 3 chunks (7 + 7 + 1)", () => {
-  const chunks = computeChunks("2026-05-01", "2026-05-16");
+test("computeChunks: 21-day trip → 3 chunks", () => {
+  // May 1-21 inclusive = 21 days
+  const chunks = computeChunks("2026-05-01", "2026-05-21");
   assert.strictEqual(chunks.length, 3);
   assert.strictEqual(chunks[2].dayOffset, 14);
-});
-
-test("computeChunks: 21-day trip → 3 chunks (7 + 7 + 7)", () => {
-  const chunks = computeChunks("2026-05-01", "2026-05-22");
-  assert.strictEqual(chunks.length, 3);
-  assert.strictEqual(chunks[2].dayOffset, 14);
-  assert.strictEqual(chunks[2].endDate, "2026-05-22");
+  assert.strictEqual(chunks[2].endDate, "2026-05-21");
 });
 
 // ── mergeTripPlanChunks — combines chunk results into single tripPlan ───────
