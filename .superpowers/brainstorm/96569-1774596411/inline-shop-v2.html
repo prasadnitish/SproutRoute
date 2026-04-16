@@ -1,0 +1,95 @@
+<h2>Inline Shopping — Affiliate Search Links</h2>
+<p class="subtitle">Here's how Option B works in practice. Each unchecked item gets a "Shop" button that expands to show affiliate search links across stores — no API integration needed.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Packing List — Sun Protection (3 of 4 items still needed)</div>
+  <div class="mockup-body" style="padding:16px;font-size:13px;line-height:1.6">
+
+    <!-- Checked item -->
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;opacity:0.45;border-bottom:1px solid #f1f5f9">
+      <span style="width:20px;height:20px;border-radius:5px;background:#22c55e;display:inline-flex;align-items:center;justify-content:center;color:white;font-size:11px;flex-shrink:0">✓</span>
+      <span style="text-decoration:line-through;color:#94a3b8">Sun hat — wide brim</span>
+      <span style="font-size:10px;color:#cbd5e1;margin-left:auto">Have it</span>
+    </div>
+
+    <!-- Unchecked item — COLLAPSED -->
+    <div style="padding:8px 0;border-bottom:1px solid #f1f5f9">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:20px;height:20px;border-radius:5px;border:2px solid #d1d5db;display:inline-block;flex-shrink:0"></span>
+        <span style="font-weight:500;color:#1e293b">Aloe vera gel</span>
+        <span style="font-size:10px;color:#94a3b8">× 1</span>
+        <span style="margin-left:auto;font-size:11px;color:#16a34a;cursor:pointer;font-weight:600;background:#f0fdf4;padding:3px 10px;border-radius:6px;border:1px solid #bbf7d0">🛒 Shop</span>
+      </div>
+    </div>
+
+    <!-- Unchecked item — EXPANDED with affiliate links -->
+    <div style="padding:8px 0;border-bottom:1px solid #f1f5f9">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:20px;height:20px;border-radius:5px;border:2px solid #d1d5db;display:inline-block;flex-shrink:0"></span>
+        <span style="font-weight:600;color:#1e293b">Reef-safe sunscreen SPF 50+</span>
+        <span style="font-size:10px;color:#94a3b8">× 2</span>
+        <span style="margin-left:auto;font-size:11px;color:#64748b;cursor:pointer;font-weight:500;background:#f1f5f9;padding:3px 10px;border-radius:6px">▾ Close</span>
+      </div>
+
+      <!-- Expanded: affiliate search links with price comparison -->
+      <div style="margin:10px 0 4px 28px;background:#fffbeb;border:1px solid #fef08a;border-radius:10px;padding:12px;overflow:hidden">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#92400e;margin-bottom:8px">🔍 Find the best deal</div>
+
+        <!-- Amazon link -->
+        <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;text-decoration:none;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='#ff9900'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <div style="width:36px;height:36px;background:#ff9900;border-radius:6px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:12px;flex-shrink:0">a</div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600;color:#1e293b">Search on Amazon</div>
+            <div style="font-size:10px;color:#64748b">"reef safe sunscreen SPF 50 kids"</div>
+          </div>
+          <div style="font-size:11px;color:#ff9900;font-weight:600">Open →</div>
+        </a>
+
+        <!-- Walmart link -->
+        <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;text-decoration:none;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='#0071dc'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <div style="width:36px;height:36px;background:#0071dc;border-radius:6px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:14px;flex-shrink:0">W</div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600;color:#1e293b">Search on Walmart</div>
+            <div style="font-size:10px;color:#64748b">"reef safe sunscreen SPF 50"</div>
+          </div>
+          <div style="font-size:11px;color:#0071dc;font-weight:600">Open →</div>
+        </a>
+
+        <!-- Target link -->
+        <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:white;border:1px solid #e2e8f0;border-radius:8px;text-decoration:none;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='#cc0000'" onmouseout="this.style.borderColor='#e2e8f0'">
+          <div style="width:36px;height:36px;background:#cc0000;border-radius:6px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:14px;flex-shrink:0">T</div>
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600;color:#1e293b">Search on Target</div>
+            <div style="font-size:10px;color:#64748b">"reef safe sunscreen SPF 50"</div>
+          </div>
+          <div style="font-size:11px;color:#cc0000;font-weight:600">Open →</div>
+        </a>
+
+        <div style="font-size:9px;color:#a1a1aa;text-align:center;margin-top:8px">SproutRoute may earn a small commission — at no extra cost to you</div>
+      </div>
+    </div>
+
+    <!-- Unchecked item — COLLAPSED -->
+    <div style="padding:8px 0;border-bottom:1px solid #f1f5f9">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="width:20px;height:20px;border-radius:5px;border:2px solid #d1d5db;display:inline-block;flex-shrink:0"></span>
+        <span style="font-weight:500;color:#1e293b">Insect repellent (DEET or picaridin)</span>
+        <span style="font-size:10px;color:#94a3b8">× 1</span>
+        <span style="margin-left:auto;font-size:11px;color:#16a34a;cursor:pointer;font-weight:600;background:#f0fdf4;padding:3px 10px;border-radius:6px;border:1px solid #bbf7d0">🛒 Shop</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div style="margin-top:20px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px">
+  <div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:6px">How this works (no API needed)</div>
+  <div style="font-size:12px;color:#166534;line-height:1.7">
+    <div style="margin-bottom:4px">1. AI generates packing item name → <code style="background:#dcfce7;padding:1px 4px;border-radius:3px">Reef-safe sunscreen SPF 50+</code></div>
+    <div style="margin-bottom:4px">2. We build a search query → <code style="background:#dcfce7;padding:1px 4px;border-radius:3px">reef safe sunscreen SPF 50 kids</code></div>
+    <div style="margin-bottom:4px">3. Link with affiliate tag → <code style="background:#dcfce7;padding:1px 4px;border-radius:3px;font-size:10px">amazon.com/s?k=reef+safe+sunscreen+spf+50+kids&tag=sproutroute-20</code></div>
+    <div>4. User buys → SproutRoute earns ~4% (~$0.60 on a $15 item)</div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:16px">This is the complete inline experience. Zero API calls. Affiliate-tagged search links. Multi-store comparison. Does this feel right?</p>

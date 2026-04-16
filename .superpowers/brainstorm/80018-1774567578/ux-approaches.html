@@ -1,0 +1,84 @@
+<h2>How should SproutRoute feel?</h2>
+<p class="subtitle">Three different opening experiences — pick the one that excites you most</p>
+
+<div class="cards">
+
+  <!-- Option A: Smart One-Screen Form -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f0fdf4; padding:1.5rem; font-family:system-ui;">
+      <div style="background:white;border-radius:12px;padding:1.25rem;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+        <div style="font-weight:800;font-size:1.1rem;color:#15803d;margin-bottom:1rem;">🌿 Plan your family trip</div>
+        <input class="mock-input" placeholder="Where do you want to go?" style="margin-bottom:0.75rem;width:100%;"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;">
+          <input class="mock-input" placeholder="From date"/>
+          <input class="mock-input" placeholder="To date"/>
+        </div>
+        <input class="mock-input" placeholder="Kids ages (e.g. 3, 7)" style="margin-bottom:0.75rem;width:100%;"/>
+        <button class="mock-button" style="width:100%;background:#16a34a;color:white;border:none;padding:0.75rem;border-radius:8px;font-weight:700;">Plan My Trip →</button>
+      </div>
+      <div style="text-align:center;margin-top:0.75rem;font-size:0.75rem;color:#6b7280;">One screen. Fill it in. Get results in ~4 seconds.</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Streamlined Form</h3>
+      <p>All inputs on one screen. Fast, familiar, no surprises. Destination + dates + kids → results. Good for users who know what they want.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Conversational AI -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f0fdf4; padding:1.5rem; font-family:system-ui;">
+      <div style="background:white;border-radius:12px;padding:1.25rem;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+        <div style="font-size:0.7rem;color:#6b7280;margin-bottom:0.5rem;text-align:center;">Chat with SproutRoute AI</div>
+        <div style="background:#f0fdf4;border-radius:8px;padding:0.6rem 0.9rem;margin-bottom:0.5rem;font-size:0.8rem;color:#15803d;">
+          Hi! What kind of trip are you dreaming about? 🌿
+        </div>
+        <div style="background:#e5e7eb;border-radius:8px;padding:0.6rem 0.9rem;margin-left:2rem;margin-bottom:0.5rem;font-size:0.8rem;color:#374151;">
+          I want a relaxing beach vacation for spring break
+        </div>
+        <div style="background:#f0fdf4;border-radius:8px;padding:0.6rem 0.9rem;margin-bottom:0.5rem;font-size:0.8rem;color:#15803d;">
+          Love it! How many kids and how old are they?
+        </div>
+        <div style="background:#e5e7eb;border-radius:8px;padding:0.6rem 0.9rem;margin-left:2rem;margin-bottom:0.75rem;font-size:0.8rem;color:#374151;">
+          Two kids, 4 and 8
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <input class="mock-input" placeholder="Type your reply..." style="flex:1;font-size:0.8rem;"/>
+          <button class="mock-button" style="background:#16a34a;color:white;border:none;padding:0.5rem 0.75rem;border-radius:8px;">→</button>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:0.75rem;font-size:0.75rem;color:#6b7280;">Natural language → AI clarifies → full plan generated</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Conversational AI</h3>
+      <p>User types anything. AI asks 2-3 quick clarifying questions, then generates a full plan. Feels like talking to a smart travel agent. Super differentiating.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Hybrid Smart Input -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f0fdf4; padding:1.5rem; font-family:system-ui;">
+      <div style="background:white;border-radius:12px;padding:1.25rem;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
+        <div style="font-weight:800;font-size:1rem;color:#15803d;margin-bottom:0.75rem;">🌿 Where's your family headed?</div>
+        <div style="position:relative;margin-bottom:0.75rem;">
+          <textarea class="mock-input" style="width:100%;resize:none;height:4rem;font-size:0.85rem;" placeholder="Describe your dream trip... &#10;&quot;Beach vacation in Florida, spring break, two kids age 4 &amp; 8&quot;"></textarea>
+          <button class="mock-button" style="position:absolute;bottom:0.5rem;right:0.5rem;background:#16a34a;color:white;border:none;padding:0.35rem 0.75rem;border-radius:6px;font-size:0.8rem;">Go →</button>
+        </div>
+        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.5rem;">
+          <span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:100px;padding:0.25rem 0.6rem;font-size:0.7rem;color:#15803d;cursor:pointer;">🏖 Beach trip</span>
+          <span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:100px;padding:0.25rem 0.6rem;font-size:0.7rem;color:#15803d;cursor:pointer;">🏔 Adventure</span>
+          <span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:100px;padding:0.25rem 0.6rem;font-size:0.7rem;color:#15803d;cursor:pointer;">🏰 Theme parks</span>
+          <span style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:100px;padding:0.25rem 0.6rem;font-size:0.7rem;color:#15803d;cursor:pointer;">🌎 International</span>
+        </div>
+        <div style="font-size:0.7rem;color:#9ca3af;">Or start with a template →</div>
+      </div>
+      <div style="text-align:center;margin-top:0.75rem;font-size:0.75rem;color:#6b7280;">Big text box + AI parsing + quick-start chips</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Smart Text Input + Chips</h3>
+      <p>Single big text area for natural language input. AI parses it and asks only for what's missing. Quick-start chips for inspiration. Best of both worlds.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem;text-align:center;">Click one (or more) that resonates. We'll dig into the details next.</p>

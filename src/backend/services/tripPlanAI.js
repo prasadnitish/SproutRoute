@@ -431,11 +431,20 @@ export function mergeTripPlanChunks(chunkResults) {
  * @param {object} deps — DI for testing
  */
 export async function generateTripPlanChunked(tripData, weather, onChunk, deps = {}) {
+  const generateTripPlanFn = deps.generateTripPlanFn || generateTripPlan;
+  const throwIfAborted = () => {
+    if (!deps?.shouldAbort?.()) return;
+    const err = new Error("Trip generation aborted");
+    err.name = "AbortError";
+    throw err;
+  };
   const chunks = computeChunks(tripData.startDate, tripData.endDate);
 
   if (chunks.length === 1) {
+    throwIfAborted();
     // Short trip — single generation
-    const result = await generateTripPlan(tripData, weather, deps);
+    const result = await generateTripPlanFn(tripData, weather, deps);
+    throwIfAborted();
     onChunk(result, { chunk: 1, totalChunks: 1, dayOffset: 0 });
     return result;
   }
@@ -443,6 +452,7 @@ export async function generateTripPlanChunked(tripData, weather, onChunk, deps =
   // Multi-chunk generation
   const chunkResults = [];
   for (const chunk of chunks) {
+    throwIfAborted();
     const chunkData = {
       ...tripData,
       startDate: chunk.startDate,
@@ -456,7 +466,8 @@ export async function generateTripPlanChunked(tripData, weather, onChunk, deps =
       chunkData._continuationContext = `This is days ${chunk.dayOffset + 1}-${chunk.dayOffset + 7} of a ${chunks[0].totalChunks * CHUNK_SIZE_DAYS}-day trip. Previous days already planned: ${prevDays.map(d => d.day).join(", ")}. Activities already suggested: ${prevActivities.slice(0, 10).join(", ")}. Avoid repeating the same activities. Continue with new experiences.`;
     }
 
-    const result = await generateTripPlan(chunkData, weather, deps);
+    const result = await generateTripPlanFn(chunkData, weather, deps);
+    throwIfAborted();
     chunkResults.push(result);
 
     onChunk(result, {

@@ -3,7 +3,6 @@ import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
 import { analytics } from "../utils/analytics.js";
 import {
   parseInput,
-  generateTripPlan,
   streamTripPlan,
   generatePackingList,
   getTravelSafety,
@@ -69,6 +68,7 @@ export function useTrip() {
     // Abort any in-flight background fetches from a previous submission
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
+    abortRef.current._startTime = Date.now();
 
     setTripInput(text);
     analytics.tripSearched(text, { hasProfile: !!savedProfile });
@@ -90,7 +90,7 @@ export function useTrip() {
         detectedLat: geolocation?.lat || null,
         detectedLon: geolocation?.lon || null,
         clientDate: new Date().toLocaleDateString("en-CA"), // YYYY-MM-DD in user's timezone
-      });
+      }, { signal: abortRef.current.signal });
       const parsedWithContext = {
         ...parsed,
         originLat: geolocation?.lat || null,
@@ -135,13 +135,16 @@ export function useTrip() {
     markStep("weather", "active");
 
     const pets = parsed.pets || [];
+    const selectedActivities = typeof parsed.vibe === "string" && parsed.vibe.trim()
+      ? [parsed.vibe.trim()]
+      : [];
     const formData = {
       destination: parsed.destination,
       startDate: parsed.startDate,
       endDate: parsed.endDate,
       adults: parsed.adults,
       childrenAges: parsed.childrenAges,
-      activities: [parsed.vibe],
+      activities: selectedActivities,
       foodPreferences: parsed.foodPreferences || null,
       pets,
       tripGoals: parsed.tripGoals || [],
@@ -267,7 +270,7 @@ export function useTrip() {
     markStep("packing", "active");
     setPackingError(null);
     try {
-      const packData = await generatePackingList(formData);
+      const packData = await generatePackingList(formData, { signal });
       if (signal?.aborted) return;
       setPackingList(packData.packingList || packData);
     } catch (err) {
@@ -285,7 +288,7 @@ export function useTrip() {
         destination: parsed.destination,
         childrenAges: parsed.childrenAges,
         countryCode: tripResult?.trip?.countryCode || "",
-      });
+      }, { signal });
       if (signal?.aborted) return;
       setSafetyData(safetyResult);
     } catch (err) {
@@ -303,7 +306,7 @@ export function useTrip() {
         jurisdictionCode: tripResult?.trip?.jurisdictionCode || "",
         tripDate: tripResult?.trip?.startDate || "",
         children,
-      });
+      }, { signal });
       if (signal?.aborted) return;
       setCarSeatData(result);
     } catch (err) {
@@ -337,7 +340,7 @@ export function useTrip() {
         destination: parsed.destination,
         countryCode,
         travelMode: derivedMode,
-      });
+      }, { signal });
       if (signal?.aborted) return;
       setPetSafetyData(result);
     } catch (err) {
@@ -349,13 +352,16 @@ export function useTrip() {
   const retryPacking = useCallback(async () => {
     if (!tripData?.parsed) return;
     const parsed = tripData.parsed;
+    const selectedActivities = typeof parsed.vibe === "string" && parsed.vibe.trim()
+      ? [parsed.vibe.trim()]
+      : [];
     const formData = {
       destination: parsed.destination,
       startDate: parsed.startDate,
       endDate: parsed.endDate,
       adults: parsed.adults,
       childrenAges: parsed.childrenAges,
-      activities: [parsed.vibe],
+      activities: selectedActivities,
       foodPreferences: parsed.foodPreferences || null,
       pets: parsed.pets || [],
     };

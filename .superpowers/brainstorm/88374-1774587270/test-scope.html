@@ -1,0 +1,72 @@
+<h2>What should the Playwright suite cover?</h2>
+<p class="subtitle">Select all the test areas you want included. We'll design the suite around your choices.</p>
+
+<div class="options" data-multiselect>
+
+  <div class="option" data-choice="happy-path" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>🟢 Happy Path — Full Flow</h3>
+      <p>Type a trip idea → Generating screen → Full Results mosaic appears with all tiles (Hero, Weather, Map, Itinerary, Safety, Packing)</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="destination-picker" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>🗺️ Destination Picker</h3>
+      <p>Vague input ("beach trip") triggers 3 destination suggestions → user picks one → results load for chosen destination</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="itinerary-tiles" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>📅 Itinerary Tile Interactions</h3>
+      <p>Day tab switching, activity card tapping, scheduled times + star ratings + photos rendering, meal cards with cuisine badges</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="weather-tile" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>🌤️ Weather Tile</h3>
+      <p>Forecast days render correctly, hi/lo temps display, "Historical avg" badge appears when dates are beyond 15-day window</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="food-prefs" onclick="toggleSelect(this)">
+    <div class="letter">E</div>
+    <div class="content">
+      <h3>🍽️ Food Preferences</h3>
+      <p>Input includes dietary requirements → meal cards in itinerary reflect the right cuisine types, restaurant names appear</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="error-states" onclick="toggleSelect(this)">
+    <div class="letter">F</div>
+    <div class="content">
+      <h3>⚠️ Error & Edge Cases</h3>
+      <p>API failures (parse-input 500, trip-plan 500, rate limit 429), empty itinerary fallback, no-children trip, unrecognised destination</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="packing" onclick="toggleSelect(this)">
+    <div class="letter">G</div>
+    <div class="content">
+      <h3>🧳 Packing List Tab</h3>
+      <p>Packing tab renders items by category, items can be checked/unchecked, checked state persists across tab switches</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="production" onclick="toggleSelect(this)">
+    <div class="letter">H</div>
+    <div class="content">
+      <h3>🚀 Smoke Tests vs Live Railway URL</h3>
+      <p>A small subset of tests that run against sproutroute-production.up.railway.app to verify real API calls work end-to-end</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px">Select as many as you want, then tell me in the terminal. You can also just say "all of them".</p>

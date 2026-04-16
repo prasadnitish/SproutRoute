@@ -182,10 +182,10 @@ const POST_OPTS = (body) => ({
 });
 
 /** Generate the trip itinerary + weather (full plan from scratch). */
-export const generateTripPlan = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+export const generateTripPlan = async (tripData, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/trip-plan`,
-    POST_OPTS(tripData),
+    { ...POST_OPTS(tripData), signal },
     { maxRetries: 2, timeoutMs: 60000, onRetry, onRateLimitInfo },
   );
 
@@ -194,10 +194,10 @@ export const generateTripPlan = async (tripData, { onRetry, onRateLimitInfo } = 
  * Used when the user customizes activities after the initial plan is generated.
  * Requires tripData to include a `weather` field with the cached forecast.
  */
-export const replanTrip = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+export const replanTrip = async (tripData, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/trip/replan`,
-    POST_OPTS(tripData),
+    { ...POST_OPTS(tripData), signal },
     { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
 
@@ -206,26 +206,26 @@ export const replanTrip = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
  * Replaces sequential generateTripPlan → generatePackingList flow.
  * Returns { trip, weather, tripPlan, packingList, safetyGuidance?, timings }.
  */
-export const bundleTripPlan = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+export const bundleTripPlan = async (tripData, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/trip/bundle`,
-    POST_OPTS(tripData),
+    { ...POST_OPTS(tripData), signal },
     { maxRetries: 2, timeoutMs: 60000, onRetry, onRateLimitInfo },
   );
 
 /** Generate the packing list (uses selected activities). */
-export const generatePackingList = async (tripData, { onRetry, onRateLimitInfo } = {}) =>
+export const generatePackingList = async (tripData, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/generate`,
-    POST_OPTS(tripData),
+    { ...POST_OPTS(tripData), signal },
     { maxRetries: 2, timeoutMs: 35000, onRetry, onRateLimitInfo },
   );
 
 /** Resolve natural-language destination queries via AI NLP resolver. */
-export const resolveDestination = async (query, { onRetry, onRateLimitInfo } = {}) =>
+export const resolveDestination = async (query, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/trip/resolve`,
-    POST_OPTS({ query }),
+    { ...POST_OPTS({ query }), signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
@@ -234,10 +234,10 @@ export const checkHealth = async () =>
   fetchWithRetry(`${API_BASE_URL}/api/health`, {}, { maxRetries: 0, timeoutMs: 5000 });
 
 /** Car seat guidance by jurisdiction. */
-export const getCarSeatGuidance = async (payload, { onRetry, onRateLimitInfo } = {}) =>
+export const getCarSeatGuidance = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/safety/car-seat-check`,
-    POST_OPTS(payload),
+    { ...POST_OPTS(payload), signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
@@ -250,46 +250,46 @@ export const getCapabilities = async (client = "web") =>
   );
 
 /** Parse natural-language trip input via AI. */
-export const parseInput = async (payload, { onRetry, onRateLimitInfo } = {}) =>
+export const parseInput = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/trip/parse-input`,
-    POST_OPTS(payload),
+    { ...POST_OPTS(payload), signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
 /** Fetch travel safety tips (car seat, general safety). */
-export const getTravelSafety = async (payload, { onRetry, onRateLimitInfo } = {}) =>
+export const getTravelSafety = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/safety/travel-tips`,
-    POST_OPTS(payload),
+    { ...POST_OPTS(payload), signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
 // --- Pet travel safety ---
 
 /** Fetch pet travel guidance (airline policies + entry requirements). */
-export const petTravelCheck = async ({ pets, destination, countryCode, travelMode }, { onRetry, onRateLimitInfo } = {}) =>
+export const petTravelCheck = async ({ pets, destination, countryCode, travelMode }, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/safety/pet-travel-check`,
-    POST_OPTS({ pets, destination, countryCode, travelMode }),
+    { ...POST_OPTS({ pets, destination, countryCode, travelMode }), signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
 // --- Phase 4: International safety API calls ---
 
 /** Fetch US State Dept travel advisory for a country. Returns null for US or if unavailable. */
-export const getTravelAdvisory = async (countryCode, { onRetry, onRateLimitInfo } = {}) =>
+export const getTravelAdvisory = async (countryCode, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/safety/travel-advisory/${encodeURIComponent(countryCode)}`,
-    {},
+    { signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
 /** Fetch Amadeus/GeoSure neighborhood safety scores. Returns null if unavailable. */
-export const getNeighborhoodSafety = async (lat, lon, { onRetry, onRateLimitInfo } = {}) =>
+export const getNeighborhoodSafety = async (lat, lon, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
     `${API_BASE_URL}/api/v1/safety/neighborhood?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`,
-    {},
+    { signal },
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 

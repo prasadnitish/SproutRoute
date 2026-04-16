@@ -10,7 +10,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computeChunks, mergeTripPlanChunks } from "../../src/backend/services/tripPlanAI.js";
+import { computeChunks, generateTripPlanChunked, mergeTripPlanChunks } from "../../src/backend/services/tripPlanAI.js";
 
 // ── computeChunks — splits date range into 7-day chunks ────────────────────
 
@@ -160,4 +160,58 @@ test("mergeTripPlanChunks: combines tips from all chunks", () => {
   const merged = mergeTripPlanChunks([chunk1, chunk2]);
 
   assert.ok(merged.tips.length >= 2, "Tips should combine from both chunks");
+});
+
+test("generateTripPlanChunked aborts before first chunk when shouldAbort is already true", async () => {
+  let callCount = 0;
+
+  await assert.rejects(
+    () => generateTripPlanChunked(
+      { startDate: "2026-05-01", endDate: "2026-05-12" },
+      { forecast: [] },
+      () => {
+        throw new Error("onChunk must not be called after abort");
+      },
+      {
+        shouldAbort: () => true,
+        generateTripPlanFn: async () => {
+          callCount++;
+          return makeChunkResult(7, 0);
+        },
+      },
+    ),
+    (err) => {
+      assert.strictEqual(err.name, "AbortError");
+      assert.strictEqual(callCount, 0, "Aborted generation must not call generateTripPlan");
+      return true;
+    },
+  );
+});
+
+test("generateTripPlanChunked stops before the next chunk after cancellation", async () => {
+  let callCount = 0;
+  let shouldAbort = false;
+  const chunkOffsets = [];
+
+  const merged = await generateTripPlanChunked(
+    { startDate: "2026-05-01", endDate: "2026-05-12" },
+    { forecast: [] },
+    (_chunk, meta) => {
+      chunkOffsets.push(meta.dayOffset);
+      shouldAbort = true;
+    },
+    {
+      shouldAbort: () => shouldAbort,
+      generateTripPlanFn: async (tripData) => {
+        callCount++;
+        return tripData.startDate === "2026-05-01"
+          ? makeChunkResult(7, 0)
+          : makeChunkResult(5, 7);
+      },
+    },
+  ).catch((err) => err);
+
+  assert.strictEqual(merged.name, "AbortError");
+  assert.strictEqual(callCount, 1, "Chunk generation must stop before the second chunk");
+  assert.deepStrictEqual(chunkOffsets, [0], "Only the first chunk should be emitted");
 });

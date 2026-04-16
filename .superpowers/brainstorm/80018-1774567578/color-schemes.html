@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SproutRoute — Color Schemes</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', system-ui, sans-serif; background: #f1f5f9; }
+
+h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; font-weight: 800; text-align: center; padding: 1.5rem 1rem 0.4rem; color: #111; }
+.subtitle { text-align: center; color: #6b7280; font-size: 0.88rem; margin-bottom: 1.5rem; }
+
+.schemes { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 0 1rem 2rem; max-width: 960px; margin: 0 auto; }
+@media (max-width: 700px) { .schemes { grid-template-columns: 1fr; } }
+
+.scheme-card {
+  border-radius: 20px; overflow: hidden; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 3px solid transparent;
+}
+.scheme-card:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
+.scheme-card.selected { border-color: #6366f1; }
+
+.scheme-label {
+  text-align: center; padding: 0.75rem; font-weight: 700; font-size: 0.88rem;
+  background: white; border-top: 1px solid rgba(0,0,0,0.08);
+}
+
+/* Mini mosaic inside each card */
+.mini-mosaic {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 4px;
+  padding: 8px;
+  height: 320px;
+}
+.mini-tile {
+  border-radius: 10px; overflow: hidden; padding: 10px;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+.mini-hero { grid-column: 1; grid-row: 1 / 3; }
+.mini-weather { grid-column: 2; grid-row: 1; }
+.mini-safety { grid-column: 2; grid-row: 2; }
+.mini-map { grid-column: 1 / 3; grid-row: 3; padding: 8px 10px; align-items: center; flex-direction: row; gap: 6px; }
+
+.mt-eyebrow { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; opacity: 0.7; }
+.mt-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 16px; line-height: 1.1; margin-bottom: 4px; }
+.mt-sub { font-size: 9px; opacity: 0.7; margin-bottom: 8px; }
+.mt-chip { display: inline-block; border-radius: 100px; padding: 2px 7px; font-size: 8px; font-weight: 600; margin-right: 3px; margin-bottom: 2px; }
+.mt-big-num { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 22px; margin-bottom: 2px; }
+.mt-small { font-size: 8px; opacity: 0.6; }
+.mt-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-bottom: 6px; }
+.mt-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.mt-key { font-size: 8px; opacity: 0.6; }
+.mt-val { font-size: 8px; font-weight: 700; border-radius: 100px; padding: 1px 6px; }
+.mt-map-dots { display: flex; gap: 4px; }
+.mt-pin { font-size: 14px; }
+.mt-map-label { font-size: 8px; opacity: 0.5; }
+
+/* ══════════════════════════════════
+   SCHEME 1: Light & Airy (Clean white + sky blue accent)
+══════════════════════════════════ */
+.s1 .mini-mosaic { background: #f0f9ff; }
+.s1 .mini-tile { background: white; border: 1px solid #e0f2fe; }
+.s1 .mini-hero { background: linear-gradient(160deg, #0284c7, #0ea5e9, #38bdf8); color: white; }
+.s1 .mini-hero .mt-chip { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
+.s1 .mini-weather { background: #f0f9ff; border-color: #bae6fd; color: #0c4a6e; }
+.s1 .mini-weather .mt-big-num { color: #0284c7; }
+.s1 .mini-safety { background: white; color: #334155; }
+.s1 .mini-safety .mt-val { background: #dcfce7; color: #15803d; }
+.s1 .mini-map { background: #e0f2fe; color: #0c4a6e; }
+.s1 .mt-eyebrow { color: #0284c7; }
+
+/* ══════════════════════════════════
+   SCHEME 2: Warm Sand (Off-white + amber/terracotta)
+══════════════════════════════════ */
+.s2 .mini-mosaic { background: #fef3c7; }
+.s2 .mini-tile { background: #fffbf0; border: 1px solid #fde68a; }
+.s2 .mini-hero { background: linear-gradient(160deg, #b45309, #d97706, #f59e0b); color: white; }
+.s2 .mini-hero .mt-chip { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
+.s2 .mini-weather { background: #fff7ed; border-color: #fed7aa; color: #7c2d12; }
+.s2 .mini-weather .mt-big-num { color: #d97706; }
+.s2 .mini-safety { background: #fffbf0; color: #44403c; }
+.s2 .mini-safety .mt-val { background: #fef3c7; color: #b45309; }
+.s2 .mini-map { background: #fef9c3; color: #78350f; }
+.s2 .mt-eyebrow { color: #d97706; }
+
+/* ══════════════════════════════════
+   SCHEME 3: Deep Navy + Coral (Premium, travel-magazine feel)
+══════════════════════════════════ */
+.s3 .mini-mosaic { background: #0f172a; }
+.s3 .mini-tile { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; }
+.s3 .mini-hero { background: linear-gradient(160deg, #0f172a, #1e3a5f, #1d4ed8); color: white; }
+.s3 .mini-hero .mt-chip { background: rgba(255,255,255,0.12); color: white; border: 1px solid rgba(255,255,255,0.2); }
+.s3 .mini-weather { background: #1e293b; color: #cbd5e1; }
+.s3 .mini-weather .mt-big-num { color: #f97316; }
+.s3 .mini-safety { background: #1e293b; color: #cbd5e1; }
+.s3 .mini-safety .mt-val { background: rgba(249,115,22,0.15); color: #fb923c; }
+.s3 .mini-map { background: #162032; color: #94a3b8; }
+.s3 .mt-eyebrow { color: #f97316; }
+
+/* ══════════════════════════════════
+   SCHEME 4: Fresh White + Violet (Modern SaaS / premium app)
+══════════════════════════════════ */
+.s4 .mini-mosaic { background: #faf5ff; }
+.s4 .mini-tile { background: white; border: 1px solid #ede9fe; }
+.s4 .mini-hero { background: linear-gradient(160deg, #4c1d95, #6d28d9, #8b5cf6); color: white; }
+.s4 .mini-hero .mt-chip { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); }
+.s4 .mini-weather { background: #f5f3ff; border-color: #ddd6fe; color: #3b0764; }
+.s4 .mini-weather .mt-big-num { color: #7c3aed; }
+.s4 .mini-safety { background: white; color: #374151; }
+.s4 .mini-safety .mt-val { background: #ede9fe; color: #6d28d9; }
+.s4 .mini-map { background: #f5f3ff; color: #5b21b6; }
+.s4 .mt-eyebrow { color: #7c3aed; }
+
+/* ══════════════════════════════════
+   SCHEME 5: Pure White + Forest Green (keep the green, lose the dark bg)
+══════════════════════════════════ */
+.s5 .mini-mosaic { background: #f9fafb; }
+.s5 .mini-tile { background: white; border: 1px solid #e5e7eb; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+.s5 .mini-hero { background: linear-gradient(160deg, #14532d, #166534, #16a34a); color: white; }
+.s5 .mini-hero .mt-chip { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); }
+.s5 .mini-weather { background: #f0fdf4; border-color: #bbf7d0; color: #14532d; }
+.s5 .mini-weather .mt-big-num { color: #16a34a; }
+.s5 .mini-safety { background: white; color: #374151; }
+.s5 .mini-safety .mt-val { background: #dcfce7; color: #15803d; }
+.s5 .mini-map { background: #f0fdf4; color: #166534; }
+.s5 .mt-eyebrow { color: #16a34a; }
+
+/* ══════════════════════════════════
+   SCHEME 6: Slate + Teal (editorial, confident)
+══════════════════════════════════ */
+.s6 .mini-mosaic { background: #f8fafc; }
+.s6 .mini-tile { background: white; border: 1px solid #e2e8f0; }
+.s6 .mini-hero { background: linear-gradient(160deg, #134e4a, #0f766e, #14b8a6); color: white; }
+.s6 .mini-hero .mt-chip { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.25); }
+.s6 .mini-weather { background: #f0fdfa; border-color: #99f6e4; color: #134e4a; }
+.s6 .mini-weather .mt-big-num { color: #0d9488; }
+.s6 .mini-safety { background: white; color: #334155; }
+.s6 .mini-safety .mt-val { background: #ccfbf1; color: #0f766e; }
+.s6 .mini-map { background: #f0fdfa; color: #134e4a; }
+.s6 .mt-eyebrow { color: #0d9488; }
+</style>
+</head>
+<body>
+
+<h2>Pick a color direction</h2>
+<p class="subtitle">Same mosaic layout — 6 different feels. Click to select.</p>
+
+<div class="schemes">
+
+  <!-- 1: Sky Blue -->
+  <div class="scheme-card s1" data-choice="sky-blue" onclick="pick(this)">
+    <div class="mini-mosaic">
+      <div class="mini-tile mini-hero">
+        <div>
+          <div class="mt-eyebrow">Your trip plan</div>
+          <div class="mt-title">🌴 Maui, Hawaii</div>
+          <div class="mt-sub">Apr 12–19 · Spring Break</div>
+          <div><span class="mt-chip">☀️ 78°F</span><span class="mt-chip">👨‍👧 Family</span></div>
+        </div>
+      </div>
+      <div class="mini-tile mini-weather">
+        <div class="mt-eyebrow">Weather</div>
+        <div class="mt-big-num">78°F</div>
+        <div class="mt-small">☀️ Clear all week</div>
+      </div>
+      <div class="mini-tile mini-safety">
+        <div class="mt-label">Safety</div>
+        <div class="mt-row"><span class="mt-key">Car seat</span><span class="mt-val">Required</span></div>
+        <div class="mt-row"><span class="mt-key">Advisory</span><span class="mt-val">Level 1</span></div>
+        <div class="mt-row"><span class="mt-key">Score</span><span class="mt-val">4.8/5</span></div>
+      </div>
+      <div class="mini-tile mini-map">
+        <div class="mt-map-dots"><span class="mt-pin">📍</span><span class="mt-pin">📍</span><span class="mt-pin">📍</span></div>
+        <div class="mt-map-label">7 spots on map</div>
+      </div>
+    </div>
+    <div class="scheme-label">① Sky Blue — clean, airy, trustworthy</div>
+  </div>
+
+  <!-- 2: Warm Sand -->
+  <div class="scheme-card s2" data-choice="warm-sand" onclick="pick(this)">
+    <div class="mini-mosaic">
+      <div class="mini-tile mini-hero">
+        <div>
+          <div class="mt-eyebrow">Your trip plan</div>
+          <div class="mt-title">🌴 Maui, Hawaii</div>
+          <div class="mt-sub">Apr 12–19 · Spring Break</div>
+          <div><span class="mt-chip">☀️ 78°F</span><span class="mt-chip">👨‍👧 Family</span></div>
+        </div>
+      </div>
+      <div class="mini-tile mini-weather">
+        <div class="mt-eyebrow">Weather</div>
+        <div class="mt-big-num">78°F</div>
+        <div class="mt-small">☀️ Clear all week</div>
+      </div>
+      <div class="mini-tile mini-safety">
+        <div class="mt-label">Safety</div>
+        <div class="mt-row"><span class="mt-key">Car seat</span><span class="mt-val">Required</span></div>
+        <div class="mt-row"><span class="mt-key">Advisory</span><span class="mt-val">Level 1</span></div>
+        <div class="mt-row"><span class="mt-key">Score</span><span class="mt-val">4.8/5</span></div>
+      </div>
+      <div class="mini-tile mini-map">
+        <div class="mt-map-dots"><span class="mt-pin">📍</span><span class="mt-pin">📍</span><span class="mt-pin">📍</span></div>
+        <div class="mt-map-label">7 spots on map</div>
+      </div>
+    </div>
+    <div class="scheme-label">② Warm Sand — beach vibes, earthy, warm</div>
+  </div>
+
+  <!-- 3: Deep Navy + Coral -->
+  <div class="scheme-card s3" data-choice="navy-coral" onclick="pick(this)">
+    <div class="mini-mosaic">
+      <div class="mini-tile mini-hero">
+        <div>
+          <div class="mt-eyebrow" style="color:#f97316;">Your trip plan</div>
+          <div class="mt-title">🌴 Maui, Hawaii</div>
+          <div class="mt-sub">Apr 12–19 · Spring Break</div>
+          <div><span class="mt-chip">☀️ 78°F</span><span class="mt-chip">👨‍👧 Family</span></div>
+        </div>
+      </div>
+      <div class="mini-tile mini-weather">
+        <div class="mt-eyebrow">Weather</div>
+        <div class="mt-big-num">78°F</div>
+        <div class="mt-small">☀️ Clear all week</div>
+      </div>
+      <div class="mini-tile mini-safety">
+        <div class="mt-label" style="color:#94a3b8;">Safety</div>
+        <div class="mt-row"><span class="mt-key">Car seat</span><span class="mt-val">Required</span></div>
+        <div class="mt-row"><span class="mt-key">Advisory</span><span class="mt-val">Level 1</span></div>
+        <div class="mt-row"><span class="mt-key">Score</span><span class="mt-val">4.8/5</span></div>
+      </div>
+      <div class="mini-tile mini-map">
+        <div class="mt-map-dots"><span class="mt-pin">📍</span><span class="mt-pin">📍</span><span class="mt-pin">📍</span></div>
+        <div class="mt-map-label">7 spots on map</div>
+      </div>
+    </div>
+    <div class="scheme-label">③ Navy + Coral — premium, travel magazine</div>
+  </div>
+
+  <!-- 4: White + Violet -->
+  <div class="scheme-card s4" data-choice="violet" onclick="pick(this)">
+    <div class="mini-mosaic">
+      <div class="mini-tile mini-hero">
+        <div>
+          <div class="mt-eyebrow" style="color:#8b5cf6;">Your trip plan</div>
+          <div class="mt-title">🌴 Maui, Hawaii</div>
+          <div class="mt-sub">Apr 12–19 · Spring Break</div>
+          <div><span class="mt-chip">☀️ 78°F</span><span class="mt-chip">👨‍👧 Family</span></div>
+        </div>
+      </div>
+      <div class="mini-tile mini-weather">
+        <div class="mt-eyebrow">Weather</div>
+        <div class="mt-big-num">78°F</div>
+        <div class="mt-small">☀️ Clear all week</div>
+      </div>
+      <div class="mini-tile mini-safety">
+        <div class="mt-label">Safety</div>
+        <div class="mt-row"><span class="mt-key">Car seat</span><span class="mt-val">Required</span></div>
+        <div class="mt-row"><span class="mt-key">Advisory</span><span class="mt-val">Level 1</span></div>
+        <div class="mt-row"><span class="mt-key">Score</span><span class="mt-val">4.8/5</span></div>
+      </div>
+      <div class="mini-tile mini-map">
+        <div class="mt-map-dots"><span class="mt-pin">📍</span><span class="mt-pin">📍</span><span class="mt-pin">📍</span></div>
+        <div class="mt-map-label">7 spots on map</div>
+      </div>
+    </div>
+    <div class="scheme-label">④ White + Violet — modern SaaS, distinctive</div>
+  </div>
+
+  <!-- 5: White + Green (same green, light bg) -->
+  <div class="scheme-card s5" data-choice="light-green" onclick="pick(this)">
+    <div class="mini-mosaic">
+      <div class="mini-tile mini-hero">
+        <div>
+          <div class="mt-eyebrow" style="color:#4ade80;">Your trip plan</div>
+          <div class="mt-title">🌴 Maui, Hawaii</div>
+          <div class="mt-sub">Apr 12–19 · Spring Break</div>
+          <div><span class="mt-chip">☀️ 78°F</span><span class="mt-chip">👨‍👧 Family</span></div>
+        </div>
+      </div>
+      <div class="mini-tile mini-weather">
+        <div class="mt-eyebrow">Weather</div>
+        <div class="mt-big-num">78°F</div>
+        <div class="mt-small">☀️ Clear all week</div>
+      </div>
+      <div class="mini-tile mini-safety">
+        <div class="mt-label">Safety</div>
+        <div class="mt-row"><span class="mt-key">Car seat</span><span class="mt-val">Required</span></div>
+        <div class="mt-row"><span class="mt-key">Advisory</span><span class="mt-val">Level 1</span></div>
+        <div class="mt-row"><span class="mt-key">Score</span><span class="mt-val">4.8/5</span></div>
+      </div>
+      <div class="mini-tile mini-map">
+        <div class="mt-map-dots"><span class="mt-pin">📍</span><span class="mt-pin">📍</span><span class="mt-pin">📍</span></div>
+        <div class="mt-map-label">7 spots on map</div>
+      </div>
+    </div>
+    <div class="scheme-label">⑤ White + Forest Green — same brand, light bg</div>
+  </div>
+
+  <!-- 6: Slate + Teal -->
+  <div class="scheme-card s6" data-choice="slate-teal" onclick="pick(this)">
+    <div class="mini-mosaic">
+      <div class="mini-tile mini-hero">
+        <div>
+          <div class="mt-eyebrow" style="color:#14b8a6;">Your trip plan</div>
+          <div class="mt-title">🌴 Maui, Hawaii</div>
+          <div class="mt-sub">Apr 12–19 · Spring Break</div>
+          <div><span class="mt-chip">☀️ 78°F</span><span class="mt-chip">👨‍👧 Family</span></div>
+        </div>
+      </div>
+      <div class="mini-tile mini-weather">
+        <div class="mt-eyebrow">Weather</div>
+        <div class="mt-big-num">78°F</div>
+        <div class="mt-small">☀️ Clear all week</div>
+      </div>
+      <div class="mini-tile mini-safety">
+        <div class="mt-label">Safety</div>
+        <div class="mt-row"><span class="mt-key">Car seat</span><span class="mt-val">Required</span></div>
+        <div class="mt-row"><span class="mt-key">Advisory</span><span class="mt-val">Level 1</span></div>
+        <div class="mt-row"><span class="mt-key">Score</span><span class="mt-val">4.8/5</span></div>
+      </div>
+      <div class="mini-tile mini-map">
+        <div class="mt-map-dots"><span class="mt-pin">📍</span><span class="mt-pin">📍</span><span class="mt-pin">📍</span></div>
+        <div class="mt-map-label">7 spots on map</div>
+      </div>
+    </div>
+    <div class="scheme-label">⑥ Slate + Teal — editorial, confident, fresh</div>
+  </div>
+
+</div>
+
+<script>
+function pick(el) {
+  document.querySelectorAll('.scheme-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.recordChoice) recordChoice(el.dataset.choice, el.querySelector('.scheme-label').textContent);
+}
+</script>
+</body>
+</html>

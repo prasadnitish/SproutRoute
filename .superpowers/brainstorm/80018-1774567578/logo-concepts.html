@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SproutRoute — Logo Concepts</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', system-ui, sans-serif; background: #f1f5f9; padding-bottom: 3rem; }
+
+h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; font-weight: 800; text-align: center; padding: 1.5rem 1rem 0.3rem; color: #111; }
+.subtitle { text-align: center; color: #6b7280; font-size: 0.85rem; margin-bottom: 1.5rem; padding: 0 1rem; }
+
+.reference { display: flex; align-items: center; gap: 0.75rem; max-width: 500px; margin: 0 auto 1.5rem; background: white; border-radius: 12px; padding: 0.75rem 1rem; border: 1px solid #e5e7eb; }
+.ref-img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
+.ref-text { font-size: 0.78rem; color: #6b7280; }
+.ref-text strong { color: #111; display: block; margin-bottom: 0.15rem; }
+
+.concepts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.25rem; padding: 0 1rem; max-width: 900px; margin: 0 auto 2.5rem; }
+@media (max-width: 650px) { .concepts { grid-template-columns: 1fr 1fr; } }
+
+.concept-card {
+  background: white; border-radius: 20px; overflow: hidden; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08); border: 3px solid transparent;
+  transition: all 0.2s;
+}
+.concept-card:hover { transform: translateY(-4px); box-shadow: 0 10px 28px rgba(0,0,0,0.12); }
+.concept-card.selected { border-color: #6366f1; box-shadow: 0 0 0 2px #a5b4fc; }
+
+.concept-bg {
+  height: 200px; display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+
+/* Sparkle animation */
+.sparkle { position: absolute; animation: twinkle 2s infinite; }
+@keyframes twinkle { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }
+
+/* Floating elements */
+.float { animation: bob 3s ease-in-out infinite; }
+@keyframes bob { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+.float-2 { animation: bob2 3.5s ease-in-out infinite; }
+@keyframes bob2 { 0%,100%{transform:translateY(0) rotate(-5deg)} 50%{transform:translateY(-8px) rotate(5deg)} }
+.float-3 { animation: bob3 4s ease-in-out infinite 0.5s; }
+@keyframes bob3 { 0%,100%{transform:translateY(0) rotate(3deg)} 50%{transform:translateY(-5px) rotate(-3deg)} }
+
+.concept-footer { padding: 0.9rem 1rem; border-top: 1px solid #f1f5f9; }
+.concept-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.9rem; color: #111; margin-bottom: 0.2rem; }
+.concept-desc { font-size: 0.72rem; color: #6b7280; line-height: 1.4; }
+
+/* Wordmark preview */
+.wordmark-section { max-width: 900px; margin: 0 auto; padding: 0 1rem 2rem; }
+.wordmark-section h3 { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1rem; color: #111; margin-bottom: 0.25rem; }
+.wordmark-section p { font-size: 0.78rem; color: #6b7280; margin-bottom: 1rem; }
+.wordmarks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; }
+@media (max-width: 650px) { .wordmarks { grid-template-columns: 1fr 1fr; } }
+.wm-card {
+  background: white; border-radius: 12px; padding: 1rem;
+  border: 2px solid #e5e7eb; cursor: pointer; transition: all 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  text-align: center;
+}
+.wm-card:hover { border-color: #6366f1; }
+.wm-card.selected { border-color: #16a34a; background: #f0fdf4; }
+.wm-preview { display: flex; align-items: center; gap: 6px; }
+.wm-label { font-size: 0.68rem; color: #6b7280; }
+</style>
+</head>
+<body>
+
+<h2>SproutRoute Logo Concepts</h2>
+<p class="subtitle">Inspired by the MATHsprout character — same friendly green sprout, travel theme. Pick your favorite direction.</p>
+
+<div class="reference">
+  <img class="ref-img" src="/Users/nitish/Downloads/MATHsprout logo final.png" onerror="this.style.display='none'">
+  <div class="ref-text">
+    <strong>Reference: MATHsprout</strong>
+    Cute sprout character · Happy face · Floating themed tiles · Sparkle effects · Illustrated style
+  </div>
+</div>
+
+<div class="concepts">
+
+  <!-- Concept 1: Character + travel tiles -->
+  <div class="concept-card" data-choice="travel-tiles" onclick="pick(this)">
+    <div class="concept-bg" style="background: linear-gradient(160deg, #e0f2fe 0%, #f0fdf4 60%, #dcfce7 100%);">
+
+      <!-- Sparkles -->
+      <div class="sparkle" style="top:15%;left:12%;font-size:12px;animation-delay:0s;">✦</div>
+      <div class="sparkle" style="top:20%;right:15%;font-size:8px;animation-delay:0.7s;color:#fbbf24;">✦</div>
+      <div class="sparkle" style="bottom:25%;left:18%;font-size:10px;animation-delay:1.2s;color:#34d399;">✦</div>
+
+      <!-- Floating travel tiles -->
+      <div class="float" style="position:absolute;top:18%;left:8%;background:#ef4444;border-radius:12px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 10px rgba(239,68,68,0.4);">📍</div>
+      <div class="float-2" style="position:absolute;top:12%;right:8%;background:#f59e0b;border-radius:12px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 10px rgba(245,158,11,0.4);">✈️</div>
+      <div class="float-3" style="position:absolute;bottom:20%;right:10%;background:#6366f1;border-radius:12px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 4px 10px rgba(99,102,241,0.4);">🗺</div>
+      <div class="float" style="position:absolute;bottom:22%;left:8%;background:#10b981;border-radius:12px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 4px 10px rgba(16,185,129,0.4);animation-delay:1s;">🧭</div>
+
+      <!-- Sprout character -->
+      <div style="position:relative;z-index:2;">
+        <svg width="90" height="110" viewBox="0 0 90 110">
+          <!-- Soil mound -->
+          <ellipse cx="45" cy="100" rx="30" ry="10" fill="#92400e" opacity="0.8"/>
+          <ellipse cx="45" cy="98" rx="28" ry="8" fill="#b45309"/>
+
+          <!-- Stem -->
+          <path d="M45 95 Q43 75 45 60 Q47 45 45 35" stroke="#16a34a" stroke-width="5" fill="none" stroke-linecap="round"/>
+
+          <!-- Left leaf -->
+          <path d="M45 70 Q25 55 22 38 Q35 42 45 58" fill="#22c55e"/>
+          <path d="M45 70 Q28 58 24 42" stroke="#16a34a" stroke-width="1" fill="none" opacity="0.5"/>
+
+          <!-- Right leaf -->
+          <path d="M45 65 Q65 50 68 33 Q55 37 45 55" fill="#4ade80"/>
+          <path d="M45 65 Q62 52 66 36" stroke="#16a34a" stroke-width="1" fill="none" opacity="0.5"/>
+
+          <!-- Top leaf -->
+          <path d="M45 40 Q35 22 38 8 Q50 16 48 32" fill="#22c55e"/>
+          <path d="M45 40 Q55 20 52 6 Q41 15 44 32" fill="#4ade80"/>
+
+          <!-- Face - eyes -->
+          <circle cx="41" cy="62" r="2.5" fill="#1a5c1a"/>
+          <circle cx="49" cy="62" r="2.5" fill="#1a5c1a"/>
+          <circle cx="42" cy="61" r="1" fill="white"/>
+          <circle cx="50" cy="61" r="1" fill="white"/>
+
+          <!-- Face - smile -->
+          <path d="M40 67 Q45 72 50 67" stroke="#1a5c1a" stroke-width="2" fill="none" stroke-linecap="round"/>
+
+          <!-- Rosy cheeks -->
+          <circle cx="38" cy="66" r="3" fill="#fca5a5" opacity="0.5"/>
+          <circle cx="52" cy="66" r="3" fill="#fca5a5" opacity="0.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="concept-footer">
+      <div class="concept-name">A — Travel Tiles</div>
+      <div class="concept-desc">Sprout character + floating travel tiles (map pin, plane, compass, map). Same energy as MATHsprout. Light gradient bg.</div>
+    </div>
+  </div>
+
+  <!-- Concept 2: Character + destination cards -->
+  <div class="concept-card" data-choice="destination" onclick="pick(this)">
+    <div class="concept-bg" style="background: linear-gradient(160deg, #fdf4ff 0%, #f0fdf4 60%, #ecfdf5 100%);">
+
+      <!-- Sparkles -->
+      <div class="sparkle" style="top:18%;left:15%;font-size:10px;color:#a78bfa;">✦</div>
+      <div class="sparkle" style="top:15%;right:20%;font-size:14px;color:#fbbf24;animation-delay:1s;">⋆</div>
+      <div class="sparkle" style="bottom:28%;right:12%;font-size:8px;color:#34d399;animation-delay:0.5s;">✦</div>
+
+      <!-- Floating destination bubbles -->
+      <div class="float" style="position:absolute;top:14%;left:5%;background:white;border-radius:100px;padding:4px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);font-size:11px;font-weight:700;color:#0f766e;border:1.5px solid #ccfbf1;">🌴 Hawaii</div>
+      <div class="float-2" style="position:absolute;top:10%;right:3%;background:white;border-radius:100px;padding:4px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);font-size:11px;font-weight:700;color:#1d4ed8;border:1.5px solid #bfdbfe;">🗼 Paris</div>
+      <div class="float-3" style="position:absolute;bottom:18%;left:3%;background:white;border-radius:100px;padding:4px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);font-size:11px;font-weight:700;color:#b45309;border:1.5px solid #fde68a;">🏔 Denver</div>
+      <div class="float" style="position:absolute;bottom:16%;right:2%;background:white;border-radius:100px;padding:4px 10px;box-shadow:0 4px 12px rgba(0,0,0,0.12);font-size:11px;font-weight:700;color:#7c3aed;border:1.5px solid #ddd6fe;animation-delay:0.8s;">🏖 Miami</div>
+
+      <!-- Sprout character (slightly different pose) -->
+      <div style="position:relative;z-index:2;">
+        <svg width="90" height="110" viewBox="0 0 90 110">
+          <ellipse cx="45" cy="100" rx="30" ry="10" fill="#92400e" opacity="0.8"/>
+          <ellipse cx="45" cy="98" rx="28" ry="8" fill="#b45309"/>
+          <path d="M45 95 Q43 75 45 60 Q47 45 45 35" stroke="#16a34a" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path d="M45 72 Q24 58 20 40 Q34 44 45 60" fill="#22c55e"/>
+          <path d="M45 68 Q66 52 70 34 Q56 38 45 56" fill="#4ade80"/>
+          <path d="M45 42 Q34 24 37 10 Q50 18 48 34" fill="#22c55e"/>
+          <path d="M45 42 Q56 22 53 8 Q40 17 43 34" fill="#86efac"/>
+          <!-- Eyes with slight wink -->
+          <circle cx="41" cy="62" r="2.5" fill="#1a5c1a"/>
+          <circle cx="49" cy="62" r="2.5" fill="#1a5c1a"/>
+          <circle cx="42" cy="61" r="1" fill="white"/>
+          <circle cx="50" cy="61" r="1" fill="white"/>
+          <path d="M40 67 Q45 73 50 67" stroke="#1a5c1a" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <circle cx="38" cy="66" r="3" fill="#fca5a5" opacity="0.5"/>
+          <circle cx="52" cy="66" r="3" fill="#fca5a5" opacity="0.5"/>
+        </svg>
+      </div>
+    </div>
+    <div class="concept-footer">
+      <div class="concept-name">B — Destination Bubbles</div>
+      <div class="concept-desc">Sprout surrounded by floating destination pills. Feels dynamic, travel-forward. Pastel gradient bg.</div>
+    </div>
+  </div>
+
+  <!-- Concept 3: App icon style (square rounded) -->
+  <div class="concept-card" data-choice="app-icon" onclick="pick(this)">
+    <div class="concept-bg" style="background: #f9fafb;">
+
+      <!-- Show how it looks as an app icon + in nav -->
+      <div style="display:flex;flex-direction:column;align-items:center;gap:1.25rem;">
+
+        <!-- App icon -->
+        <div style="position:relative;">
+          <div style="width:90px;height:90px;border-radius:22px;background:linear-gradient(160deg,#064e3b,#16a34a,#4ade80);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(22,163,74,0.4);">
+            <svg width="56" height="64" viewBox="0 0 90 110">
+              <path d="M45 95 Q43 78 45 62 Q47 48 45 38" stroke="rgba(255,255,255,0.9)" stroke-width="5.5" fill="none" stroke-linecap="round"/>
+              <path d="M45 74 Q26 60 22 43 Q37 47 45 64" fill="rgba(255,255,255,0.75)"/>
+              <path d="M45 70 Q64 54 68 37 Q53 41 45 60" fill="white"/>
+              <path d="M45 44 Q35 27 38 13 Q50 21 48 37" fill="rgba(255,255,255,0.75)"/>
+              <path d="M45 44 Q55 25 52 11 Q40 20 43 37" fill="rgba(255,255,255,0.9)"/>
+              <!-- Tiny face -->
+              <circle cx="41.5" cy="65" r="2" fill="#064e3b"/>
+              <circle cx="48.5" cy="65" r="2" fill="#064e3b"/>
+              <path d="M40 70 Q44.5 74.5 49 70" stroke="#064e3b" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <!-- Floating sparkles around icon -->
+          <div style="position:absolute;top:-6px;right:-6px;font-size:14px;animation:twinkle 2s infinite;">✦</div>
+          <div style="position:absolute;bottom:-4px;left:-8px;font-size:10px;color:#fbbf24;animation:twinkle 2.5s infinite 0.5s;">✦</div>
+        </div>
+
+        <!-- Nav bar usage -->
+        <div style="background:white;border-radius:10px;padding:7px 14px;display:flex;align-items:center;gap:7px;box-shadow:0 2px 8px rgba(0,0,0,0.08);border:1px solid #e5e7eb;">
+          <svg width="22" height="22" viewBox="0 0 90 90">
+            <rect width="90" height="90" rx="20" fill="#16a34a"/>
+            <path d="M45 78 Q43 62 45 50 Q47 38 45 30" stroke="white" stroke-width="5" fill="none" stroke-linecap="round"/>
+            <path d="M45 62 Q28 50 24 36 Q38 40 45 56" fill="white" opacity="0.8"/>
+            <path d="M45 58 Q62 44 66 30 Q52 34 45 52" fill="white"/>
+            <path d="M45 34 Q36 20 39 9 Q50 16 48 32" fill="white" opacity="0.8"/>
+            <path d="M45 34 Q54 18 51 7 Q40 15 43 31" fill="white"/>
+          </svg>
+          <span style="font-family:'Space Grotesk',sans-serif;font-weight:800;font-size:14px;color:#111;">SproutRoute</span>
+        </div>
+
+      </div>
+    </div>
+    <div class="concept-footer">
+      <div class="concept-name">C — App Icon + Wordmark</div>
+      <div class="concept-desc">Clean square-rounded icon for app stores. Green gradient bg, white sprout. Works at all sizes. Scales to favicon.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Wordmark style -->
+<div class="wordmark-section">
+  <h3>Wordmark style</h3>
+  <p>How should "SproutRoute" look next to the icon?</p>
+  <div class="wordmarks">
+    <div class="wm-card" data-wm="bold-split" onclick="pickWm(this)">
+      <div class="wm-preview">
+        <svg width="22" height="22" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#16a34a"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/></svg>
+        <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#111;">Sprout<span style="color:#16a34a;">Route</span></span>
+      </div>
+      <div class="wm-label">Two-color split<br>Sprout black · Route green</div>
+    </div>
+    <div class="wm-card" data-wm="all-green" onclick="pickWm(this)">
+      <div class="wm-preview">
+        <svg width="22" height="22" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#16a34a"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/></svg>
+        <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#16a34a;">SproutRoute</span>
+      </div>
+      <div class="wm-label">All green wordmark<br>Strong brand color</div>
+    </div>
+    <div class="wm-card" data-wm="all-dark" onclick="pickWm(this)">
+      <div class="wm-preview">
+        <svg width="22" height="22" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#16a34a"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/></svg>
+        <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:800;color:#111;">SproutRoute</span>
+      </div>
+      <div class="wm-label">All dark · clean<br>Icon carries the color</div>
+    </div>
+  </div>
+</div>
+
+<style>@keyframes twinkle { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(0.7)} }</style>
+<script>
+function pick(el) {
+  document.querySelectorAll('.concept-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.recordChoice) recordChoice(el.dataset.choice, el.querySelector('.concept-name').textContent);
+}
+function pickWm(el) {
+  document.querySelectorAll('.wm-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.recordChoice) recordChoice('wm-' + el.dataset.wm, el.querySelector('.wm-label').textContent);
+}
+</script>
+</body>
+</html>

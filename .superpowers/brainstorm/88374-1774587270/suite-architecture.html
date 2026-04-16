@@ -1,0 +1,95 @@
+<h2>Playwright Suite Architecture</h2>
+<p class="subtitle">How should the test files be structured? Pick the one that feels right.</p>
+
+<div class="options">
+
+  <div class="option" data-choice="layered" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Layered — Tiles → Screens → Flows <span style="font-size:11px;background:#22c55e;color:white;padding:2px 8px;border-radius:9px;margin-left:8px">Recommended</span></h3>
+      <p style="margin-bottom:10px">Three layers, each building on the one below. Most granular failures, easiest to debug.</p>
+      <div style="font-family:monospace;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;line-height:1.8">
+        <span style="color:#94a3b8">tests/e2e/</span><br>
+        <span style="color:#94a3b8">├── tiles/</span><br>
+        <span style="color:#6366f1">│   ├── hero-tile.spec.ts</span>
+        <span style="color:#94a3b8">        — destination, dates, kids, country tag</span><br>
+        <span style="color:#6366f1">│   ├── weather-tile.spec.ts</span>
+        <span style="color:#94a3b8">      — forecast days, hi/lo, historical badge</span><br>
+        <span style="color:#6366f1">│   ├── itinerary-tile.spec.ts</span>
+        <span style="color:#94a3b8">    — day tabs, activity cards, meals, warnings</span><br>
+        <span style="color:#6366f1">│   ├── safety-tile.spec.ts</span>
+        <span style="color:#94a3b8">      — advisory, emergency #, health tips</span><br>
+        <span style="color:#6366f1">│   ├── map-tile.spec.ts</span>
+        <span style="color:#94a3b8">         — iframe loads, pin coordinates</span><br>
+        <span style="color:#6366f1">│   └── packing-tile.spec.ts</span>
+        <span style="color:#94a3b8">      — categories, check/uncheck, persistence</span><br>
+        <span style="color:#94a3b8">├── screens/</span><br>
+        <span style="color:#0ea5e9">│   ├── input-screen.spec.ts</span>
+        <span style="color:#94a3b8">      — chips, textarea, plan button</span><br>
+        <span style="color:#0ea5e9">│   └── generating-screen.spec.ts</span>
+        <span style="color:#94a3b8">   — step indicators, progress labels</span><br>
+        <span style="color:#94a3b8">├── flows/</span><br>
+        <span style="color:#f59e0b">│   ├── happy-path.spec.ts</span>
+        <span style="color:#94a3b8">        — full input → results journey</span><br>
+        <span style="color:#f59e0b">│   ├── destination-picker.spec.ts</span>
+        <span style="color:#94a3b8">   — vague input → pick → results</span><br>
+        <span style="color:#f59e0b">│   ├── food-preferences.spec.ts</span>
+        <span style="color:#94a3b8">    — dietary input → meal cards reflect it</span><br>
+        <span style="color:#f59e0b">│   └── error-states.spec.ts</span>
+        <span style="color:#94a3b8">        — 500, 429, empty data</span><br>
+        <span style="color:#94a3b8">└── smoke/</span><br>
+        <span style="color:#ef4444">    └── production.spec.ts</span>
+        <span style="color:#94a3b8">         — live Railway, real APIs</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <span style="font-size:11px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 8px;border-radius:9px">Pinpoints exactly which tile broke</span>
+        <span style="font-size:11px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 8px;border-radius:9px">Reuses mock fixtures across layers</span>
+        <span style="font-size:11px;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;padding:2px 8px;border-radius:9px">CI runs tiles+screens+flows, skips smoke</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="flat" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Flat — Feature files only</h3>
+      <p style="margin-bottom:10px">Everything at the same level. Simpler but harder to pinpoint failures.</p>
+      <div style="font-family:monospace;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;line-height:1.8">
+        <span style="color:#94a3b8">tests/e2e/</span><br>
+        <span style="color:#6366f1">├── input-flow.spec.ts</span><br>
+        <span style="color:#6366f1">├── results-mosaic.spec.ts</span><br>
+        <span style="color:#6366f1">├── itinerary.spec.ts</span><br>
+        <span style="color:#6366f1">├── weather.spec.ts</span><br>
+        <span style="color:#6366f1">├── packing.spec.ts</span><br>
+        <span style="color:#6366f1">├── error-states.spec.ts</span><br>
+        <span style="color:#6366f1">└── smoke.spec.ts</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <span style="font-size:11px;background:#fef9c3;color:#854d0e;border:1px solid #fef08a;padding:2px 8px;border-radius:9px">Less setup overhead</span>
+        <span style="font-size:11px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;padding:2px 8px;border-radius:9px">Mixes detailed + flow tests in same file</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="journey" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Journey-first — Flows only, no tile isolation</h3>
+      <p style="margin-bottom:10px">Tests only full user journeys. Fast to write, hard to debug regressions.</p>
+      <div style="font-family:monospace;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;line-height:1.8">
+        <span style="color:#94a3b8">tests/e2e/</span><br>
+        <span style="color:#f59e0b">├── journey-family-beach.spec.ts</span><br>
+        <span style="color:#f59e0b">├── journey-adults-city.spec.ts</span><br>
+        <span style="color:#f59e0b">├── journey-vague-input.spec.ts</span><br>
+        <span style="color:#f59e0b">└── journey-errors.spec.ts</span>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <span style="font-size:11px;background:#fef9c3;color:#854d0e;border:1px solid #fef08a;padding:2px 8px;border-radius:9px">Mirrors how users think</span>
+        <span style="font-size:11px;background:#fff1f2;color:#be123c;border:1px solid #fecdd3;padding:2px 8px;border-radius:9px">One test breaks many things at once</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:20px">Option A is recommended — it matches your instinct (detailed first, then flows) and makes CI failures self-explanatory. Click to select, then confirm in terminal.</p>
