@@ -244,6 +244,7 @@ export function createApp(deps = {}) {
     getWeatherForecastFn = getWeatherForecast,
     generatePackingListFn = generatePackingList,
     generateTripPlanFn = generateTripPlan,
+    generateTripPlanChunkedFn = generateTripPlanChunked,
     getCarSeatGuidanceFn = getCarSeatGuidance,
     getTravelAdvisoryFn = getTravelAdvisory,
     getNeighborhoodSafetyFn = getNeighborhoodSafety,
@@ -1070,9 +1071,30 @@ export function createApp(deps = {}) {
     const streamStart = Date.now();
     const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
     const timing = {};
+    let clientClosed = false;
+
+    const markClosed = () => {
+      clientClosed = true;
+    };
+    if (typeof req.on === "function") req.on("close", markClosed);
+    if (typeof res.on === "function") res.on("close", markClosed);
+
+    const isClientClosed = () => clientClosed || res.writableEnded || res.destroyed;
+    const throwIfClientClosed = () => {
+      if (!isClientClosed()) return;
+      const err = new Error("Client disconnected");
+      err.name = "AbortError";
+      throw err;
+    };
+    const cleanupStreamListeners = () => {
+      if (typeof req.off === "function") req.off("close", markClosed);
+      if (typeof res.off === "function") res.off("close", markClosed);
+    };
 
     const send = (event, data) => {
+      if (isClientClosed()) return false;
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      return true;
     };
 
     try {
@@ -1102,11 +1124,12 @@ export function createApp(deps = {}) {
       // Phase 1: Geocode (~1-2s)
       let t0 = Date.now();
       const coords = await geocodeLocationFn(destination);
+      throwIfClientClosed();
       timing.geocode = Date.now() - t0;
       const resolvedCountry = coords.countryCode || "US";
       const tripDuration = inclusiveDayCount(startDate, endDate);
 
-      send("destination", {
+      if (!send("destination", {
         destination: coords.displayName || destination,
         lat: coords.lat,
         lon: coords.lon,
@@ -1119,15 +1142,20 @@ export function createApp(deps = {}) {
         duration: tripDuration,
         activities: safeActivities,
         children,
-      });
+      })) {
+        throwIfClientClosed();
+      }
 
       // Phase 2: Weather (~1-3s)
       t0 = Date.now();
       const weather = await getWeatherForecastFn(
         coords.lat, coords.lon, resolvedCountry, startDate, endDate,
       );
+      throwIfClientClosed();
       timing.weather = Date.now() - t0;
-      send("weather", { weather });
+      if (!send("weather", { weather })) {
+        throwIfClientClosed();
+      }
 
       // Phase 3: AI itinerary only on the hot path (~10-20s)
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
@@ -1141,6 +1169,7 @@ export function createApp(deps = {}) {
         pets,
         planningContext,
       });
+      throwIfClientClosed();
       log.info("stream:attractions", { reqId, cachedAttractionCount: cachedAttractions.length });
       const tripPayload = {
         destination, startDate, endDate,
@@ -1160,9 +1189,10 @@ export function createApp(deps = {}) {
       let fullTripPlan = null;
 
       try {
-        fullTripPlan = await generateTripPlanChunked(
+        fullTripPlan = await generateTripPlanChunkedFn(
           tripPayload, weather,
           (chunkResult, meta) => {
+            if (isClientClosed()) return;
             // Send each chunk as it completes
             let scheduled = null;
             try {
@@ -1170,26 +1200,33 @@ export function createApp(deps = {}) {
               scheduled = scheduleItinerary(chunkResult, {}, chunkStartDate);
             } catch { /* non-fatal */ }
 
-            send("itinerary-chunk", {
+            if (!send("itinerary-chunk", {
               tripPlan: chunkResult,
               scheduledItinerary: scheduled,
               chunk: meta.chunk,
               totalChunks: meta.totalChunks,
               dayOffset: meta.dayOffset,
-            });
+            })) {
+              throwIfClientClosed();
+            }
 
             if (!firstChunkSent) {
               firstChunkSent = true;
               timing.firstChunk = Date.now() - t0;
             }
           },
+          { shouldAbort: isClientClosed },
         );
       } catch (err) {
+        if (err.name === "AbortError" || isClientClosed()) {
+          return res.end();
+        }
         log.error("stream:itinerary-fail", { reqId, error: err.message });
         send("error", { message: "Failed to generate itinerary. Please try again." });
         return res.end();
       }
 
+      throwIfClientClosed();
       timing.ai = Date.now() - t0;
 
       timing.total = Date.now() - streamStart;
@@ -1214,6 +1251,10 @@ export function createApp(deps = {}) {
       send("done", {});
       res.end();
     } catch (error) {
+      if (error.name === "AbortError" || isClientClosed()) {
+        try { res.end(); } catch { /* ignore */ }
+        return;
+      }
       timing.total = Date.now() - streamStart;
       log.error("stream:error", { reqId, error: error.message, timing });
       try {
@@ -1224,6 +1265,8 @@ export function createApp(deps = {}) {
         }
       } catch { /* response may already be closed */ }
       try { res.end(); } catch { /* ignore */ }
+    } finally {
+      cleanupStreamListeners();
     }
   });
 

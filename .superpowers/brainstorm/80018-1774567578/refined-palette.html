@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SproutRoute — Refined Palette</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', system-ui, sans-serif; background: #f1f5f9; padding-bottom: 3rem; }
+
+h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; font-weight: 800; text-align: center; padding: 1.5rem 1rem 0.3rem; color: #111; }
+.subtitle { text-align: center; color: #6b7280; font-size: 0.85rem; margin-bottom: 1.5rem; padding: 0 1rem; }
+
+/* ─── Selection indicator ─── */
+#pick-indicator { text-align:center; font-size:0.82rem; color:#6366f1; font-weight:600; min-height:1.2rem; margin-bottom:0.75rem; }
+
+/* ─── Palette grid ─── */
+.palettes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; padding: 0 1rem; max-width: 1000px; margin: 0 auto 2.5rem; }
+@media (max-width: 700px) { .palettes { grid-template-columns: 1fr; } }
+
+.pal-card {
+  border-radius: 20px; overflow: hidden; cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 3px solid transparent; background: white;
+}
+.pal-card:hover { transform: translateY(-4px); box-shadow: 0 10px 32px rgba(0,0,0,0.13); }
+.pal-card.selected { border-color: #6366f1; box-shadow: 0 0 0 2px #a5b4fc, 0 10px 32px rgba(0,0,0,0.13); }
+
+/* ─── Full mini-app preview inside each card ─── */
+.preview-shell {
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden; height: 380px; position: relative;
+}
+
+/* Nav strip */
+.p-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 12px; font-size: 11px; font-weight: 700;
+  border-bottom-width: 1px; border-bottom-style: solid;
+}
+.p-brand { display: flex; align-items: center; gap: 5px; font-family: 'Space Grotesk', sans-serif; font-size: 12px; }
+.p-share { font-size: 10px; font-weight: 600; border-radius: 6px; padding: 3px 8px; }
+
+/* Mosaic */
+.p-mosaic { display: grid; grid-template-columns: 1.5fr 1fr; grid-template-rows: auto auto 80px; gap: 5px; padding: 7px; height: calc(100% - 34px); }
+.p-tile { border-radius: 10px; padding: 9px; border-width: 1px; border-style: solid; overflow: hidden; }
+.p-hero { grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column; justify-content: space-between; }
+.p-weather { grid-column: 2; grid-row: 1; }
+.p-refine { grid-column: 2; grid-row: 2; }
+.p-map { grid-column: 1 / 3; grid-row: 3; display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; }
+
+.p-eyebrow { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 3px; opacity: 0.8; }
+.p-dest { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; line-height: 1.15; margin-bottom: 2px; }
+.p-dates { font-size: 8px; opacity: 0.65; margin-bottom: 7px; }
+.p-chips { display: flex; gap: 3px; flex-wrap: wrap; }
+.p-chip { font-size: 7px; font-weight: 600; border-radius: 100px; padding: 2px 6px; border-width: 1px; border-style: solid; }
+.p-edit { font-size: 7px; opacity: 0.55; margin-top: 7px; padding-top: 6px; border-top-width: 1px; border-top-style: solid; border-top-color: rgba(255,255,255,0.2); }
+.p-weather-temp { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 800; margin-bottom: 1px; }
+.p-weather-sub { font-size: 7.5px; opacity: 0.6; }
+.p-weather-row { display: flex; justify-content: space-between; margin-top: 5px; }
+.p-wd { text-align: center; }
+.p-wd-d { font-size: 6px; opacity: 0.5; font-weight: 600; }
+.p-wd-i { font-size: 10px; }
+.p-wd-t { font-size: 7px; font-weight: 700; }
+.p-label { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin-bottom: 5px; }
+.p-refine-chip { font-size: 7px; border-radius: 6px; padding: 3px 6px; margin-bottom: 3px; border-width: 1px; border-style: solid; width: 100%; display: block; cursor: pointer; }
+.p-input { width: 100%; border-radius: 6px; padding: 3px 6px; font-size: 7px; border-width: 1px; border-style: solid; margin-top: 4px; }
+.p-map-dots { display: flex; gap: 5px; font-size: 13px; }
+.p-map-label { font-size: 7.5px; opacity: 0.5; }
+
+/* Activity rows */
+.p-act { display: flex; gap: 6px; margin-bottom: 6px; }
+.p-act-img { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.p-act-info {}
+.p-act-time { font-size: 6.5px; font-weight: 700; margin-bottom: 1px; }
+.p-act-name { font-size: 8px; font-weight: 700; }
+.p-act-sub { font-size: 7px; opacity: 0.5; }
+
+/* ─── Card labels ─── */
+.pal-footer { padding: 0.7rem 1rem; border-top: 1px solid #f1f5f9; }
+.pal-name { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.88rem; color: #111; margin-bottom: 0.2rem; }
+.pal-desc { font-size: 0.75rem; color: #6b7280; line-height: 1.4; }
+
+/* ─── Logo section ─── */
+.logo-section { max-width: 1000px; margin: 0 auto; padding: 0 1rem; }
+.logo-section h3 { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.1rem; color: #111; margin-bottom: 0.25rem; }
+.logo-section p { font-size: 0.8rem; color: #6b7280; margin-bottom: 1rem; }
+.logos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
+@media (max-width: 600px) { .logos { grid-template-columns: 1fr 1fr; } }
+.logo-card {
+  background: white; border-radius: 14px; padding: 1rem;
+  border: 2px solid #e5e7eb; cursor: pointer; transition: all 0.2s;
+  display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+}
+.logo-card:hover { border-color: #6366f1; transform: translateY(-2px); }
+.logo-card.selected { border-color: #6366f1; background: #f5f3ff; }
+.logo-preview { display: flex; align-items: center; gap: 6px; }
+.logo-name-text { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 0.9rem; }
+.logo-label { font-size: 0.68rem; color: #6b7280; text-align: center; }
+</style>
+</head>
+<body>
+
+<h2>Refined palette directions</h2>
+<p class="subtitle">Light + fresh + green accent — 3 blends of your favorites ① and ⑥. Plus logo explorations below.</p>
+<div id="pick-indicator">Click a palette to select</div>
+
+<div class="palettes">
+
+  <!-- ══ PALETTE A: Arctic Spring ══ -->
+  <!-- White bg, sky-blue tiles, emerald-green accent -->
+  <div class="pal-card" data-choice="arctic-spring" onclick="pickPal(this)">
+    <div class="preview-shell" style="background:#f0f9ff;">
+
+      <div class="p-nav" style="background:white; border-color:#e0f2fe; color:#0c4a6e;">
+        <div class="p-brand" style="color:#059669;">
+          <svg width="16" height="16" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#059669"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/><path d="M14 16c2-2 4-1 4 1M22 14c-2-1-4 0-4 2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+          SproutRoute
+        </div>
+        <div class="p-share" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">↗ Share</div>
+      </div>
+
+      <div class="p-mosaic" style="background:#f0f9ff;">
+        <div class="p-tile p-hero" style="background:linear-gradient(160deg,#064e3b,#059669,#34d399); color:white; border-color:transparent;">
+          <div>
+            <div class="p-eyebrow">Your trip plan ✨</div>
+            <div class="p-dest">🌴 Maui, Hawaii</div>
+            <div class="p-dates">Apr 12–19 · Spring Break 2026</div>
+            <div class="p-chips">
+              <span class="p-chip" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.25);color:white;">☀️ 78°F</span>
+              <span class="p-chip" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.25);color:white;">👨‍👧 Family</span>
+              <span class="p-chip" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.25);color:white;">🛡 4.8</span>
+            </div>
+          </div>
+          <div>
+            <div class="p-act">
+              <div class="p-act-img" style="background:rgba(255,255,255,0.15);">🌊</div>
+              <div class="p-act-info" style="color:white;">
+                <div class="p-act-time" style="color:rgba(255,255,255,0.7);">9AM · Day 1</div>
+                <div class="p-act-name">Road to Hana</div>
+                <div class="p-act-sub" style="color:rgba(255,255,255,0.55);">Scenic drive · 5hrs</div>
+              </div>
+            </div>
+            <div class="p-act">
+              <div class="p-act-img" style="background:rgba(255,255,255,0.15);">🍽</div>
+              <div class="p-act-info" style="color:white;">
+                <div class="p-act-time" style="color:rgba(255,255,255,0.7);">6:30PM · Dinner</div>
+                <div class="p-act-name">Mama's Fish House</div>
+                <div class="p-act-sub" style="color:rgba(255,255,255,0.55);">⭐ 4.9 · $$$$</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-tile p-weather" style="background:white; border-color:#bae6fd; color:#0c4a6e;">
+          <div class="p-eyebrow" style="color:#0284c7;">Weather</div>
+          <div class="p-weather-temp" style="color:#059669;">78°F</div>
+          <div class="p-weather-sub">☀️ Sunny all week</div>
+          <div class="p-weather-row">
+            <div class="p-wd"><div class="p-wd-d">SAT</div><div class="p-wd-i">☀️</div><div class="p-wd-t" style="color:#0c4a6e;">76°</div></div>
+            <div class="p-wd"><div class="p-wd-d">SUN</div><div class="p-wd-i">⛅</div><div class="p-wd-t" style="color:#0c4a6e;">75°</div></div>
+            <div class="p-wd"><div class="p-wd-d">MON</div><div class="p-wd-i">☀️</div><div class="p-wd-t" style="color:#0c4a6e;">78°</div></div>
+          </div>
+        </div>
+
+        <div class="p-tile p-refine" style="background:#f0fdf4; border-color:#a7f3d0; color:#065f46;">
+          <div class="p-label" style="color:#059669;">✨ Refine</div>
+          <div class="p-refine-chip" style="background:white;border-color:#a7f3d0;color:#059669;">More adventure 🧗</div>
+          <div class="p-refine-chip" style="background:white;border-color:#a7f3d0;color:#059669;">Easier on toddler 👶</div>
+          <input class="p-input" style="background:white;border-color:#a7f3d0;color:#065f46;" placeholder="Or describe a change…">
+        </div>
+
+        <div class="p-tile p-map" style="background:#ecfdf5; border-color:#a7f3d0;">
+          <div class="p-map-dots">📍📍📍</div>
+          <div class="p-map-label" style="color:#059669;">7 spots mapped · Maui, HI</div>
+        </div>
+      </div>
+    </div>
+    <div class="pal-footer">
+      <div class="pal-name">A — Arctic Spring</div>
+      <div class="pal-desc">Sky blue tiles + emerald green hero + crisp white. Airy, fresh, beach-ready.</div>
+    </div>
+  </div>
+
+  <!-- ══ PALETTE B: Coastal Sage ══ -->
+  <!-- Warm off-white bg, slate border tiles, teal-green accent -->
+  <div class="pal-card" data-choice="coastal-sage" onclick="pickPal(this)">
+    <div class="preview-shell" style="background:#f8faf8;">
+
+      <div class="p-nav" style="background:white; border-color:#e2e8f0; color:#334155;">
+        <div class="p-brand" style="color:#0d9488;">
+          <svg width="16" height="16" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#0d9488"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/><path d="M14 16c2-2 4-1 4 1M22 14c-2-1-4 0-4 2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+          SproutRoute
+        </div>
+        <div class="p-share" style="background:#f0fdfa; color:#0d9488; border:1px solid #99f6e4;">↗ Share</div>
+      </div>
+
+      <div class="p-mosaic" style="background:#f8faf8;">
+        <div class="p-tile p-hero" style="background:linear-gradient(160deg,#134e4a,#0f766e,#14b8a6); color:white; border-color:transparent;">
+          <div>
+            <div class="p-eyebrow">Your trip plan ✨</div>
+            <div class="p-dest">🌴 Maui, Hawaii</div>
+            <div class="p-dates">Apr 12–19 · Spring Break 2026</div>
+            <div class="p-chips">
+              <span class="p-chip" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.25);color:white;">☀️ 78°F</span>
+              <span class="p-chip" style="background:rgba(255,255,255,0.15);border-color:rgba(255,255,255,0.25);color:white;">👨‍👧 Family</span>
+            </div>
+          </div>
+          <div>
+            <div class="p-act">
+              <div class="p-act-img" style="background:rgba(255,255,255,0.12);">🌊</div>
+              <div class="p-act-info" style="color:white;">
+                <div class="p-act-time" style="color:rgba(255,255,255,0.65);">9AM · Day 1</div>
+                <div class="p-act-name">Road to Hana</div>
+              </div>
+            </div>
+            <div class="p-act">
+              <div class="p-act-img" style="background:rgba(255,255,255,0.12);">🍽</div>
+              <div class="p-act-info" style="color:white;">
+                <div class="p-act-time" style="color:rgba(255,255,255,0.65);">6:30PM · Dinner</div>
+                <div class="p-act-name">Mama's Fish House</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-tile p-weather" style="background:white; border-color:#e2e8f0; color:#334155;">
+          <div class="p-eyebrow" style="color:#0d9488;">Weather</div>
+          <div class="p-weather-temp" style="color:#0d9488;">78°F</div>
+          <div class="p-weather-sub">☀️ Sunny all week</div>
+          <div class="p-weather-row">
+            <div class="p-wd"><div class="p-wd-d">SAT</div><div class="p-wd-i">☀️</div><div class="p-wd-t" style="color:#334155;">76°</div></div>
+            <div class="p-wd"><div class="p-wd-d">SUN</div><div class="p-wd-i">⛅</div><div class="p-wd-t" style="color:#334155;">75°</div></div>
+            <div class="p-wd"><div class="p-wd-d">MON</div><div class="p-wd-i">☀️</div><div class="p-wd-t" style="color:#334155;">78°</div></div>
+          </div>
+        </div>
+
+        <div class="p-tile p-refine" style="background:#f0fdfa; border-color:#ccfbf1; color:#134e4a;">
+          <div class="p-label" style="color:#0d9488;">✨ Refine</div>
+          <div class="p-refine-chip" style="background:white;border-color:#ccfbf1;color:#0d9488;">More adventure 🧗</div>
+          <div class="p-refine-chip" style="background:white;border-color:#ccfbf1;color:#0d9488;">Easier on toddler 👶</div>
+          <input class="p-input" style="background:white;border-color:#ccfbf1;color:#134e4a;" placeholder="Or describe a change…">
+        </div>
+
+        <div class="p-tile p-map" style="background:#f0fdfa; border-color:#ccfbf1;">
+          <div class="p-map-dots">📍📍📍</div>
+          <div class="p-map-label" style="color:#0d9488;">7 spots · Maui, HI</div>
+        </div>
+      </div>
+    </div>
+    <div class="pal-footer">
+      <div class="pal-name">B — Coastal Sage</div>
+      <div class="pal-desc">Soft off-white + slate borders + teal-green. Calm, editorial, feels premium without being heavy.</div>
+    </div>
+  </div>
+
+  <!-- ══ PALETTE C: Fresh Meadow ══ -->
+  <!-- Pure white bg, light green tints, bright green accent — friendliest -->
+  <div class="pal-card" data-choice="fresh-meadow" onclick="pickPal(this)">
+    <div class="preview-shell" style="background:#f9fafb;">
+
+      <div class="p-nav" style="background:white; border-color:#e5e7eb; color:#374151;">
+        <div class="p-brand" style="color:#16a34a;">
+          <svg width="16" height="16" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#16a34a"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/><path d="M14 16c2-2 4-1 4 1M22 14c-2-1-4 0-4 2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+          SproutRoute
+        </div>
+        <div class="p-share" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0;">↗ Share</div>
+      </div>
+
+      <div class="p-mosaic" style="background:#f9fafb;">
+        <div class="p-tile p-hero" style="background:linear-gradient(160deg,#14532d,#16a34a,#4ade80); color:white; border-color:transparent;">
+          <div>
+            <div class="p-eyebrow">Your trip plan ✨</div>
+            <div class="p-dest">🌴 Maui, Hawaii</div>
+            <div class="p-dates">Apr 12–19 · Spring Break 2026</div>
+            <div class="p-chips">
+              <span class="p-chip" style="background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.3);color:white;">☀️ 78°F</span>
+              <span class="p-chip" style="background:rgba(255,255,255,0.18);border-color:rgba(255,255,255,0.3);color:white;">👨‍👧 Family</span>
+            </div>
+          </div>
+          <div>
+            <div class="p-act">
+              <div class="p-act-img" style="background:rgba(255,255,255,0.15);">🌊</div>
+              <div class="p-act-info" style="color:white;">
+                <div class="p-act-time" style="color:rgba(255,255,255,0.7);">9AM · Day 1</div>
+                <div class="p-act-name">Road to Hana</div>
+              </div>
+            </div>
+            <div class="p-act">
+              <div class="p-act-img" style="background:rgba(255,255,255,0.15);">🍽</div>
+              <div class="p-act-info" style="color:white;">
+                <div class="p-act-time" style="color:rgba(255,255,255,0.7);">6:30PM · Dinner</div>
+                <div class="p-act-name">Mama's Fish House</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-tile p-weather" style="background:#f0fdf4; border-color:#bbf7d0; color:#166534;">
+          <div class="p-eyebrow" style="color:#16a34a;">Weather</div>
+          <div class="p-weather-temp" style="color:#15803d;">78°F</div>
+          <div class="p-weather-sub">☀️ Sunny all week</div>
+          <div class="p-weather-row">
+            <div class="p-wd"><div class="p-wd-d">SAT</div><div class="p-wd-i">☀️</div><div class="p-wd-t" style="color:#166534;">76°</div></div>
+            <div class="p-wd"><div class="p-wd-d">SUN</div><div class="p-wd-i">⛅</div><div class="p-wd-t" style="color:#166534;">75°</div></div>
+            <div class="p-wd"><div class="p-wd-d">MON</div><div class="p-wd-i">☀️</div><div class="p-wd-t" style="color:#166534;">78°</div></div>
+          </div>
+        </div>
+
+        <div class="p-tile p-refine" style="background:white; border-color:#e5e7eb; color:#374151;">
+          <div class="p-label" style="color:#16a34a;">✨ Refine</div>
+          <div class="p-refine-chip" style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d;">More adventure 🧗</div>
+          <div class="p-refine-chip" style="background:#f0fdf4;border-color:#bbf7d0;color:#15803d;">Easier on toddler 👶</div>
+          <input class="p-input" style="background:#f9fafb;border-color:#e5e7eb;color:#374151;" placeholder="Or describe a change…">
+        </div>
+
+        <div class="p-tile p-map" style="background:#f0fdf4; border-color:#bbf7d0;">
+          <div class="p-map-dots">📍📍📍</div>
+          <div class="p-map-label" style="color:#15803d;">7 spots · Maui, HI</div>
+        </div>
+      </div>
+    </div>
+    <div class="pal-footer">
+      <div class="pal-name">C — Fresh Meadow</div>
+      <div class="pal-desc">Pure white + light green tints + bright green accent. Freshest feel, keeps SproutRoute brand strongest.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ─── Logo explorations ─── -->
+<div class="logo-section">
+  <h3>Logo directions</h3>
+  <p>Same green sprout — different typographic feels. Click to pick a direction.</p>
+  <div class="logos">
+
+    <!-- Logo 1: Rounded wordmark -->
+    <div class="logo-card" data-logo="rounded" onclick="pickLogo(this)">
+      <div class="logo-preview">
+        <svg width="28" height="28" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#16a34a"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/><path d="M14 16c2-2 4-1 4 1M22 14c-2-1-4 0-4 2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span class="logo-name-text" style="font-family:'Space Grotesk',sans-serif;color:#111;">SproutRoute</span>
+      </div>
+      <div class="logo-label">Rounded circle mark<br>Bold wordmark</div>
+    </div>
+
+    <!-- Logo 2: Sprout icon only, geometric -->
+    <div class="logo-card" data-logo="geometric" onclick="pickLogo(this)">
+      <div class="logo-preview">
+        <svg width="28" height="28" viewBox="0 0 40 40">
+          <rect width="40" height="40" rx="10" fill="#16a34a"/>
+          <path d="M20 32V16M20 16c0-6 8-8 8-8s-2 6-8 8zM20 16c0-6-8-8-8-8s2 6 8 8z" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <circle cx="20" cy="32" r="2" fill="white"/>
+        </svg>
+        <span class="logo-name-text" style="font-family:'Space Grotesk',sans-serif;color:#111;">SproutRoute</span>
+      </div>
+      <div class="logo-label">Rounded square mark<br>Geometric sprout</div>
+    </div>
+
+    <!-- Logo 3: Minimal sprout leaf -->
+    <div class="logo-card" data-logo="minimal" onclick="pickLogo(this)">
+      <div class="logo-preview">
+        <svg width="28" height="28" viewBox="0 0 40 40">
+          <path d="M20 36V20M20 20c0-10 14-16 14-16S28 14 20 20zM20 20c0-10-14-16-14-16S12 14 20 20z" stroke="#16a34a" stroke-width="3" stroke-linecap="round" fill="none"/>
+        </svg>
+        <span class="logo-name-text" style="font-family:'Inter',sans-serif;font-weight:800;color:#111;">sproutroute</span>
+      </div>
+      <div class="logo-label">Outline sprout · lowercase<br>Minimal, editorial</div>
+    </div>
+
+    <!-- Logo 4: Route path + sprout -->
+    <div class="logo-card" data-logo="route" onclick="pickLogo(this)">
+      <div class="logo-preview">
+        <svg width="28" height="28" viewBox="0 0 40 40">
+          <circle cx="20" cy="20" r="19" fill="none" stroke="#16a34a" stroke-width="2.5"/>
+          <path d="M20 30V18M20 18c0-7 7-10 7-10s-1 7-7 10zM20 18c0-7-7-10-7-10s1 7 7 10z" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          <path d="M12 30 Q20 26 28 30" stroke="#16a34a" stroke-width="2" stroke-linecap="round" fill="none" stroke-dasharray="2 3"/>
+        </svg>
+        <span class="logo-name-text" style="font-family:'Space Grotesk',sans-serif;color:#16a34a;">SproutRoute</span>
+      </div>
+      <div class="logo-label">Circle + sprout + route path<br>Green wordmark</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function pickPal(el) {
+  document.querySelectorAll('.pal-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('pick-indicator').textContent = '✓ Selected: ' + el.querySelector('.pal-name').textContent;
+  if (window.recordChoice) recordChoice(el.dataset.choice, el.querySelector('.pal-name').textContent);
+}
+function pickLogo(el) {
+  document.querySelectorAll('.logo-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  if (window.recordChoice) recordChoice('logo-' + el.dataset.logo, el.querySelector('.logo-label').textContent);
+}
+</script>
+</body>
+</html>

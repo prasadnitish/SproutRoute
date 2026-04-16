@@ -1,0 +1,139 @@
+<h2>Results page layout</h2>
+<p class="subtitle">After the plan generates — how should it feel to explore your trip?</p>
+
+<div class="cards">
+
+  <!-- Option A: Immersive single scroll -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f0fdf4;padding:1rem;font-family:system-ui;">
+
+      <!-- Hero banner -->
+      <div style="background:linear-gradient(135deg,#15803d,#16a34a);border-radius:10px;padding:0.75rem 1rem;color:white;margin-bottom:0.6rem;">
+        <div style="font-weight:800;font-size:1rem;margin-bottom:0.1rem;">🌴 Maui, Hawaii</div>
+        <div style="font-size:0.7rem;opacity:0.85;">Apr 12–19 · 7 nights · Sunny 78°F</div>
+        <div style="display:flex;gap:0.4rem;margin-top:0.5rem;">
+          <span style="background:rgba(255,255,255,0.2);border-radius:100px;padding:0.15rem 0.5rem;font-size:0.65rem;">🏖 Beach</span>
+          <span style="background:rgba(255,255,255,0.2);border-radius:100px;padding:0.15rem 0.5rem;font-size:0.65rem;">👨‍👧 Family</span>
+          <span style="background:rgba(255,255,255,0.2);border-radius:100px;padding:0.15rem 0.5rem;font-size:0.65rem;">⭐ 4.8 safety</span>
+        </div>
+      </div>
+
+      <!-- Day cards horizontal scroll -->
+      <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;color:#6b7280;letter-spacing:0.05em;margin-bottom:0.4rem;">Your Itinerary</div>
+      <div style="display:flex;gap:0.5rem;overflow:hidden;margin-bottom:0.6rem;">
+        <div style="min-width:90px;background:white;border-radius:8px;padding:0.6rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <div style="font-size:0.65rem;font-weight:700;color:#15803d;">DAY 1</div>
+          <div style="font-size:0.72rem;color:#374151;margin-top:0.2rem;">Arrive · Road to Hana · Sunset dinner</div>
+        </div>
+        <div style="min-width:90px;background:white;border-radius:8px;padding:0.6rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <div style="font-size:0.65rem;font-weight:700;color:#15803d;">DAY 2</div>
+          <div style="font-size:0.72rem;color:#374151;margin-top:0.2rem;">Snorkel · Luau · Beach</div>
+        </div>
+        <div style="min-width:90px;background:white;border-radius:8px;padding:0.6rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <div style="font-size:0.65rem;font-weight:700;color:#15803d;">DAY 3</div>
+          <div style="font-size:0.72rem;color:#374151;margin-top:0.2rem;">Haleakalā · Whale watch</div>
+        </div>
+      </div>
+
+      <!-- Summary strips -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;">
+        <div style="background:white;border-radius:8px;padding:0.5rem 0.7rem;font-size:0.72rem;">
+          <span style="font-size:0.9rem;">🎒</span> <strong>38 items</strong> to pack
+        </div>
+        <div style="background:white;border-radius:8px;padding:0.5rem 0.7rem;font-size:0.72rem;">
+          <span style="font-size:0.9rem;">🚗</span> Car seat <strong>required</strong>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Immersive Single Page</h3>
+      <p>Everything on one scrollable page. Hero banner with destination info, horizontal day-scroll, then packing + safety strips below. No tabs, no switching.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Dashboard with panels -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f8fafc;padding:1rem;font-family:system-ui;">
+
+      <!-- Trip header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <div>
+          <div style="font-weight:800;font-size:0.95rem;color:#111827;">🌴 Maui, Hawaii</div>
+          <div style="font-size:0.7rem;color:#6b7280;">Apr 12–19 · Spring Break</div>
+        </div>
+        <button style="background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;border-radius:8px;padding:0.3rem 0.6rem;font-size:0.7rem;font-weight:600;">Share ↗</button>
+      </div>
+
+      <!-- 2-col dashboard -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;">
+        <!-- Left: itinerary panel -->
+        <div style="background:white;border-radius:10px;padding:0.7rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);grid-row:span 2;">
+          <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:0.4rem;">📅 Itinerary</div>
+          <div style="font-size:0.72rem;color:#374151;border-left:2px solid #16a34a;padding-left:0.5rem;margin-bottom:0.3rem;"><strong>Day 1</strong> Arrive, explore</div>
+          <div style="font-size:0.72rem;color:#374151;border-left:2px solid #e5e7eb;padding-left:0.5rem;margin-bottom:0.3rem;"><strong>Day 2</strong> Snorkel, luau</div>
+          <div style="font-size:0.72rem;color:#374151;border-left:2px solid #e5e7eb;padding-left:0.5rem;margin-bottom:0.3rem;"><strong>Day 3</strong> Haleakalā</div>
+          <div style="font-size:0.65rem;color:#16a34a;cursor:pointer;">+ 4 more days</div>
+        </div>
+        <!-- Right top: weather -->
+        <div style="background:linear-gradient(135deg,#0ea5e9,#0284c7);border-radius:10px;padding:0.7rem;color:white;">
+          <div style="font-size:0.65rem;opacity:0.8;margin-bottom:0.2rem;">🌤 Weather</div>
+          <div style="font-weight:800;font-size:1rem;">78°F</div>
+          <div style="font-size:0.65rem;opacity:0.85;">Sunny all week</div>
+        </div>
+        <!-- Right bottom: packing -->
+        <div style="background:white;border-radius:10px;padding:0.7rem;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;color:#6b7280;margin-bottom:0.2rem;">🎒 Packing</div>
+          <div style="font-size:0.7rem;color:#374151;">38 items · <span style="color:#16a34a;">0 checked</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Dashboard Grid</h3>
+      <p>2-column card dashboard. Itinerary left, weather + packing right. Everything visible at a glance. Feels like a real travel app, not a website.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Story mode / swipeable cards -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f0fdf4;padding:1rem;font-family:system-ui;">
+
+      <!-- Progress dots -->
+      <div style="display:flex;justify-content:center;gap:0.35rem;margin-bottom:0.75rem;">
+        <div style="width:20px;height:4px;border-radius:2px;background:#16a34a;"></div>
+        <div style="width:8px;height:4px;border-radius:2px;background:#bbf7d0;"></div>
+        <div style="width:8px;height:4px;border-radius:2px;background:#bbf7d0;"></div>
+        <div style="width:8px;height:4px;border-radius:2px;background:#bbf7d0;"></div>
+      </div>
+
+      <!-- Current "card" being viewed -->
+      <div style="background:white;border-radius:12px;padding:1rem;box-shadow:0 4px 16px rgba(0,0,0,0.08);margin-bottom:0.6rem;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:0.5rem;">
+          <div>
+            <div style="font-size:0.65rem;font-weight:700;text-transform:uppercase;color:#16a34a;margin-bottom:0.2rem;">Day 1 — Arrival</div>
+            <div style="font-weight:700;font-size:0.9rem;color:#111827;">Road to Hana</div>
+          </div>
+          <div style="text-align:right;font-size:0.7rem;color:#6b7280;">🌤 76°F</div>
+        </div>
+        <div style="font-size:0.78rem;color:#6b7280;line-height:1.5;margin-bottom:0.5rem;">Start at sunrise for the best experience. Stop at Twin Falls, grab acai bowls at Mile Marker 18, end at Haleakalā Blowhole.</div>
+        <div style="display:flex;gap:0.35rem;">
+          <span style="background:#f0fdf4;border-radius:100px;padding:0.15rem 0.45rem;font-size:0.65rem;color:#15803d;">🏖 Beach</span>
+          <span style="background:#f0fdf4;border-radius:100px;padding:0.15rem 0.45rem;font-size:0.65rem;color:#15803d;">👧 Kid-friendly</span>
+        </div>
+      </div>
+
+      <!-- Swipe controls -->
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <button style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:0.4rem 0.75rem;font-size:0.75rem;color:#6b7280;">← Prev</button>
+        <div style="font-size:0.7rem;color:#9ca3af;">Swipe or tap to navigate</div>
+        <button style="background:#16a34a;border:none;border-radius:8px;padding:0.4rem 0.75rem;font-size:0.75rem;color:white;">Next →</button>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Story / Day Cards</h3>
+      <p>Each day is a rich card. Swipe through like a story. Deep detail per day with weather, activities, tips. Best mobile experience. Feels native.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:1.5rem;text-align:center;">You can also mix — e.g. A's hero banner + C's day cards. Let me know.</p>

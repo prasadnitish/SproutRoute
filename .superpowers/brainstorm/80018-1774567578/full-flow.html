@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SproutRoute — Full Redesign Mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #f9fafb; color: #111827; }
+
+  .page { display: flex; flex-direction: column; min-height: 100vh; }
+
+  /* ── Nav ── */
+  nav {
+    background: rgba(255,255,255,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid #e5e7eb; padding: 0.75rem 1.25rem;
+    display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50;
+  }
+  .brand { display: flex; align-items: center; gap: 0.5rem; font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.1rem; color: #15803d; }
+  .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .nav-back { font-size: 0.8rem; color: #6b7280; cursor: pointer; }
+  .nav-back:hover { color: #16a34a; }
+
+  /* ── SCREEN 1: Input ── */
+  .screen { padding: 1.5rem 1.25rem; max-width: 480px; margin: 0 auto; width: 100%; }
+  .screen-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #16a34a; margin-bottom: 0.5rem; }
+
+  .input-hero { text-align: center; padding: 2rem 0 1.5rem; }
+  .input-hero h1 { font-family: 'Space Grotesk', sans-serif; font-size: 1.75rem; font-weight: 800; color: #111827; line-height: 1.2; margin-bottom: 0.5rem; }
+  .input-hero h1 span { color: #16a34a; }
+  .input-hero p { font-size: 0.9rem; color: #6b7280; }
+
+  .trip-input-box {
+    background: white; border: 2px solid #e5e7eb; border-radius: 16px;
+    padding: 1rem; margin-bottom: 1rem;
+    transition: border-color 0.2s; box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  }
+  .trip-input-box:focus-within { border-color: #16a34a; }
+  .trip-input-box textarea {
+    width: 100%; border: none; outline: none; resize: none; font-size: 1rem;
+    font-family: 'Inter', sans-serif; color: #111827; line-height: 1.5; min-height: 72px;
+    background: transparent;
+  }
+  .trip-input-box textarea::placeholder { color: #9ca3af; }
+  .input-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem; }
+  .char-hint { font-size: 0.72rem; color: #9ca3af; }
+  .go-btn {
+    background: #16a34a; color: white; border: none; border-radius: 10px;
+    padding: 0.6rem 1.25rem; font-weight: 700; font-size: 0.9rem; cursor: pointer;
+    display: flex; align-items: center; gap: 0.4rem;
+    box-shadow: 0 4px 12px rgba(22,163,74,0.3);
+  }
+
+  .chips-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .chip {
+    background: white; border: 1.5px solid #e5e7eb; border-radius: 100px;
+    padding: 0.4rem 0.85rem; font-size: 0.8rem; font-weight: 500; color: #374151;
+    cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .chip:hover { border-color: #16a34a; color: #15803d; background: #f0fdf4; }
+
+  .divider { text-align: center; font-size: 0.75rem; color: #9ca3af; margin: 0.75rem 0; }
+
+  /* ── SCREEN 2: Generating ── */
+  .generating {
+    background: white; border-radius: 20px; padding: 2rem 1.5rem;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08); text-align: center;
+    margin-bottom: 1.5rem;
+  }
+  .gen-icon { font-size: 2.5rem; margin-bottom: 0.75rem; display: block; animation: float 2s ease-in-out infinite; }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  .gen-title { font-family: 'Space Grotesk', sans-serif; font-weight: 800; font-size: 1.2rem; color: #111827; margin-bottom: 0.25rem; }
+  .gen-subtitle { font-size: 0.82rem; color: #6b7280; margin-bottom: 1.5rem; }
+  .gen-assumption {
+    background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
+    padding: 0.65rem 1rem; margin-bottom: 1.25rem; font-size: 0.8rem; color: #15803d; text-align: left;
+  }
+  .gen-assumption strong { display: block; margin-bottom: 0.2rem; }
+  .edit-link { color: #16a34a; text-decoration: underline; cursor: pointer; font-size: 0.75rem; }
+  .steps { display: flex; flex-direction: column; gap: 0.5rem; text-align: left; }
+  .step-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; }
+  .step-row.done { color: #16a34a; }
+  .step-row.active { color: #111827; font-weight: 600; }
+  .step-row.pending { color: #9ca3af; }
+  .step-icon { font-size: 0.9rem; min-width: 1.1rem; }
+
+  /* ── SCREEN 3: Results ── */
+  /* Hero */
+  .results-hero {
+    background: linear-gradient(160deg, #14532d 0%, #15803d 50%, #16a34a 100%);
+    border-radius: 20px; padding: 1.5rem; color: white; margin-bottom: 1rem; position: relative;
+    box-shadow: 0 8px 32px rgba(21,128,61,0.35);
+  }
+  .share-btn {
+    position: absolute; top: 1rem; right: 1rem;
+    background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem; cursor: pointer; backdrop-filter: blur(4px);
+  }
+  .share-btn:hover { background: rgba(255,255,255,0.3); }
+  .hero-eyebrow { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.75; margin-bottom: 0.4rem; }
+  .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.6rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.35rem; }
+  .hero-meta { font-size: 0.8rem; opacity: 0.85; margin-bottom: 0.85rem; }
+  .hero-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+  .hero-tag {
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 100px; padding: 0.2rem 0.55rem; font-size: 0.7rem; font-weight: 600;
+  }
+  .hero-edit { margin-top: 0.75rem; padding-top: 0.65rem; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.72rem; opacity: 0.8; }
+  .hero-edit span { text-decoration: underline; cursor: pointer; }
+
+  /* Day cards */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.65rem; }
+  .section-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1rem; color: #111827; }
+  .section-action { font-size: 0.75rem; color: #16a34a; font-weight: 600; cursor: pointer; }
+
+  .day-cards-scroll { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; }
+  .day-cards-scroll::-webkit-scrollbar { display: none; }
+
+  .day-card {
+    min-width: 240px; max-width: 240px; background: white; border-radius: 16px;
+    padding: 1rem; box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    scroll-snap-align: start; border: 1.5px solid #f3f4f6;
+  }
+  .day-card.active { border-color: #16a34a; box-shadow: 0 4px 20px rgba(22,163,74,0.15); }
+  .day-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+  .day-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #16a34a; letter-spacing: 0.06em; }
+  .day-weather { text-align: right; }
+  .day-temp { font-size: 0.85rem; font-weight: 700; color: #111827; }
+  .day-conditions { font-size: 0.65rem; color: #6b7280; }
+  .day-card h3 { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.95rem; color: #111827; margin-bottom: 0.35rem; }
+  .day-card p { font-size: 0.75rem; color: #6b7280; line-height: 1.5; margin-bottom: 0.6rem; }
+  .day-tags { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+  .day-tag { background: #f0fdf4; border-radius: 100px; padding: 0.15rem 0.45rem; font-size: 0.62rem; color: #15803d; font-weight: 600; }
+
+  /* Packing */
+  .packing-card {
+    background: white; border-radius: 16px; padding: 1rem 1.25rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 1rem; border: 1.5px solid #f3f4f6;
+  }
+  .packing-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+  .progress-ring-wrap { display: flex; align-items: center; gap: 0.6rem; }
+  .progress-ring { width: 36px; height: 36px; }
+  .progress-ring circle { fill: none; stroke-width: 3; }
+  .progress-ring .track { stroke: #f0fdf4; }
+  .progress-ring .fill { stroke: #16a34a; stroke-dasharray: 88; stroke-dashoffset: 70; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; }
+  .packing-stat { font-size: 0.75rem; }
+  .packing-stat strong { display: block; font-size: 1rem; font-weight: 800; color: #111827; }
+  .packing-stat span { color: #6b7280; }
+  .packing-categories { display: flex; flex-direction: column; gap: 0.4rem; }
+  .packing-cat { display: flex; align-items: center; justify-content: space-between; }
+  .cat-name { font-size: 0.8rem; color: #374151; font-weight: 500; display: flex; align-items: center; gap: 0.4rem; }
+  .cat-bar-wrap { width: 80px; height: 4px; background: #f0fdf4; border-radius: 2px; overflow: hidden; }
+  .cat-bar { height: 100%; background: #16a34a; border-radius: 2px; }
+  .cat-count { font-size: 0.7rem; color: #9ca3af; min-width: 2rem; text-align: right; }
+  .add-item-row { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+  .add-item-input { flex: 1; border: 1.5px solid #e5e7eb; border-radius: 8px; padding: 0.4rem 0.65rem; font-size: 0.78rem; outline: none; }
+  .add-item-input:focus { border-color: #16a34a; }
+  .add-btn { background: #f0fdf4; border: 1.5px solid #bbf7d0; color: #16a34a; border-radius: 8px; padding: 0.4rem 0.65rem; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+
+  /* Safety */
+  .safety-card {
+    background: white; border-radius: 16px; padding: 1rem 1.25rem;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 1rem; border: 1.5px solid #f3f4f6;
+  }
+  .safety-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.75rem; }
+  .safety-item { background: #f9fafb; border-radius: 10px; padding: 0.65rem; }
+  .safety-item-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; color: #6b7280; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+  .safety-item-value { font-size: 0.85rem; font-weight: 700; color: #111827; }
+  .safety-item-sub { font-size: 0.68rem; color: #6b7280; margin-top: 0.1rem; }
+  .badge-green { display: inline-block; background: #dcfce7; color: #15803d; border-radius: 100px; padding: 0.15rem 0.5rem; font-size: 0.7rem; font-weight: 700; }
+  .badge-yellow { display: inline-block; background: #fef9c3; color: #92400e; border-radius: 100px; padding: 0.15rem 0.5rem; font-size: 0.7rem; font-weight: 700; }
+
+  /* Refine with AI */
+  .refine-card {
+    background: linear-gradient(135deg, #f0fdf4, #f9fafb); border-radius: 16px;
+    padding: 1rem 1.25rem; border: 1.5px solid #bbf7d0;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05); margin-bottom: 1rem;
+  }
+  .refine-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.95rem; color: #111827; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.4rem; }
+  .refine-subtitle { font-size: 0.78rem; color: #6b7280; margin-bottom: 0.75rem; }
+  .refine-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+  .refine-chip {
+    background: white; border: 1.5px solid #e5e7eb; border-radius: 100px;
+    padding: 0.3rem 0.7rem; font-size: 0.75rem; color: #374151; cursor: pointer;
+  }
+  .refine-chip:hover { border-color: #16a34a; color: #15803d; }
+  .refine-input-row { display: flex; gap: 0.5rem; }
+  .refine-input { flex: 1; border: 1.5px solid #e5e7eb; border-radius: 10px; padding: 0.5rem 0.75rem; font-size: 0.82rem; outline: none; }
+  .refine-input:focus { border-color: #16a34a; }
+  .refine-go { background: #16a34a; color: white; border: none; border-radius: 10px; padding: 0.5rem 1rem; font-size: 0.82rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+
+  /* Map */
+  .map-card {
+    background: white; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07); margin-bottom: 1.5rem; border: 1.5px solid #f3f4f6;
+  }
+  .map-placeholder {
+    height: 160px; background: linear-gradient(135deg, #e0f2e9, #bbf7d0);
+    display: flex; align-items: center; justify-content: center; position: relative;
+  }
+  .map-pin { position: absolute; font-size: 1.5rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
+  .map-caption { padding: 0.65rem 1rem; font-size: 0.78rem; color: #6b7280; }
+
+  /* Screen switcher */
+  .switcher { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; background: white; border-radius: 12px; padding: 0.4rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  .sw-btn { flex: 1; padding: 0.45rem; border: none; border-radius: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; background: transparent; color: #6b7280; }
+  .sw-btn.active { background: #16a34a; color: white; }
+
+  .screen-content { display: none; }
+  .screen-content.visible { display: block; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <nav>
+    <div class="brand">
+      <div class="brand-dot"></div>
+      SproutRoute
+    </div>
+    <div class="nav-back">← New trip</div>
+  </nav>
+
+  <div class="screen">
+
+    <!-- Screen switcher -->
+    <div class="switcher">
+      <button class="sw-btn active" onclick="show('input')">① Input</button>
+      <button class="sw-btn" onclick="show('generating')">② Generating</button>
+      <button class="sw-btn" onclick="show('results')">③ Results</button>
+    </div>
+
+    <!-- SCREEN 1: Input -->
+    <div class="screen-content visible" id="s-input">
+      <div class="input-hero">
+        <h1>Where is your family<br><span>headed next?</span></h1>
+        <p>Describe your dream trip and we'll handle the rest.</p>
+      </div>
+
+      <div class="trip-input-box">
+        <textarea placeholder="e.g. "Relaxing beach vacation for spring break with two kids age 4 and 8"&#10;"Adventurous trip to Machu Picchu in July"&#10;"Disneyland weekend for toddler's birthday""></textarea>
+        <div class="input-footer">
+          <span class="char-hint">Be as vague or specific as you like</span>
+          <button class="go-btn">Plan it ✨</button>
+        </div>
+      </div>
+
+      <div class="divider">— or start with a vibe —</div>
+
+      <div class="chips-row">
+        <div class="chip">🏖 Beach trip</div>
+        <div class="chip">🏔 Adventure</div>
+        <div class="chip">🏰 Theme parks</div>
+        <div class="chip">🌎 International</div>
+        <div class="chip">🚢 Cruise</div>
+        <div class="chip">🏕 Camping</div>
+        <div class="chip">🏙 City break</div>
+      </div>
+    </div>
+
+    <!-- SCREEN 2: Generating -->
+    <div class="screen-content" id="s-generating">
+      <div class="generating">
+        <span class="gen-icon">🌍</span>
+        <div class="gen-title">Building your trip plan…</div>
+        <div class="gen-subtitle">This takes about 10–15 seconds</div>
+
+        <div class="gen-assumption">
+          <strong>Here's what I'm working with:</strong>
+          📍 Maui, Hawaii &nbsp;·&nbsp; 📅 Apr 12–19 &nbsp;·&nbsp; 👨‍👧‍👦 2 adults, 2 kids (ages 4 &amp; 8) &nbsp;·&nbsp; 🏖 Beach
+          <br><span class="edit-link" style="margin-top:0.35rem;display:inline-block;">✏ Something wrong? Edit before it generates →</span>
+        </div>
+
+        <div class="steps">
+          <div class="step-row done"><span class="step-icon">✓</span> Resolved destination — Maui, HI</div>
+          <div class="step-row done"><span class="step-icon">✓</span> Got spring break weather forecast</div>
+          <div class="step-row active"><span class="step-icon" style="animation:pulse 1s infinite">⟳</span> Generating day-by-day itinerary…</div>
+          <div class="step-row pending"><span class="step-icon">○</span> Building smart packing list</div>
+          <div class="step-row pending"><span class="step-icon">○</span> Checking car seat laws &amp; safety</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SCREEN 3: Results -->
+    <div class="screen-content" id="s-results">
+
+      <!-- Hero Banner -->
+      <div class="results-hero">
+        <div class="share-btn" title="Share trip">↗</div>
+        <div class="hero-eyebrow">Your trip plan is ready</div>
+        <div class="hero-title">🌴 Maui, Hawaii</div>
+        <div class="hero-meta">Apr 12–19 · 7 nights · Spring Break 2026</div>
+        <div class="hero-tags">
+          <span class="hero-tag">🌤 Sunny 78°F all week</span>
+          <span class="hero-tag">👨‍👧‍👦 Family-friendly</span>
+          <span class="hero-tag">🛡 Safety 4.8/5</span>
+          <span class="hero-tag">✈ US domestic</span>
+        </div>
+        <div class="hero-edit">Assumed: 2 adults · kids ages 4 &amp; 8 · beach vibes &nbsp;<span>Edit assumptions →</span></div>
+      </div>
+
+      <!-- Day Cards -->
+      <div style="margin-bottom:1rem;">
+        <div class="section-header">
+          <div class="section-title">📅 Your Itinerary</div>
+          <div class="section-action">See all 7 days</div>
+        </div>
+        <div class="day-cards-scroll">
+
+          <div class="day-card active">
+            <div class="day-card-header">
+              <div class="day-label">Day 1 · Sat Apr 12</div>
+              <div class="day-weather"><div class="day-temp">☀️ 76°F</div><div class="day-conditions">Clear, light breeze</div></div>
+            </div>
+            <h3>Arrival + Road to Hana</h3>
+            <p>Land at OGG, grab your rental car and head straight for the Road to Hana. Stop at Twin Falls with the kids — it's a short 10-min walk. Sunset dinner at Mama's Fish House (book ahead!).</p>
+            <div class="day-tags">
+              <span class="day-tag">🚗 Scenic drive</span>
+              <span class="day-tag">👧 Kid-friendly</span>
+              <span class="day-tag">🍽 Dinner rec</span>
+            </div>
+          </div>
+
+          <div class="day-card">
+            <div class="day-card-header">
+              <div class="day-label">Day 2 · Sun Apr 13</div>
+              <div class="day-weather"><div class="day-temp">⛅ 75°F</div><div class="day-conditions">Partly cloudy</div></div>
+            </div>
+            <h3>Snorkeling + Luau Night</h3>
+            <p>Morning snorkel at Molokini Crater — great for kids with guided tours. Afternoon beach time at Ka'anapali. Evening: Old Lahaina Luau for the full experience.</p>
+            <div class="day-tags">
+              <span class="day-tag">🤿 Water activity</span>
+              <span class="day-tag">🌺 Cultural</span>
+              <span class="day-tag">🌅 Evening out</span>
+            </div>
+          </div>
+
+          <div class="day-card">
+            <div class="day-card-header">
+              <div class="day-label">Day 3 · Mon Apr 14</div>
+              <div class="day-weather"><div class="day-temp">☀️ 78°F</div><div class="day-conditions">Perfect beach day</div></div>
+            </div>
+            <h3>Haleakalā Sunrise</h3>
+            <p>Wake at 3am for the famous summit sunrise — kids will remember this forever. Reserve a spot months ahead. Afternoon: Maui Ocean Center aquarium, perfect for 4-year-olds.</p>
+            <div class="day-tags">
+              <span class="day-tag">🌋 Landmark</span>
+              <span class="day-tag">🐠 Aquarium</span>
+              <span class="day-tag">⭐ Must-do</span>
+            </div>
+          </div>
+
+          <div class="day-card" style="opacity:0.6;">
+            <div class="day-card-header">
+              <div class="day-label">Days 4–7</div>
+            </div>
+            <h3>+ 4 more days planned</h3>
+            <p>Whale watching · West Maui beaches · Iao Valley · Departure day</p>
+            <div class="day-tags"><span class="day-tag">Tap to expand</span></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Packing List -->
+      <div class="packing-card">
+        <div class="packing-header">
+          <div class="section-title">🎒 Packing List</div>
+          <div class="progress-ring-wrap">
+            <svg class="progress-ring" viewBox="0 0 36 36">
+              <circle class="track" cx="18" cy="18" r="14"/>
+              <circle class="fill" cx="18" cy="18" r="14"/>
+            </svg>
+            <div class="packing-stat"><strong>6/38</strong><span>packed</span></div>
+          </div>
+        </div>
+        <div class="packing-categories">
+          <div class="packing-cat">
+            <div class="cat-name">🩱 Beach & Water</div>
+            <div class="cat-bar-wrap"><div class="cat-bar" style="width:40%"></div></div>
+            <div class="cat-count">4/10</div>
+          </div>
+          <div class="packing-cat">
+            <div class="cat-name">👶 Kids Essentials</div>
+            <div class="cat-bar-wrap"><div class="cat-bar" style="width:15%"></div></div>
+            <div class="cat-count">2/13</div>
+          </div>
+          <div class="packing-cat">
+            <div class="cat-name">💊 Health & Safety</div>
+            <div class="cat-bar-wrap"><div class="cat-bar" style="width:0%"></div></div>
+            <div class="cat-count">0/8</div>
+          </div>
+          <div class="packing-cat">
+            <div class="cat-name">📱 Documents & Tech</div>
+            <div class="cat-bar-wrap"><div class="cat-bar" style="width:0%"></div></div>
+            <div class="cat-count">0/7</div>
+          </div>
+        </div>
+        <div class="add-item-row">
+          <input class="add-item-input" placeholder="Add custom item…">
+          <button class="add-btn">+ Add</button>
+        </div>
+      </div>
+
+      <!-- Safety -->
+      <div class="safety-card">
+        <div class="section-title">🛡 Safety &amp; Car Seat</div>
+        <div class="safety-grid">
+          <div class="safety-item">
+            <div class="safety-item-label">Car Seat Law · HI</div>
+            <div class="safety-item-value">Required</div>
+            <div class="safety-item-sub">Under 4 · rear-facing<br>4–8 · forward-facing</div>
+          </div>
+          <div class="safety-item">
+            <div class="safety-item-label">Travel Advisory</div>
+            <div class="safety-item-value"><span class="badge-green">Level 1</span></div>
+            <div class="safety-item-sub">Exercise normal precautions</div>
+          </div>
+          <div class="safety-item">
+            <div class="safety-item-label">Neighborhood Safety</div>
+            <div class="safety-item-value">4.8 / 5</div>
+            <div class="safety-item-sub">Kaanapali Beach area</div>
+          </div>
+          <div class="safety-item">
+            <div class="safety-item-label">Emergency</div>
+            <div class="safety-item-value">911</div>
+            <div class="safety-item-sub">Maui Memorial Hospital nearby</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Refine with AI -->
+      <div class="refine-card">
+        <div class="refine-title">✨ Refine with AI</div>
+        <div class="refine-subtitle">Tell me what to change and I'll regenerate your plan.</div>
+        <div class="refine-chips">
+          <div class="refine-chip">More adventure 🧗</div>
+          <div class="refine-chip">More restaurants 🍽</div>
+          <div class="refine-chip">Easier on toddler 👶</div>
+          <div class="refine-chip">Add a beach day 🏖</div>
+        </div>
+        <div class="refine-input-row">
+          <input class="refine-input" placeholder="e.g. "Add a whale watching trip on day 4"">
+          <button class="refine-go">Regenerate ✨</button>
+        </div>
+      </div>
+
+      <!-- Map -->
+      <div class="map-card">
+        <div class="section-header" style="padding:0.75rem 1rem 0;">
+          <div class="section-title">🗺 Trip Map</div>
+          <div class="section-action">Open full map</div>
+        </div>
+        <div class="map-placeholder">
+          <div class="map-pin" style="top:40%;left:35%;">📍</div>
+          <div class="map-pin" style="top:55%;left:55%;font-size:1.1rem;">📍</div>
+          <div class="map-pin" style="top:30%;left:60%;font-size:1rem;">📍</div>
+          <div style="font-size:0.75rem;color:#15803d;font-weight:600;background:rgba(255,255,255,0.8);padding:0.3rem 0.6rem;border-radius:6px;">Maui, Hawaii · 7 day spots</div>
+        </div>
+        <div class="map-caption">Tap a pin to see which day + what to do there.</div>
+      </div>
+
+    </div><!-- /results -->
+
+  </div><!-- /screen -->
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.screen-content').forEach(el => el.classList.remove('visible'));
+  document.querySelectorAll('.sw-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('s-' + id).classList.add('visible');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

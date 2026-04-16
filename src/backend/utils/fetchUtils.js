@@ -155,9 +155,16 @@ export async function fetchWithRetry(url, options = {}, config = {}) {
   let lastError;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const externalSignal = options.signal;
+    if (externalSignal?.aborted) {
+      throw Object.assign(new Error("Aborted"), { name: "AbortError" });
+    }
+
     // Per-attempt timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const onExternalAbort = () => controller.abort();
+    externalSignal?.addEventListener("abort", onExternalAbort);
 
     try {
       const response = await fetchFn(url, {
@@ -165,11 +172,17 @@ export async function fetchWithRetry(url, options = {}, config = {}) {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", onExternalAbort);
 
       // parseSafeResponse handles ok/error branching and calls onRateLimitInfo hook
       return await parseSafeResponse(response, { onRateLimitInfo });
     } catch (err) {
       clearTimeout(timeoutId);
+      externalSignal?.removeEventListener("abort", onExternalAbort);
+
+      if (err.name === "AbortError" && externalSignal?.aborted) {
+        throw Object.assign(new Error("Aborted"), { name: "AbortError" });
+      }
 
       // AbortError = timeout
       if (err.name === "AbortError") {

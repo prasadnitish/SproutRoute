@@ -14,6 +14,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { createApp } from "../../src/backend/server.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -429,13 +430,14 @@ function createCustomApp(overrides = {}) {
  */
 function createSSEMockRes() {
   const state = { written: [], headStatus: null, headHeaders: null, ended: false };
-  const res = {
+  const res = new EventEmitter();
+  Object.assign(res, {
     writeHead(status, headers) { state.headStatus = status; state.headHeaders = headers; },
     write(chunk) { state.written.push(chunk); },
     end() { state.ended = true; },
     flush() {},
     setHeader() {},
-  };
+  });
   return { res, state };
 }
 
@@ -454,7 +456,8 @@ async function invokeSSERoute(app, body) {
 
   const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
   const { res, state } = createSSEMockRes();
-  const req = { method: "POST", path: "/api/v1/trip/stream", body, headers: {}, ip: "127.0.0.1" };
+  const req = new EventEmitter();
+  Object.assign(req, { method: "POST", path: "/api/v1/trip/stream", body, headers: {}, ip: "127.0.0.1" });
 
   await handler(req, res);
   return state;
@@ -473,6 +476,59 @@ function parseSSEEventTypes(written) {
   return types;
 }
 
-// Tests for /api/v1/trip/bundle, countryCode passthrough, and /api/v1/trip/stream
-// have been removed — these routes are not yet implemented. Tests will be added
-// when the routes are built.
+test("POST /api/v1/trip/stream stops emitting when the client disconnects", async () => {
+  let reqRef;
+  const app = createCustomApp({
+    generateTripPlanChunkedFn: async (_tripPayload, _weather, onChunk, deps) => {
+      onChunk(
+        {
+          overview: "Chunk 1",
+          suggestedActivities: [],
+          dailyItinerary: [{ day: "Day 1", activities: [] }],
+          tips: [],
+        },
+        { chunk: 1, totalChunks: 2, dayOffset: 0 },
+      );
+      reqRef.emit("close");
+      assert.strictEqual(deps.shouldAbort(), true, "disconnect must propagate into chunk generator");
+      const err = new Error("aborted");
+      err.name = "AbortError";
+      throw err;
+    },
+  });
+
+  const routeLayer = (app._router?.stack || []).find(
+    (layer) =>
+      layer.route &&
+      layer.route.path === "/api/v1/trip/stream" &&
+      layer.route.methods.post,
+  );
+  assert.ok(routeLayer, "POST /api/v1/trip/stream route must exist");
+
+  const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+  const { res, state } = createSSEMockRes();
+  const req = new EventEmitter();
+  Object.assign(req, {
+    method: "POST",
+    path: "/api/v1/trip/stream",
+    body: {
+      destination: "Seattle, WA",
+      startDate: "2026-05-01",
+      endDate: "2026-05-12",
+      activities: ["parks"],
+      children: [{ age: 4 }],
+    },
+    headers: {},
+    ip: "127.0.0.1",
+  });
+  reqRef = req;
+
+  await handler(req, res);
+
+  const eventTypes = parseSSEEventTypes(state.written);
+  assert.ok(eventTypes.includes("destination"));
+  assert.ok(eventTypes.includes("weather"));
+  assert.ok(eventTypes.includes("itinerary-chunk"));
+  assert.ok(!eventTypes.includes("error"), "disconnects should not emit an SSE error event");
+  assert.ok(state.ended, "stream response should be closed after disconnect");
+});

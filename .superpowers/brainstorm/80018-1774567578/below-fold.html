@@ -1,0 +1,96 @@
+<h2>Below the day cards — what's next?</h2>
+<p class="subtitle">After the itinerary, what features should live below, and how should they feel?</p>
+
+<div class="section">
+  <h3 style="margin-bottom:1rem;">Full results page structure</h3>
+
+  <div style="font-family:system-ui;max-width:380px;margin:0 auto;">
+
+    <!-- HERO (locked in) -->
+    <div style="background:linear-gradient(135deg,#15803d,#16a34a);border-radius:12px;padding:1rem 1.25rem;color:white;margin-bottom:0.5rem;border:2px solid #15803d;">
+      <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;opacity:0.7;margin-bottom:0.3rem;">✓ Locked in — Hero Banner</div>
+      <div style="font-weight:800;font-size:1rem;">🌴 Maui, Hawaii · Apr 12–19</div>
+      <div style="font-size:0.72rem;opacity:0.85;margin-top:0.2rem;">Sunny 78°F · Safety 4.8/5 · Spring Break ✓</div>
+      <div style="margin-top:0.5rem;font-size:0.7rem;opacity:0.75;border-top:1px solid rgba(255,255,255,0.2);padding-top:0.4rem;">Assumed: 2 adults · 2 kids · Beach vibes <span style="text-decoration:underline;cursor:pointer;">Edit →</span></div>
+    </div>
+
+    <!-- DAY CARDS (locked in) -->
+    <div style="background:#f0fdf4;border-radius:12px;padding:0.75rem 1rem;margin-bottom:0.5rem;border:2px solid #bbf7d0;">
+      <div style="font-size:0.6rem;font-weight:700;text-transform:uppercase;color:#15803d;margin-bottom:0.3rem;">✓ Locked in — Day Cards</div>
+      <div style="display:flex;gap:0.4rem;overflow:hidden;">
+        <div style="min-width:70px;background:white;border-radius:8px;padding:0.5rem;border:1px solid #e5e7eb;">
+          <div style="font-size:0.6rem;font-weight:700;color:#15803d;">DAY 1</div>
+          <div style="font-size:0.65rem;color:#374151;margin-top:0.15rem;">Road to Hana · Sunset</div>
+        </div>
+        <div style="min-width:70px;background:white;border-radius:8px;padding:0.5rem;border:1px solid #e5e7eb;">
+          <div style="font-size:0.6rem;font-weight:700;color:#15803d;">DAY 2</div>
+          <div style="font-size:0.65rem;color:#374151;margin-top:0.15rem;">Snorkel · Luau</div>
+        </div>
+        <div style="min-width:70px;background:white;border-radius:8px;padding:0.5rem;border:1px solid #e5e7eb;opacity:0.5;">
+          <div style="font-size:0.6rem;font-weight:700;color:#15803d;">+ 5 more</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- THE QUESTION: what goes below? -->
+    <div style="background:#fef9c3;border-radius:12px;padding:0.75rem 1rem;border:2px dashed #fbbf24;margin-bottom:1rem;">
+      <div style="font-size:0.72rem;font-weight:700;color:#92400e;margin-bottom:0.5rem;">👇 What lives below the day cards?</div>
+      <div style="font-size:0.7rem;color:#78350f;">Pick the sections and their order:</div>
+    </div>
+
+    <!-- Draggable sections -->
+    <div class="options" data-multiselect style="gap:0.5rem;">
+
+      <div class="option" data-choice="weather" onclick="toggleSelect(this)" style="padding:0.6rem 0.9rem;">
+        <div class="letter" style="font-size:0.9rem;">🌤</div>
+        <div class="content">
+          <h3 style="font-size:0.85rem;">7-Day Weather Strip</h3>
+          <p style="font-size:0.75rem;">Horizontal scroll of daily forecasts. High/low, conditions, rain chance. Compact.</p>
+        </div>
+      </div>
+
+      <div class="option" data-choice="packing" onclick="toggleSelect(this)" style="padding:0.6rem 0.9rem;">
+        <div class="letter" style="font-size:0.9rem;">🎒</div>
+        <div class="content">
+          <h3 style="font-size:0.85rem;">Smart Packing List</h3>
+          <p style="font-size:0.75rem;">Grouped by category, checkable. Add custom items. Progress ring shows % packed.</p>
+        </div>
+      </div>
+
+      <div class="option" data-choice="safety" onclick="toggleSelect(this)" style="padding:0.6rem 0.9rem;">
+        <div class="letter" style="font-size:0.9rem;">🛡</div>
+        <div class="content">
+          <h3 style="font-size:0.85rem;">Safety & Car Seat Card</h3>
+          <p style="font-size:0.75rem;">Car seat laws, travel advisory level, neighborhood safety score.</p>
+        </div>
+      </div>
+
+      <div class="option" data-choice="share" onclick="toggleSelect(this)" style="padding:0.6rem 0.9rem;">
+        <div class="letter" style="font-size:0.9rem;">📤</div>
+        <div class="content">
+          <h3 style="font-size:0.85rem;">Share / Export</h3>
+          <p style="font-size:0.75rem;">Copy link, download PDF, share via WhatsApp/email. Big missing feature right now.</p>
+        </div>
+      </div>
+
+      <div class="option" data-choice="regenerate" onclick="toggleSelect(this)" style="padding:0.6rem 0.9rem;">
+        <div class="letter" style="font-size:0.9rem;">✨</div>
+        <div class="content">
+          <h3 style="font-size:0.85rem;">Refine with AI</h3>
+          <p style="font-size:0.75rem;">"Make it more adventurous" · "Add more restaurants" · "We prefer morning activities". Regenerates inline.</p>
+        </div>
+      </div>
+
+      <div class="option" data-choice="map" onclick="toggleSelect(this)" style="padding:0.6rem 0.9rem;">
+        <div class="letter" style="font-size:0.9rem;">🗺</div>
+        <div class="content">
+          <h3 style="font-size:0.85rem;">Map View</h3>
+          <p style="font-size:0.75rem;">Static map showing key activity spots per day. Nice visual, but adds complexity.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="text-align:center;margin-top:1rem;">Select all the sections you want. We'll figure out order + layout next.</p>

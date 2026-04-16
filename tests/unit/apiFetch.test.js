@@ -258,6 +258,36 @@ test("fetchWithRetry does NOT retry on 400", async () => {
   );
 });
 
+test("fetchWithRetry respects caller abort signal before request starts", async () => {
+  let callCount = 0;
+  const mockFetch = async () => {
+    callCount++;
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => "application/json" },
+      json: async () => ({ data: "unexpected" }),
+      text: async () => '{"data":"unexpected"}',
+    };
+  };
+
+  const controller = new AbortController();
+  controller.abort();
+
+  await assert.rejects(
+    () => fetchWithRetry(
+      "https://example.com/api",
+      { signal: controller.signal },
+      { maxRetries: 2, fetchFn: mockFetch, baseDelayMs: 0 },
+    ),
+    (err) => {
+      assert.strictEqual(err.name, "AbortError");
+      assert.strictEqual(callCount, 0, "Aborted requests must not invoke fetch");
+      return true;
+    },
+  );
+});
+
 test("fetchWithRetry exhausts retries and throws last error", async () => {
   let callCount = 0;
   const mockFetch = async () => {

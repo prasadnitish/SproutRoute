@@ -1,6 +1,11 @@
 # Architecture Documentation: SproutRoute
 
-**Last Updated: April 2, 2026**
+**Last Updated: April 16, 2026**
+
+## Primary References
+
+- `docs/WEB_CODE_GRAPH.md` — current web-app code path, ownership map, and change-impact guide
+- `README.md` — top-level repo entry point and current scope summary
 
 ## System Overview
 
@@ -13,7 +18,7 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 - **Analytics (PostHog):** Full funnel tracking with session recordings and PII masking
 - **External APIs:** Visual Crossing (weather), Nominatim/Overpass (geocoding), Google Places (enrichment)
 
-**Architecture Pattern:** Progressive SSE rendering with background enrichment. Results screen appears in ~2s; itinerary streams in background. Packing, safety, and pet checks run non-blocking.
+**Architecture Pattern:** Progressive SSE rendering with background follow-up fetches. `useTrip` drives `parse-input -> trip/stream`, the results screen opens on the first destination event, itinerary chunks continue over SSE, and packing/safety/pet checks run non-blocking after first paint.
 
 ---
 
@@ -31,17 +36,17 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │  │    ResultsScreen.jsx  ← Tab layout: Plan (mosaic) + Pack    │ │
 │  │                                                              │ │
 │  │  Hooks:                                                      │ │
-│  │    useTrip.js         ← ORCHESTRATOR: parse → plan → enrich │ │
-│  │    useGeolocation.js  ← IP-based location detection          │ │
-│  │    usePlacesEnrich.js ← Google Places enrichment             │ │
+│  │    useTrip.js         ← ORCHESTRATOR: parse → stream → bg    │ │
+│  │    useGeolocation.js  ← GPS first, IP fallback               │ │
+│  │    usePlacesEnrich.js ← on-demand Places enrichment          │ │
 │  │                                                              │ │
 │  │  Mosaic Tiles:                                               │ │
 │  │    HeroTile / WeatherTile / ItineraryTile / SafetyTile      │ │
 │  │    PetSafetyTile / MapTile / DayRouteMap                    │ │
 │  │                                                              │ │
 │  │  Other Components:                                           │ │
-│  │    PackingChecklist / ActivityDetailPanel / ResultTabs        │ │
-│  │    Profile import/review UI                                  │ │
+│  │    PackingChecklist / ActivityDetailPanel                    │ │
+│  │    ProfileImportModal / DestinationPicker                    │ │
 │  │                                                              │ │
 │  │  PostHog Analytics (full funnel + session recordings)        │ │
 │  └────────────────┬────────────────────────────────────────────┘ │
@@ -53,14 +58,14 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │                                                                   │
 │  Core Routes:                                                     │
 │    GET  /api/health                                               │
-│    POST /api/v1/trip/parse-input      (AI input parsing)          │
-│    POST /api/v1/trip/stream           (SSE progressive rendering) │
-│    POST /api/resolve-destination      (geocoding)                 │
-│    POST /api/trip-plan                (weather + AI itinerary)    │
-│    POST /api/generate                 (packing list)              │
-│    POST /api/safety/car-seat-check    (car seat guidance)         │
-│    POST /api/safety/travel-tips       (AI safety tips)            │
+│    POST /api/v1/trip/parse-input        (AI input parsing)        │
+│    POST /api/v1/trip/stream             (SSE progressive render)  │
+│    POST /api/generate                   (current web packing path) │
+│    POST /api/safety/travel-tips         (general safety)          │
+│    POST /api/safety/car-seat-check      (car seat guidance)       │
 │    POST /api/v1/safety/pet-travel-check (airline + entry reqs)   │
+│    POST /api/v1/places/enrich           (lazy activity enrichment)│
+│    GET  /api/v1/geo/detect              (IP fallback location)    │
 │    POST /api/v1/attractions/rank      (attraction shortlist)      │
 │    GET  /api/v1/ops/metrics           (ops dashboard data)        │
 │                                                                   │
@@ -145,41 +150,43 @@ Profile System:
 ### Flow 1: Trip Plan Request (Progressive Rendering)
 
 ```
-User types free-text in InputScreen textarea
-→ useTrip.submitTrip(text, geolocation)
+User types free-text in `InputScreen`
+→ `useTrip.submitTrip(text, geolocation, savedProfile)`
 
-Phase 1 — Blocking (results screen in ~2s):
-  → POST /api/v1/trip/parse-input         (GPT-5.4 nano, ~2.4s)
-  → POST /api/resolve-destination          (Nominatim, ~0.5s)
-  → Weather fetch                          (Visual Crossing, ~0.1s)
-  → Load cached attractions from Supabase  (up to 20 per city)
-  → ResultsScreen renders: HeroTile + WeatherTile
+Phase 1 — Parse and enter generating screen:
+  → POST `/api/v1/trip/parse-input`
+  → parser extracts destination, dates, party, pets, vibe, and ambiguity hints
+  → `GeneratingScreen` shows assumption card or `DestinationPicker`
 
-Phase 2 — Background streaming:
-  → POST /api/trip-plan                    (GPT-5.4 nano with attraction shortlist, ~14s)
-  → ItineraryTile populates as data arrives
+Phase 2 — Main streamed plan path:
+  → POST `/api/v1/trip/stream`
+  → server geocodes destination, fetches weather, resolves planning context
+  → server loads cached attractions and runs `generateTripPlanChunked()`
+  → first `destination` SSE event opens `ResultsScreen`
+  → `weather` and `itinerary-chunk` events progressively fill `WeatherTile` and `ItineraryTile`
 
-Phase 3 — Non-blocking background:
-  → POST /api/generate                    (packing list → PackingChecklist)
-  → POST /api/safety/travel-tips          (AI safety tips → SafetyTile)
-  → POST /api/safety/car-seat-check       (if children → SafetyTile)
-  → POST /api/v1/safety/pet-travel-check  (if pets → PetSafetyTile)
-  → Attraction capture back into Supabase
+Phase 3 — Non-blocking follow-up requests:
+  → POST `/api/generate`                    (current web packing path → `PackingChecklist`)
+  → POST `/api/safety/travel-tips`         (`SafetyTile`)
+  → POST `/api/safety/car-seat-check`      (if children)
+  → POST `/api/v1/safety/pet-travel-check` (if pets → `PetSafetyTile`)
+  → per-activity POST `/api/v1/places/enrich` on tap (`ActivityDetailPanel`)
+  → attraction capture persists back into storage in the background
 ```
 
 ### Flow 1b: Pet Travel Data Flow (when pets present)
 
 ```
 User mentions pets in free-text input
-→ POST /api/v1/trip/parse-input (extracts pets from text)
-→ Backend derives travelMode from distance + countryCode
-→ POST /api/trip-plan (pets injected into AI prompt → pet-friendly itinerary)
-→ POST /api/generate (pets → pet packing category per pet)
-→ POST /api/v1/safety/pet-travel-check (airline + entry rules for ALL carriers)
-→ ResultsScreen renders:
-    ItineraryTile (pet-friendly badges on activities)
-    PackingChecklist (pet items + affiliate shop links)
-    PetSafetyTile (airline comparison table + entry requirements)
+→ POST `/api/v1/trip/parse-input` extracts pets from text
+→ POST `/api/v1/trip/stream` injects pets into the planning prompt
+→ frontend derives `travelMode` from destination distance + country code
+→ POST `/api/generate` includes pet packing categories
+→ POST `/api/v1/safety/pet-travel-check` checks all supported carriers + entry rules
+→ `ResultsScreen` renders:
+    `ItineraryTile` (pet-friendly badges on activities)
+    `PackingChecklist` (pet items + affiliate shop links)
+    `PetSafetyTile` (airline comparison table + entry requirements)
 ```
 
 ### Flow 2: Profile-Aware Planning
@@ -200,6 +207,15 @@ User mentions pets in free-text input
 - **AI API timeout:** Frontend shows error after client timeout
 - **AI model failure:** Automatic fallback from GPT-5.4 nano to Claude Haiku 4.5
 - **Car seat jurisdiction missing:** Returns `status: "Unavailable"` with source link
+
+### Current Learnings From The Web Code Graph
+
+- The real frontend control plane is `src/frontend/src/hooks/useTrip.js`, not `App.jsx`. `App.jsx` is now mostly a shell that wires the main hooks and current screen.
+- The default browser hot path is `parse-input -> trip/stream`. Legacy `/api/trip-plan` still exists, but it is no longer the primary web planning route.
+- The browser still uses legacy `POST /api/generate` for packing in the background even though `/api/v1/trip/packing` exists. That distinction matters when changing the live web flow.
+- `ResultsScreen.jsx` is the current composition hub. Older references to `TripPlanDisplay.jsx` are historical.
+- Places enrichment is lazy and user-driven through `usePlacesEnrich`, which keeps the first-render path lighter.
+- Profile import is currently localStorage-first in the browser. Auth-backed profile routes exist, but they are not the default import path used by `ProfileImportModal`.
 
 ---
 
@@ -263,28 +279,32 @@ User mentions pets in free-text input
 | GET | `/api/health` | inline | Liveness probe |
 | POST | `/api/v1/trip/parse-input` | parseInput.js + inputSafety.js | AI-powered free-text parsing |
 | POST | `/api/v1/trip/stream` | tripPlanAI.js + SSE | Progressive streaming trip generation |
-| POST | `/api/resolve-destination` | geocoding.js | Nominatim geocoding + suggestions |
-| POST | `/api/trip-plan` | weather.js + tripPlanAI.js | Weather + AI itinerary |
-| POST | `/api/generate` | packingListAI.js | AI packing list |
+| POST | `/api/v1/trip/plan` | weather.js + tripPlanAI.js | Non-streamed v1 itinerary response |
+| POST | `/api/v1/trip/bundle` | weather.js + tripPlanAI.js + deterministicPacking.js | Single-call plan + packing response |
+| POST | `/api/v1/trip/replan` | tripPlanAI.js | Rebuild itinerary from cached weather |
+| POST | `/api/v1/trip/packing` | weather.js + deterministicPacking.js | Dedicated v1 packing generation |
+| POST | `/api/generate` | deterministicPacking.js | Current browser packing path |
 | POST | `/api/safety/car-seat-check` | safetyRules.js + carSeatRules.js | Jurisdiction car seat guidance |
 | POST | `/api/safety/travel-tips` | travelSafety.js + travelAdvisory.js | AI safety tips |
 | POST | `/api/v1/safety/pet-travel-check` | petSafety.js | Airline + entry requirements |
+| POST | `/api/v1/places/enrich` | placesEnrich.js | Lazy itinerary activity enrichment |
+| GET | `/api/v1/geo/detect` | inline proxy logic | IP-based location fallback |
 
 ### Attraction Intelligence Routes
 
 | Method | Path | Service | Description |
 |--------|------|---------|-------------|
-| POST | `/api/v1/attractions/rank` | attractionRanker.js | Rank cached attractions for trip |
+| POST | `/api/v1/attractions/rank` | attractionMemory.js | Rank cached attractions for trip |
 
 ### Profile Routes
 
 | Method | Path | Service | Description |
 |--------|------|---------|-------------|
-| POST | `/api/v1/profile/import/validate` | profileImport.js | Validate pasted JSON |
-| POST | `/api/v1/profile/import/normalize` | profileNormalize.js | Normalize to internal schema |
-| GET | `/api/v1/profile/me` | profileRepository.js | Fetch user profile |
-| PUT | `/api/v1/profile/me` | profileRepository.js | Update profile |
-| POST | `/api/v1/profile/me/feedback` | feedbackRepository.js | Store feedback signals |
+| POST | `/api/v1/profile/import/validate` | inline server normalization flow | Validate pasted JSON |
+| POST | `/api/v1/profile/import/normalize` | inline server normalization flow | Normalize to internal schema |
+| GET | `/api/v1/profile/me` | Supabase profile query | Fetch user profile |
+| PUT | `/api/v1/profile/me` | Supabase profile write + revisions | Update profile |
+| POST | `/api/v1/profile/me/feedback` | Supabase feedback write | Store feedback signals |
 
 ### Ops Routes
 
@@ -341,7 +361,7 @@ All tables have RLS (Row Level Security) enabled.
 
 - Backend sanitization: all string fields through `sanitizeString`
 - Prompt injection protection via `inputSafety.js`
-- Rate limiting: 30 requests per 15 minutes per IP across AI endpoints
+- Rate limiting: 10 AI-intensive requests per 15 minutes per IP; 60 lightweight API requests per 15 minutes per IP
 - Request body size limit: 10 KB cap
 
 ### AI Prompt Security

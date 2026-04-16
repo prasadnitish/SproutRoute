@@ -4,10 +4,8 @@ import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
 import PetSafetyTile from "../components/mosaic/PetSafetyTile";
-import MapTile from "../components/mosaic/MapTile";
 import ActivityDetailPanel from "../components/ActivityDetailPanel";
 import PackingChecklist from "../components/PackingChecklist";
-import DayRouteMap from "../components/mosaic/DayRouteMap";
 
 const TABS = [
   { key: "plan", label: "\u{1F4C5} Plan" },
@@ -53,7 +51,6 @@ export default function ResultsScreen({
 }) {
   const [activeTab, setActiveTab] = useState("plan");
   const [selectedActivity, setSelectedActivity] = useState(null);
-  const [activeDayActivities, setActiveDayActivities] = useState([]);
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
   const rawItinerary =
@@ -146,7 +143,6 @@ export default function ResultsScreen({
               scheduledItinerary={scheduledItinerary}
               forecast={forecast}
               onActivityTap={handleActivityTap}
-              onDayChange={setActiveDayActivities}
               hasPets={hasPets}
               totalChunks={tripData?._totalChunks || 1}
               receivedChunks={tripData?._receivedChunks || 1}
