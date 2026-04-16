@@ -300,6 +300,178 @@ test("persistTripAttractions stores place identity and verification cache entrie
   assert.equal(state.verification[0].provider, "google_places_identity");
 });
 
+test("getPlanningCandidates uses region attraction pools for broad destinations like Hawaii", async () => {
+  const state = {
+    cities: [
+      {
+        id: "city-hi-broad",
+        city_name: "Hawaii",
+        display_name: "Hawaii, United States",
+        country_code: "US",
+        region_code: "HI",
+        lat: 19.9,
+        lon: -155.5,
+      },
+      {
+        id: "city-honolulu",
+        city_name: "Honolulu",
+        display_name: "Honolulu, Hawaii",
+        country_code: "US",
+        region_code: "HI",
+        lat: 21.3069,
+        lon: -157.8583,
+      },
+      {
+        id: "city-maui",
+        city_name: "Maui",
+        display_name: "Maui, Hawaii",
+        country_code: "US",
+        region_code: "HI",
+        lat: 20.7984,
+        lon: -156.3319,
+      },
+      {
+        id: "city-kauai",
+        city_name: "Kauai",
+        display_name: "Kauai, Hawaii",
+        country_code: "US",
+        region_code: "HI",
+        lat: 22.0964,
+        lon: -159.5261,
+      },
+    ],
+    attractions: [
+      {
+        id: "attr-broad",
+        city_id: "city-hi-broad",
+        canonical_name: "Generic Hawaii Beach",
+        category: "beach",
+        short_summary: "A generic placeholder attraction.",
+        kid_appeal_score: 2,
+        parent_appeal_score: 2,
+        confidence_score: 0.2,
+        verification_status: "unverified",
+        times_seen: 1,
+      },
+      {
+        id: "attr-honolulu",
+        city_id: "city-honolulu",
+        canonical_name: "Honolulu Zoo",
+        category: "wildlife",
+        short_summary: "A real Honolulu family stop.",
+        kid_appeal_score: 9,
+        parent_appeal_score: 7,
+        confidence_score: 0.9,
+        verification_status: "verified",
+        stroller_friendly: true,
+        times_seen: 5,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "attr-maui",
+        city_id: "city-maui",
+        canonical_name: "Maui Ocean Center",
+        category: "wildlife",
+        short_summary: "Aquarium and marine exhibits.",
+        kid_appeal_score: 8,
+        parent_appeal_score: 7,
+        confidence_score: 0.88,
+        verification_status: "verified",
+        stroller_friendly: true,
+        times_seen: 4,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "attr-kauai",
+        city_id: "city-kauai",
+        canonical_name: "Lydgate Beach Park",
+        category: "beach",
+        short_summary: "Protected family beach with calm water.",
+        kid_appeal_score: 8,
+        parent_appeal_score: 8,
+        confidence_score: 0.85,
+        verification_status: "verified",
+        stroller_friendly: true,
+        times_seen: 3,
+        last_seen_at: new Date().toISOString(),
+      },
+    ],
+    verification: [],
+  };
+
+  function makeQuery(table) {
+    const ctx = { filters: [] };
+    const api = {
+      select() { return api; },
+      eq(column, value) {
+        ctx.filters.push((row) => row[column] === value);
+        return api;
+      },
+      ilike(column, value) {
+        const needle = String(value).replace(/%/g, "").toLowerCase();
+        ctx.filters.push((row) => String(row[column] || "").toLowerCase().includes(needle));
+        return api;
+      },
+      in(column, values) {
+        ctx.filters.push((row) => values.includes(row[column]));
+        return api;
+      },
+      neq(column, value) {
+        ctx.filters.push((row) => row[column] !== value);
+        return api;
+      },
+      limit() { return api; },
+      order() { return api; },
+      then(resolve, reject) {
+        const source =
+          table === "cities" ? state.cities :
+          table === "city_attractions" ? state.attractions :
+          state.verification;
+        const rows = source.filter((row) => ctx.filters.every((filter) => filter(row)));
+        return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+      },
+    };
+    return api;
+  }
+
+  const admin = {
+    from(table) {
+      return makeQuery(table);
+    },
+  };
+
+  const service = createAttractionMemoryService({
+    getAdmin: () => admin,
+    resolvePlaceIdentity: async () => null,
+  });
+
+  const results = await service.getPlanningCandidates({
+    destination: "Hawaii, USA",
+    coords: {
+      displayName: "Hawaii, United States",
+      stateName: "Hawaii",
+      regionCode: "HI",
+      countryCode: "US",
+      lat: 20.8,
+      lon: -156.5,
+    },
+    countryCode: "US",
+    childrenAges: [2],
+    requestedActivities: ["beach", "wildlife"],
+    pace: "slow",
+    maxResults: 5,
+  });
+
+  const names = results.map((row) => row.canonical_name);
+  assert.ok(names.includes("Honolulu Zoo"), "regional pool should include Honolulu attractions");
+  assert.ok(names.includes("Maui Ocean Center"), "regional pool should include Maui attractions");
+  assert.ok(
+    names.includes("Lydgate Beach Park"),
+    "regional pool should include other Hawaii island attractions",
+  );
+  assert.ok(names.length >= 3, "broad regional queries should not collapse to a single city match");
+});
+
 test("backfillCityAttractions resolves missing place ids for legacy rows", async () => {
   const state = {
     cities: [
