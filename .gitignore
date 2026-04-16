@@ -38,6 +38,8 @@ test-results/
 
 # Git worktrees
 .worktrees/
+.claude/worktrees/
+nitishprasad-website/.claude/worktrees/
 
 # Dev tool files (not for public repo)
 docs/CLAUDE.md
