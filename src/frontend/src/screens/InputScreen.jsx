@@ -19,6 +19,17 @@ const TRAVELER_TAGS = [
 
 const SESSION_KEY = "sprout:lastInput";
 
+function applyVibeHint(existingText, label, emoji) {
+  const trimmed = existingText.trim();
+  if (!trimmed) return `${emoji} ${label}`;
+
+  const normalized = trimmed.toLowerCase();
+  const vibeText = label.toLowerCase();
+  if (normalized.includes(vibeText)) return trimmed;
+
+  return `${trimmed} — ${vibeText}`;
+}
+
 export default function InputScreen({ onSubmit }) {
   const [text, setText] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
@@ -129,7 +140,10 @@ export default function InputScreen({ onSubmit }) {
           <button
             key={label}
             type="button"
-            onClick={() => { setText(`${emoji} ${label}`); analytics.vibeChipClicked(label); }}
+            onClick={() => {
+              setText((prev) => applyVibeHint(prev, label, emoji));
+              analytics.vibeChipClicked(label);
+            }}
             className="bg-white border border-gray-200 rounded-full px-4 py-2 text-sm font-medium text-gray-600 cursor-pointer hover:border-meadow-400 hover:text-meadow-700 hover:bg-meadow-50 transition"
           >
             {emoji} {label}
