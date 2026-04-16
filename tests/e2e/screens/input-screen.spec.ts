@@ -34,4 +34,14 @@ test.describe("InputScreen", () => {
     const value = await page.locator("textarea").inputValue();
     expect(value).toMatch(/beach/i);
   });
+
+  test("clicking a chip preserves existing trip details instead of overwriting them", async ({ page }) => {
+    await page.locator("textarea").fill("Hawaii from June 10 to June 15 with our toddler");
+    await page.getByRole("button", { name: /beach trip/i }).click();
+    const value = await page.locator("textarea").inputValue();
+
+    expect(value).toContain("Hawaii");
+    expect(value).toContain("June 10");
+    expect(value.toLowerCase()).toContain("beach trip");
+  });
 });
