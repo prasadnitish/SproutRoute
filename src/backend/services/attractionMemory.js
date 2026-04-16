@@ -35,6 +35,29 @@ function deriveCityIdentity(destination, coords = {}) {
   };
 }
 
+function distanceScoreMiles(lat1, lon1, lat2, lon2) {
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 3958.8;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function isBroadRegionalDestination(identity, coords = {}) {
+  const cityName = normalizeName(identity?.cityName);
+  const stateName = normalizeName(coords?.stateName);
+  const displayFirstPart = normalizeName(String(coords?.displayName || "").split(",")[0] || "");
+
+  if (!cityName) return false;
+  if (stateName && cityName === stateName) return true;
+  if (displayFirstPart && stateName && displayFirstPart === stateName) return true;
+  return false;
+}
+
 function mapDurationBucket(duration) {
   const value = safeLower(duration);
   if (!value) return "1_2h";
@@ -301,6 +324,53 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
 
   if (insertError) throw insertError;
   return inserted?.[0] || null;
+}
+
+async function resolveRegionalCityPool(admin, coords = {}, countryCode = "US", limit = 12) {
+  const regionCode = firstNonEmpty(coords.regionCode);
+  if (!regionCode) return [];
+
+  const { data, error } = await admin
+    .from("cities")
+    .select("id, city_name, display_name, country_code, region_code, lat, lon, priority_tier")
+    .eq("country_code", countryCode)
+    .eq("region_code", regionCode)
+    .limit(limit);
+
+  if (error) throw error;
+
+  return toArray(data)
+    .sort((left, right) => {
+      const leftDistance = distanceScoreMiles(
+        Number(coords.lat),
+        Number(coords.lon),
+        Number(left.lat),
+        Number(left.lon),
+      );
+      const rightDistance = distanceScoreMiles(
+        Number(coords.lat),
+        Number(coords.lon),
+        Number(right.lat),
+        Number(right.lon),
+      );
+      return leftDistance - rightDistance;
+    })
+    .slice(0, limit);
+}
+
+async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
+  const safeIds = toArray(cityIds).filter(Boolean);
+  if (safeIds.length === 0) return [];
+
+  const { data, error } = await admin
+    .from("city_attractions")
+    .select("*")
+    .in("city_id", safeIds)
+    .neq("verification_status", "rejected")
+    .limit(limit);
+
+  if (error) throw error;
+  return data || [];
 }
 
 function buildStoredAttraction(activity) {
@@ -585,18 +655,32 @@ export function createAttractionMemoryService({
       maxResults = 8,
     }) {
       return withAdmin(async (admin) => {
-        const city = await resolveCityRecord(admin, destination, coords, countryCode);
-        if (!city?.id) return [];
+        const identity = deriveCityIdentity(destination, coords);
+        const broadRegional = isBroadRegionalDestination(identity, coords);
+        const city = broadRegional
+          ? null
+          : await resolveCityRecord(admin, destination, coords, countryCode);
 
-        const { data, error } = await admin
-          .from("city_attractions")
-          .select("*")
-          .eq("city_id", city.id)
-          .neq("verification_status", "rejected")
-          .limit(50);
+        let data = [];
+        let source = "city";
 
-        if (error) throw error;
-        logger.info("attraction-memory:loaded", { destination, rawCount: (data || []).length });
+        if (city?.id) {
+          data = await fetchAttractionsForCityIds(admin, [city.id], 50);
+        } else {
+          const regionalCities = await resolveRegionalCityPool(admin, coords, countryCode, 12);
+          data = await fetchAttractionsForCityIds(
+            admin,
+            regionalCities.map((row) => row.id),
+            120,
+          );
+          source = "region";
+        }
+
+        logger.info("attraction-memory:loaded", {
+          destination,
+          source,
+          rawCount: (data || []).length,
+        });
 
         const withFreshness = attachVerificationFreshness(
           data || [],

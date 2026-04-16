@@ -173,6 +173,46 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
 }
 
 const MAX_END_TIME = 1200; // 8:00 PM — no activities after this for family trips
+const MIN_VISIBLE_ACTIVITIES_PER_DAY = 2;
+const TARGET_VISIBLE_ACTIVITIES_PER_DAY = 3;
+
+function countNonMealActivities(scheduled) {
+  return (scheduled || []).filter((item) => !item?.isMeal && item?.status !== "closed").length;
+}
+
+function buildScheduledActivity(activity, {
+  name,
+  enriched,
+  duration,
+  startTime,
+  endTime,
+  closeWarning = null,
+  openingHours = null,
+  repeatAcrossTrip = false,
+}) {
+  return {
+    ...activity,
+    name,
+    scheduledStart: formatTime(startTime),
+    scheduledEnd: formatTime(endTime),
+    duration,
+    status: "scheduled",
+    warning: closeWarning,
+    openingHours,
+    ...(repeatAcrossTrip ? { repeatAcrossTrip: true } : {}),
+    enriched: enriched ? {
+      rating: enriched.rating,
+      address: enriched.address,
+      phone: enriched.phone,
+      website: enriched.website,
+      photos: enriched.photos,
+      mapsUrl: enriched.mapsUrl,
+      priceLevel: enriched.priceLevel,
+      latitude: enriched.latitude,
+      longitude: enriched.longitude,
+    } : null,
+  };
+}
 
 function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds = null) {
   const activityMap = {};
@@ -191,6 +231,11 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
   let currentTime = parseTime(DEFAULT_SLOTS.morning.start); // 9:00 AM = 540
   const scheduled = [];
   const warnings = [];
+  const deferredDuplicates = [];
+  const minimumVisibleActivities = Math.max(
+    MIN_VISIBLE_ACTIVITIES_PER_DAY,
+    Math.min(TARGET_VISIBLE_ACTIVITIES_PER_DAY, rawActivities.length),
+  );
 
   // No breakfast/lunch — families find those on their own
   // Only dinner is scheduled (at 7 PM)
@@ -264,7 +309,10 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
 
     // ── Cross-day dedup — skip activities already used on previous days ──
     const actId = activity.id || name;
-    if (usedActivityIds && usedActivityIds.has(actId)) continue;
+    if (usedActivityIds && usedActivityIds.has(actId)) {
+      deferredDuplicates.push({ actId, activity, name, enriched, duration, hours });
+      continue;
+    }
 
     // Check if activity runs past closing time
     let closeWarning = null;
@@ -273,30 +321,56 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       warnings.push({ activity: name, type: "closes_early", message: closeWarning });
     }
 
-    scheduled.push({
-      ...activity,
+    scheduled.push(buildScheduledActivity(activity, {
       name,
-      scheduledStart: formatTime(startTime),
-      scheduledEnd: formatTime(endTime),
+      enriched,
       duration,
-      status: "scheduled",
-      warning: closeWarning,
+      startTime,
+      endTime,
+      closeWarning,
       openingHours: hours?.open ? `${formatTime(hours.open)} - ${formatTime(hours.close)}` : null,
-      enriched: enriched ? {
-        rating: enriched.rating,
-        address: enriched.address,
-        phone: enriched.phone,
-        website: enriched.website,
-        photos: enriched.photos,
-        mapsUrl: enriched.mapsUrl,
-        priceLevel: enriched.priceLevel,
-        latitude: enriched.latitude,
-        longitude: enriched.longitude,
-      } : null,
-    });
+    }));
 
     // Track this activity as used for cross-day dedup
     if (usedActivityIds) usedActivityIds.add(actId);
+
+    currentTime = endTime + estimateTravelMinutes();
+  }
+
+  while (
+    countNonMealActivities(scheduled) < minimumVisibleActivities &&
+    deferredDuplicates.length > 0 &&
+    currentTime < 1140
+  ) {
+    const duplicate = deferredDuplicates.shift();
+    if (!duplicate) break;
+
+    let startTime = currentTime;
+    if (duplicate.hours?.open && duplicate.hours.open > startTime) {
+      startTime = duplicate.hours.open;
+    }
+
+    if (startTime >= MAX_END_TIME) break;
+
+    const endTime = Math.min(startTime + duplicate.duration, MAX_END_TIME);
+    const repeatWarning = "Also appears on another day of this trip.";
+
+    scheduled.push(buildScheduledActivity(duplicate.activity, {
+      name: duplicate.name,
+      enriched: duplicate.enriched,
+      duration: duplicate.duration,
+      startTime,
+      endTime,
+      closeWarning: repeatWarning,
+      openingHours: duplicate.hours?.open ? `${formatTime(duplicate.hours.open)} - ${formatTime(duplicate.hours.close)}` : null,
+      repeatAcrossTrip: true,
+    }));
+
+    warnings.push({
+      activity: duplicate.name,
+      type: "repeat_fallback",
+      message: `${duplicate.name} was reused to keep this day from becoming too sparse.`,
+    });
 
     currentTime = endTime + estimateTravelMinutes();
   }
