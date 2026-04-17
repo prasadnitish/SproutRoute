@@ -202,6 +202,8 @@ async function resolvePlanningContext(req, sanitizedTrip, foodPreferences) {
 
 async function loadCachedAttractionsForTrip(attractionMemoryService, {
   destination,
+  startDate,
+  endDate,
   coords,
   countryCode,
   children,
@@ -215,6 +217,9 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
   const pace = typeof pacePreference === "string" && pacePreference !== "unknown"
     ? pacePreference
     : "";
+  const tripIntent = planningContext?.tripIntent || {};
+  const tripDays = inclusiveDayCount(startDate, endDate);
+  const maxResults = Math.min(36, Math.max(16, tripDays * 4 + 4));
 
   return attractionMemoryService.getPlanningCandidates({
     destination,
@@ -222,9 +227,15 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
     countryCode,
     childrenAges: (children || []).map((child) => child.age).filter(Number.isFinite),
     requestedActivities: activities || [],
+    tripGoals: tripIntent.tripGoals || [],
+    mustHaves: tripIntent.mustHaves || [],
+    avoidances: tripIntent.avoidances || [],
+    transportPreferences: tripIntent.transportPreferences || [],
+    accessibilityNeeds: tripIntent.accessibilityNeeds || [],
+    scheduleConstraints: tripIntent.scheduleConstraints || [],
     pace,
     pets: pets || [],
-    maxResults: 20,
+    maxResults,
   });
 }
 
@@ -823,6 +834,8 @@ export function createApp(deps = {}) {
       const weather = await getWeatherForecastFn(coords.lat, coords.lon, resolvedCountry, startDate, endDate);
       const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
         destination,
+        startDate,
+        endDate,
         coords,
         countryCode: resolvedCountry,
         children,
@@ -953,6 +966,8 @@ export function createApp(deps = {}) {
       devLog("v1/trip/bundle: running AI (trip + packing) in parallel...");
       const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
         destination,
+        startDate,
+        endDate,
         coords,
         countryCode: resolvedCountry,
         children,
@@ -1162,6 +1177,8 @@ export function createApp(deps = {}) {
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
       const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
         destination,
+        startDate,
+        endDate,
         coords,
         countryCode: resolvedCountry,
         children,
@@ -1318,6 +1335,8 @@ export function createApp(deps = {}) {
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
       const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
         destination,
+        startDate,
+        endDate,
         coords: {
           displayName: destination,
           countryCode: req.body?.countryCode || "US",

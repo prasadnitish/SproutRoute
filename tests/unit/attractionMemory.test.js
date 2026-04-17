@@ -152,6 +152,129 @@ test("buildCachedAttractionsSummary keeps the prompt compact and explanatory", (
   assert.match(summary, /rainy-day/i);
 });
 
+test("buildCachedAttractionsSummary supports compact shortlist formatting for larger candidate pools", () => {
+  const summary = buildCachedAttractionsSummary([
+    {
+      canonical_name: "Waikiki Aquarium",
+      category: "wildlife",
+      city_display_name: "Honolulu",
+      indoor_outdoor: "indoor",
+      duration_bucket: "1_2h",
+      verification_status: "verified",
+    },
+    {
+      canonical_name: "Bishop Museum",
+      category: "museums",
+      city_display_name: "Honolulu",
+      indoor_outdoor: "indoor",
+      duration_bucket: "2_4h",
+      verification_status: "verified",
+    },
+  ], { compact: true, maxItems: 2 });
+
+  assert.match(summary, /Waikiki Aquarium \| wildlife/i);
+  assert.match(summary, /area: Honolulu/i);
+  assert.doesNotMatch(summary, /what it is:/i);
+  assert.doesNotMatch(summary, /why it fits:/i);
+});
+
+test("rankCandidateAttractions diversifies shortlist across categories and cities", () => {
+  const ranked = rankCandidateAttractions(
+    [
+      {
+        id: "beach-1",
+        city_id: "honolulu",
+        canonical_name: "Waikiki Beach",
+        category: "beach",
+        short_summary: "Famous beach.",
+        kid_appeal_score: 9,
+        parent_appeal_score: 9,
+        confidence_score: 0.95,
+        verification_status: "verified",
+        times_seen: 10,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "beach-2",
+        city_id: "honolulu",
+        canonical_name: "Kuhio Beach",
+        category: "beach",
+        short_summary: "Calm family beach.",
+        kid_appeal_score: 9,
+        parent_appeal_score: 8,
+        confidence_score: 0.94,
+        verification_status: "verified",
+        times_seen: 9,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "beach-3",
+        city_id: "honolulu",
+        canonical_name: "Ala Moana Regional Park",
+        category: "beach",
+        short_summary: "Protected beach park.",
+        kid_appeal_score: 8,
+        parent_appeal_score: 8,
+        confidence_score: 0.93,
+        verification_status: "verified",
+        times_seen: 8,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "wildlife-1",
+        city_id: "honolulu",
+        canonical_name: "Waikiki Aquarium",
+        category: "wildlife",
+        short_summary: "Compact aquarium.",
+        kid_appeal_score: 8,
+        parent_appeal_score: 8,
+        confidence_score: 0.9,
+        verification_status: "verified",
+        times_seen: 5,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "museum-1",
+        city_id: "honolulu",
+        canonical_name: "Bishop Museum",
+        category: "museums",
+        short_summary: "Culture and science museum.",
+        kid_appeal_score: 7,
+        parent_appeal_score: 8,
+        confidence_score: 0.88,
+        verification_status: "verified",
+        times_seen: 4,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "wildlife-2",
+        city_id: "maui",
+        canonical_name: "Maui Ocean Center",
+        category: "wildlife",
+        short_summary: "Large marine center.",
+        kid_appeal_score: 8,
+        parent_appeal_score: 8,
+        confidence_score: 0.87,
+        verification_status: "verified",
+        times_seen: 4,
+        last_seen_at: new Date().toISOString(),
+      },
+    ],
+    {
+      childrenAges: [4],
+      requestedActivities: ["beach"],
+      pace: "moderate",
+      maxResults: 4,
+    },
+  );
+
+  const categories = new Set(ranked.map((row) => row.category));
+  const cityIds = new Set(ranked.map((row) => row.city_id));
+
+  assert.ok(categories.size >= 3, "shortlist should preserve variety across categories");
+  assert.ok(cityIds.size >= 2, "shortlist should preserve variety across city pools when available");
+});
+
 test("collapseDuplicateAttractions merges near-duplicate names", () => {
   const deduped = collapseDuplicateAttractions([
     {

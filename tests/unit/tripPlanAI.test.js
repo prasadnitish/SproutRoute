@@ -330,11 +330,10 @@ test("generateTripPlan includes cached attraction candidates when provided", asy
   );
 
   const systemText = extractSystemText(captured.calls[0]);
-  const userText = captured.calls[0].user;
 
   assert.ok(systemText.includes("MANDATORY ATTRACTION LIST"), "System prompt should include cached-attraction instructions");
-  assert.ok(userText.includes("Balboa Park"), "User prompt should include cached attraction names");
-  assert.ok(userText.includes("stroller-friendly"), "User prompt should include cached attraction rationale");
+  assert.ok(systemText.includes("Balboa Park"), "System prompt should include cached attraction names");
+  assert.ok(systemText.includes("status: verified"), "System prompt should include compact shortlist metadata");
 });
 
 // ── Adults-only trip ─────────────────────────────────────────────────────────
@@ -758,11 +757,10 @@ test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedA
   );
 
   const systemText = extractSystemText(captured.calls[0]);
-  const userText = captured.calls[0].user;
 
   assert.ok(systemText.includes("MANDATORY ATTRACTION LIST"), "System prompt should include MANDATORY ATTRACTION LIST header");
   assert.ok(systemText.includes("EXACTLY as shown"), "System prompt should instruct exact name usage");
-  assert.ok(userText.includes("Test Aquarium"), "User prompt should include cached attraction name");
+  assert.ok(systemText.includes("Test Aquarium"), "System prompt should include cached attraction name");
 });
 
 test("generateTripPlan omits shortlist section when no cached attractions", async () => {
@@ -812,4 +810,38 @@ test("generateTripPlan adds 60% shortlist guideline when cachedAttractions >= 5"
 
   const systemText = extractSystemText(captured.calls[0]);
   assert.ok(systemText.includes("verified shortlist") || systemText.includes("MANDATORY"), "System prompt should include shortlist guideline when 5+ cached attractions");
+});
+
+test("generateTripPlan keeps the full shortlist in the system prompt and avoids duplicating it in the user prompt", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
+
+  const cachedAttractions = Array.from({ length: 8 }, (_, i) => ({
+    canonical_name: `Attraction ${i + 1}`,
+    category: i % 2 === 0 ? "beach" : "museums",
+    city_display_name: "Honolulu",
+    indoor_outdoor: i % 2 === 0 ? "outdoor" : "indoor",
+    duration_bucket: "1_2h",
+    verification_status: "verified",
+  }));
+
+  await generateTripPlan(
+    {
+      destination: "Honolulu, HI",
+      startDate: "2026-06-01",
+      endDate: "2026-06-06",
+      activities: ["beach"],
+      children: [{ age: 4 }],
+      cachedAttractions,
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  const userText = captured.calls[0].user;
+
+  assert.ok(systemText.includes("MANDATORY ATTRACTION LIST"), "system prompt should still include the shortlist");
+  assert.ok(systemText.includes("Attraction 8"), "system prompt should include full shortlist content");
+  assert.ok(!userText.includes("Vetted attraction candidates for this destination"), "user prompt should not duplicate the shortlist block");
 });
