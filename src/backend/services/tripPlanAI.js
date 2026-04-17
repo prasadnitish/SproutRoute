@@ -683,7 +683,10 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
   const attractionMemoryContext = hasShortlist
     ? `
 **MANDATORY ATTRACTION LIST — USE THESE (do not invent replacements):**
-${buildCachedAttractionsSummary(cachedAttractions, { maxItems: 20 })}
+${buildCachedAttractionsSummary(cachedAttractions, {
+  maxItems: Math.min(cachedAttractions.length, 32),
+  compact: true,
+})}
 
 CRITICAL RULES FOR ATTRACTIONS:
 - You MUST use attractions from this list for your suggestedActivities. These are VERIFIED REAL PLACES.
@@ -783,9 +786,7 @@ ${plannerSummary ? `
 **Known Traveler Preferences:**
 ${plannerSummary}` : ""}
 ${Array.isArray(cachedAttractions) && cachedAttractions.length > 0 ? `
-
-**Vetted attraction candidates for this destination:**
-${buildCachedAttractionsSummary(cachedAttractions)}` : ""}
+- Verified attraction candidates already provided in the system shortlist: ${cachedAttractions.length}` : ""}
 
 **Weather Forecast:**
 ${weatherForecast.summary}

@@ -11,6 +11,15 @@ function safeLower(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function normalizeStringArray(value, maxItems = 12) {
+  return Array.isArray(value)
+    ? value
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .slice(0, maxItems)
+    : [];
+}
+
 function normalizeName(value) {
   return safeLower(value)
     .replace(/[^a-z0-9\s]/g, " ")
@@ -94,6 +103,7 @@ function verificationScore(status) {
 
 function keywordScore(attraction, requestedActivities = []) {
   const haystack = [
+    attraction.canonical_name,
     attraction.category,
     attraction.short_summary,
     attraction.why_recommended,
@@ -107,6 +117,107 @@ function keywordScore(attraction, requestedActivities = []) {
     if (haystack.includes(keyword)) return score + 2;
     return score;
   }, 0);
+}
+
+function textSignals(attraction) {
+  return [
+    attraction.canonical_name,
+    attraction.category,
+    attraction.short_summary,
+    attraction.why_recommended,
+    attraction.llm_notes,
+    attraction.city_display_name,
+  ].map(safeLower).join(" ");
+}
+
+function phraseMatchScore(attraction, terms = [], weight = 2) {
+  const haystack = textSignals(attraction);
+  return normalizeStringArray(terms, 16).reduce((score, term) => {
+    const needle = safeLower(term);
+    if (!needle) return score;
+    if (safeLower(attraction.canonical_name).includes(needle)) return score + weight + 2;
+    if (haystack.includes(needle)) return score + weight;
+    return score;
+  }, 0);
+}
+
+function phrasePenalty(attraction, terms = [], penalty = 3) {
+  const haystack = textSignals(attraction);
+  return normalizeStringArray(terms, 16).reduce((score, term) => {
+    const needle = safeLower(term);
+    if (!needle) return score;
+    return haystack.includes(needle) ? score + penalty : score;
+  }, 0);
+}
+
+function noveltyPenalty(candidate, selected) {
+  if (!selected.length) return 0;
+
+  let penalty = 0;
+  const sameCategoryCount = selected.filter((row) => safeLower(row.category) === safeLower(candidate.category)).length;
+  const sameCityCount = candidate.city_id
+    ? selected.filter((row) => row.city_id && row.city_id === candidate.city_id).length
+    : 0;
+  const sameIndoorOutdoorCount = candidate.indoor_outdoor
+    ? selected.filter((row) => safeLower(row.indoor_outdoor) === safeLower(candidate.indoor_outdoor)).length
+    : 0;
+  const sameDurationBucketCount = candidate.duration_bucket
+    ? selected.filter((row) => safeLower(row.duration_bucket) === safeLower(candidate.duration_bucket)).length
+    : 0;
+
+  penalty += sameCategoryCount * 4;
+  penalty += sameCityCount * 2.5;
+  penalty += sameIndoorOutdoorCount * 0.75;
+  penalty += sameDurationBucketCount * 0.5;
+
+  if (sameCategoryCount > 0 && sameCityCount > 0) {
+    penalty += 1.5;
+  }
+
+  return penalty;
+}
+
+function noveltyBonus(candidate, selected) {
+  if (!selected.length) return 0;
+
+  let bonus = 0;
+  const selectedCategories = new Set(selected.map((row) => safeLower(row.category)));
+  const selectedCities = new Set(selected.map((row) => row.city_id).filter(Boolean));
+
+  if (!selectedCategories.has(safeLower(candidate.category))) bonus += 3;
+  if (candidate.city_id && !selectedCities.has(candidate.city_id)) bonus += 2;
+  if (candidate.indoor_outdoor && !selected.some((row) => safeLower(row.indoor_outdoor) === safeLower(candidate.indoor_outdoor))) {
+    bonus += 0.75;
+  }
+
+  return bonus;
+}
+
+function selectDiverseAttractions(scoredAttractions, maxResults) {
+  const pool = [...toArray(scoredAttractions)];
+  const selected = [];
+
+  while (selected.length < maxResults && pool.length > 0) {
+    let bestIndex = 0;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (let index = 0; index < pool.length; index += 1) {
+      const candidate = pool[index];
+      const adjustedScore =
+        Number(candidate._score || 0) +
+        noveltyBonus(candidate, selected) -
+        noveltyPenalty(candidate, selected);
+
+      if (adjustedScore > bestScore) {
+        bestScore = adjustedScore;
+        bestIndex = index;
+      }
+    }
+
+    selected.push(pool.splice(bestIndex, 1)[0]);
+  }
+
+  return selected;
 }
 
 function tokenizeName(value) {
@@ -227,12 +338,18 @@ export function rankCandidateAttractions(attractions, context = {}) {
   const {
     childrenAges = [],
     requestedActivities = [],
+    tripGoals = [],
+    mustHaves = [],
+    avoidances = [],
+    transportPreferences = [],
+    accessibilityNeeds = [],
+    scheduleConstraints = [],
     pace = "",
     pets = [],
     maxResults = 8,
   } = context;
 
-  return collapseDuplicateAttractions([...toArray(attractions)]
+  const scored = collapseDuplicateAttractions([...toArray(attractions)]
     .filter((attraction) => safeLower(attraction.verification_status) !== "rejected")
     .map((attraction) => {
       let score = 0;
@@ -244,6 +361,12 @@ export function rankCandidateAttractions(attractions, context = {}) {
       score += recencyScore(attraction.last_seen_at || attraction.updated_at);
       score += Math.min(Number(attraction.times_seen || 0), 5);
       score += keywordScore(attraction, requestedActivities);
+      score += phraseMatchScore(attraction, tripGoals, 2);
+      score += phraseMatchScore(attraction, mustHaves, 4);
+      score -= phrasePenalty(attraction, avoidances, 4);
+      score += phraseMatchScore(attraction, transportPreferences, 1.5);
+      score += phraseMatchScore(attraction, accessibilityNeeds, 2);
+      score -= phrasePenalty(attraction, scheduleConstraints, 1.5);
 
       if (childrenAges.length > 0) {
         if (attraction.stroller_friendly) score += 2;
@@ -260,20 +383,36 @@ export function rankCandidateAttractions(attractions, context = {}) {
 
       return { ...attraction, _score: score };
     }))
-    .sort((a, b) => b._score - a._score)
-    .slice(0, maxResults);
+    .sort((a, b) => b._score - a._score);
+
+  const candidatePool = scored.slice(0, Math.max(maxResults * 3, maxResults + 8));
+  return selectDiverseAttractions(candidatePool, maxResults);
 }
 
-export function buildCachedAttractionsSummary(attractions, { maxItems = 6 } = {}) {
+export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compact = false } = {}) {
   const lines = toArray(attractions)
     .slice(0, maxItems)
     .map((attraction) => {
       const name = firstNonEmpty(attraction.canonical_name, attraction.canonicalName, attraction.name);
       const category = firstNonEmpty(attraction.category, "general");
+      const area = firstNonEmpty(attraction.city_display_name, attraction.cityDisplayName);
+      const indoorOutdoor = firstNonEmpty(attraction.indoor_outdoor, attraction.indoorOutdoor);
+      const durationBucket = firstNonEmpty(attraction.duration_bucket, attraction.durationBucket);
       const whatItIs = firstNonEmpty(attraction.what_it_is, attraction.whatItIs, attraction.short_summary, attraction.shortSummary);
       const whyRecommended = firstNonEmpty(attraction.why_recommended, attraction.whyRecommended);
       const timingTip = firstNonEmpty(attraction.timing_tip, attraction.timingTip);
       const verification = firstNonEmpty(attraction.verification_status, attraction.verificationStatus, "unverified");
+
+      if (compact) {
+        const compactParts = [
+          `${name} | ${category}`,
+          area && `area: ${area}`,
+          indoorOutdoor && `mode: ${indoorOutdoor}`,
+          durationBucket && `duration: ${durationBucket}`,
+          `status: ${verification}`,
+        ].filter(Boolean);
+        return `- ${compactParts.join(" | ")}`;
+      }
 
       const parts = [
         `${name} (${category})`,
@@ -650,6 +789,12 @@ export function createAttractionMemoryService({
       countryCode = "US",
       childrenAges = [],
       requestedActivities = [],
+      tripGoals = [],
+      mustHaves = [],
+      avoidances = [],
+      transportPreferences = [],
+      accessibilityNeeds = [],
+      scheduleConstraints = [],
       pace = "",
       pets = [],
       maxResults = 8,
@@ -660,14 +805,19 @@ export function createAttractionMemoryService({
         const city = broadRegional
           ? null
           : await resolveCityRecord(admin, destination, coords, countryCode);
+        const cityDisplayNames = new Map();
 
         let data = [];
         let source = "city";
 
         if (city?.id) {
+          cityDisplayNames.set(city.id, city.display_name || city.city_name || identity.displayName);
           data = await fetchAttractionsForCityIds(admin, [city.id], 50);
         } else {
           const regionalCities = await resolveRegionalCityPool(admin, coords, countryCode, 12);
+          regionalCities.forEach((row) => {
+            cityDisplayNames.set(row.id, row.display_name || row.city_name || "");
+          });
           data = await fetchAttractionsForCityIds(
             admin,
             regionalCities.map((row) => row.id),
@@ -682,14 +832,25 @@ export function createAttractionMemoryService({
           rawCount: (data || []).length,
         });
 
+        const withCityDisplay = (data || []).map((row) => ({
+          ...row,
+          city_display_name: cityDisplayNames.get(row.city_id) || row.city_display_name || "",
+        }));
+
         const withFreshness = attachVerificationFreshness(
-          data || [],
-          await fetchLatestVerificationMap(admin, (data || []).map((row) => row.id)),
+          withCityDisplay,
+          await fetchLatestVerificationMap(admin, withCityDisplay.map((row) => row.id)),
         );
 
         const ranked = rankCandidateAttractions(withFreshness, {
           childrenAges,
           requestedActivities,
+          tripGoals,
+          mustHaves,
+          avoidances,
+          transportPreferences,
+          accessibilityNeeds,
+          scheduleConstraints,
           pace,
           pets,
           maxResults,
