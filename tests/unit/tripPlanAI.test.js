@@ -545,12 +545,15 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
           overview: "Too many days",
           suggestedActivities: [
             { id: "a1", name: "Zoo", category: "wildlife", description: "Animals", duration: "half day", kidFriendly: true, weatherDependent: false },
+            { id: "a2", name: "Botanical Garden", category: "parks", description: "Plants", duration: "half day", kidFriendly: true, weatherDependent: false },
+            { id: "a3", name: "Children's Museum", category: "museums", description: "Museum", duration: "half day", kidFriendly: true, weatherDependent: false },
+            { id: "a4", name: "Harbor Cruise", category: "water", description: "Boat", duration: "half day", kidFriendly: true, weatherDependent: false },
           ],
           dailyItinerary: [
             { day: "Day 1", activities: ["a1"], meals: "Breakfast", notes: "" },
-            { day: "Day 2", activities: ["a1"], meals: "Lunch", notes: "" },
-            { day: "Day 3", activities: ["a1"], meals: "Dinner", notes: "" },
-            { day: "Day 4", activities: ["a1"], meals: "Extra", notes: "" },
+            { day: "Day 2", activities: ["a2"], meals: "Lunch", notes: "" },
+            { day: "Day 3", activities: ["a3"], meals: "Dinner", notes: "" },
+            { day: "Day 4", activities: ["a4"], meals: "Extra", notes: "" },
           ],
           tips: [],
         }),
@@ -574,6 +577,87 @@ test("generateTripPlan trims itinerary days to the requested trip length", async
   // Jun 1-3 inclusive = 3 days; AI returned 4, so trimmed to 3
   assert.equal(result.dailyItinerary.length, 3);
   assert.equal(result.dailyItinerary[2].day, "Day 3");
+});
+
+test("generateTripPlan retries when the raw itinerary repeats the same activities across days", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const repetitivePlan = JSON.stringify({
+    overview: "Repeated plan",
+    suggestedActivities: [
+      { id: "a1", name: "Waikiki Beach Walk", category: "city", description: "Walk", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Waikiki Aquarium", category: "wildlife", description: "Fish", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Kapiolani Park", category: "parks", description: "Park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a4", name: "Kuhio Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a5", name: "Honolulu Zoo", category: "wildlife", description: "Zoo", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a6", name: "Diamond Head", category: "hiking", description: "Trail", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3", "a4"], meals: { dinner: { name: "Dinner 1" } }, notes: "" },
+      { day: "Day 2", activities: ["a1", "a2", "a5", "a6"], meals: { dinner: { name: "Dinner 2" } }, notes: "" },
+    ],
+    tips: ["Tip 1"],
+  });
+
+  const uniquePlan = JSON.stringify({
+    overview: "Unique plan",
+    suggestedActivities: [
+      { id: "b1", name: "Waikiki Beach Walk", category: "city", description: "Walk", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b2", name: "Waikiki Aquarium", category: "wildlife", description: "Fish", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b3", name: "Kapiolani Park", category: "parks", description: "Park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b4", name: "Kuhio Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b5", name: "Honolulu Zoo", category: "wildlife", description: "Zoo", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b6", name: "Diamond Head", category: "hiking", description: "Trail", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b7", name: "Ala Moana Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "b8", name: "Bishop Museum", category: "museums", description: "Museum", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["b1", "b2", "b3", "b4"], meals: { dinner: { name: "Dinner 1" } }, notes: "" },
+      { day: "Day 2", activities: ["b5", "b6", "b7", "b8"], meals: { dinner: { name: "Dinner 2" } }, notes: "" },
+    ],
+    tips: ["Tip 1"],
+  });
+
+  let callCount = 0;
+  const nextResponse = () => {
+    callCount += 1;
+    return callCount === 1 ? repetitivePlan : uniquePlan;
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "Hawaii, USA",
+      startDate: "2026-05-21",
+      endDate: "2026-05-22",
+      activities: ["relaxing"],
+      children: [{ age: 2 }],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => nextResponse(),
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: uniquePlan }], stop_reason: "end_turn" }) } },
+      openaiClient: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: nextResponse() }, finish_reason: "stop" }],
+            }),
+          },
+        },
+      },
+    },
+  );
+
+  assert.equal(callCount, 2, "A repetitive raw itinerary should trigger a second generation attempt");
+  assert.deepEqual(result.dailyItinerary[0].activities, ["b1", "b2", "b3", "b4"]);
+  assert.deepEqual(result.dailyItinerary[1].activities, ["b5", "b6", "b7", "b8"]);
 });
 
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────

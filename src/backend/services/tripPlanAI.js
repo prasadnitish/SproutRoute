@@ -14,6 +14,7 @@ import { inclusiveDayCount } from "../utils/dateCalc.js";
 const MAX_TOKENS = 16384;
 const CHUNK_SIZE_DAYS = 7;
 const REPAIR_INPUT_MAX_CHARS = 28000;
+const MAX_QUALITY_ISSUES_IN_PROMPT = 8;
 
 function sanitizeBoolean(value, fallback = false) {
   if (typeof value === "boolean") return value;
@@ -177,6 +178,55 @@ function parseTripPlanResponse(responseText, options = {}) {
   throw lastError || new Error("AI returned invalid format. Please try again.");
 }
 
+function analyzeTripPlanQuality(tripPlan) {
+  const activityMap = new Map(
+    toActivityArray(tripPlan?.suggestedActivities).map((activity) => [String(activity.id), activity]),
+  );
+  const duplicates = [];
+  const seenByName = new Map();
+
+  for (const day of tripPlan?.dailyItinerary || []) {
+    for (const activityId of day.activities || []) {
+      const activity = activityMap.get(String(activityId));
+      const normalizedName = String(activity?.name || activityId || "").trim().toLowerCase();
+      if (!normalizedName) continue;
+      const seenOnDay = seenByName.get(normalizedName);
+      if (seenOnDay && seenOnDay !== day.day) {
+        duplicates.push({
+          name: activity?.name || String(activityId),
+          firstDay: seenOnDay,
+          repeatedDay: day.day,
+        });
+      } else if (!seenOnDay) {
+        seenByName.set(normalizedName, day.day);
+      }
+    }
+  }
+
+  return {
+    duplicates,
+  };
+}
+
+function toActivityArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function assertTripPlanQuality(tripPlan) {
+  const quality = analyzeTripPlanQuality(tripPlan);
+  if (quality.duplicates.length > 0) {
+    const issueSummary = quality.duplicates
+      .slice(0, MAX_QUALITY_ISSUES_IN_PROMPT)
+      .map((dup) => `${dup.name} appears on ${dup.firstDay} and ${dup.repeatedDay}`)
+      .join("; ");
+    const error = new Error(`Trip plan repeats activities across days: ${issueSummary}`);
+    error.code = "TRIP_PLAN_REPEATS";
+    error.quality = quality;
+    throw error;
+  }
+  return tripPlan;
+}
+
 function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
   const days = inclusiveDayCount(startDate, endDate);
   const base = compact ? 2000 : 3000;
@@ -239,6 +289,28 @@ async function repairTripPlanJson(brokenText, deps) {
   return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, caller: "tripPlan:repair" }, deps);
 }
 
+function buildQualityRetryPrompt(basePrompt, qualityError) {
+  const duplicateLines = qualityError?.quality?.duplicates?.slice(0, MAX_QUALITY_ISSUES_IN_PROMPT)
+    .map((dup) => `- ${dup.name}: ${dup.firstDay} and ${dup.repeatedDay}`)
+    .join("\n");
+
+  return {
+    system: `${basePrompt.system}
+
+QUALITY FAILURE FROM PRIOR ATTEMPT:
+- The previous itinerary reused the same attractions on multiple days.
+- This is invalid. Regenerate the ENTIRE itinerary so every activity appears on only one day.
+- If you need variety, choose different real attractions in the same destination.
+- Do not recycle attractions just to fill the day count.`,
+    user: `${basePrompt.user}
+
+The last attempt failed quality checks because these activities were repeated across different days:
+${duplicateLines || "- repeated activities were detected"}
+
+Regenerate the full trip plan as strict JSON. Every day must be distinct and no activity may appear on multiple days.`,
+  };
+}
+
 export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   // Resilient generation path: normal prompt → compact retry → repair fallback.
   // deps: passed through to callModel for dependency injection in tests.
@@ -274,7 +346,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   const primaryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: false });
 
   try {
-      const firstAttempt = await requestWithRetry(
+    const firstAttempt = await requestWithRetry(
       () => requestTripPlan({ ...primaryPrompt, maxTokens: primaryMaxTokens }, deps, { cache: true }),
       MAX_RETRIES,
     );
@@ -285,20 +357,31 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     }
 
     try {
-      return parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities });
+      const firstParsed = parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities });
+      return assertTripPlanQuality(firstParsed);
     } catch (firstParseError) {
-      log.warn("Trip-plan parse failed (attempt 1), retrying compact", { error: firstParseError.message });
-
-      const retryPrompt = buildTripPlanPrompt(
-        destination,
-        startDate,
-        endDate,
-        activities,
-        children,
-        weatherForecast,
-        { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions },
+      const isQualityFailure = firstParseError.code === "TRIP_PLAN_REPEATS";
+      log.warn(
+        isQualityFailure
+          ? "Trip-plan quality failed (attempt 1), retrying with stronger anti-repeat guidance"
+          : "Trip-plan parse failed (attempt 1), retrying compact",
+        { error: firstParseError.message },
       );
-      const retryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: true });
+
+      const retryPrompt = isQualityFailure
+        ? buildQualityRetryPrompt(primaryPrompt, firstParseError)
+        : buildTripPlanPrompt(
+          destination,
+          startDate,
+          endDate,
+          activities,
+          children,
+          weatherForecast,
+          { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions },
+        );
+      const retryMaxTokens = isQualityFailure
+        ? primaryMaxTokens
+        : getTripPlanMaxTokens(startDate, endDate, { compact: true });
 
       const secondAttempt = await requestWithRetry(
         () => requestTripPlan({ ...retryPrompt, maxTokens: retryMaxTokens }, deps),
@@ -306,15 +389,17 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       );
 
       try {
-        return parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
+        const secondParsed = parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
+        return assertTripPlanQuality(secondParsed);
       } catch (secondParseError) {
-        log.warn("Trip-plan parse failed (attempt 2), trying repair", { error: secondParseError.message });
+        log.warn("Trip-plan parse/quality failed (attempt 2), trying repair", { error: secondParseError.message });
 
         const repairSource = secondAttempt.responseText || firstAttempt.responseText;
         const repairAttempt = await repairTripPlanJson(repairSource, deps);
 
         try {
-          return parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
+          const repaired = parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
+          return assertTripPlanQuality(repaired);
         } catch (repairParseError) {
           log.error("Trip-plan parse failed after all 3 attempts", {
             error: repairParseError.message,
