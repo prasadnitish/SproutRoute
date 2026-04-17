@@ -15,6 +15,7 @@ const MAX_TOKENS = 16384;
 const CHUNK_SIZE_DAYS = 7;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 const MAX_QUALITY_ISSUES_IN_PROMPT = 8;
+const MIN_FAMILY_ACTIVITIES_PER_DAY = 4;
 
 function sanitizeBoolean(value, fallback = false) {
   if (typeof value === "boolean") return value;
@@ -262,9 +263,47 @@ function buildCachedReplacementActivity(attraction, index, { hasPets = false } =
   };
 }
 
+function buildCachedDayPools(cachedAttractions, expectedDays, { maxPerDay = 4 } = {}) {
+  const totalDays = Math.max(1, Math.min(expectedDays || 1, 7));
+  const pools = Array.from({ length: totalDays }, () => []);
+  const candidateLimit = Math.min(cachedAttractions.length, totalDays * maxPerDay * 2);
+  const candidates = toActivityArray(cachedAttractions).slice(0, candidateLimit);
+
+  candidates.forEach((attraction, index) => {
+    const category = normalizeActivityKey(attraction?.category);
+    const area = normalizeActivityKey(attraction?.city_display_name || attraction?.cityDisplayName);
+    let bestPoolIndex = 0;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    pools.forEach((pool, poolIndex) => {
+      const sameCategoryCount = pool.filter((item) => item.category === category).length;
+      const sameAreaCount = area ? pool.filter((item) => item.area === area).length : 0;
+      const fillScore = (maxPerDay - Math.min(pool.length, maxPerDay)) * 3;
+      const diversityScore = (sameCategoryCount * -3) + (sameAreaCount * -2);
+      const balanceScore = poolIndex * -0.1;
+      const totalScore = fillScore + diversityScore + balanceScore;
+      if (totalScore > bestScore) {
+        bestScore = totalScore;
+        bestPoolIndex = poolIndex;
+      }
+    });
+
+    pools[bestPoolIndex].push({
+      attraction,
+      index,
+      name: String(attraction?.canonical_name || attraction?.canonicalName || attraction?.name || "").trim(),
+      category: String(attraction?.category || "general").trim().toLowerCase(),
+      area,
+    });
+  });
+
+  return pools;
+}
+
 function buildReplacementPool(suggestedActivities, cachedAttractions, options = {}) {
   const pool = [];
   const byName = new Map();
+  const dayPools = buildCachedDayPools(cachedAttractions, options.expectedDays, { maxPerDay: options.maxPerDay || 4 });
 
   toActivityArray(suggestedActivities).forEach((activity) => {
     const normalizedName = normalizeActivityKey(activity?.name);
@@ -274,18 +313,26 @@ function buildReplacementPool(suggestedActivities, cachedAttractions, options = 
     pool.push({ ...activity, _source: "existing" });
   });
 
-  toActivityArray(cachedAttractions).forEach((attraction, index) => {
-    const candidate = buildCachedReplacementActivity(attraction, index, options);
-    const normalizedName = normalizeActivityKey(candidate.name);
-    if (normalizedName && byName.has(normalizedName)) return;
-    if (normalizedName) byName.set(normalizedName, candidate);
-    pool.push({ ...candidate, _source: "cache" });
+  dayPools.forEach((dayPool, dayIndex) => {
+    dayPool.forEach(({ attraction, index }) => {
+      const candidate = buildCachedReplacementActivity(attraction, index, options);
+      const normalizedName = normalizeActivityKey(candidate.name);
+      if (normalizedName && byName.has(normalizedName)) return;
+      if (normalizedName) byName.set(normalizedName, candidate);
+      pool.push({ ...candidate, _source: "cache", _preferredDayIndex: dayIndex });
+    });
   });
 
   return pool;
 }
 
-function scoreReplacementCandidate(candidate, duplicateActivity, { usedIds, seenNames, sameDayNames }) {
+function scoreReplacementCandidate(candidate, duplicateActivity, {
+  usedIds,
+  seenNames,
+  sameDayNames,
+  preferredDayIndex = null,
+  dayCategories = new Set(),
+} = {}) {
   if (!candidate?.id) return Number.NEGATIVE_INFINITY;
 
   const normalizedName = normalizeActivityKey(candidate.name);
@@ -299,6 +346,9 @@ function scoreReplacementCandidate(candidate, duplicateActivity, { usedIds, seen
   if (duplicateActivity?.kidFriendly === candidate.kidFriendly) score += 1.5;
   if (duplicateActivity?.weatherDependent === candidate.weatherDependent) score += 1;
   if (candidate._source === "existing") score += 0.5;
+  if (preferredDayIndex !== null && candidate._preferredDayIndex === preferredDayIndex) score += 4;
+  if (dayCategories.has(candidate.category)) score += 2;
+  else score += 0.75;
 
   return score;
 }
@@ -319,8 +369,16 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
   const seenNames = new Map();
   const usedIds = new Set();
   let replacements = 0;
+  let topUps = 0;
+  const minimumActivitiesPerDay = Math.max(0, options.minimumActivitiesPerDay || 0);
 
-  clonedPlan.dailyItinerary.forEach((day) => {
+  clonedPlan.dailyItinerary.forEach((day, dayIndex) => {
+    const originalDayActivities = (day.activities || [])
+      .map((activityId) => activityMap.get(String(activityId)))
+      .filter(Boolean);
+    const originalDayCategories = new Set(
+      originalDayActivities.map((activity) => activity.category).filter(Boolean),
+    );
     const sameDayNames = new Set(
       (day.activities || [])
         .map((activityId) => activityMap.get(String(activityId))?.name)
@@ -353,6 +411,8 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
           usedIds,
           seenNames,
           sameDayNames,
+          preferredDayIndex: dayIndex,
+          dayCategories: originalDayCategories,
         });
         if (candidateScore > bestScore) {
           bestScore = candidateScore;
@@ -380,44 +440,65 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
       replacements += 1;
       return String(bestCandidate.id);
     });
+
+    const currentDayNames = new Set(
+      (day.activities || [])
+        .map((activityId) => activityMap.get(String(activityId))?.name)
+        .map((name) => normalizeActivityKey(name))
+        .filter(Boolean),
+    );
+    const currentDayCategories = new Set(
+      (day.activities || [])
+        .map((activityId) => activityMap.get(String(activityId))?.category)
+        .filter(Boolean),
+    );
+    const targetActivities = Math.max(
+      minimumActivitiesPerDay,
+      Math.min(Math.max(originalDayActivities.length, day.activities.length), 6),
+    );
+
+    while ((day.activities || []).length < targetActivities) {
+      let bestCandidate = null;
+      let bestScore = Number.NEGATIVE_INFINITY;
+
+      for (const candidate of replacementPool) {
+        const candidateScore = scoreReplacementCandidate(candidate, null, {
+          usedIds,
+          seenNames,
+          sameDayNames: currentDayNames,
+          preferredDayIndex: dayIndex,
+          dayCategories: currentDayCategories.size > 0 ? currentDayCategories : originalDayCategories,
+        });
+        if (candidateScore > bestScore) {
+          bestScore = candidateScore;
+          bestCandidate = candidate;
+        }
+      }
+
+      if (!bestCandidate || bestScore === Number.NEGATIVE_INFINITY) break;
+
+      if (!activityMap.has(String(bestCandidate.id))) {
+        clonedPlan.suggestedActivities.push({ ...bestCandidate });
+        activityMap.set(String(bestCandidate.id), bestCandidate);
+      }
+
+      day.activities.push(String(bestCandidate.id));
+      usedIds.add(String(bestCandidate.id));
+      const normalizedName = normalizeActivityKey(bestCandidate.name);
+      if (normalizedName) {
+        currentDayNames.add(normalizedName);
+        seenNames.set(normalizedName, day.day);
+      }
+      if (bestCandidate.category) currentDayCategories.add(bestCandidate.category);
+      topUps += 1;
+    }
   });
 
-  return replacements > 0 ? clonedPlan : tripPlan;
+  return replacements > 0 || topUps > 0 ? clonedPlan : tripPlan;
 }
 
 function buildDaySpecificShortlist(cachedAttractions, expectedDays, { maxPerDay = 4 } = {}) {
-  const totalDays = Math.max(1, Math.min(expectedDays || 1, 7));
-  const pools = Array.from({ length: totalDays }, () => []);
-  const candidates = toActivityArray(cachedAttractions).slice(0, Math.min(cachedAttractions.length, totalDays * maxPerDay));
-
-  candidates.forEach((attraction) => {
-    const category = normalizeActivityKey(attraction?.category);
-    const area = normalizeActivityKey(attraction?.city_display_name || attraction?.cityDisplayName);
-    let bestPoolIndex = 0;
-    let bestScore = Number.NEGATIVE_INFINITY;
-
-    pools.forEach((pool, index) => {
-      if (pool.length >= maxPerDay) return;
-      const sameCategoryCount = pool.filter((item) => item.category === category).length;
-      const sameAreaCount = area ? pool.filter((item) => item.area === area).length : 0;
-      const fillScore = (maxPerDay - pool.length) * 3;
-      const diversityScore = (sameCategoryCount * -3) + (sameAreaCount * -2);
-      const balanceScore = index * -0.1;
-      const totalScore = fillScore + diversityScore + balanceScore;
-      if (totalScore > bestScore) {
-        bestScore = totalScore;
-        bestPoolIndex = index;
-      }
-    });
-
-    pools[bestPoolIndex].push({
-      name: String(attraction?.canonical_name || attraction?.canonicalName || attraction?.name || "").trim(),
-      category: String(attraction?.category || "general").trim().toLowerCase(),
-      area,
-    });
-  });
-
-  return pools
+  return buildCachedDayPools(cachedAttractions, expectedDays, { maxPerDay })
     .map((pool, index) => {
       if (!pool.length) return null;
       const items = pool
@@ -575,7 +656,11 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
 
     try {
       const firstParsed = parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities });
-      const repairedFirstPlan = repairTripPlanDuplicates(firstParsed, cachedAttractions, { hasPets: pets.length > 0 });
+      const repairedFirstPlan = repairTripPlanDuplicates(firstParsed, cachedAttractions, {
+        hasPets: pets.length > 0,
+        expectedDays,
+        minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
+      });
       return assertTripPlanQuality(repairedFirstPlan);
     } catch (firstParseError) {
       const isQualityFailure = firstParseError.code === "TRIP_PLAN_REPEATS";
@@ -608,7 +693,11 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
 
       try {
         const secondParsed = parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
-        const repairedSecondPlan = repairTripPlanDuplicates(secondParsed, cachedAttractions, { hasPets: pets.length > 0 });
+        const repairedSecondPlan = repairTripPlanDuplicates(secondParsed, cachedAttractions, {
+          hasPets: pets.length > 0,
+          expectedDays,
+          minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
+        });
         try {
           return assertTripPlanQuality(repairedSecondPlan);
         } catch (secondQualityError) {
@@ -632,7 +721,11 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
 
         try {
           const repaired = parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
-          const repairedPlan = repairTripPlanDuplicates(repaired, cachedAttractions, { hasPets: pets.length > 0 });
+          const repairedPlan = repairTripPlanDuplicates(repaired, cachedAttractions, {
+            hasPets: pets.length > 0,
+            expectedDays,
+            minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
+          });
           try {
             return assertTripPlanQuality(repairedPlan);
           } catch (repairQualityError) {

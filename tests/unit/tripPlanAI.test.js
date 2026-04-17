@@ -888,6 +888,117 @@ test("generateTripPlan repairs repeated daily activities with cached shortlist a
   assert.notDeepEqual(result.dailyItinerary[1].activities, ["a1", "a2", "a5", "a6"]);
 });
 
+test("generateTripPlan deterministically tops up sparse daily itineraries to four unique activities from the cached shortlist", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const sparsePlan = JSON.stringify({
+    overview: "Sparse but repairable plan",
+    suggestedActivities: [
+      { id: "a1", name: "Tokyo Cruise Asakusa Pier", category: "city", description: "Cruise", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Nakamise Shopping Street", category: "shopping", description: "Street", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Ueno Zoo", category: "wildlife", description: "Zoo", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a4", name: "teamLab Planets TOKYO DMM", category: "museums", description: "Art", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a5", name: "GINZA SIX", category: "shopping", description: "Mall", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a6", name: "Odaiba Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: true },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3"], meals: { dinner: { name: "Dinner 1" } }, notes: "" },
+      { day: "Day 2", activities: ["a4", "a5", "a6"], meals: { dinner: { name: "Dinner 2" } }, notes: "" },
+    ],
+    tips: ["Tip 1"],
+  });
+
+  let callCount = 0;
+  const nextResponse = () => {
+    callCount += 1;
+    return sparsePlan;
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "Tokyo, Japan",
+      startDate: "2026-07-10",
+      endDate: "2026-07-11",
+      activities: ["theme_parks"],
+      children: [{ age: 5 }, { age: 9 }],
+      cachedAttractions: [
+        {
+          canonical_name: "Tokyo National Museum",
+          category: "museums",
+          short_summary: "Large museum campus in Ueno.",
+          why_recommended: "Adds another family-friendly stop near the zoo.",
+          timing_tip: "Good after lunch.",
+          duration_bucket: "2_4h",
+          stroller_friendly: true,
+          indoor_outdoor: "indoor",
+        },
+        {
+          canonical_name: "Kidzania Tokyo",
+          category: "entertainment",
+          short_summary: "Hands-on role-play city for children.",
+          why_recommended: "High-value family activity for kids 5 and 9.",
+          timing_tip: "Reserve an early session.",
+          duration_bucket: "2_4h",
+          stroller_friendly: true,
+          indoor_outdoor: "indoor",
+        },
+        {
+          canonical_name: "National Museum of Nature and Science",
+          category: "museums",
+          short_summary: "Interactive science museum in Ueno.",
+          why_recommended: "Strong backup to keep the day full and educational.",
+          timing_tip: "Best in the afternoon heat.",
+          duration_bucket: "2_4h",
+          stroller_friendly: true,
+          indoor_outdoor: "indoor",
+        },
+        {
+          canonical_name: "Ariake Garden",
+          category: "shopping",
+          short_summary: "Modern family shopping complex near Odaiba.",
+          why_recommended: "Fits the waterfront day without repeating the exact same stop.",
+          timing_tip: "Easy late-afternoon stop before dinner.",
+          duration_bucket: "1_2h",
+          stroller_friendly: true,
+          indoor_outdoor: "both",
+        },
+      ],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => nextResponse(),
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: {
+        messages: {
+          create: async () => {
+            throw new Error("deterministic top-up should avoid a retry");
+          },
+        },
+      },
+      openaiClient: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: nextResponse() }, finish_reason: "stop" }],
+            }),
+          },
+        },
+      },
+    },
+  );
+
+  assert.equal(callCount, 1, "sparse but valid plans should be topped up without another model call");
+  assert.deepEqual(result.dailyItinerary.map((day) => day.activities.length), [4, 4]);
+  const allIds = result.dailyItinerary.flatMap((day) => day.activities);
+  assert.equal(new Set(allIds).size, 8, "all scheduled activities should remain unique across the trip");
+});
+
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────
 
 test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedAttractions provided", async () => {
