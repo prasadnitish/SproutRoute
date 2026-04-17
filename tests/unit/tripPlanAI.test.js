@@ -1006,3 +1006,37 @@ test("generateTripPlan keeps the full shortlist in the system prompt and avoids 
   assert.ok(systemText.includes("Attraction 8"), "system prompt should include full shortlist content");
   assert.ok(!userText.includes("Vetted attraction candidates for this destination"), "user prompt should not duplicate the shortlist block");
 });
+
+test("generateTripPlan adds day-specific planning pools when a large shortlist is available", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
+
+  const cachedAttractions = [
+    { canonical_name: "Asakusa Culture Walk", category: "city", city_display_name: "Tokyo" },
+    { canonical_name: "Ueno Zoo", category: "wildlife", city_display_name: "Tokyo" },
+    { canonical_name: "teamLab Planets TOKYO DMM", category: "museums", city_display_name: "Tokyo" },
+    { canonical_name: "Tokyo Disneyland", category: "theme_parks", city_display_name: "Urayasu" },
+    { canonical_name: "Ginza Six", category: "shopping", city_display_name: "Tokyo" },
+    { canonical_name: "Odaiba Beach", category: "beach", city_display_name: "Tokyo" },
+    { canonical_name: "Tokyo National Museum", category: "museums", city_display_name: "Tokyo" },
+    { canonical_name: "Kidzania Tokyo", category: "entertainment", city_display_name: "Tokyo" },
+  ];
+
+  await generateTripPlan(
+    {
+      destination: "Tokyo, Japan",
+      startDate: "2026-07-10",
+      endDate: "2026-07-13",
+      activities: ["theme_parks"],
+      children: [{ age: 5 }, { age: 9 }],
+      cachedAttractions,
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  assert.ok(systemText.includes("DAY-SPECIFIC PLANNING POOLS"), "system prompt should include per-day shortlist guidance");
+  assert.ok(systemText.includes("Day 1 primary pool:"), "system prompt should partition attractions by day");
+  assert.ok(systemText.includes("Day 4 primary pool:"), "system prompt should cover the full requested trip length");
+});

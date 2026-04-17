@@ -385,6 +385,50 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
   return replacements > 0 ? clonedPlan : tripPlan;
 }
 
+function buildDaySpecificShortlist(cachedAttractions, expectedDays, { maxPerDay = 4 } = {}) {
+  const totalDays = Math.max(1, Math.min(expectedDays || 1, 7));
+  const pools = Array.from({ length: totalDays }, () => []);
+  const candidates = toActivityArray(cachedAttractions).slice(0, Math.min(cachedAttractions.length, totalDays * maxPerDay));
+
+  candidates.forEach((attraction) => {
+    const category = normalizeActivityKey(attraction?.category);
+    const area = normalizeActivityKey(attraction?.city_display_name || attraction?.cityDisplayName);
+    let bestPoolIndex = 0;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    pools.forEach((pool, index) => {
+      if (pool.length >= maxPerDay) return;
+      const sameCategoryCount = pool.filter((item) => item.category === category).length;
+      const sameAreaCount = area ? pool.filter((item) => item.area === area).length : 0;
+      const fillScore = (maxPerDay - pool.length) * 3;
+      const diversityScore = (sameCategoryCount * -3) + (sameAreaCount * -2);
+      const balanceScore = index * -0.1;
+      const totalScore = fillScore + diversityScore + balanceScore;
+      if (totalScore > bestScore) {
+        bestScore = totalScore;
+        bestPoolIndex = index;
+      }
+    });
+
+    pools[bestPoolIndex].push({
+      name: String(attraction?.canonical_name || attraction?.canonicalName || attraction?.name || "").trim(),
+      category: String(attraction?.category || "general").trim().toLowerCase(),
+      area,
+    });
+  });
+
+  return pools
+    .map((pool, index) => {
+      if (!pool.length) return null;
+      const items = pool
+        .map((item) => `${item.name} [${item.category || "general"}]`)
+        .join("; ");
+      return `- Day ${index + 1} primary pool: ${items}`;
+    })
+    .filter(Boolean)
+    .join("\n");
+}
+
 function assertTripPlanQuality(tripPlan) {
   const quality = analyzeTripPlanQuality(tripPlan);
   if (quality.duplicates.length > 0) {
@@ -790,6 +834,11 @@ function buildTripPlanPrompt(
   const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
   const isAdultsOnly = children.length === 0;
   const hasShortlist = Array.isArray(cachedAttractions) && cachedAttractions.length > 0;
+  const expectedDays = inclusiveDayCount(startDate, endDate);
+  const shortlistMaxItems = Math.min(cachedAttractions.length, Math.max(expectedDays * 4, 20), 28);
+  const daySpecificShortlist = hasShortlist
+    ? buildDaySpecificShortlist(cachedAttractions, expectedDays, { maxPerDay: 4 })
+    : "";
   const childrenInfo = isAdultsOnly
     ? "Adults-only trip, no children"
     : children.map((c) => `age ${c.age}`).join(", ");
@@ -860,15 +909,21 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
     ? `
 **MANDATORY ATTRACTION LIST — USE THESE (do not invent replacements):**
 ${buildCachedAttractionsSummary(cachedAttractions, {
-  maxItems: Math.min(cachedAttractions.length, 32),
+  maxItems: shortlistMaxItems,
   compact: true,
 })}
+
+${daySpecificShortlist ? `DAY-SPECIFIC PLANNING POOLS (use these first to keep each day distinct):
+${daySpecificShortlist}
+` : ""}
 
 CRITICAL RULES FOR ATTRACTIONS:
 - You MUST use attractions from this list for your suggestedActivities. These are VERIFIED REAL PLACES.
 - Do NOT invent or hallucinate attraction names. If you need more variety, pick from different categories above.
 - You may add at most 1 new discovery per day that is NOT on this list — but it must be a real, well-known place.
 - Keep each attraction name EXACTLY as shown above (do not rename, abbreviate, or paraphrase).
+- Each day should draw primarily from its own day-specific pool before borrowing from another day.
+- If you borrow from another day pool, immediately backfill that other day with a different unused shortlisted attraction.
 - This saves significant processing time — the places are already researched and verified.`
     : "";
 
