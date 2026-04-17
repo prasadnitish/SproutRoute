@@ -497,6 +497,35 @@ async function resolveRegionalCityPool(admin, coords = {}, countryCode = "US", l
     .slice(0, limit);
 }
 
+async function resolveNearbyCityPool(admin, coords = {}, countryCode = "US", limit = 24) {
+  const queryLimit = Math.max(limit * 12, 200);
+  const { data, error } = await admin
+    .from("cities")
+    .select("id, city_name, display_name, country_code, region_code, lat, lon, priority_tier")
+    .eq("country_code", countryCode)
+    .limit(queryLimit);
+
+  if (error) throw error;
+
+  return toArray(data)
+    .sort((left, right) => {
+      const leftDistance = distanceScoreMiles(
+        Number(coords.lat),
+        Number(coords.lon),
+        Number(left.lat),
+        Number(left.lon),
+      );
+      const rightDistance = distanceScoreMiles(
+        Number(coords.lat),
+        Number(coords.lon),
+        Number(right.lat),
+        Number(right.lon),
+      );
+      return leftDistance - rightDistance;
+    })
+    .slice(0, limit);
+}
+
 async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
   const safeIds = toArray(cityIds).filter(Boolean);
   if (safeIds.length === 0) return [];
@@ -806,6 +835,7 @@ export function createAttractionMemoryService({
           ? null
           : await resolveCityRecord(admin, destination, coords, countryCode);
         const cityDisplayNames = new Map();
+        const minimumAttractionPool = Math.max(Math.min(maxResults, 24), 12);
 
         let data = [];
         let source = "city";
@@ -813,6 +843,30 @@ export function createAttractionMemoryService({
         if (city?.id) {
           cityDisplayNames.set(city.id, city.display_name || city.city_name || identity.displayName);
           data = await fetchAttractionsForCityIds(admin, [city.id], 50);
+
+          if ((data || []).length < minimumAttractionPool) {
+            const supplementalCityIds = new Set();
+
+            const regionalCities = await resolveRegionalCityPool(admin, coords, countryCode, 12);
+            regionalCities.forEach((row) => {
+              cityDisplayNames.set(row.id, row.display_name || row.city_name || "");
+              if (row.id && row.id !== city.id) supplementalCityIds.add(row.id);
+            });
+
+            if (supplementalCityIds.size === 0 || (data || []).length < minimumAttractionPool) {
+              const nearbyCities = await resolveNearbyCityPool(admin, coords, countryCode, 18);
+              nearbyCities.forEach((row) => {
+                cityDisplayNames.set(row.id, row.display_name || row.city_name || "");
+                if (row.id && row.id !== city.id) supplementalCityIds.add(row.id);
+              });
+            }
+
+            if (supplementalCityIds.size > 0) {
+              const supplemental = await fetchAttractionsForCityIds(admin, [...supplementalCityIds], 160);
+              data = [...data, ...supplemental];
+              source = "city+nearby";
+            }
+          }
         } else {
           const regionalCities = await resolveRegionalCityPool(admin, coords, countryCode, 12);
           regionalCities.forEach((row) => {
