@@ -595,6 +595,161 @@ test("getPlanningCandidates uses region attraction pools for broad destinations 
   assert.ok(names.length >= 3, "broad regional queries should not collapse to a single city match");
 });
 
+test("getPlanningCandidates supplements a thin city cache with nearby regional cities", async () => {
+  const state = {
+    cities: [
+      {
+        id: "city-tokyo",
+        city_name: "Tokyo",
+        display_name: "Tokyo, Japan",
+        country_code: "JP",
+        region_code: "13",
+        lat: 35.6764,
+        lon: 139.65,
+      },
+      {
+        id: "city-urayasu",
+        city_name: "Urayasu",
+        display_name: "Urayasu, Chiba",
+        country_code: "JP",
+        region_code: "12",
+        lat: 35.653,
+        lon: 139.902,
+      },
+      {
+        id: "city-chiba",
+        city_name: "Chiba",
+        display_name: "Chiba, Japan",
+        country_code: "JP",
+        region_code: "12",
+        lat: 35.6074,
+        lon: 140.1065,
+      },
+    ],
+    attractions: [
+      {
+        id: "attr-tokyo-1",
+        city_id: "city-tokyo",
+        canonical_name: "Tokyo National Museum",
+        category: "museums",
+        short_summary: "Major museum in Ueno.",
+        kid_appeal_score: 7,
+        parent_appeal_score: 8,
+        confidence_score: 0.9,
+        verification_status: "verified",
+        times_seen: 4,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "attr-urayasu-1",
+        city_id: "city-urayasu",
+        canonical_name: "Tokyo Disneyland",
+        category: "theme_parks",
+        short_summary: "Family theme park.",
+        kid_appeal_score: 10,
+        parent_appeal_score: 8,
+        confidence_score: 0.95,
+        verification_status: "verified",
+        times_seen: 8,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "attr-urayasu-2",
+        city_id: "city-urayasu",
+        canonical_name: "Tokyo DisneySea",
+        category: "theme_parks",
+        short_summary: "Marine-themed park.",
+        kid_appeal_score: 9,
+        parent_appeal_score: 9,
+        confidence_score: 0.94,
+        verification_status: "verified",
+        times_seen: 7,
+        last_seen_at: new Date().toISOString(),
+      },
+      {
+        id: "attr-chiba-1",
+        city_id: "city-chiba",
+        canonical_name: "Chiba Zoological Park",
+        category: "wildlife",
+        short_summary: "Large zoo near Tokyo.",
+        kid_appeal_score: 8,
+        parent_appeal_score: 7,
+        confidence_score: 0.88,
+        verification_status: "verified",
+        times_seen: 5,
+        last_seen_at: new Date().toISOString(),
+      },
+    ],
+    verification: [],
+  };
+
+  function makeQuery(table) {
+    const ctx = { filters: [] };
+    const api = {
+      select() { return api; },
+      eq(column, value) {
+        ctx.filters.push((row) => row[column] === value);
+        return api;
+      },
+      ilike(column, value) {
+        const needle = String(value).replace(/%/g, "").toLowerCase();
+        ctx.filters.push((row) => String(row[column] || "").toLowerCase().includes(needle));
+        return api;
+      },
+      in(column, values) {
+        ctx.filters.push((row) => values.includes(row[column]));
+        return api;
+      },
+      neq(column, value) {
+        ctx.filters.push((row) => row[column] !== value);
+        return api;
+      },
+      limit() { return api; },
+      order() { return api; },
+      then(resolve, reject) {
+        const source =
+          table === "cities" ? state.cities :
+          table === "city_attractions" ? state.attractions :
+          state.verification;
+        const rows = source.filter((row) => ctx.filters.every((filter) => filter(row)));
+        return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+      },
+    };
+    return api;
+  }
+
+  const admin = {
+    from(table) {
+      return makeQuery(table);
+    },
+  };
+
+  const service = createAttractionMemoryService({
+    getAdmin: () => admin,
+    resolvePlaceIdentity: async () => null,
+  });
+
+  const results = await service.getPlanningCandidates({
+    destination: "Tokyo, Japan",
+    coords: {
+      displayName: "Tokyo, Japan",
+      countryCode: "JP",
+      lat: 35.6764,
+      lon: 139.65,
+    },
+    countryCode: "JP",
+    childrenAges: [5, 9],
+    requestedActivities: ["theme parks", "museums"],
+    pace: "moderate",
+    maxResults: 12,
+  });
+
+  const names = results.map((row) => row.canonical_name);
+  assert.ok(names.includes("Tokyo National Museum"), "should keep the base city attraction");
+  assert.ok(names.includes("Tokyo Disneyland"), "should supplement with nearby city attractions when the core city is thin");
+  assert.ok(names.includes("Tokyo DisneySea"), "should include multiple nearby-city candidates");
+});
+
 test("backfillCityAttractions resolves missing place ids for legacy rows", async () => {
   const state = {
     cities: [
