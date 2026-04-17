@@ -660,6 +660,74 @@ test("generateTripPlan retries when the raw itinerary repeats the same activitie
   assert.deepEqual(result.dailyItinerary[1].activities, ["b5", "b6", "b7", "b8"]);
 });
 
+test("generateTripPlan returns the best-effort retry when duplicates remain after the quality retry", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const repetitivePlan = JSON.stringify({
+    overview: "Repeated plan",
+    suggestedActivities: [
+      { id: "a1", name: "Waikiki Beach Walk", category: "city", description: "Walk", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Waikiki Aquarium", category: "wildlife", description: "Fish", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Kapiolani Park", category: "parks", description: "Park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a4", name: "Kuhio Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a5", name: "Honolulu Zoo", category: "wildlife", description: "Zoo", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a6", name: "Diamond Head", category: "hiking", description: "Trail", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3", "a4"], meals: { dinner: { name: "Dinner 1" } }, notes: "" },
+      { day: "Day 2", activities: ["a1", "a2", "a5", "a6"], meals: { dinner: { name: "Dinner 2" } }, notes: "" },
+    ],
+    tips: ["Tip 1"],
+  });
+
+  let callCount = 0;
+  const nextResponse = () => {
+    callCount += 1;
+    return repetitivePlan;
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "Hawaii, USA",
+      startDate: "2026-05-21",
+      endDate: "2026-05-22",
+      activities: ["relaxing"],
+      children: [{ age: 2 }],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => nextResponse(),
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: {
+        messages: {
+          create: async () => {
+            throw new Error("repair should not run for a valid but repetitive retry");
+          },
+        },
+      },
+      openaiClient: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: nextResponse() }, finish_reason: "stop" }],
+            }),
+          },
+        },
+      },
+    },
+  );
+
+  assert.equal(callCount, 2, "A repetitive plan should still stop after the quality retry");
+  assert.deepEqual(result.dailyItinerary[0].activities, ["a1", "a2", "a3", "a4"]);
+  assert.deepEqual(result.dailyItinerary[1].activities, ["a1", "a2", "a5", "a6"]);
+});
+
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────
 
 test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedAttractions provided", async () => {

@@ -390,16 +390,40 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
 
       try {
         const secondParsed = parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
-        return assertTripPlanQuality(secondParsed);
+        try {
+          return assertTripPlanQuality(secondParsed);
+        } catch (secondQualityError) {
+          if (secondQualityError.code === "TRIP_PLAN_REPEATS") {
+            log.warn("Trip-plan quality still repetitive after retry; returning best-effort plan", {
+              error: secondQualityError.message,
+            });
+            return secondParsed;
+          }
+          throw secondQualityError;
+        }
       } catch (secondParseError) {
-        log.warn("Trip-plan parse/quality failed (attempt 2), trying repair", { error: secondParseError.message });
+        if (secondParseError.code === "TRIP_PLAN_REPEATS") {
+          throw secondParseError;
+        }
+
+        log.warn("Trip-plan parse failed (attempt 2), trying repair", { error: secondParseError.message });
 
         const repairSource = secondAttempt.responseText || firstAttempt.responseText;
         const repairAttempt = await repairTripPlanJson(repairSource, deps);
 
         try {
           const repaired = parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
-          return assertTripPlanQuality(repaired);
+          try {
+            return assertTripPlanQuality(repaired);
+          } catch (repairQualityError) {
+            if (repairQualityError.code === "TRIP_PLAN_REPEATS") {
+              log.warn("Trip-plan quality still repetitive after repair; returning best-effort plan", {
+                error: repairQualityError.message,
+              });
+              return repaired;
+            }
+            throw repairQualityError;
+          }
         } catch (repairParseError) {
           log.error("Trip-plan parse failed after all 3 attempts", {
             error: repairParseError.message,
