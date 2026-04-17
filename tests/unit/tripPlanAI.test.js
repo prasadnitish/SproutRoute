@@ -727,6 +727,167 @@ test("generateTripPlan returns the best-effort retry when duplicates remain afte
   assert.deepEqual(result.dailyItinerary[1].activities, ["a1", "a2", "a5", "a6"]);
 });
 
+test("generateTripPlan repairs repeated daily activities with unused generated activities before retrying", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const repetitiveButRepairablePlan = JSON.stringify({
+    overview: "Repairable plan",
+    suggestedActivities: [
+      { id: "a1", name: "Waikiki Beach Walk", category: "city", description: "Walk", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Waikiki Aquarium", category: "wildlife", description: "Fish", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Kapiolani Park", category: "parks", description: "Park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a4", name: "Kuhio Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a5", name: "Honolulu Zoo", category: "wildlife", description: "Zoo", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a6", name: "Diamond Head", category: "hiking", description: "Trail", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a7", name: "Ala Moana Regional Park", category: "parks", description: "Park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a8", name: "Bishop Museum", category: "museums", description: "Museum", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3", "a4"], meals: { dinner: { name: "Dinner 1" } }, notes: "" },
+      { day: "Day 2", activities: ["a1", "a2", "a5", "a6"], meals: { dinner: { name: "Dinner 2" } }, notes: "" },
+    ],
+    tips: ["Tip 1"],
+  });
+
+  let callCount = 0;
+  const nextResponse = () => {
+    callCount += 1;
+    return repetitiveButRepairablePlan;
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "Hawaii, USA",
+      startDate: "2026-05-21",
+      endDate: "2026-05-22",
+      activities: ["relaxing"],
+      children: [{ age: 2 }],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => nextResponse(),
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: {
+        messages: {
+          create: async () => {
+            throw new Error("repair should resolve duplicates before retrying the model");
+          },
+        },
+      },
+      openaiClient: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: nextResponse() }, finish_reason: "stop" }],
+            }),
+          },
+        },
+      },
+    },
+  );
+
+  assert.equal(callCount, 1, "unused generated activities should repair repeats without a second model call");
+  assert.deepEqual(result.dailyItinerary[1].activities, ["a7", "a8", "a5", "a6"]);
+});
+
+test("generateTripPlan repairs repeated daily activities with cached shortlist attractions when the model runs out of unique items", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const repetitivePlan = JSON.stringify({
+    overview: "Repeated plan",
+    suggestedActivities: [
+      { id: "a1", name: "Tokyo Cruise Asakusa Pier", category: "city", description: "Cruise", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Nakamise Shopping Street", category: "shopping", description: "Street", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Unicorn Gundam", category: "entertainment", description: "Robot", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a4", name: "Odaiba Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a5", name: "teamLab Planets TOKYO DMM", category: "museums", description: "Digital art", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a6", name: "Fish Market Tsukiji Outer Market", category: "dining", description: "Food", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3", "a4"], meals: { dinner: { name: "Dinner 1" } }, notes: "" },
+      { day: "Day 2", activities: ["a1", "a2", "a5", "a6"], meals: { dinner: { name: "Dinner 2" } }, notes: "" },
+    ],
+    tips: ["Tip 1"],
+  });
+
+  let callCount = 0;
+  const nextResponse = () => {
+    callCount += 1;
+    return repetitivePlan;
+  };
+
+  const result = await generateTripPlan(
+    {
+      destination: "Tokyo, Japan",
+      startDate: "2026-07-10",
+      endDate: "2026-07-11",
+      activities: ["theme_parks"],
+      children: [{ age: 5 }, { age: 9 }],
+      cachedAttractions: [
+        {
+          canonical_name: "Ueno Zoo",
+          category: "wildlife",
+          short_summary: "Large family-friendly zoo in central Tokyo.",
+          why_recommended: "A strong family replacement for a repeated city stop.",
+          timing_tip: "Arrive at opening for the coolest temperatures.",
+          duration_bucket: "2_4h",
+          stroller_friendly: true,
+          indoor_outdoor: "outdoor",
+        },
+        {
+          canonical_name: "National Museum of Nature and Science",
+          category: "museums",
+          short_summary: "Interactive science museum with kid appeal.",
+          why_recommended: "Balances the itinerary with a fresh museum option.",
+          timing_tip: "Good for the afternoon heat.",
+          duration_bucket: "2_4h",
+          stroller_friendly: true,
+          indoor_outdoor: "indoor",
+        },
+      ],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => nextResponse(),
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: {
+        messages: {
+          create: async () => {
+            throw new Error("cached shortlist repair should resolve duplicates before retrying the model");
+          },
+        },
+      },
+      openaiClient: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: nextResponse() }, finish_reason: "stop" }],
+            }),
+          },
+        },
+      },
+    },
+  );
+
+  assert.equal(callCount, 1, "cached shortlist repair should avoid a second model call");
+  assert.ok(result.suggestedActivities.some((activity) => activity.name === "Ueno Zoo"));
+  assert.ok(result.suggestedActivities.some((activity) => activity.name === "National Museum of Nature and Science"));
+  assert.equal(result.dailyItinerary[1].activities.length, 4);
+  assert.notDeepEqual(result.dailyItinerary[1].activities, ["a1", "a2", "a5", "a6"]);
+});
+
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────
 
 test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedAttractions provided", async () => {
