@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
+import { addRecentTrip } from "../utils/recentTrips.js";
 import { analytics } from "../utils/analytics.js";
 import {
   parseInput,
@@ -237,6 +238,11 @@ export function useTrip() {
           if (result.packingList) {
             setPackingList(result.packingList);
           }
+          addRecentTrip({
+            destination: parsed?.destination,
+            startDate: parsed?.startDate,
+            endDate: parsed?.endDate,
+          });
           analytics.tripCompleted(parsed?.destination, fullData.trip?.duration);
           // Only transition if not already on results (destination event handles this)
           if (screenRef.current !== "results") setScreenWithHistory("results");
