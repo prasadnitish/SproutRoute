@@ -1,21 +1,15 @@
 import { useState, useEffect } from "react";
 import DayTabs from "../DayTabs";
 import LoadingEngagement from "../LoadingEngagement";
-
-const CATEGORY_EMOJI = {
-  beach: "\u{1F3D6}", hiking: "\u{1F3D4}", city: "\u{1F3D9}", museums: "\u{1F3DB}",
-  parks: "\u{1F333}", dining: "\u{1F37D}", shopping: "\u{1F6CD}", sports: "\u{26BD}",
-  water: "\u{1F30A}", wildlife: "\u{1F98B}", theme_park: "\u{1F3A2}", camping: "\u{26FA}",
-  cruise: "\u{1F6F3}", shore_excursion: "\u{2693}", spa: "\u{1F9D6}",
-};
+import { Icon, weatherIconName, categoryIconName } from "../Icon.jsx";
 
 function Stars({ rating }) {
   if (!rating) return null;
   const full = Math.floor(rating);
   const half = rating - full >= 0.5;
   return (
-    <span className="text-[11px] text-amber-500 flex items-center gap-0.5">
-      {"★".repeat(full)}{half ? "½" : ""}
+    <span className="text-[12px] text-amber-500 inline-flex items-center gap-0.5">
+      {"\u2605".repeat(full)}{half ? "\u00BD" : ""}
       <span className="text-gray-400 ml-0.5">{rating}</span>
     </span>
   );
@@ -24,53 +18,56 @@ function Stars({ rating }) {
 function PriceLevel({ level }) {
   if (level == null) return null;
   const symbols = "$".repeat(Math.max(1, level));
-  return <span className="text-[10px] text-gray-400">{symbols}</span>;
+  return <span className="text-[11px] text-gray-400">{symbols}</span>;
 }
 
-function PetBadge({ petFriendly, hasPets }) {
+function PetBadge({ petFriendly, hasPets, onOpenSafety }) {
   if (!hasPets) return null;
   if (petFriendly === true) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold bg-meadow-50 text-meadow-700 rounded-full px-1.5 py-0.5">
-        {"\uD83D\uDC3E"} Pet friendly
+      <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold uppercase tracking-wider bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5">
+        <Icon name="paw" size={10} /> Pet OK
       </span>
     );
   }
   if (petFriendly === false) {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[10px] font-medium bg-amber-50 text-amber-600 rounded-full px-1.5 py-0.5">
-        {"\u26A0\uFE0F"} No pets
-      </span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onOpenSafety?.(); }}
+        className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold uppercase tracking-wider bg-amber-50 text-amber-700 rounded-full px-2 py-0.5 hover:bg-amber-100 transition"
+      >
+        <Icon name="warning" size={10} /> No pets
+      </button>
     );
   }
   return null;
 }
 
-function DaycareSuggestion() {
+function DaycareSuggestion({ onOpenSafety }) {
   return (
-    <div className="flex gap-3 p-3 rounded-xl border border-amber-100 bg-amber-50/40">
-      <div className="flex flex-col items-center flex-shrink-0 w-14">
-        <span className="text-lg">{"\uD83D\uDC3E"}</span>
-      </div>
+    <button
+      onClick={onOpenSafety}
+      className="w-full flex gap-3 p-3 rounded-xl border border-amber-200 bg-amber-50/60 text-left hover:bg-amber-50 transition"
+    >
+      <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 inline-flex items-center justify-center flex-shrink-0">
+        <Icon name="paw" size={14} />
+      </span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-amber-700">Pet daycare suggestion</p>
-        <p className="text-[10px] text-amber-600 mt-0.5">
-          This day has several no-pets activities. Consider booking a nearby pet daycare
-          or pet-sitting service so your furry friend is well cared for.
+        <p className="text-[13px] font-semibold text-amber-900">Pet daycare suggested</p>
+        <p className="text-[13px] text-amber-800 mt-0.5 leading-snug">
+          This day has several no-pet activities. Check safety tab for daycare options.
         </p>
       </div>
-    </div>
+      <Icon name="arrowRight" size={14} className="text-amber-700 mt-0.5" />
+    </button>
   );
 }
 
-function ActivityCard({ activity, onTap, hasPets }) {
+function ActivityCard({ activity, onTap, hasPets, onOpenSafety }) {
   const isMeal = activity.isMeal || activity.status === "meal";
   const isClosed = activity.status === "closed";
   const name = activity.name || activity.title || "Activity";
-  const mealEmojis = { breakfast: "\u{2615}", lunch: "\u{1F37D}", dinner: "\u{1F377}" };
-  const emoji = isMeal
-    ? (mealEmojis[activity.mealType] || "\u{1F37D}")
-    : (activity.emoji || CATEGORY_EMOJI[activity.category] || "\u{1F3AF}");
+  const iconName = isMeal ? "food" : categoryIconName(activity.category);
   const enriched = activity.enriched;
   const photoUrl = enriched?.photos?.[0];
 
@@ -79,112 +76,117 @@ function ActivityCard({ activity, onTap, hasPets }) {
       role="button"
       tabIndex={0}
       onClick={() => onTap?.(activity)}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onTap?.(activity); } }}
-      aria-label={`View details for ${activity.name || activity.title || "activity"}`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onTap?.(activity);
+        }
+      }}
+      aria-label={`View details for ${name}`}
       className={`relative flex gap-3 p-3 rounded-xl border transition cursor-pointer ${
         isClosed
-          ? "border-red-100 bg-red-50/50 opacity-70"
+          ? "border-red-100 bg-red-50/50 opacity-75"
           : isMeal
-            ? "border-amber-100 bg-amber-50/30 hover:bg-amber-50"
-            : "border-transparent hover:bg-meadow-50 hover:border-meadow-200"
+            ? "border-amber-100 bg-amber-50/40 hover:bg-amber-50"
+            : "border-transparent hover:bg-meadow-50/60 hover:border-meadow-200"
       }`}
     >
-      {/* Timeline dot */}
+      {/* Timeline / thumbnail rail */}
       <div className="flex flex-col items-center flex-shrink-0 w-14">
         {activity.scheduledStart && (
-          <span className={`text-xs font-bold ${isMeal ? "text-amber-600" : "text-meadow-600"}`}>
+          <span className={`text-[13px] font-semibold ${isMeal ? "text-amber-700" : "text-meadow-700"}`}>
             {activity.scheduledStart}
           </span>
         )}
-        {/* Thumbnail or emoji */}
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg mt-1 overflow-hidden ${
-          photoUrl ? "" : "bg-gray-100"
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center mt-1 overflow-hidden ${
+          photoUrl ? "" : isMeal ? "bg-amber-100 text-amber-700" : "bg-meadow-50 text-meadow-700"
         }`}>
           {photoUrl ? (
             <img src={photoUrl} alt={name} className="w-full h-full object-cover rounded-lg" />
           ) : (
-            emoji
+            <Icon name={iconName} size={18} />
           )}
         </div>
         {activity.scheduledEnd && (
-          <span className="text-[10px] text-gray-400 mt-0.5">
-            {activity.scheduledEnd}
-          </span>
+          <span className="text-[11px] text-gray-400 mt-1">{activity.scheduledEnd}</span>
         )}
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        {/* Meal type badge — prominent label above restaurant name */}
         {isMeal && activity.mealType && (
-          <span className="inline-block text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white rounded px-2 py-0.5 mb-1">
+          <span className="inline-block text-[11px] font-mono font-bold uppercase tracking-wider bg-amber-500 text-white rounded px-2 py-0.5 mb-1">
             {activity.mealType}
           </span>
         )}
 
         <div className="flex items-center gap-2 flex-wrap">
-          <p className={`font-bold text-sm ${isClosed ? "text-red-700 line-through" : "text-gray-900"}`}>
+          <p className={`font-semibold text-[15px] leading-tight ${isClosed ? "text-red-700 line-through" : "text-gray-900"}`}>
             {name}
           </p>
           {enriched && <Stars rating={enriched.rating} />}
           {enriched && <PriceLevel level={enriched.priceLevel} />}
-          <PetBadge petFriendly={activity.petFriendly} hasPets={hasPets} />
+          <PetBadge petFriendly={activity.petFriendly} hasPets={hasPets} onOpenSafety={onOpenSafety} />
         </div>
 
-        {/* Category label for activities */}
+        {/* Category chip */}
         {!isMeal && activity.category && (
-          <span className="inline-block text-[10px] font-semibold bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 mt-0.5 capitalize">
-            {activity.category.replace(/_/g, " ")}
+          <span className="inline-block text-[11px] font-mono font-semibold uppercase tracking-wider bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 mt-1 capitalize">
+            {String(activity.category).replace(/_/g, " ")}
           </span>
         )}
 
-        {/* Cuisine tag + note for meals */}
         {isMeal && activity.cuisine && (
-          <span className="inline-block text-[10px] bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 mt-0.5">
+          <span className="inline-block text-[11px] font-mono font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 rounded-full px-2 py-0.5 mt-1">
             {activity.cuisine}
           </span>
         )}
         {isMeal && activity.note && (
-          <p className="text-xs text-amber-600/80 mt-0.5">{activity.note}</p>
+          <p className="text-[13px] text-amber-800/90 mt-1">{activity.note}</p>
         )}
 
+        {/* Description — promoted to 13px content floor (F6) */}
         {activity.description && !isMeal && (
-          <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">
+          <p className="text-[13px] text-gray-600 mt-1 line-clamp-2 leading-snug">
             {activity.description}
           </p>
         )}
 
+        {/* Why this fits — body copy, not metadata (F6) */}
         {activity.whyRecommended && !isMeal && (
-          <p className="text-[11px] text-meadow-700 mt-1 line-clamp-2">
-            Why this fits: {activity.whyRecommended}
+          <p className="text-[13px] text-meadow-800 mt-1 line-clamp-2 leading-snug">
+            <span className="font-semibold">Why this fits: </span>
+            {activity.whyRecommended}
           </p>
         )}
 
-        {/* Enriched details row */}
-        {enriched?.address && (
-          <p className="text-[10px] text-gray-400 mt-1 truncate">
-            {"\u{1F4CD}"} {enriched.address}
-          </p>
+        {/* Secondary metadata row — kept at 12-13px, no longer below floor */}
+        {(enriched?.address || activity.openingHours) && (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+            {enriched?.address && (
+              <p className="text-[12px] text-gray-500 inline-flex items-center gap-1 truncate max-w-full">
+                <Icon name="pin" size={11} className="text-gray-400" />
+                <span className="truncate">{enriched.address}</span>
+              </p>
+            )}
+            {activity.openingHours && (
+              <p className="text-[12px] text-gray-500 inline-flex items-center gap-1">
+                <Icon name="clock" size={11} className="text-gray-400" /> Open {activity.openingHours}
+              </p>
+            )}
+          </div>
         )}
 
-        {activity.openingHours && (
-          <p className="text-[10px] text-gray-400">
-            {"\u{1F552}"} Open {activity.openingHours}
-          </p>
-        )}
-
-        {/* Warning */}
         {activity.warning && (
-          <p className="text-[10px] text-amber-600 font-medium mt-1">
-            {"\u{26A0}"} {activity.warning}
+          <p className="text-[13px] text-amber-700 font-medium mt-1 inline-flex items-center gap-1">
+            <Icon name="warning" size={12} /> {activity.warning}
           </p>
         )}
 
-        {/* Duration chip */}
         {activity.duration && !isMeal && (
-          <span className="inline-block text-[10px] bg-gray-100 text-gray-500 rounded-full px-2 py-0.5 mt-1">
+          <span className="inline-block text-[11px] font-mono font-semibold uppercase tracking-wider bg-gray-100 text-gray-600 rounded-full px-2 py-0.5 mt-1.5">
             {activity.duration >= 60
-              ? `${Math.round(activity.duration / 60 * 10) / 10}h`
+              ? `${Math.round((activity.duration / 60) * 10) / 10}h`
               : `${activity.duration}min`}
           </span>
         )}
@@ -196,14 +198,16 @@ function ActivityCard({ activity, onTap, hasPets }) {
 function TripTips({ tips }) {
   if (!tips || tips.length === 0) return null;
   return (
-    <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4">
-      <p className="text-xs uppercase tracking-wide font-semibold text-amber-700 mb-2">
-        {"\u{1F4A1}"} Trip Tips
+    <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.15em] text-amber-800 mb-2 inline-flex items-center gap-1.5">
+        <Icon name="sparkle" size={12} /> Trip tips
       </p>
       <ul className="space-y-1.5">
         {tips.map((tip, i) => (
-          <li key={i} className="flex gap-2 text-sm text-gray-700">
-            <span className="text-amber-500 flex-shrink-0">{"\u2022"}</span>
+          <li key={i} className="flex gap-2 text-[13px] text-gray-800 leading-snug">
+            <span className="text-amber-500 flex-shrink-0 mt-0.5">
+              <Icon name="circle" size={4} />
+            </span>
             <span>{tip}</span>
           </li>
         ))}
@@ -225,6 +229,7 @@ export default function ItineraryTile({
   destination = "",
   tripDuration = 0,
   childCount = 0,
+  onOpenSafety,
 }) {
   const [activeDay, setActiveDay] = useState(0);
 
@@ -238,10 +243,8 @@ export default function ItineraryTile({
     }
   };
 
-  // Use scheduled data if available, fall back to raw itinerary
   const days = scheduledItinerary || dailyItinerary;
 
-  // Notify parent of initial day's activities for the route map
   useEffect(() => {
     if (days?.length > 0 && onDayChange) {
       const day = days[0];
@@ -284,95 +287,98 @@ export default function ItineraryTile({
   const dayForecast = forecast?.[activeDay];
   const warnings = isScheduled ? (currentDay?.warnings || []) : [];
 
+  const dayCondition =
+    dayForecast?.conditions ?? dayForecast?.condition ?? dayForecast?.shortForecast ?? "";
+  const dayHi = dayForecast?.high ?? dayForecast?.highTemp ?? dayForecast?.temperature;
+  const dayLo = dayForecast?.low ?? dayForecast?.lowTemp;
+
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4">
+    <section className="bg-white border border-gray-200 rounded-2xl p-4">
       {/* Label */}
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600">
-          {"\u{1F4C5}"} Itinerary
+        <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.15em] text-gray-500 inline-flex items-center gap-1.5">
+          <Icon name="calendar" size={12} /> Itinerary
         </p>
         {isScheduled && (
-          <span className="text-[10px] bg-meadow-50 text-meadow-600 rounded-full px-2 py-0.5">
-            {"\u{2705}"} Verified hours
+          <span className="text-[11px] font-mono font-semibold uppercase tracking-wider bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 inline-flex items-center gap-1">
+            <Icon name="check" size={10} /> Verified hours
           </span>
         )}
       </div>
 
-      {/* Day tabs */}
       <DayTabs days={dayTabs} activeDay={activeDay} onSelectDay={handleDayChange} />
 
-      {/* Trip tips — highlighted at top, right after tabs */}
       {activeDay === 0 && <TripTips tips={tips} />}
 
-      {/* Loading indicator for additional chunks */}
       {totalChunks > 1 && receivedChunks < totalChunks && (
-        <div className="flex items-center gap-2 mt-1 mb-1 text-xs text-meadow-600 animate-pulse">
+        <div className="flex items-center gap-2 mt-2 mb-1 text-[12px] text-meadow-700">
           <span className="inline-block w-3 h-3 border-2 border-meadow-500 border-t-transparent rounded-full animate-spin" />
-          Loading more days ({receivedChunks}/{totalChunks})...
+          Loading more days ({receivedChunks}/{totalChunks})…
         </div>
       )}
 
-      {/* Day header */}
-      <div className="flex items-center gap-2 mt-3 mb-2">
-        {currentDay.date && (
-          <span className="text-sm font-medium text-gray-700">
-            {formatDayLabel(currentDay.date, activeDay)}
-          </span>
-        )}
+      {/* Day header — weather folded in (F4) */}
+      <div className="flex items-center justify-between gap-2 mt-3 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {currentDay.date && (
+            <span className="text-[14px] font-semibold text-gray-800 truncate">
+              {formatDayLabel(currentDay.date, activeDay)}
+            </span>
+          )}
+        </div>
         {dayForecast && (
-          <span className="text-xs text-gray-400">
-            {dayForecast.high ?? dayForecast.highTemp ?? ""}
-            {dayForecast.high != null || dayForecast.highTemp != null ? "\u00B0" : ""}
-          </span>
+          <div className="flex items-center gap-1.5 text-[12px] text-gray-600 whitespace-nowrap">
+            <Icon name={weatherIconName(dayCondition)} size={14} className="text-gray-500" />
+            {dayHi != null && (
+              <span className="font-semibold">
+                {dayHi}&deg;
+                {dayLo != null && <span className="text-gray-400 font-normal">/{dayLo}&deg;</span>}
+              </span>
+            )}
+            {dayCondition && <span className="text-gray-500">{dayCondition}</span>}
+          </div>
         )}
       </div>
 
-      {/* Day notes/highlights — PROMINENT at top */}
       {currentDay.notes && (
-        <div className="bg-meadow-50 border border-meadow-200 rounded-xl p-3 mb-3">
-          <p className="text-sm text-meadow-800 font-medium">
-            {"\u{1F4CC}"} {currentDay.notes}
+        <div className="bg-meadow-50 border border-meadow-200 rounded-xl p-3 mb-3 inline-flex items-start gap-2 w-full">
+          <Icon name="pin" size={14} className="text-meadow-700 mt-0.5" />
+          <p className="text-[13px] text-meadow-900 font-medium leading-snug">{currentDay.notes}</p>
+        </div>
+      )}
+
+      {warnings.filter((w) => w.type === "closed").length > 0 && (
+        <div className="bg-red-50 border border-red-100 rounded-lg p-2 mb-2 inline-flex items-center gap-2 w-full">
+          <Icon name="warning" size={13} className="text-red-600" />
+          <p className="text-[13px] text-red-700 font-medium">
+            {warnings.filter((w) => w.type === "closed").length} activity(ies) closed on this day
           </p>
         </div>
       )}
 
-      {/* Day-level warnings */}
-      {warnings.filter(w => w.type === "closed").length > 0 && (
-        <div className="bg-red-50 border border-red-100 rounded-lg p-2 mb-2">
-          <p className="text-xs text-red-600 font-medium">
-            {"\u{26A0}"} {warnings.filter(w => w.type === "closed").length} activity(ies) closed on this day
-          </p>
+      {hasPets && activities.filter((a) => a.petFriendly === false).length >= 2 && (
+        <div className="mb-2">
+          <DaycareSuggestion onOpenSafety={onOpenSafety} />
         </div>
       )}
 
-      {/* Daycare suggestion when 2+ non-pet-friendly activities in a day */}
-      {hasPets &&
-        activities.filter((a) => a.petFriendly === false).length >= 2 && (
-          <DaycareSuggestion />
-        )}
-
-      {/* Activities timeline */}
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {activities.map((activity, i) => (
           <ActivityCard
             key={i}
             activity={activity}
             onTap={onActivityTap}
             hasPets={hasPets}
+            onOpenSafety={onOpenSafety}
           />
         ))}
       </div>
 
-      {/* Notes moved to top of day — see line 328 */}
-
-      {/* Hint */}
-      {activities.length > 0 && !activities.every(a => a.isMeal) && (
-        <p className="text-xs text-gray-400 text-center mt-3">
+      {activities.length > 0 && !activities.every((a) => a.isMeal) && (
+        <p className="text-[12px] text-gray-400 text-center mt-3">
           &uarr; Tap any activity for details
         </p>
       )}
-
-      {/* Tips moved to top — see after DayTabs */}
-    </div>
+    </section>
   );
 }
