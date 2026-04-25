@@ -15,24 +15,24 @@ const VIBES = [
 
 const EXAMPLES = [
   {
-    key: "maui",
-    title: "Maui with 2 kids",
-    sub: "Apr 12–19 · beach week",
-    prompt: "Beach week in Maui, Hawaii from April 12 to April 19 with 2 kids age 5 and 8",
+    key: "city-weekend",
+    title: "Short city weekend",
+    sub: "Next weekend · family of 4",
+    prompt: "Short city break in New York next weekend with 2 kids age 5 and 8",
+    icon: "city",
+  },
+  {
+    key: "beach-month",
+    title: "Beach reset",
+    sub: "Next month · toddler-friendly",
+    prompt: "Beach trip to San Diego next month with a toddler and relaxed food stops",
     icon: "beach",
   },
   {
-    key: "yellowstone",
-    title: "Yellowstone road trip",
-    sub: "5 days · Jun · family of 4",
-    prompt: "5-day road trip from Denver to Yellowstone in June, two kids ages 6 and 9",
-    icon: "mountain",
-  },
-  {
     key: "tokyo",
-    title: "Tokyo, one week",
-    sub: "International · no kids",
-    prompt: "One-week city break in Tokyo, Japan in October, just two adults",
+    title: "Tokyo in winter",
+    sub: "Winter · no kids",
+    prompt: "One-week city break in Tokyo, Japan in winter, just two adults",
     icon: "city",
   },
 ];

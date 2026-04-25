@@ -29,6 +29,13 @@ test.describe("InputScreen", () => {
     await expect(page.getByRole("button", { name: /city break/i })).toBeVisible();
   });
 
+  test("suggested trips use relative timing instead of fixed calendar dates", async ({ page }) => {
+    await expect(page.getByRole("button", { name: /next weekend/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /next month/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /winter/i })).toBeVisible();
+    await expect(page.getByText(/Apr 12|Apr 19|June 10|June 15/i)).toHaveCount(0);
+  });
+
   test("clicking a chip pre-fills the textarea", async ({ page }) => {
     await page.getByRole("button", { name: /beach trip/i }).click();
     const value = await page.locator("textarea").inputValue();
