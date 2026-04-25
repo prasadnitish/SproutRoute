@@ -8,6 +8,7 @@
 
 import type { V1RequestBase, GuidanceMode } from "./api.js";
 import type { Pet } from "./pet.js";
+import type { TripShape } from "./tripIntent.js";
 
 // ── Children ─────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,43 @@ export interface TripPlanResult {
   suggestedActivities: string[];
   dailyItinerary: ItineraryDay[];
   tips: string[];
+}
+
+// ── Route-Aware Trip Plan ───────────────────────────────────────────────────
+
+export interface RouteStop {
+  id: string;
+  name: string;
+  displayName: string;
+  countryCode: string | null;
+  regionCode: string | null;
+  lat: number | null;
+  lon: number | null;
+  arrivalDate: string;
+  departureDate: string;
+  nights: number;
+  dayStart: number;
+  dayEnd: number;
+  role: "must_visit" | "suggested" | "transit";
+}
+
+export interface TransitLeg {
+  fromStopId: string;
+  toStopId: string;
+  mode: "train" | "flight" | "drive" | "ferry" | "unknown";
+  estimatedHours: number | null;
+  warning?: string;
+}
+
+export interface RoutePlan {
+  tripShape: TripShape;
+  title: string;
+  totalDays: number;
+  optimizationMode: "user_order" | "optimized";
+  stops: RouteStop[];
+  transitLegs: TransitLeg[];
+  warnings: string[];
+  confidence: "high" | "medium" | "low";
 }
 
 /** Resolved trip metadata returned in plan + packing responses */

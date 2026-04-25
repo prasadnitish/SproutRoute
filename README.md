@@ -27,6 +27,7 @@ SproutRoute is a family trip planner built as a full-stack web product, with act
 
 - free-text trip parsing into structured intent
 - progressive trip generation via `/api/v1/trip/stream`
+- multi-stop and whole-country trip planning with route review
 - AI itinerary generation with early results rendering
 - background packing generation and persisted checklist progress
 - general travel safety, child passenger safety, and pet travel guidance
@@ -68,6 +69,6 @@ The web app is deployed on Railway. In production, the backend serves the built 
 
 This is a working web application with active mobile and product-expansion work. The current browser hot path is:
 
-`InputScreen -> useTrip.submitTrip() -> /api/v1/trip/parse-input -> /api/v1/trip/stream -> ResultsScreen`
+`InputScreen -> useTrip.submitTrip() -> /api/v1/trip/parse-input -> optional RouteReviewPanel -> /api/v1/trip/stream -> ResultsScreen`
 
 Packing and safety data continue loading in the background after the first results render.
