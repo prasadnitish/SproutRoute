@@ -112,6 +112,11 @@ export function useTrip() {
         return;
       }
 
+      if (["multi_stop", "country_tour"].includes(parsedWithContext.tripShape)) {
+        markStep("weather", "idle");
+        return;
+      }
+
       await generateTrip(parsedWithContext);
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -123,6 +128,24 @@ export function useTrip() {
   const selectDestination = useCallback(async (destinationName) => {
     if (!parsedInput) return;
     const updated = { ...parsedInput, destination: destinationName, suggestedDestinations: [] };
+    setParsedInput(updated);
+    try {
+      await generateTrip(updated);
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      setError(err.message || "Something went wrong");
+    }
+  }, [parsedInput]);
+
+  const confirmRouteTrip = useCallback(async (routeDraft = {}) => {
+    if (!parsedInput) return;
+    const updated = {
+      ...parsedInput,
+      ...routeDraft,
+      tripShape: routeDraft.tripShape || parsedInput.tripShape,
+      stops: routeDraft.stops || parsedInput.stops || [],
+      countryTour: routeDraft.countryTour !== undefined ? routeDraft.countryTour : parsedInput.countryTour || null,
+    };
     setParsedInput(updated);
     try {
       await generateTrip(updated);
@@ -160,6 +183,9 @@ export function useTrip() {
       celebrationContext: parsed.celebrationContext || null,
       specialNotes: parsed.specialNotes || [],
       extraContext: parsed.extraContext || [],
+      tripShape: parsed.tripShape || "single_destination",
+      stops: parsed.stops || [],
+      countryTour: parsed.countryTour || null,
       savedProfile: parsed.savedProfile || null,
     };
 
@@ -170,6 +196,48 @@ export function useTrip() {
       if (signal?.aborted) return;
 
       switch (event.type) {
+        case "route":
+          markStep("weather", "active");
+          setTripData(prev => ({
+            ...prev,
+            trip: event.data.trip,
+            routePlan: event.data.routePlan,
+            parsed,
+          }));
+          setScreenWithHistory("results");
+          analytics.tripResultsViewed(event.data?.routePlan?.title || parsed?.destination, Date.now() - (abortRef.current?._startTime || Date.now()));
+          break;
+
+        case "stop-weather":
+          markStep("weather", "active");
+          setTripData(prev => ({
+            ...prev,
+            stopWeather: {
+              ...(prev?.stopWeather || {}),
+              [event.data.stop.id]: event.data.weather,
+            },
+          }));
+          break;
+
+        case "stop-itinerary":
+          markStep("itinerary", "active");
+          setTripData(prev => ({
+            ...prev,
+            stopItineraries: {
+              ...(prev?.stopItineraries || {}),
+              [event.data.stop.id]: event.data.tripPlan,
+            },
+            scheduledByStop: event.data.scheduledItinerary
+              ? {
+                ...(prev?.scheduledByStop || {}),
+                [event.data.stop.id]: event.data.scheduledItinerary,
+              }
+              : prev?.scheduledByStop,
+            tripPlan: event.accumulated?.tripPlan || prev?.tripPlan,
+            scheduledItinerary: event.accumulated?.scheduledItinerary || prev?.scheduledItinerary,
+          }));
+          break;
+
         case "destination":
           markStep("weather", "active");
           // Show results screen IMMEDIATELY with destination data
@@ -231,6 +299,10 @@ export function useTrip() {
             weather: result.weather,
             tripPlan: result.tripPlan,
             scheduledItinerary: result.scheduledItinerary || null,
+            routePlan: result.routePlan || null,
+            stopWeather: result.stopWeather || {},
+            stopItineraries: result.stopItineraries || {},
+            scheduledByStop: result.scheduledByStop || {},
             parsed,
           };
           setTripData(fullData);
@@ -244,6 +316,10 @@ export function useTrip() {
             endDate: parsed?.endDate,
           });
           analytics.tripCompleted(parsed?.destination, fullData.trip?.duration);
+          if (result.routePlan) {
+            markStep("weather", "done");
+            markStep("itinerary", "done");
+          }
           // Only transition if not already on results (destination event handles this)
           if (screenRef.current !== "results") setScreenWithHistory("results");
           break;
@@ -387,6 +463,6 @@ export function useTrip() {
   return {
     screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData,
     progress, error, STEPS,
-    submitTrip, selectDestination, goBack, retryPacking,
+    submitTrip, selectDestination, confirmRouteTrip, goBack, retryPacking,
   };
 }

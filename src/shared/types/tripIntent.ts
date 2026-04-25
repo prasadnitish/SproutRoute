@@ -36,6 +36,27 @@ export interface TripFoodPreferences {
   budget: string | null;
 }
 
+// ── Route-aware trip intent ────────────────────────────────────────────────
+
+export type TripShape = "single_destination" | "multi_stop" | "country_tour";
+
+export interface ParsedTripStop {
+  id: string;
+  name: string;
+  countryCode?: string | null;
+  role: "must_visit" | "suggested" | "transit";
+  requestedNights?: number | null;
+  mustInclude?: boolean;
+  notes?: string[];
+}
+
+export interface ParsedCountryTour {
+  country: string;
+  countryCode?: string | null;
+  requestedRegions: string[];
+  suggestedStopCount?: number | null;
+}
+
 // ── Expanded parsed trip intent ─────────────────────────────────────────────
 
 export interface ParsedTripIntent {
@@ -62,6 +83,9 @@ export interface ParsedTripIntent {
   extraContext: string[];         // Anything useful that doesn't map cleanly
   unresolvedQuestions: string[];  // Things the parser couldn't determine
   detectedRegion?: string | null; // From IP geolocation
+  tripShape: TripShape;
+  stops: ParsedTripStop[];
+  countryTour: ParsedCountryTour | null;
 }
 
 // ── Trip request record (for persistence) ───────────────────────────────────

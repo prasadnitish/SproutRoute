@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import DestinationPicker from "../components/DestinationPicker";
 import { Icon } from "../components/Icon.jsx";
+import RouteReviewPanel from "../components/RouteReviewPanel.jsx";
 
 const STEP_LABELS = {
   resolve: "Understanding your trip",
@@ -71,6 +72,7 @@ export default function GeneratingScreen({
   steps,
   error,
   onPickDestination,
+  onConfirmRoute,
   onGoBack,
 }) {
   const factIndex = useMemo(() => Math.floor(Math.random() * WAIT_FACTS.length), []);
@@ -98,6 +100,12 @@ export default function GeneratingScreen({
   const dateLine = parsedInput?.startDate
     ? `${parsedInput.startDate}${parsedInput.endDate ? ` — ${parsedInput.endDate}` : ""}`
     : null;
+
+  const needsRouteReview =
+    parsedInput &&
+    ["multi_stop", "country_tour"].includes(parsedInput.tripShape) &&
+    progress?.itinerary !== "active" &&
+    progress?.itinerary !== "done";
 
   return (
     <div className="max-w-xl mx-auto px-4 py-10 md:py-14 flex flex-col gap-6">
@@ -135,7 +143,16 @@ export default function GeneratingScreen({
         </div>
       )}
 
+      {needsRouteReview && (
+        <RouteReviewPanel
+          parsedInput={parsedInput}
+          onContinue={onConfirmRoute}
+          onBack={onGoBack}
+        />
+      )}
+
       {/* While you wait — useful fact (F3) */}
+      {!needsRouteReview && (
       <div className="flex items-start gap-3 bg-meadow-50/60 border border-meadow-200 rounded-2xl p-4">
         <span className="mt-0.5 text-meadow-700">
           <Icon name="sparkle" size={18} />
@@ -149,6 +166,7 @@ export default function GeneratingScreen({
           </p>
         </div>
       </div>
+      )}
 
       {error && (
         <div

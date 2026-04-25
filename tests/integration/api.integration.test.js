@@ -46,6 +46,56 @@ async function invokeRoute(app, method, path, body) {
   return res;
 }
 
+async function invokeStreamRoute(app, body) {
+  const routeStack = app._router?.stack || [];
+  const routeLayer = routeStack.find(
+    (layer) =>
+      layer.route &&
+      layer.route.path === "/api/v1/trip/stream" &&
+      layer.route.methods.post,
+  );
+
+  if (!routeLayer) throw new Error("Route not found: POST /api/v1/trip/stream");
+
+  const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+  const writes = [];
+  const req = {
+    method: "POST",
+    path: "/api/v1/trip/stream",
+    body,
+    headers: {},
+    ip: "127.0.0.1",
+    reqId: "test-stream",
+    on() {},
+    off() {},
+  };
+  const res = {
+    headers: {},
+    writableEnded: false,
+    destroyed: false,
+    setHeader(name, value) { this.headers[name] = value; },
+    write(chunk) { writes.push(String(chunk)); return true; },
+    end() { this.writableEnded = true; },
+    on() {},
+    off() {},
+  };
+
+  await handler(req, res);
+  return { writes, body: writes.join("") };
+}
+
+function parseSseEvents(body) {
+  return body
+    .split("\n\n")
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const event = block.match(/^event: (.+)$/m)?.[1];
+      const data = block.match(/^data: (.+)$/m)?.[1];
+      return { event, data: data ? JSON.parse(data) : null };
+    });
+}
+
 test.afterEach(() => {
   process.env.ANTHROPIC_API_KEY = ORIGINAL_API_KEY;
 });
@@ -555,4 +605,57 @@ test("POST /api/v1/safety/pet-travel-check returns airline guidance with DI mock
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.airlineGuidance[0].pet, "TestDog");
+});
+
+test("POST /api/v1/trip/stream emits route before stop-level weather and itinerary for multi-stop trips", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({
+    enableRequestLogging: false,
+    geocodeLocationFn: async (destination) => ({
+      lat: destination === "Amsterdam" ? 52.37 : 52.52,
+      lon: destination === "Amsterdam" ? 4.9 : 13.4,
+      displayName: `${destination}, Test`,
+      countryCode: destination === "Amsterdam" ? "NL" : "DE",
+    }),
+    getWeatherForecastFn: async (_lat, _lon, countryCode, startDate) => ({
+      summary: `${countryCode} forecast`,
+      forecast: [{ date: startDate, high: 70, condition: "Clear" }],
+    }),
+    generateTripPlanChunkedFn: async (tripInput, _weather, onChunk) => {
+      const plan = {
+        overview: `Plan for ${tripInput.destination}`,
+        suggestedActivities: [{ id: "museum", name: `${tripInput.destination} Museum`, category: "museum" }],
+        dailyItinerary: [{ day: "Day 1", activities: ["museum"], notes: "" }],
+        tips: [`Tip for ${tripInput.destination}`],
+      };
+      onChunk(plan, { chunk: 1, totalChunks: 1, dayOffset: tripInput.dayOffset || 0 });
+      return plan;
+    },
+  });
+
+  const result = await invokeStreamRoute(app, {
+    destination: "Europe multi-city trip",
+    startDate: "2026-06-01",
+    endDate: "2026-06-05",
+    adults: 2,
+    childrenAges: [],
+    activities: ["international"],
+    tripShape: "multi_stop",
+    stops: [
+      { id: "amsterdam", name: "Amsterdam", role: "must_visit" },
+      { id: "berlin", name: "Berlin", role: "must_visit" },
+    ],
+  });
+
+  const events = parseSseEvents(result.body);
+  assert.deepEqual(events.slice(0, 4).map((entry) => entry.event), [
+    "route",
+    "stop-weather",
+    "stop-itinerary",
+    "stop-weather",
+  ]);
+  assert.equal(events[0].data.routePlan.stops.length, 2);
+  assert.equal(events[0].data.routePlan.stops[0].name, "Amsterdam");
+  assert.equal(events.find((entry) => entry.event === "done").data.routePlan.stops[1].name, "Berlin");
 });
