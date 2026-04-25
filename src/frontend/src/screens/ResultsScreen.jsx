@@ -4,6 +4,7 @@ import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
 import PetSafetyTile from "../components/mosaic/PetSafetyTile";
+import RouteTimelineTile from "../components/mosaic/RouteTimelineTile";
 import ActivityDetailPanel from "../components/ActivityDetailPanel";
 import PackingChecklist from "../components/PackingChecklist";
 import { Icon } from "../components/Icon.jsx";
@@ -168,6 +169,8 @@ export default function ResultsScreen({
   const [selectedActivity, setSelectedActivity] = useState(null);
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
+  const routePlan = tripData?.routePlan || null;
+  const stopWeather = tripData?.stopWeather || {};
   const rawItinerary =
     tripData?.tripPlan?.dailyItinerary ||
     tripData?.itinerary?.dailyItinerary ||
@@ -236,6 +239,16 @@ export default function ResultsScreen({
             parsedInput={parsedInput}
             onEdit={onGoBack}
           />
+
+          {routePlan && (
+            <div className="mt-3">
+              <RouteTimelineTile
+                routePlan={routePlan}
+                stopWeather={stopWeather}
+                receivedStopCount={Object.keys(tripData?.stopItineraries || {}).length}
+              />
+            </div>
+          )}
 
           {/* Itinerary with weather folded into the day header (F4) */}
           <div className="mt-3">

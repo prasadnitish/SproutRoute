@@ -25,6 +25,8 @@ import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js
 import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMerge.js";
 import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
 import { createAttractionMemoryService } from "./services/attractionMemory.js";
+import { allocateRoute } from "./services/routeAllocator.js";
+import { planRouteStops } from "./services/multiStopPlanner.js";
 import { ensureUserRecord } from "./services/userStore.js";
 import {
   sanitizeString,
@@ -33,7 +35,7 @@ import {
   validateTripData,
 } from "./utils/sanitize.js";
 import { buildShopLinks } from "./utils/affiliateLinks.js";
-import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets } from "./services/inputSafety.js";
+import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets, sanitizeRouteIntent } from "./services/inputSafety.js";
 import { log } from "./utils/logger.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
@@ -256,6 +258,8 @@ export function createApp(deps = {}) {
     generatePackingListFn = generatePackingList,
     generateTripPlanFn = generateTripPlan,
     generateTripPlanChunkedFn = generateTripPlanChunked,
+    allocateRouteFn = allocateRoute,
+    planRouteStopsFn = planRouteStops,
     getCarSeatGuidanceFn = getCarSeatGuidance,
     getTravelAdvisoryFn = getTravelAdvisory,
     getNeighborhoodSafetyFn = getNeighborhoodSafety,
@@ -1135,6 +1139,113 @@ export function createApp(deps = {}) {
           : ["family-friendly", "parks", "city"];
 
       log.info("stream:input", { reqId, destination, startDate, endDate, childCount: children?.length || 0, petCount: pets?.length || 0 });
+
+      const routeIntent = sanitizeRouteIntent(req.body);
+      const isRouteTrip =
+        ["multi_stop", "country_tour"].includes(routeIntent.tripShape) &&
+        (routeIntent.stops.length > 1 || routeIntent.countryTour);
+
+      if (isRouteTrip) {
+        let t0 = Date.now();
+        const routePlan = allocateRouteFn({
+          ...routeIntent,
+          destination,
+          startDate,
+          endDate,
+        });
+        timing.route = Date.now() - t0;
+
+        if (!send("route", {
+          routePlan,
+          trip: {
+            destination,
+            startDate,
+            endDate,
+            duration: routePlan.totalDays,
+            activities: safeActivities,
+            children,
+            pets,
+          },
+        })) {
+          throwIfClientClosed();
+        }
+
+        const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+        const planningContext = await resolvePlanningContext(req, {
+          ...sanitizedData,
+          destination,
+        }, foodPreferences);
+
+        t0 = Date.now();
+        let firstStopSent = false;
+        const routeResult = await planRouteStopsFn({
+          routePlan,
+          baseTrip: {
+            activities: safeActivities,
+            children,
+            pets,
+            foodPreferences,
+            plannerSummary: planningContext.plannerSummary,
+          },
+          geocodeLocationFn,
+          getWeatherForecastFn,
+          generateTripPlanChunkedFn,
+          scheduleItineraryFn: scheduleItinerary,
+          shouldAbort: isClientClosed,
+          onEvent: (event, payload) => {
+            if (isClientClosed()) return;
+            if (event === "stop-itinerary" && !firstStopSent) {
+              firstStopSent = true;
+              timing.firstStop = Date.now() - t0;
+            }
+            send(event, payload);
+          },
+        });
+
+        throwIfClientClosed();
+        timing.ai = Date.now() - t0;
+        timing.total = Date.now() - streamStart;
+
+        metrics.recordTrip({
+          destination,
+          duration: routePlan.totalDays,
+          timing,
+          childCount: children?.length || 0,
+          childAges: (children || []).map(c => c.age).filter(Boolean),
+          petCount: pets?.length || 0,
+          petTypes: (pets || []).map(p => p.type).filter(Boolean),
+          vibe: safeActivities?.[0] || "",
+          tripShape: routePlan.tripShape,
+          stopCount: routePlan.stops.length,
+          countryCount: new Set(routePlan.stops.map((stop) => stop.countryCode).filter(Boolean)).size,
+          reqId,
+        });
+
+        log.info("stream:route-done", {
+          reqId,
+          destination,
+          stopCount: routePlan.stops.length,
+          timing,
+        });
+
+        send("done", {
+          trip: {
+            destination,
+            startDate,
+            endDate,
+            duration: routePlan.totalDays,
+            activities: safeActivities,
+            children,
+            pets,
+          },
+          routePlan: routeResult.routePlan,
+          stopWeather: routeResult.stopWeather,
+          stopItineraries: routeResult.stopItineraries,
+          tripPlan: routeResult.tripPlan,
+        });
+        res.end();
+        return;
+      }
 
       // Phase 1: Geocode (~1-2s)
       let t0 = Date.now();
