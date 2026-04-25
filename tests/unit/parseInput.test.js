@@ -91,6 +91,66 @@ describe("parseInput", () => {
     assert.deepEqual(result.extraContext, ["first time visiting"]);
   });
 
+  it("parses explicit multi-city prompt into ordered stops", async () => {
+    const result = await parseInput("Europe trip with best friend, cover Amsterdam, Greece, Berlin, Budapest in 10 days", {
+      callAI: async () => JSON.stringify({
+        destination: "Europe multi-city trip",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        vibe: "international",
+        tripShape: "multi_stop",
+        stops: [
+          { id: "amsterdam", name: "Amsterdam", role: "must_visit", mustInclude: true },
+          { id: "greece", name: "Greece", role: "must_visit", mustInclude: true, notes: ["Broad region; confirm city"] },
+          { id: "berlin", name: "Berlin", role: "must_visit", mustInclude: true },
+          { id: "budapest", name: "Budapest", role: "must_visit", mustInclude: true },
+        ],
+        countryTour: null,
+      }),
+    });
+
+    assert.equal(result.tripShape, "multi_stop");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Amsterdam", "Greece", "Berlin", "Budapest"]);
+    assert.equal(result.stops[1].role, "must_visit");
+    assert.equal(result.stops[1].mustInclude, true);
+    assert.deepEqual(result.stops[1].notes, ["Broad region; confirm city"]);
+    assert.equal(result.countryTour, null);
+  });
+
+  it("parses whole-country prompt into country tour metadata and suggested stops", async () => {
+    const result = await parseInput("2 weeks in Japan with food and trains", {
+      callAI: async () => JSON.stringify({
+        destination: "Japan",
+        suggestedDestinations: [],
+        startDate: "2026-11-01",
+        endDate: "2026-11-14",
+        adults: 2,
+        childrenAges: [],
+        vibe: "international",
+        tripShape: "country_tour",
+        stops: [
+          { id: "tokyo", name: "Tokyo", role: "suggested" },
+          { id: "kyoto", name: "Kyoto", role: "suggested" },
+          { id: "osaka", name: "Osaka", role: "suggested" },
+        ],
+        countryTour: {
+          country: "Japan",
+          countryCode: "JP",
+          requestedRegions: ["Tokyo", "Kyoto", "Osaka"],
+          suggestedStopCount: 3,
+        },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Japan");
+    assert.equal(result.countryTour.countryCode, "JP");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto", "Osaka"]);
+  });
+
   it("fills expanded trip intent fields with safe defaults when omitted", async () => {
     const result = await parseInput("simple beach vacation", { callAI: mockAI });
 
@@ -106,5 +166,8 @@ describe("parseInput", () => {
     assert.equal(result.celebrationContext, null);
     assert.deepEqual(result.specialNotes, []);
     assert.deepEqual(result.extraContext, []);
+    assert.equal(result.tripShape, "single_destination");
+    assert.deepEqual(result.stops, []);
+    assert.equal(result.countryTour, null);
   });
 });

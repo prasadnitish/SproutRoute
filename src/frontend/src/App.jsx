@@ -118,6 +118,7 @@ export default function App() {
             steps={trip.STEPS}
             error={trip.error}
             onPickDestination={trip.selectDestination}
+            onConfirmRoute={trip.confirmRouteTrip}
             onGoBack={trip.goBack}
           />
         )}

@@ -32,8 +32,10 @@ flowchart TD
 
     F --> I["ProfileImportModal"]
     G --> J["DestinationPicker"]
+    G --> U["RouteReviewPanel"]
 
     H --> K["HeroTile"]
+    H --> V["RouteTimelineTile"]
     H --> L["WeatherTile"]
     H --> M["ItineraryTile"]
     H --> N["SafetyTile"]
@@ -55,7 +57,10 @@ flowchart LR
     C --> D["POST /api/v1/trip/parse-input"]
     D --> E["backend/services/parseInput.js"]
 
-    B --> F["generateTrip(parsed)"]
+    B --> R{"Multi-stop or country tour?"}
+    R -->|yes| S["RouteReviewPanel confirmation"]
+    R -->|no| F["generateTrip(parsed)"]
+    S --> F
     F --> G["api.streamTripPlan()"]
     G --> H["POST /api/v1/trip/stream"]
     H --> I["geocoding.js"]
@@ -63,9 +68,9 @@ flowchart LR
     H --> K["tripPlanAI.generateTripPlanChunked()"]
     H --> L["itineraryScheduler.scheduleItinerary()"]
 
-    H --> M["SSE: destination"]
-    H --> N["SSE: weather"]
-    H --> O["SSE: itinerary-chunk"]
+    H --> M["SSE: destination or route"]
+    H --> N["SSE: weather or stop-weather"]
+    H --> O["SSE: itinerary-chunk or stop-itinerary"]
     H --> P["SSE: done"]
 
     M --> Q["ResultsScreen opens early"]
@@ -80,6 +85,7 @@ flowchart LR
 - owns screen transitions: `input -> generating -> results`
 - owns persisted trip state via `utils/storage.js`
 - drives the planning pipeline
+- pauses for route review when parsed input is multi-stop or whole-country
 - handles aborts, browser back-button behavior, and background fetches
 - fans results out to `ResultsScreen`
 
@@ -135,6 +141,7 @@ Notes:
 ```mermaid
 flowchart TD
     A["ResultsScreen"] --> B["HeroTile"]
+    A --> M["RouteTimelineTile"]
     A --> C["WeatherTile"]
     A --> D["ItineraryTile"]
     A --> E["SafetyTile"]
@@ -151,6 +158,7 @@ flowchart TD
 ### Important result-screen boundaries
 
 - `ResultsScreen` resolves itinerary shape differences from streamed and non-streamed payloads.
+- `RouteTimelineTile` appears for route-aware trips and tracks stop weather plus loaded stop itineraries.
 - `ItineraryTile` is the main itinerary renderer and progressive-loading surface.
 - `PackingChecklist` owns packing progress, persisted checked state, custom items, and print behavior.
 - `SafetyTile` and `PetSafetyTile` are fed by background API calls that should not block first results paint.
@@ -165,8 +173,9 @@ flowchart TD
 | Activity enrichment | `src/frontend/src/hooks/usePlacesEnrich.js` | On-demand Places fetch + in-memory dedupe |
 | API client | `src/frontend/src/services/api.js` | All HTTP/SSE calls, safe response parsing, retry logic |
 | Input UI | `src/frontend/src/screens/InputScreen.jsx` | Free-text prompt, traveler tags, profile import launch |
-| Generation UI | `src/frontend/src/screens/GeneratingScreen.jsx` | Progress screen + destination picker handoff |
+| Generation UI | `src/frontend/src/screens/GeneratingScreen.jsx`, `src/frontend/src/components/RouteReviewPanel.jsx` | Progress screen, destination picker handoff, route review before expensive planning |
 | Results UI | `src/frontend/src/screens/ResultsScreen.jsx` | Tab shell and tile composition |
+| Route UI | `src/frontend/src/components/mosaic/RouteTimelineTile.jsx` | Multi-stop route timeline, stop progress, transit and warnings |
 | Packing state | `src/frontend/src/components/PackingChecklist.jsx`, `src/frontend/src/utils/checklist.js` | Stable item IDs, progress, custom items, persistence |
 | Browser persistence | `src/frontend/src/utils/storage.js` | Local/session storage helpers and keys |
 | Analytics | `src/frontend/src/utils/analytics.js` | PostHog-style event emission boundaries |
@@ -179,7 +188,7 @@ These are the backend routes that matter most to the browser flow today.
 |---|---|---|---|
 | `useGeolocation` | `GET /api/v1/geo/detect` | IP fallback location | external `ipapi`, request sanitization in `server.js` |
 | `api.parseInput` | `POST /api/v1/trip/parse-input` | Parse natural language into trip intent | `services/parseInput.js`, reverse geocode context via Nominatim |
-| `api.streamTripPlan` | `POST /api/v1/trip/stream` | Main web planning hot path via SSE | `geocoding.js`, `weather.js`, `tripPlanAI.js`, `itineraryScheduler.js`, `profileMerge.js`, `profileContext.js`, `attractionMemory.js` |
+| `api.streamTripPlan` | `POST /api/v1/trip/stream` | Main web planning hot path via SSE; branches to route-aware streaming for multi-stop/country trips | `geocoding.js`, `weather.js`, `tripPlanAI.js`, `itineraryScheduler.js`, `profileMerge.js`, `profileContext.js`, `routeAllocator.js`, `multiStopPlanner.js`, `attractionMemory.js` |
 | `api.getTravelSafety` | `POST /api/safety/travel-tips` | Background general safety | `services/travelSafety.js` |
 | `api.getCarSeatGuidance` | `POST /api/safety/car-seat-check` | Background car-seat guidance | `services/safetyRules.js`, `data/carSeatRules.js` |
 | `api.petTravelCheck` | `POST /api/v1/safety/pet-travel-check` | Background pet travel guidance | `services/petSafety.js`, `data/petAirlineRules.js`, `data/petEntryRules.js` |
@@ -207,7 +216,8 @@ These matter when extending the web app, but they are not the default trip-gener
 ```mermaid
 flowchart TD
     A["/api/v1/trip/stream"] --> B["sanitizeTripData + validateTripData"]
-    B --> C["geocodeLocation()"]
+    B --> R{"tripShape route-aware?"}
+    R -->|no| C["geocodeLocation()"]
     C --> D["getWeatherForecast()"]
     D --> E["resolvePlanningContext()"]
     E --> F["loadCachedAttractionsForTrip()"]
@@ -215,6 +225,12 @@ flowchart TD
     G --> H["scheduleItinerary() per chunk"]
     H --> I["SSE events back to browser"]
     G --> J["persistTripAttractionsInBackground()"]
+    R -->|yes| K["allocateRoute()"]
+    K --> L["SSE: route"]
+    L --> M["planRouteStops()"]
+    M --> N["geocode/weather each stop"]
+    N --> O["generate stop itinerary chunks"]
+    O --> P["SSE: stop-weather / stop-itinerary"]
 ```
 
 ### Key server-side composition points
@@ -267,6 +283,6 @@ Use this section to choose the smallest correct starting point.
 
 If you only remember one chain, remember this:
 
-`main.jsx -> App.jsx -> useTrip.submitTrip() -> /api/v1/trip/parse-input -> /api/v1/trip/stream -> ResultsScreen -> ItineraryTile / SafetyTile / PackingChecklist / ActivityDetailPanel`
+`main.jsx -> App.jsx -> useTrip.submitTrip() -> /api/v1/trip/parse-input -> optional RouteReviewPanel -> /api/v1/trip/stream -> ResultsScreen -> RouteTimelineTile / ItineraryTile / SafetyTile / PackingChecklist / ActivityDetailPanel`
 
 That is the web app’s primary spine.

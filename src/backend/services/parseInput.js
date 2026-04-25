@@ -5,6 +5,8 @@ const fmt = (d) => d.toISOString().split("T")[0];
 const PARSE_MAX_TOKENS = 1200;
 
 const VALID_PACES = new Set(["slow", "moderate", "fast"]);
+const VALID_TRIP_SHAPES = new Set(["single_destination", "multi_stop", "country_tour"]);
+const VALID_STOP_ROLES = new Set(["must_visit", "suggested", "transit"]);
 
 const normalizeStringArray = (value, maxLength = 8) =>
   Array.isArray(value)
@@ -13,6 +15,57 @@ const normalizeStringArray = (value, maxLength = 8) =>
       .filter(Boolean)
       .slice(0, maxLength)
     : [];
+
+const slugifyStopId = (value, index) => {
+  const id = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return id || `stop-${index + 1}`;
+};
+
+function normalizeStops(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((stop, index) => {
+      const source = stop && typeof stop === "object" ? stop : { name: stop };
+      const name = typeof source.name === "string" ? source.name.trim() : String(source.name || "").trim();
+      if (!name) return null;
+      const requestedNights = Number(source.requestedNights);
+      return {
+        id: typeof source.id === "string" && source.id.trim()
+          ? slugifyStopId(source.id, index)
+          : slugifyStopId(name, index),
+        name,
+        ...(source.countryCode ? { countryCode: String(source.countryCode).trim().toUpperCase() } : {}),
+        role: VALID_STOP_ROLES.has(source.role) ? source.role : "must_visit",
+        requestedNights: Number.isFinite(requestedNights) && requestedNights > 0
+          ? Math.floor(requestedNights)
+          : null,
+        mustInclude: source.mustInclude !== false,
+        notes: normalizeStringArray(source.notes, 4),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function normalizeCountryTour(value) {
+  if (!value || typeof value !== "object") return null;
+  const country = typeof value.country === "string" ? value.country.trim() : "";
+  if (!country) return null;
+  const suggestedStopCount = Number(value.suggestedStopCount);
+  return {
+    country,
+    countryCode: value.countryCode ? String(value.countryCode).trim().toUpperCase() : null,
+    requestedRegions: normalizeStringArray(value.requestedRegions, 8),
+    suggestedStopCount: Number.isFinite(suggestedStopCount) && suggestedStopCount > 0
+      ? Math.min(8, Math.floor(suggestedStopCount))
+      : null,
+  };
+}
 
 function defaultDates() {
   const start = new Date();
@@ -56,7 +109,10 @@ Return ONLY valid JSON with these fields:
     "avoidances": [] (e.g. ["no spicy","no seafood","no pork"]),
     "kidFoods": [] (e.g. ["pizza","pasta","chicken nuggets","mac and cheese"]),
     "budget": "budget" | "moderate" | "fine_dining" | null
-  }
+  },
+  "tripShape": "single_destination" | "multi_stop" | "country_tour",
+  "stops": [{"id":"slug","name":"City or region","countryCode":"ISO country code or null","role":"must_visit"|"suggested"|"transit","requestedNights":number or null,"mustInclude":true,"notes":["short warnings or clarifications"]}] or [],
+  "countryTour": {"country":"Country name","countryCode":"ISO country code or null","requestedRegions":["regions or cities"],"suggestedStopCount":number or null} or null
 }
 
 Pet extraction rules:
@@ -75,6 +131,13 @@ Food preference extraction rules:
 - "budget-friendly food" → budget: "budget"
 - "nice restaurants" or "fine dining" → budget: "fine_dining"
 - If no food preferences mentioned, return foodPreferences with all empty arrays and null budget.
+
+Route shape rules:
+- Default tripShape to "single_destination" for normal one-place trips.
+- If the user names 2+ stops/cities/regions to cover, set tripShape to "multi_stop" and preserve every named stop in user order.
+- For "cover Amsterdam, Greece, Berlin, Budapest", return four stops in exactly that order. If a named place is broad like "Greece", keep it as a stop and add a note such as "Broad region; confirm exact city".
+- If the user asks for a whole country trip such as "2 weeks in Japan", set tripShape to "country_tour", countryTour.country to "Japan", and suggest 3-5 realistic stops in stops.
+- Do not drop a user-named place just because it is broad or ambiguous; preserve it and explain the uncertainty in notes.
 
 Date interpretation rules:
 - If the user says "in september" or "in June" without specific dates, default to a 7-day trip starting on the 1st of that month.
@@ -155,6 +218,9 @@ export async function parseInput(text, deps = {}) {
       extraContext: [],
       foodPreferences: emptyFood,
       detectedRegion,
+      tripShape: "single_destination",
+      stops: [],
+      countryTour: null,
     };
   }
 
@@ -179,6 +245,12 @@ export async function parseInput(text, deps = {}) {
       endDate = new Date(new Date(startDate).getTime() + 7 * 86400000).toISOString().split("T")[0];
     }
   }
+
+  const stops = normalizeStops(parsed.stops);
+  const countryTour = normalizeCountryTour(parsed.countryTour);
+  const parsedTripShape = VALID_TRIP_SHAPES.has(parsed.tripShape) ? parsed.tripShape : null;
+  const tripShape = parsedTripShape
+    || (countryTour ? "country_tour" : stops.length > 1 ? "multi_stop" : "single_destination");
 
   return {
     destination: parsed.destination || null,
@@ -211,5 +283,8 @@ export async function parseInput(text, deps = {}) {
       budget: fp.budget || null,
     },
     detectedRegion,
+    tripShape,
+    stops: tripShape === "single_destination" ? [] : stops,
+    countryTour: tripShape === "country_tour" ? countryTour : null,
   };
 }
