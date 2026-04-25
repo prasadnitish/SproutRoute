@@ -134,3 +134,109 @@ test("multi-hop trip shows route review before streaming route-aware results", a
   await expect(page.getByText("Amsterdam Museum")).toBeVisible();
   await expect(page.getByText("Berlin").first()).toBeVisible();
 });
+
+const popularRouteCases = [
+  {
+    name: "Japan country tour",
+    prompt: "2 weeks in Japan with food, trains, Tokyo, Kyoto, Osaka and Hakone",
+    parsed: {
+      destination: "Japan",
+      suggestedDestinations: [],
+      startDate: "2026-11-01",
+      endDate: "2026-11-14",
+      adults: 2,
+      childrenAges: [],
+      pets: [],
+      vibe: "international",
+      tripShape: "country_tour",
+      stops: [
+        { id: "tokyo", name: "Tokyo", role: "suggested" },
+        { id: "kyoto", name: "Kyoto", role: "suggested" },
+        { id: "osaka", name: "Osaka", role: "suggested" },
+        { id: "hakone", name: "Hakone", role: "suggested" },
+      ],
+      countryTour: {
+        country: "Japan",
+        countryCode: "JP",
+        requestedRegions: ["Tokyo", "Kyoto", "Osaka", "Hakone"],
+        suggestedStopCount: 4,
+      },
+    },
+    heading: /Japan route/i,
+    stops: ["Tokyo", "Kyoto", "Osaka", "Hakone"],
+  },
+  {
+    name: "Europe friend trip",
+    prompt: "Europe trip with best friend cover Amsterdam, Greece, Berlin, Budapest in 10 days",
+    parsed: {
+      destination: "Europe multi-city trip",
+      suggestedDestinations: [],
+      startDate: "2026-06-01",
+      endDate: "2026-06-10",
+      adults: 2,
+      childrenAges: [],
+      pets: [],
+      vibe: "international",
+      tripShape: "multi_stop",
+      stops: [
+        { id: "amsterdam", name: "Amsterdam", role: "must_visit" },
+        { id: "greece", name: "Greece", role: "must_visit", notes: ["Broad region; confirm exact city"] },
+        { id: "berlin", name: "Berlin", role: "must_visit" },
+        { id: "budapest", name: "Budapest", role: "must_visit" },
+      ],
+      countryTour: null,
+    },
+    heading: /multi-stop route/i,
+    stops: ["Amsterdam", "Greece", "Berlin", "Budapest"],
+    warning: /Greece: Broad region/i,
+  },
+  {
+    name: "Italy classic route",
+    prompt: "Italy in 12 days cover Rome Florence Venice and Milan",
+    parsed: {
+      destination: "Italy multi-city trip",
+      suggestedDestinations: [],
+      startDate: "2026-09-01",
+      endDate: "2026-09-12",
+      adults: 2,
+      childrenAges: [],
+      pets: [],
+      vibe: "international",
+      tripShape: "multi_stop",
+      stops: [
+        { id: "rome", name: "Rome", role: "must_visit" },
+        { id: "florence", name: "Florence", role: "must_visit" },
+        { id: "venice", name: "Venice", role: "must_visit" },
+        { id: "milan", name: "Milan", role: "must_visit" },
+      ],
+      countryTour: null,
+    },
+    heading: /multi-stop route/i,
+    stops: ["Rome", "Florence", "Venice", "Milan"],
+  },
+];
+
+for (const routeCase of popularRouteCases) {
+  test(`popular multi-hop route review: ${routeCase.name}`, async ({ page }) => {
+    await mockAllApis(page);
+    await page.route("**/api/v1/trip/parse-input", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(routeCase.parsed),
+      }),
+    );
+
+    await page.goto("/");
+    await page.locator("textarea").fill(routeCase.prompt);
+    await page.getByRole("button", { name: /plan it/i }).click();
+
+    await expect(page.getByRole("heading", { name: routeCase.heading })).toBeVisible();
+    for (const [index, stop] of routeCase.stops.entries()) {
+      await expect(page.locator(`input[aria-label="Stop ${index + 1} name"]`)).toHaveValue(stop);
+    }
+    if (routeCase.warning) {
+      await expect(page.getByText(routeCase.warning)).toBeVisible();
+    }
+  });
+}
