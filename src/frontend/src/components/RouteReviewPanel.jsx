@@ -31,9 +31,19 @@ function normalizeStops(parsedInput) {
   return [];
 }
 
-export default function RouteReviewPanel({ parsedInput, onContinue, onBack }) {
+function moveItem(items, fromIndex, toIndex) {
+  if (toIndex < 0 || toIndex >= items.length) return items;
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+}
+
+export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinue, onBack }) {
   const [stops, setStops] = useState(() => normalizeStops(parsedInput));
-  const [optimizationMode, setOptimizationMode] = useState("user_order");
+  const [optimizationMode, setOptimizationMode] = useState(
+    parsedInput?.tripShape === "country_tour" ? "recommended" : "user_order",
+  );
 
   const title = parsedInput?.tripShape === "country_tour"
     ? `${parsedInput?.countryTour?.country || parsedInput?.destination} route`
@@ -52,7 +62,23 @@ export default function RouteReviewPanel({ parsedInput, onContinue, onBack }) {
     setStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)));
   };
 
+  const moveStop = (index, direction) => {
+    setStops((prev) => moveItem(prev, index, index + direction));
+    setOptimizationMode("user_order");
+  };
+
   const canContinue = stops.filter((stop) => stop.name.trim()).length >= 2;
+  const prefetchStatuses = routePrefetch?.statusByStopId || {};
+  const readyCount = stops.filter((stop) => prefetchStatuses[stop.id] === "ready").length;
+  const loadingCount = stops.filter((stop) => prefetchStatuses[stop.id] === "loading").length;
+  const prefetchLabel = readyCount > 0
+    ? `${readyCount}/${stops.length} ideas ready`
+    : loadingCount > 0
+      ? "Finding ideas..."
+      : "";
+  const routeReason = optimizationMode === "recommended"
+    ? "Recommended route: we picked a classic order with manageable transfers. You can still rearrange it."
+    : "Your order: we will keep the stops in this order unless you move them.";
 
   return (
     <section className="bg-white border border-gray-200 rounded-2xl p-4 md:p-5" aria-label="Review route">
@@ -67,6 +93,15 @@ export default function RouteReviewPanel({ parsedInput, onContinue, onBack }) {
         <span className="inline-flex items-center gap-1 rounded-full bg-meadow-50 text-meadow-700 px-2.5 py-1 text-[11px] font-mono font-semibold uppercase tracking-wider">
           <Icon name="map" size={12} /> {stops.length} stops
         </span>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+        <p className="text-[13px] text-gray-700">{routeReason}</p>
+        {prefetchLabel && (
+          <p className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-meadow-700">
+            <Icon name={readyCount > 0 ? "check" : "sparkle"} size={12} /> {prefetchLabel}
+          </p>
+        )}
       </div>
 
       <div className="mt-4 flex gap-1 rounded-xl bg-gray-100 p-1">
@@ -96,6 +131,26 @@ export default function RouteReviewPanel({ parsedInput, onContinue, onBack }) {
             <span className="w-7 h-7 rounded-full bg-meadow-600 text-white inline-flex items-center justify-center text-[12px] font-bold flex-shrink-0">
               {index + 1}
             </span>
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                disabled={index === 0}
+                onClick={() => moveStop(index, -1)}
+                aria-label={`Move ${stop.name} up`}
+                className="w-7 h-6 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:border-meadow-300 hover:text-meadow-700 disabled:opacity-30 disabled:hover:border-gray-200 disabled:hover:text-gray-600 transition"
+              >
+                <Icon name="arrowUp" size={12} />
+              </button>
+              <button
+                type="button"
+                disabled={index === stops.length - 1}
+                onClick={() => moveStop(index, 1)}
+                aria-label={`Move ${stop.name} down`}
+                className="w-7 h-6 inline-flex items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:border-meadow-300 hover:text-meadow-700 disabled:opacity-30 disabled:hover:border-gray-200 disabled:hover:text-gray-600 transition"
+              >
+                <Icon name="arrowUp" size={12} className="rotate-180" />
+              </button>
+            </div>
             <div className="flex-1 min-w-0">
               <input
                 value={stop.name}
@@ -105,6 +160,9 @@ export default function RouteReviewPanel({ parsedInput, onContinue, onBack }) {
               />
               {stop.notes?.length > 0 && (
                 <p className="text-[12px] text-amber-700 mt-0.5">{stop.notes[0]}</p>
+              )}
+              {prefetchStatuses[stop.id] === "ready" && (
+                <p className="text-[12px] text-meadow-700 mt-0.5">Ready</p>
               )}
             </div>
             <label className="w-20 flex-shrink-0">

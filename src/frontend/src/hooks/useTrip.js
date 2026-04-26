@@ -4,6 +4,7 @@ import { addRecentTrip } from "../utils/recentTrips.js";
 import { analytics } from "../utils/analytics.js";
 import {
   parseInput,
+  prefetchRouteAttractions,
   streamTripPlan,
   generatePackingList,
   getTravelSafety,
@@ -21,9 +22,11 @@ export function useTrip() {
   const [safetyData, setSafetyData] = useState(null);
   const [petSafetyData, setPetSafetyData] = useState(null);
   const [carSeatData, setCarSeatData] = useState(null);
+  const [routePrefetch, setRoutePrefetch] = useState({ tripRequestId: null, statusByStopId: {}, attractionsByStopId: {} });
   const [progress, setProgress] = useState({});
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
+  const prefetchSeqRef = useRef(0);
 
   const STEPS = ["resolve", "weather", "itinerary", "packing", "safety"];
 
@@ -65,6 +68,50 @@ export function useTrip() {
     }
   }, []);
 
+  const startRouteAttractionPrefetch = useCallback((parsed, signal) => {
+    const stops = Array.isArray(parsed?.stops) ? parsed.stops.filter((stop) => stop?.name) : [];
+    if (!["multi_stop", "country_tour"].includes(parsed?.tripShape) || stops.length === 0) return;
+
+    const seq = prefetchSeqRef.current + 1;
+    prefetchSeqRef.current = seq;
+    const tripRequestId = `${Date.now()}-${seq}`;
+    setRoutePrefetch({
+      tripRequestId,
+      statusByStopId: Object.fromEntries(stops.map((stop) => [stop.id, "loading"])),
+      attractionsByStopId: {},
+    });
+
+    prefetchRouteAttractions({
+      tripRequestId,
+      stops: stops.map((stop) => ({
+        id: stop.id,
+        name: stop.name,
+        countryCode: stop.countryCode || parsed?.countryTour?.countryCode || null,
+      })),
+      childrenAges: parsed.childrenAges || [],
+      pets: (parsed.pets || []).map((pet) => ({ type: pet.type || pet.species })),
+      vibe: parsed.vibe || "",
+      pace: parsed.pacePreference || "",
+      accessibilityNeeds: parsed.accessibilityNeeds || [],
+    }, { signal })
+      .then((result) => {
+        if (signal?.aborted || prefetchSeqRef.current !== seq) return;
+        setRoutePrefetch({
+          tripRequestId: result.tripRequestId || tripRequestId,
+          statusByStopId: result.statusByStopId || {},
+          attractionsByStopId: result.attractionsByStopId || {},
+        });
+      })
+      .catch(() => {
+        if (signal?.aborted || prefetchSeqRef.current !== seq) return;
+        setRoutePrefetch({
+          tripRequestId,
+          statusByStopId: Object.fromEntries(stops.map((stop) => [stop.id, "error"])),
+          attractionsByStopId: {},
+        });
+      });
+  }, []);
+
   const submitTrip = useCallback(async (text, geolocation, savedProfile = null) => {
     // Abort any in-flight background fetches from a previous submission
     if (abortRef.current) abortRef.current.abort();
@@ -80,6 +127,7 @@ export function useTrip() {
     setSafetyData(null);
     setPetSafetyData(null);
     setCarSeatData(null);
+    setRoutePrefetch({ tripRequestId: null, statusByStopId: {}, attractionsByStopId: {} });
     setScreenWithHistory("generating");
     setProgress({});
 
@@ -114,6 +162,7 @@ export function useTrip() {
 
       if (["multi_stop", "country_tour"].includes(parsedWithContext.tripShape)) {
         markStep("weather", "idle");
+        startRouteAttractionPrefetch(parsedWithContext, abortRef.current.signal);
         return;
       }
 
@@ -123,7 +172,7 @@ export function useTrip() {
       analytics.tripError(err.message, text);
       setError(err.message || "Something went wrong");
     }
-  }, []);
+  }, [setScreenWithHistory, startRouteAttractionPrefetch]);
 
   const selectDestination = useCallback(async (destinationName) => {
     if (!parsedInput) return;
@@ -145,6 +194,7 @@ export function useTrip() {
       tripShape: routeDraft.tripShape || parsedInput.tripShape,
       stops: routeDraft.stops || parsedInput.stops || [],
       countryTour: routeDraft.countryTour !== undefined ? routeDraft.countryTour : parsedInput.countryTour || null,
+      prefetchedAttractionsByStopId: routePrefetch.attractionsByStopId || {},
     };
     setParsedInput(updated);
     try {
@@ -153,7 +203,7 @@ export function useTrip() {
       if (err.name === "AbortError") return;
       setError(err.message || "Something went wrong");
     }
-  }, [parsedInput]);
+  }, [parsedInput, routePrefetch.attractionsByStopId]);
 
   async function generateTrip(parsed) {
     markStep("weather", "active");
@@ -186,6 +236,7 @@ export function useTrip() {
       tripShape: parsed.tripShape || "single_destination",
       stops: parsed.stops || [],
       countryTour: parsed.countryTour || null,
+      prefetchedAttractionsByStopId: parsed.prefetchedAttractionsByStopId || {},
       savedProfile: parsed.savedProfile || null,
     };
 
@@ -458,10 +509,11 @@ export function useTrip() {
     setProgress({});
     setError(null);
     setPackingError(null);
+    setRoutePrefetch({ tripRequestId: null, statusByStopId: {}, attractionsByStopId: {} });
   }, []);
 
   return {
-    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData,
+    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData, routePrefetch,
     progress, error, STEPS,
     submitTrip, selectDestination, confirmRouteTrip, goBack, retryPacking,
   };

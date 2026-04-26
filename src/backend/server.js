@@ -249,6 +249,70 @@ function persistTripAttractionsInBackground(attractionMemoryService, payload) {
   });
 }
 
+function sanitizeRoutePrefetchStops(rawStops) {
+  if (!Array.isArray(rawStops)) return [];
+  return rawStops.slice(0, 8).map((stop, index) => {
+    const source = stop && typeof stop === "object" ? stop : { name: stop };
+    const name = sanitizeDestination(source.name || "");
+    if (!name) return null;
+    const id = sanitizeString(source.id || name.toLowerCase().replace(/\s+/g, "-"), 80) || `stop-${index + 1}`;
+    const countryCode = source.countryCode
+      ? sanitizeString(String(source.countryCode), 3).toUpperCase()
+      : "";
+    return { id, name, countryCode };
+  }).filter(Boolean);
+}
+
+function sanitizeCoarsePets(rawPets) {
+  if (!Array.isArray(rawPets)) return [];
+  return rawPets.slice(0, 5).map((pet) => {
+    const source = pet && typeof pet === "object" ? pet : {};
+    const type = sanitizeString(source.type || source.species || "", 20).toLowerCase();
+    return type ? { type } : null;
+  }).filter(Boolean);
+}
+
+function sanitizePrefetchedAttraction(attraction) {
+  if (!attraction || typeof attraction !== "object") return null;
+  const canonicalName = sanitizeDestination(
+    attraction.canonical_name || attraction.canonicalName || attraction.name || "",
+  );
+  if (!canonicalName) return null;
+  return {
+    ...attraction,
+    canonical_name: canonicalName,
+    canonicalName,
+    name: canonicalName,
+    category: sanitizeString(attraction.category || "general", 60).toLowerCase() || "general",
+    short_summary: sanitizeString(attraction.short_summary || attraction.shortSummary || "", 240),
+    shortSummary: sanitizeString(attraction.short_summary || attraction.shortSummary || "", 240),
+    what_it_is: sanitizeString(attraction.what_it_is || attraction.whatItIs || "", 240),
+    whatItIs: sanitizeString(attraction.what_it_is || attraction.whatItIs || "", 240),
+    why_recommended: sanitizeString(attraction.why_recommended || attraction.whyRecommended || "", 240),
+    whyRecommended: sanitizeString(attraction.why_recommended || attraction.whyRecommended || "", 240),
+    timing_tip: sanitizeString(attraction.timing_tip || attraction.timingTip || "", 160),
+    timingTip: sanitizeString(attraction.timing_tip || attraction.timingTip || "", 160),
+    duration_bucket: sanitizeString(attraction.duration_bucket || attraction.durationBucket || "", 40),
+    durationBucket: sanitizeString(attraction.duration_bucket || attraction.durationBucket || "", 40),
+  };
+}
+
+function sanitizePrefetchedAttractionsByStopId(raw, allowedStopIds = []) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const allowed = new Set(allowedStopIds.filter(Boolean));
+  const result = {};
+  for (const [rawStopId, rawAttractions] of Object.entries(raw)) {
+    const stopId = sanitizeString(rawStopId, 80);
+    if (!stopId || (allowed.size > 0 && !allowed.has(stopId)) || !Array.isArray(rawAttractions)) continue;
+    const attractions = rawAttractions
+      .slice(0, 36)
+      .map(sanitizePrefetchedAttraction)
+      .filter(Boolean);
+    if (attractions.length > 0) result[stopId] = attractions;
+  }
+  return result;
+}
+
 export function createApp(deps = {}) {
   // App factory enables dependency injection for fast, isolated integration tests.
   const {
@@ -808,6 +872,63 @@ export function createApp(deps = {}) {
     }
   });
 
+  // POST /api/v1/trip/route-attractions
+  // Warms per-city attraction candidates while the user reviews/reorders a route.
+  app.post("/api/v1/trip/route-attractions", apiLimiter, async (req, res) => {
+    try {
+      const tripRequestId = sanitizeString(req.body?.tripRequestId || "", 120);
+      const stops = sanitizeRoutePrefetchStops(req.body?.stops || []);
+      if (stops.length === 0) {
+        return res.status(422).json({ error: "At least one stop is required." });
+      }
+
+      const rawAges = Array.isArray(req.body?.childrenAges) ? req.body.childrenAges : [];
+      const childrenAges = rawAges
+        .map((age) => parseInt(String(age), 10))
+        .filter((age) => Number.isFinite(age) && age >= 0 && age <= 17);
+      const vibe = sanitizeString(req.body?.vibe || "", 60);
+      const pace = sanitizeString(req.body?.pace || "", 20);
+      const accessibilityNeeds = Array.isArray(req.body?.accessibilityNeeds)
+        ? req.body.accessibilityNeeds.slice(0, 8).map((item) => sanitizeString(String(item), 80)).filter(Boolean)
+        : [];
+      const pets = sanitizeCoarsePets(req.body?.pets || []);
+      const statusByStopId = {};
+      const attractionsByStopId = {};
+
+      await Promise.all(stops.map(async (stop) => {
+        try {
+          statusByStopId[stop.id] = "loading";
+          const attractions = await attractionMemoryService.getPlanningCandidates({
+            destination: stop.name,
+            coords: { displayName: stop.name, countryCode: stop.countryCode || "" },
+            countryCode: stop.countryCode || "US",
+            childrenAges,
+            requestedActivities: vibe ? [vibe] : [],
+            accessibilityNeeds,
+            pace,
+            pets,
+            maxResults: 24,
+          });
+          attractionsByStopId[stop.id] = Array.isArray(attractions) ? attractions : [];
+          statusByStopId[stop.id] = attractionsByStopId[stop.id].length > 0 ? "ready" : "empty";
+        } catch (error) {
+          log.warn("route-attractions:stop-error", { stopId: stop.id, error: error.message });
+          attractionsByStopId[stop.id] = [];
+          statusByStopId[stop.id] = "error";
+        }
+      }));
+
+      return res.json({
+        tripRequestId: tripRequestId || null,
+        statusByStopId,
+        attractionsByStopId,
+      });
+    } catch (error) {
+      log.error("route-attractions:error", { error: error.message });
+      return res.status(500).json({ error: "Failed to prefetch route attractions" });
+    }
+  });
+
   // POST /api/v1/trip/plan
   app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
@@ -1153,6 +1274,10 @@ export function createApp(deps = {}) {
           startDate,
           endDate,
         });
+        const prefetchedAttractionsByStopId = sanitizePrefetchedAttractionsByStopId(
+          req.body?.prefetchedAttractionsByStopId,
+          routePlan.stops.map((stop) => stop.id),
+        );
         timing.route = Date.now() - t0;
 
         if (!send("route", {
@@ -1186,6 +1311,7 @@ export function createApp(deps = {}) {
             pets,
             foodPreferences,
             plannerSummary: planningContext.plannerSummary,
+            cachedAttractionsByStopId: prefetchedAttractionsByStopId,
           },
           geocodeLocationFn,
           getWeatherForecastFn,
