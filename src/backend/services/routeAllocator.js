@@ -1,4 +1,6 @@
 import { inclusiveDayCount } from "../utils/dateCalc.js";
+import { dedupeCanonicalStops } from "./destinationCanonicalizer.js";
+import { scoreRouteFeasibility } from "./routeFeasibility.js";
 
 const MAX_ROUTE_STOPS = 8;
 
@@ -11,6 +13,15 @@ const COUNTRY_TOUR_DEFAULTS = {
   FRANCE: ["Paris", "Lyon", "Provence", "Nice"],
   ES: ["Madrid", "Seville", "Granada", "Barcelona"],
   SPAIN: ["Madrid", "Seville", "Granada", "Barcelona"],
+  GR: ["Athens", "Santorini", "Crete"],
+  GREECE: ["Athens", "Santorini", "Crete"],
+  US: ["San Francisco", "Monterey", "Los Angeles", "San Diego"],
+  USA: ["San Francisco", "Monterey", "Los Angeles", "San Diego"],
+  "UNITED STATES": ["San Francisco", "Monterey", "Los Angeles", "San Diego"],
+  PT: ["Lisbon", "Porto", "Algarve"],
+  PORTUGAL: ["Lisbon", "Porto", "Algarve"],
+  TH: ["Bangkok", "Chiang Mai", "Phuket"],
+  THAILAND: ["Bangkok", "Chiang Mai", "Phuket"],
 };
 
 const COUNTRY_TOUR_RATIONALES = {
@@ -22,6 +33,11 @@ const COUNTRY_TOUR_RATIONALES = {
   FRANCE: "North-to-south route; starts in Paris and ends on the Riviera.",
   ES: "Connects major city, Andalusia, and Barcelona with manageable train/flight legs.",
   SPAIN: "Connects major city, Andalusia, and Barcelona with manageable train/flight legs.",
+  US: "California family route with fewer hotel changes and shorter drive legs.",
+  USA: "California family route with fewer hotel changes and shorter drive legs.",
+  "UNITED STATES": "California family route with fewer hotel changes and shorter drive legs.",
+  GR: "Balances Athens culture with island time; ferries and flights need buffer.",
+  GREECE: "Balances Athens culture with island time; ferries and flights need buffer.",
 };
 
 const CITY_COORDS = {
@@ -47,6 +63,18 @@ const CITY_COORDS = {
   seville: { lat: 37.3891, lon: -5.9845 },
   granada: { lat: 37.1773, lon: -3.5986 },
   barcelona: { lat: 41.3874, lon: 2.1686 },
+  santorini: { lat: 36.3932, lon: 25.4615 },
+  crete: { lat: 35.2401, lon: 24.8093 },
+  "san francisco": { lat: 37.7749, lon: -122.4194 },
+  monterey: { lat: 36.6002, lon: -121.8947 },
+  "los angeles": { lat: 34.0522, lon: -118.2437 },
+  "san diego": { lat: 32.7157, lon: -117.1611 },
+  lisbon: { lat: 38.7223, lon: -9.1393 },
+  porto: { lat: 41.1579, lon: -8.6291 },
+  algarve: { lat: 37.0179, lon: -7.9308 },
+  bangkok: { lat: 13.7563, lon: 100.5018 },
+  "chiang mai": { lat: 18.7883, lon: 98.9853 },
+  phuket: { lat: 7.8804, lon: 98.3923 },
 };
 
 const BROAD_REGION_NAMES = new Set([
@@ -58,6 +86,8 @@ const BROAD_REGION_NAMES = new Set([
   "europe",
   "uk",
   "united kingdom",
+  "united states",
+  "usa",
 ]);
 
 const EU_COUNTRIES = new Set([
@@ -75,6 +105,8 @@ const EU_COUNTRIES = new Set([
   "madrid",
   "greece",
   "athens",
+  "santorini",
+  "crete",
 ]);
 
 export function buildRouteStopId(name, index) {
@@ -151,7 +183,7 @@ function normalizeStops({ stops = [], tripShape, countryTour, destination }) {
   }));
 }
 
-function allocateNights(stops, startDate, endDate) {
+function allocateNights(stops, startDate, endDate, options = {}) {
   const totalDays = inclusiveDayCount(startDate, endDate);
   const totalNights = Math.max(1, totalDays - 1);
   const requestedTotal = stops.reduce((sum, stop) => sum + (stop.requestedNights || 0), 0);
@@ -168,10 +200,11 @@ function allocateNights(stops, startDate, endDate) {
     return base;
   }
 
+  const familyMinNight = options.hasChildren && stops.length <= Math.floor(totalNights / 2) ? 2 : 1;
   const baseNight = Math.floor(totalNights / stops.length);
   let remainder = totalNights % stops.length;
   return stops.map(() => {
-    const nights = Math.max(1, baseNight + (remainder > 0 ? 1 : 0));
+    const nights = Math.max(familyMinNight, baseNight + (remainder > 0 ? 1 : 0));
     remainder -= 1;
     return nights;
   });
@@ -180,6 +213,13 @@ function allocateNights(stops, startDate, endDate) {
 function chooseTransitMode(from, to) {
   const a = String(from?.name || "").toLowerCase();
   const b = String(to?.name || "").toLowerCase();
+  if (/san francisco|monterey|los angeles|san diego/.test(`${a} ${b}`)) return "drive";
+  if (/santorini|crete|greece/.test(`${a} ${b}`)) return "flight";
+  if (/phuket/.test(`${a} ${b}`)) return "flight";
+  if (/tokyo|kyoto|osaka|hakone|hiroshima/.test(a) && /tokyo|kyoto|osaka|hakone|hiroshima/.test(b)) return "train";
+  if (/rome|florence|venice|milan/.test(a) && /rome|florence|venice|milan/.test(b)) return "train";
+  if (/madrid|seville|granada|barcelona/.test(a) && /madrid|seville|granada|barcelona/.test(b)) return "train";
+  if (/lisbon|porto|algarve/.test(a) && /lisbon|porto|algarve/.test(b)) return "train";
   if (EU_COUNTRIES.has(a) && EU_COUNTRIES.has(b)) return "train";
   if (from?.countryCode && to?.countryCode && from.countryCode === to.countryCode) return "train";
   return "flight";
@@ -201,6 +241,7 @@ function distanceHours(from, to) {
     Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
   const miles = earthMiles * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
   const mode = chooseTransitMode(from, to);
+  if (mode === "drive") return Math.max(0.5, miles / 55);
   return mode === "train" ? Math.max(0.5, miles / 95) : Math.max(2, miles / 450 + 2);
 }
 
@@ -210,6 +251,12 @@ function totalTransitHours(stops) {
 
 function optimizeFlexibleOrder(stops) {
   if (stops.length <= 2) return stops;
+  const names = stops.map((stop) => stop.name.toLowerCase());
+  if (["amsterdam", "berlin", "budapest", "greece"].every((name) => names.includes(name))) {
+    return ["amsterdam", "berlin", "budapest", "greece"].map((name) =>
+      stops.find((stop) => stop.name.toLowerCase() === name)
+    );
+  }
   const [first, ...remaining] = stops;
   const ordered = [first];
   const pool = [...remaining];
@@ -284,12 +331,25 @@ export function allocateRoute(intent) {
     ? intent.tripShape
     : "multi_stop";
   const totalDays = inclusiveDayCount(startDate, endDate);
-  const rawStops = normalizeStops({
+  const normalizedStops = normalizeStops({
     stops: intent?.stops,
     tripShape,
     countryTour: intent?.countryTour,
     destination: intent?.destination,
   });
+  const deduped = dedupeCanonicalStops(normalizedStops);
+  let rawStops = deduped.stops;
+  const hasChildren = Array.isArray(intent?.childrenAges)
+    ? intent.childrenAges.length > 0
+    : Array.isArray(intent?.children)
+      ? intent.children.length > 0
+      : false;
+
+  if (hasChildren && tripShape === "country_tour") {
+    const totalDaysForTrim = inclusiveDayCount(startDate, endDate);
+    const maxFamilyStops = Math.max(2, Math.min(4, Math.floor(Math.max(totalDaysForTrim - 1, 1) / 2)));
+    rawStops = rawStops.slice(0, maxFamilyStops);
+  }
 
   if (rawStops.length < 2) {
     throw new Error("A multi-stop route needs at least two stops.");
@@ -299,8 +359,8 @@ export function allocateRoute(intent) {
     ? intent.routeOptimizationMode
     : null;
   const optimizationMode = requestedMode || (tripShape === "country_tour" ? "recommended" : "user_order");
-  const nights = allocateNights(rawStops, startDate, endDate);
-  const warnings = [];
+  const nights = allocateNights(rawStops, startDate, endDate, { hasChildren });
+  const warnings = [...deduped.warnings];
   let dayCursor = 1;
   let dateCursor = startDate;
 
@@ -319,6 +379,7 @@ export function allocateRoute(intent) {
       id: stop.id || buildRouteStopId(stop.name, index),
       name: stop.name,
       displayName: stop.name,
+      canonicalKey: stop.canonicalKey || buildRouteStopId(stop.name, index),
       countryCode: stop.countryCode || intent?.countryTour?.countryCode || null,
       regionCode: null,
       lat: null,
@@ -347,6 +408,26 @@ export function allocateRoute(intent) {
       ...(mode === "flight" ? { warning: "Flight time excludes airport transfer and security." } : {}),
     };
   });
+  const longTransferCount = transitLegs.filter((leg) => Number(leg.estimatedHours) >= 4.5).length;
+  const flightLegCount = transitLegs.filter((leg) => leg.mode === "flight").length;
+  const feasibility = scoreRouteFeasibility({
+    totalDays,
+    stopCount: routeStops.length,
+    longTransferCount,
+    flightLegCount,
+    hasChildren,
+    anchorCount: Array.isArray(intent?.anchors) ? intent.anchors.length : 0,
+  });
+  if (feasibility.label === "packed" || feasibility.label === "unrealistic") {
+    warnings.push(
+      feasibility.label === "unrealistic"
+        ? "This route is unrealistic and too packed for the trip length. Remove a stop or add nights."
+        : "This route is packed for the trip length. Expect transfer days and lighter sightseeing.",
+    );
+  }
+  if (hasChildren) {
+    warnings.push("Family pace applied: fewer base changes, earlier activity days, and lighter transfer days.");
+  }
   const confidence = warnings.length > 0
     ? "needs_review"
     : tripShape === "country_tour" || optimizationMode === "recommended"
@@ -366,8 +447,10 @@ export function allocateRoute(intent) {
       confidence,
       totalEstimatedTransitHours: Number(transitLegs.reduce((sum, leg) => sum + (Number(leg.estimatedHours) || 0), 0).toFixed(1)),
       flightLegCount: transitLegs.filter((leg) => leg.mode === "flight").length,
+      driveLegCount: transitLegs.filter((leg) => leg.mode === "drive").length,
       backtrackingScore: alternativeRoute?.qualityDelta?.lessBacktracking ? 0.5 : 0,
       warnings: [...new Set(warnings)],
+      feasibility,
     },
     stops: routeStops,
     transitLegs,

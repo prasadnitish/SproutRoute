@@ -170,3 +170,47 @@ test("planRouteStops passes prefetched attraction candidates to the matching sto
   assert.deepEqual(seen.tokyo, cachedByStopId.tokyo);
   assert.deepEqual(seen.kyoto, cachedByStopId.kyoto);
 });
+
+test("planRouteStops passes route context into stop schedulers", async () => {
+  const schedulerOptions = [];
+  const routePlan = {
+    tripShape: "country_tour",
+    totalDays: 4,
+    stops: [
+      { id: "tokyo", name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03", nights: 2, dayStart: 1, dayEnd: 2, role: "suggested" },
+      { id: "kyoto", name: "Kyoto", arrivalDate: "2026-11-03", departureDate: "2026-11-04", nights: 1, dayStart: 3, dayEnd: 4, role: "suggested" },
+    ],
+    transitLegs: [],
+    warnings: [],
+  };
+
+  await planRouteStops({
+    routePlan,
+    baseTrip: {
+      activities: ["international"],
+      children: [{ age: 5 }],
+      pets: [],
+    },
+    geocodeLocationFn: async (name) => ({ lat: 35, lon: 139, displayName: `${name}, Japan`, countryCode: "JP" }),
+    getWeatherForecastFn: async () => ({ summary: "Clear", forecast: [] }),
+    generateTripPlanChunkedFn: async (tripInput, weather, onChunk) => {
+      const plan = {
+        overview: tripInput.destination,
+        suggestedActivities: [{ id: "a1", name: `${tripInput.destination} Museum`, category: "museums", duration: "2 hours" }],
+        dailyItinerary: [{ day: "Day 1", activities: ["a1"], notes: "" }],
+        tips: [],
+      };
+      onChunk(plan, { chunk: 1, totalChunks: 1, dayOffset: 0 });
+      return plan;
+    },
+    scheduleItineraryFn: (plan, enrichedMap, startDate, options) => {
+      schedulerOptions.push(options);
+      return plan.dailyItinerary;
+    },
+  });
+
+  assert.ok(schedulerOptions.length >= 2);
+  assert.ok(schedulerOptions.every((options) => options.hasChildren === true));
+  assert.ok(schedulerOptions.every((options) => options.routePlan?.stops?.length === 2));
+  assert.deepEqual(schedulerOptions.map((options) => options.routeStop.name), ["Tokyo", "Tokyo", "Kyoto", "Kyoto"]);
+});

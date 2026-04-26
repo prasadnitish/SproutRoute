@@ -12,6 +12,11 @@ const COUNTRY_TOUR_DEFAULTS = {
   italy: { country: "Italy", countryCode: "IT", stops: ["Rome", "Florence", "Venice", "Milan"] },
   france: { country: "France", countryCode: "FR", stops: ["Paris", "Lyon", "Provence", "Nice"] },
   spain: { country: "Spain", countryCode: "ES", stops: ["Madrid", "Seville", "Granada", "Barcelona"] },
+  greece: { country: "Greece", countryCode: "GR", stops: ["Athens", "Santorini", "Crete"] },
+  usa: { country: "United States", countryCode: "US", stops: ["San Francisco", "Monterey", "Los Angeles", "San Diego"] },
+  "united states": { country: "United States", countryCode: "US", stops: ["San Francisco", "Monterey", "Los Angeles", "San Diego"] },
+  portugal: { country: "Portugal", countryCode: "PT", stops: ["Lisbon", "Porto", "Algarve"] },
+  thailand: { country: "Thailand", countryCode: "TH", stops: ["Bangkok", "Chiang Mai", "Phuket"] },
 };
 
 const normalizeStringArray = (value, maxLength = 8) =>

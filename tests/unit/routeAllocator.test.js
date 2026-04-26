@@ -26,7 +26,7 @@ test("allocateRoute preserves explicit stop order and distributes nights across 
   assert.equal(route.stops[0].arrivalDate, "2026-06-01");
   assert.equal(route.stops[3].departureDate, "2026-06-10");
   assert.equal(route.transitLegs.length, 3);
-  assert.equal(route.transitLegs[0].mode, "train");
+  assert.equal(route.transitLegs[0].mode, "flight");
   assert.ok(route.warnings.some((warning) => warning.includes("Greece")));
   assert.deepEqual(
     route.alternativeRoute.stops.map((stop) => stop.name),
