@@ -239,7 +239,7 @@ export default function ItineraryTile({
     if (days && onDayChange) {
       const day = days[dayIndex];
       const activities = day?.scheduled || day?.activities || day?.items || [];
-      onDayChange(activities);
+      onDayChange(activities, day, dayIndex);
     }
   };
 
@@ -248,7 +248,7 @@ export default function ItineraryTile({
   useEffect(() => {
     if (days?.length > 0 && onDayChange) {
       const day = days[0];
-      onDayChange(day?.scheduled || day?.activities || day?.items || []);
+      onDayChange(day?.scheduled || day?.activities || day?.items || [], day, 0);
     }
   }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 

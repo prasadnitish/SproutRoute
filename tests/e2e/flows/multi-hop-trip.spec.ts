@@ -125,13 +125,14 @@ test("multi-hop trip shows route review before streaming route-aware results", a
   await page.getByRole("button", { name: /plan it/i }).click();
 
   await expect(page.getByRole("heading", { name: /multi-stop route/i })).toBeVisible();
+  await expect(page.getByRole("region", { name: /route map multi-stop route/i })).toBeVisible();
   await expect(page.locator('input[aria-label="Stop 1 name"]')).toHaveValue("Amsterdam");
   await expect(page.locator('input[aria-label="Stop 2 name"]')).toHaveValue("Berlin");
 
   await page.getByRole("button", { name: /continue/i }).click();
 
   await expect(page.getByRole("heading", { name: /Amsterdam to Berlin/i })).toBeVisible({ timeout: 10000 });
-  await expect(page.getByText("Amsterdam Museum")).toBeVisible();
+  await expect(page.getByText("Amsterdam Museum").first()).toBeVisible();
   await expect(page.getByText("Berlin").first()).toBeVisible();
 });
 
@@ -197,6 +198,7 @@ test("route review prefetches city ideas and sends reordered stops on continue",
   await page.getByRole("button", { name: /plan it/i }).click();
 
   await expect(page.getByRole("heading", { name: /Japan route/i })).toBeVisible();
+  await expect(page.getByRole("region", { name: /route map Japan route/i })).toBeVisible();
   await expect.poll(() => prefetchRequests).toBe(1);
   await expect(page.getByText(/ideas ready/i)).toBeVisible();
 
@@ -257,6 +259,7 @@ test("blanket Europe prompt shows route bundles and selectable city candidates",
   await page.getByRole("button", { name: /plan it/i }).click();
 
   await expect(page.getByRole("heading", { name: /Europe route/i })).toBeVisible();
+  await expect(page.getByRole("region", { name: /route map Europe route/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /relaxed/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /balanced/i })).toBeVisible();
   await expect(page.getByRole("button", { name: /ambitious/i })).toBeVisible();

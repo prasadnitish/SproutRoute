@@ -41,8 +41,8 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │  │    usePlacesEnrich.js ← on-demand Places enrichment          │ │
 │  │                                                              │ │
 │  │  Mosaic Tiles:                                               │ │
-│  │    HeroTile / RouteTimelineTile / WeatherTile / ItineraryTile│ │
-│  │    PetSafetyTile / MapTile / DayRouteMap                    │ │
+│  │    HeroTile / PremiumRouteMap / RouteTimelineTile           │ │
+│  │    WeatherTile / ItineraryTile / PetSafetyTile              │ │
 │  │                                                              │ │
 │  │  Other Components:                                           │ │
 │  │    PackingChecklist / ActivityDetailPanel                    │ │
@@ -165,7 +165,8 @@ Phase 2 — Main streamed plan path:
   → first `destination` SSE event opens `ResultsScreen`
   → `weather` and `itinerary-chunk` events progressively fill `WeatherTile` and `ItineraryTile`
   → route-aware path runs `allocateRoute()`, emits `route`, then `planRouteStops()`
-  → `stop-weather` and `stop-itinerary` events progressively fill `RouteTimelineTile` and route-aware itinerary state
+  → `stop-weather` and `stop-itinerary` events progressively fill `PremiumRouteMap`, `RouteTimelineTile`, and route-aware itinerary state
+  → active day changes from `ItineraryTile` update the day-level `PremiumRouteMap`
 
 Phase 3 — Non-blocking follow-up requests:
   → POST `/api/generate`                    (current web packing path → `PackingChecklist`)

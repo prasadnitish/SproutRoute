@@ -33,8 +33,10 @@ flowchart TD
     F --> I["ProfileImportModal"]
     G --> J["DestinationPicker"]
     G --> U["RouteReviewPanel"]
+    U --> W["PremiumRouteMap"]
 
     H --> K["HeroTile"]
+    H --> W
     H --> V["RouteTimelineTile"]
     H --> L["WeatherTile"]
     H --> M["ItineraryTile"]
@@ -45,6 +47,7 @@ flowchart TD
 
     M --> R["DayTabs"]
     M --> S["LoadingEngagement"]
+    M --> W
     Q --> T["usePlacesEnrich.enrich()"]
 ```
 
@@ -141,6 +144,7 @@ Notes:
 ```mermaid
 flowchart TD
     A["ResultsScreen"] --> B["HeroTile"]
+    A --> N["PremiumRouteMap"]
     A --> M["RouteTimelineTile"]
     A --> C["WeatherTile"]
     A --> D["ItineraryTile"]
@@ -151,6 +155,7 @@ flowchart TD
 
     D --> I["scheduledItinerary or resolved dailyItinerary"]
     D --> J["onActivityTap"]
+    D --> O["onDayChange -> active-day map"]
     G --> K["utils/checklist.js"]
     H --> L["enrichedData keyed by activity||destination"]
 ```
@@ -158,8 +163,9 @@ flowchart TD
 ### Important result-screen boundaries
 
 - `ResultsScreen` resolves itinerary shape differences from streamed and non-streamed payloads.
+- `PremiumRouteMap` renders Google Maps embeds for route overview and active-day maps, with first-party route metrics and numbered legends. It is display-only and does not block trip generation.
 - `RouteTimelineTile` appears for route-aware trips and tracks stop weather plus loaded stop itineraries.
-- `ItineraryTile` is the main itinerary renderer and progressive-loading surface.
+- `ItineraryTile` is the main itinerary renderer and progressive-loading surface; its active day drives the day map in `ResultsScreen`.
 - `PackingChecklist` owns packing progress, persisted checked state, custom items, and print behavior.
 - `SafetyTile` and `PetSafetyTile` are fed by background API calls that should not block first results paint.
 
@@ -176,6 +182,7 @@ flowchart TD
 | Generation UI | `src/frontend/src/screens/GeneratingScreen.jsx`, `src/frontend/src/components/RouteReviewPanel.jsx` | Progress screen, destination picker handoff, route review before expensive planning |
 | Results UI | `src/frontend/src/screens/ResultsScreen.jsx` | Tab shell and tile composition |
 | Route UI | `src/frontend/src/components/mosaic/RouteTimelineTile.jsx` | Multi-stop route timeline, stop progress, transit and warnings |
+| Map UI | `src/frontend/src/components/maps/PremiumRouteMap.jsx`, `src/frontend/src/utils/mapGeometry.js` | Google Maps embeds, route/day map points, route metrics, known city coordinates |
 | Packing state | `src/frontend/src/components/PackingChecklist.jsx`, `src/frontend/src/utils/checklist.js` | Stable item IDs, progress, custom items, persistence |
 | Browser persistence | `src/frontend/src/utils/storage.js` | Local/session storage helpers and keys |
 | Analytics | `src/frontend/src/utils/analytics.js` | PostHog-style event emission boundaries |

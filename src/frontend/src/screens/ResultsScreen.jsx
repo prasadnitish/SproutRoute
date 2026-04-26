@@ -5,9 +5,11 @@ import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
 import PetSafetyTile from "../components/mosaic/PetSafetyTile";
 import RouteTimelineTile from "../components/mosaic/RouteTimelineTile";
+import PremiumRouteMap from "../components/maps/PremiumRouteMap.jsx";
 import ActivityDetailPanel from "../components/ActivityDetailPanel";
 import PackingChecklist from "../components/PackingChecklist";
 import { Icon } from "../components/Icon.jsx";
+import { pointsFromActivities, pointsFromStops, toMapPoint } from "../utils/mapGeometry.js";
 
 function resolveItinerary(rawDays, suggestedActivities) {
   if (!rawDays || rawDays.length === 0) return [];
@@ -167,6 +169,7 @@ export default function ResultsScreen({
 }) {
   const [activeTab, setActiveTab] = useState("plan");
   const [selectedActivity, setSelectedActivity] = useState(null);
+  const [activeDayMap, setActiveDayMap] = useState({ activities: [], day: null, dayIndex: 0 });
 
   const forecast = tripData?.weather?.forecast || tripData?.weather || [];
   const routePlan = tripData?.routePlan || null;
@@ -186,6 +189,20 @@ export default function ResultsScreen({
     tripData?.parsed?.destination || tripData?.trip?.destination;
   const hasPets = (tripData?.trip?.pets?.length || parsedInput?.pets?.length || 0) > 0;
   const childCount = tripData?.parsed?.childrenAges?.length || parsedInput?.childrenAges?.length || 0;
+  const routeMapPoints = useMemo(() => pointsFromStops(routePlan?.stops || []), [routePlan]);
+  const activeDayPoints = useMemo(
+    () => pointsFromActivities(activeDayMap.activities || []),
+    [activeDayMap.activities],
+  );
+  const tripCenter = useMemo(
+    () => toMapPoint({
+      id: "destination",
+      name: destination || "Destination",
+      lat: tripData?.trip?.lat,
+      lon: tripData?.trip?.lon,
+    }, 0),
+    [destination, tripData?.trip?.lat, tripData?.trip?.lon],
+  );
 
   // Pack count = total items
   const packCount = useMemo(() => {
@@ -241,7 +258,13 @@ export default function ResultsScreen({
           />
 
           {routePlan && (
-            <div className="mt-3">
+            <div className="mt-3 space-y-3">
+              <PremiumRouteMap
+                eyebrow="Trip route"
+                title={routePlan.title}
+                points={routeMapPoints}
+                totalDays={routePlan.totalDays}
+              />
               <RouteTimelineTile
                 routePlan={routePlan}
                 stopWeather={stopWeather}
@@ -251,12 +274,13 @@ export default function ResultsScreen({
           )}
 
           {/* Itinerary with weather folded into the day header (F4) */}
-          <div className="mt-3">
+          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] lg:items-start">
             <ItineraryTile
               dailyItinerary={dailyItinerary}
               scheduledItinerary={scheduledItinerary}
               forecast={forecast}
               onActivityTap={handleActivityTap}
+              onDayChange={(activities, day, dayIndex) => setActiveDayMap({ activities, day, dayIndex })}
               hasPets={hasPets}
               totalChunks={tripData?._totalChunks || 1}
               receivedChunks={tripData?._receivedChunks || 1}
@@ -265,6 +289,14 @@ export default function ResultsScreen({
               tripDuration={tripData?.trip?.duration || 0}
               childCount={childCount}
               onOpenSafety={() => setActiveTab("safety")}
+            />
+            <PremiumRouteMap
+              eyebrow="Day map"
+              title={`Day ${(activeDayMap.dayIndex || 0) + 1} route`}
+              points={activeDayPoints}
+              fallbackCenter={tripCenter}
+              routeMeta={activeDayMap.day?.routeMeta || null}
+              minHeight="min-h-[380px]"
             />
           </div>
 
