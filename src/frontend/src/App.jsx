@@ -117,6 +117,7 @@ export default function App() {
             progress={trip.progress}
             steps={trip.STEPS}
             error={trip.error}
+            routePrefetch={trip.routePrefetch}
             onPickDestination={trip.selectDestination}
             onConfirmRoute={trip.confirmRouteTrip}
             onGoBack={trip.goBack}

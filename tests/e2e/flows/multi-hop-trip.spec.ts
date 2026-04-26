@@ -135,6 +135,79 @@ test("multi-hop trip shows route review before streaming route-aware results", a
   await expect(page.getByText("Berlin").first()).toBeVisible();
 });
 
+test("route review prefetches city ideas and sends reordered stops on continue", async ({ page }) => {
+  let prefetchRequests = 0;
+  let streamPayload: any = null;
+  await mockAllApis(page);
+  await page.route("**/api/v1/trip/parse-input", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        destination: "Japan",
+        suggestedDestinations: [],
+        startDate: "2026-11-01",
+        endDate: "2026-11-08",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "country_tour",
+        stops: [
+          { id: "tokyo", name: "Tokyo", countryCode: "JP", role: "suggested" },
+          { id: "kyoto", name: "Kyoto", countryCode: "JP", role: "suggested" },
+          { id: "osaka", name: "Osaka", countryCode: "JP", role: "suggested" },
+        ],
+        countryTour: {
+          country: "Japan",
+          countryCode: "JP",
+          requestedRegions: ["Tokyo", "Kyoto", "Osaka"],
+          suggestedStopCount: 3,
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/v1/trip/route-attractions", async (route) => {
+    prefetchRequests += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        tripRequestId: "mock-trip",
+        statusByStopId: { tokyo: "ready", kyoto: "ready", osaka: "ready" },
+        attractionsByStopId: {
+          tokyo: [{ canonical_name: "Tokyo Disneyland", category: "theme_park" }],
+          kyoto: [{ canonical_name: "Fushimi Inari", category: "culture" }],
+          osaka: [{ canonical_name: "Dotonbori", category: "city" }],
+        },
+      }),
+    });
+  });
+  await page.route("**/api/v1/trip/stream", async (route) => {
+    streamPayload = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: routeSseBody(),
+    });
+  });
+
+  await page.goto("/");
+  await page.locator("textarea").fill("trip to Japan");
+  await page.getByRole("button", { name: /plan it/i }).click();
+
+  await expect(page.getByRole("heading", { name: /Japan route/i })).toBeVisible();
+  await expect.poll(() => prefetchRequests).toBe(1);
+  await expect(page.getByText(/ideas ready/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /move Osaka up/i }).click();
+  await expect(page.locator('input[aria-label="Stop 2 name"]')).toHaveValue("Osaka");
+  await page.getByRole("button", { name: /continue/i }).click();
+
+  await expect.poll(() => streamPayload?.stops?.map((stop: any) => stop.name).join(" > ")).toBe("Tokyo > Osaka > Kyoto");
+  expect(streamPayload.prefetchedAttractionsByStopId.osaka[0].canonical_name).toBe("Dotonbori");
+});
+
 const popularRouteCases = [
   {
     name: "Japan country tour",

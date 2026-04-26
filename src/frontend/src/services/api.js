@@ -257,6 +257,14 @@ export const parseInput = async (payload, { signal, onRetry, onRateLimitInfo } =
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
+/** Prefetch city-level attraction candidates while the user reviews a route. */
+export const prefetchRouteAttractions = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/trip/route-attractions`,
+    { ...POST_OPTS(payload), signal },
+    { maxRetries: 0, timeoutMs: 12000, onRetry, onRateLimitInfo },
+  );
+
 /** Fetch travel safety tips (car seat, general safety). */
 export const getTravelSafety = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(

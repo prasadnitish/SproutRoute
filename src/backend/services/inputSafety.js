@@ -265,6 +265,9 @@ export function sanitizeRouteIntent(input) {
   const tripShape = ["multi_stop", "country_tour"].includes(input.tripShape)
     ? input.tripShape
     : "single_destination";
+  const routeOptimizationMode = ["user_order", "recommended", "suggested_improvement"].includes(input.routeOptimizationMode)
+    ? input.routeOptimizationMode
+    : null;
 
   const stops = Array.isArray(input.stops)
     ? input.stops.slice(0, 8).map((stop, index) => {
@@ -313,6 +316,7 @@ export function sanitizeRouteIntent(input) {
 
   return {
     tripShape,
+    routeOptimizationMode,
     stops: tripShape === "single_destination" ? [] : stops,
     countryTour: tripShape === "country_tour" ? countryTour : null,
   };

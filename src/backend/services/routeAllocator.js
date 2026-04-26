@@ -13,6 +13,42 @@ const COUNTRY_TOUR_DEFAULTS = {
   SPAIN: ["Madrid", "Seville", "Granada", "Barcelona"],
 };
 
+const COUNTRY_TOUR_RATIONALES = {
+  JP: "Classic first-time route; major international entry point first, then cultural core, food hub, and slower scenic finish.",
+  JAPAN: "Classic first-time route; major international entry point first, then cultural core, food hub, and slower scenic finish.",
+  IT: "Classic northbound route; starts with Rome and moves through Tuscany toward northern rail hubs.",
+  ITALY: "Classic northbound route; starts with Rome and moves through Tuscany toward northern rail hubs.",
+  FR: "North-to-south route; starts in Paris and ends on the Riviera.",
+  FRANCE: "North-to-south route; starts in Paris and ends on the Riviera.",
+  ES: "Connects major city, Andalusia, and Barcelona with manageable train/flight legs.",
+  SPAIN: "Connects major city, Andalusia, and Barcelona with manageable train/flight legs.",
+};
+
+const CITY_COORDS = {
+  amsterdam: { lat: 52.3676, lon: 4.9041 },
+  berlin: { lat: 52.52, lon: 13.405 },
+  budapest: { lat: 47.4979, lon: 19.0402 },
+  greece: { lat: 37.9838, lon: 23.7275 },
+  athens: { lat: 37.9838, lon: 23.7275 },
+  tokyo: { lat: 35.6762, lon: 139.6503 },
+  kyoto: { lat: 35.0116, lon: 135.7681 },
+  osaka: { lat: 34.6937, lon: 135.5023 },
+  hakone: { lat: 35.2324, lon: 139.1069 },
+  hiroshima: { lat: 34.3853, lon: 132.4553 },
+  rome: { lat: 41.9028, lon: 12.4964 },
+  florence: { lat: 43.7696, lon: 11.2558 },
+  venice: { lat: 45.4408, lon: 12.3155 },
+  milan: { lat: 45.4642, lon: 9.19 },
+  paris: { lat: 48.8566, lon: 2.3522 },
+  lyon: { lat: 45.764, lon: 4.8357 },
+  provence: { lat: 43.9352, lon: 6.0679 },
+  nice: { lat: 43.7102, lon: 7.262 },
+  madrid: { lat: 40.4168, lon: -3.7038 },
+  seville: { lat: 37.3891, lon: -5.9845 },
+  granada: { lat: 37.1773, lon: -3.5986 },
+  barcelona: { lat: 41.3874, lon: 2.1686 },
+};
+
 const BROAD_REGION_NAMES = new Set([
   "greece",
   "japan",
@@ -65,6 +101,12 @@ function addDays(dateStr, days) {
 
 function normalizeRole(role) {
   return ["must_visit", "suggested", "transit"].includes(role) ? role : "must_visit";
+}
+
+function countryKeyFor(intent = {}) {
+  return String(intent?.countryTour?.countryCode || intent?.countryTour?.country || intent?.destination || "")
+    .trim()
+    .toUpperCase();
 }
 
 function normalizeStops({ stops = [], tripShape, countryTour, destination }) {
@@ -143,6 +185,98 @@ function chooseTransitMode(from, to) {
   return "flight";
 }
 
+function coordsForStop(stop) {
+  return CITY_COORDS[String(stop?.name || "").trim().toLowerCase()] || null;
+}
+
+function distanceHours(from, to) {
+  const a = coordsForStop(from);
+  const b = coordsForStop(to);
+  if (!a || !b) return chooseTransitMode(from, to) === "train" ? 3.5 : 2;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const earthMiles = 3958.8;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const x = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  const miles = earthMiles * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  const mode = chooseTransitMode(from, to);
+  return mode === "train" ? Math.max(0.5, miles / 95) : Math.max(2, miles / 450 + 2);
+}
+
+function totalTransitHours(stops) {
+  return stops.slice(0, -1).reduce((sum, stop, index) => sum + distanceHours(stop, stops[index + 1]), 0);
+}
+
+function optimizeFlexibleOrder(stops) {
+  if (stops.length <= 2) return stops;
+  const [first, ...remaining] = stops;
+  const ordered = [first];
+  const pool = [...remaining];
+  while (pool.length > 0) {
+    const current = ordered[ordered.length - 1];
+    let bestIndex = 0;
+    let bestScore = Number.POSITIVE_INFINITY;
+    pool.forEach((candidate, index) => {
+      const score = distanceHours(current, candidate);
+      if (score < bestScore) {
+        bestScore = score;
+        bestIndex = index;
+      }
+    });
+    ordered.push(pool.splice(bestIndex, 1)[0]);
+  }
+  return ordered;
+}
+
+function sameStopOrder(a = [], b = []) {
+  if (a.length !== b.length) return false;
+  return a.every((stop, index) => stop.name === b[index]?.name);
+}
+
+function buildAlternativeRoute(rawStops, warnings) {
+  if (rawStops.length < 3) return null;
+  const optimized = optimizeFlexibleOrder(rawStops);
+  if (sameStopOrder(rawStops, optimized)) return null;
+  const currentHours = totalTransitHours(rawStops);
+  const optimizedHours = totalTransitHours(optimized);
+  const hasBroadWarning = warnings.some((warning) => /broad/i.test(warning));
+  if (!hasBroadWarning && optimizedHours >= currentHours - 0.75) return null;
+  return {
+    mode: "suggested_improvement",
+    rationale: "Keeps train-friendly stops together before the longer transfer, reducing backtracking.",
+    stops: optimized.map((stop) => ({ ...stop })),
+    transitLegs: optimized.slice(0, -1).map((stop, index) => {
+      const next = optimized[index + 1];
+      const mode = chooseTransitMode(stop, next);
+      return {
+        fromStopId: stop.id,
+        toStopId: next.id,
+        mode,
+        estimatedHours: Number(distanceHours(stop, next).toFixed(1)),
+      };
+    }),
+    qualityDelta: {
+      transitHoursSaved: Math.max(0, Number((currentHours - optimizedHours).toFixed(1))),
+      fewerFlights: 0,
+      lessBacktracking: optimizedHours < currentHours,
+    },
+  };
+}
+
+function routeRationaleFor({ tripShape, optimizationMode, intent }) {
+  if (optimizationMode === "user_order") {
+    return intent?.routeOptimizationMode === "user_order"
+      ? "We kept your edited route exactly as submitted."
+      : "We kept your city order because you listed the stops directly.";
+  }
+  const key = countryKeyFor(intent);
+  if (tripShape === "country_tour") {
+    return COUNTRY_TOUR_RATIONALES[key] || "We picked a recommended starter route that balances major stops and manageable transfers.";
+  }
+  return "We picked a recommended route that reduces backtracking and keeps transfers manageable.";
+}
+
 export function allocateRoute(intent) {
   const startDate = intent?.startDate;
   const endDate = intent?.endDate;
@@ -161,6 +295,10 @@ export function allocateRoute(intent) {
     throw new Error("A multi-stop route needs at least two stops.");
   }
 
+  const requestedMode = ["user_order", "recommended"].includes(intent?.routeOptimizationMode)
+    ? intent.routeOptimizationMode
+    : null;
+  const optimizationMode = requestedMode || (tripShape === "country_tour" ? "recommended" : "user_order");
   const nights = allocateNights(rawStops, startDate, endDate);
   const warnings = [];
   let dayCursor = 1;
@@ -205,10 +343,16 @@ export function allocateRoute(intent) {
       fromStopId: stop.id,
       toStopId: next.id,
       mode,
-      estimatedHours: mode === "train" ? 3.5 : 2,
+      estimatedHours: Number(distanceHours(stop, next).toFixed(1)),
       ...(mode === "flight" ? { warning: "Flight time excludes airport transfer and security." } : {}),
     };
   });
+  const confidence = warnings.length > 0
+    ? "needs_review"
+    : tripShape === "country_tour" || optimizationMode === "recommended"
+      ? "medium"
+      : "high";
+  const alternativeRoute = optimizationMode === "user_order" ? buildAlternativeRoute(rawStops, warnings) : null;
 
   return {
     tripShape,
@@ -216,10 +360,19 @@ export function allocateRoute(intent) {
       ? `${intent?.countryTour?.country || intent?.destination || "Country"} route`
       : `${routeStops[0].name} to ${routeStops[routeStops.length - 1].name}`,
     totalDays,
-    optimizationMode: "user_order",
+    optimizationMode,
+    routeRationale: routeRationaleFor({ tripShape, optimizationMode, intent }),
+    routeQuality: {
+      confidence,
+      totalEstimatedTransitHours: Number(transitLegs.reduce((sum, leg) => sum + (Number(leg.estimatedHours) || 0), 0).toFixed(1)),
+      flightLegCount: transitLegs.filter((leg) => leg.mode === "flight").length,
+      backtrackingScore: alternativeRoute?.qualityDelta?.lessBacktracking ? 0.5 : 0,
+      warnings: [...new Set(warnings)],
+    },
     stops: routeStops,
     transitLegs,
     warnings: [...new Set(warnings)],
-    confidence: tripShape === "country_tour" ? "medium" : "high",
+    confidence,
+    ...(alternativeRoute ? { alternativeRoute } : {}),
   };
 }

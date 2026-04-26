@@ -71,6 +71,7 @@ export default function GeneratingScreen({
   progress,
   steps,
   error,
+  routePrefetch,
   onPickDestination,
   onConfirmRoute,
   onGoBack,
@@ -146,6 +147,7 @@ export default function GeneratingScreen({
       {needsRouteReview && (
         <RouteReviewPanel
           parsedInput={parsedInput}
+          routePrefetch={routePrefetch}
           onContinue={onConfirmRoute}
           onBack={onGoBack}
         />

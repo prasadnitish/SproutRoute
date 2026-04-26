@@ -63,6 +63,11 @@ export async function mockAllApis(page: Page): Promise<void> {
 
   // ── Legacy/fallback routes (still used by some paths) ───────────────────
   await page.route("**/api/v1/trip/parse-input",    (r) => r.fulfill(json(MOCK_PARSED_INPUT)));
+  await page.route("**/api/v1/trip/route-attractions", (r) => r.fulfill(json({
+    tripRequestId: "mock",
+    statusByStopId: {},
+    attractionsByStopId: {},
+  })));
   await page.route("**/api/v1/trip/bundle",         (r) => r.fulfill(json(MOCK_TRIP_PLAN)));
   await page.route("**/api/trip-plan",              (r) => r.fulfill(json(MOCK_TRIP_PLAN)));
   await page.route("**/api/generate",               (r) => r.fulfill(json(MOCK_PACKING_LIST)));

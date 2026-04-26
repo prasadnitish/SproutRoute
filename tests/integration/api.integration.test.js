@@ -659,3 +659,40 @@ test("POST /api/v1/trip/stream emits route before stop-level weather and itinera
   assert.equal(events[0].data.routePlan.stops[0].name, "Amsterdam");
   assert.equal(events.find((entry) => entry.event === "done").data.routePlan.stops[1].name, "Berlin");
 });
+
+test("POST /api/v1/trip/route-attractions prefetches candidates per stop without raw prompt text", async () => {
+  const calls = [];
+  const app = createApp({
+    enableRequestLogging: false,
+    attractionMemoryService: {
+      getPlanningCandidates: async (payload) => {
+        calls.push(payload);
+        return [{ canonical_name: `${payload.destination} Museum`, category: "museum" }];
+      },
+    },
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/trip/route-attractions", {
+    tripRequestId: "trip-123",
+    rawText: "do not forward raw prompt text",
+    vibe: "international",
+    childrenAges: [4, 9],
+    pets: [{ name: "Private Pet Name", type: "dog", specialNeeds: "Private meds" }],
+    stops: [
+      { id: "tokyo", name: "Tokyo", countryCode: "JP" },
+      { id: "kyoto", name: "Kyoto", countryCode: "JP" },
+    ],
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.tripRequestId, "trip-123");
+  assert.deepEqual(Object.keys(res.body.attractionsByStopId), ["tokyo", "kyoto"]);
+  assert.equal(res.body.statusByStopId.tokyo, "ready");
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].destination, "Tokyo");
+  assert.deepEqual(calls[0].childrenAges, [4, 9]);
+  assert.deepEqual(calls[0].requestedActivities, ["international"]);
+  assert.deepEqual(calls[0].pets, [{ type: "dog" }]);
+  assert.equal("rawText" in calls[0], false);
+  assert.equal("specialNeeds" in calls[0].pets[0], false);
+});

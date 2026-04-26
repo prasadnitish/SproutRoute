@@ -144,6 +144,7 @@ export async function planRouteStops({
       startDate: stop.arrivalDate,
       endDate: planningEndDate,
       countryCode: coords.countryCode || stop.countryCode || "US",
+      cachedAttractions: baseTrip?.cachedAttractionsByStopId?.[stop.id] || [],
       routePlan,
       routeStop: enrichedStop,
       dayOffset: Math.max(0, (stop.dayStart || 1) - 1),

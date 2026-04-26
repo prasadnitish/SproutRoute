@@ -127,3 +127,46 @@ test("planRouteStops plans one city at a time without overlapping departure days
   assert.equal(result.tripPlan.dailyItinerary.length, routePlan.totalDays);
   assert.ok(planInputs.every((input) => input.routeStop?.name === input.destination));
 });
+
+test("planRouteStops passes prefetched attraction candidates to the matching stop", async () => {
+  const cachedByStopId = {
+    tokyo: [{ canonical_name: "Tokyo Disneyland", category: "theme_park" }],
+    kyoto: [{ canonical_name: "Fushimi Inari", category: "culture" }],
+  };
+  const seen = {};
+  const routePlan = {
+    tripShape: "country_tour",
+    totalDays: 4,
+    stops: [
+      { id: "tokyo", name: "Tokyo", arrivalDate: "2026-11-01", departureDate: "2026-11-03", nights: 2, dayStart: 1, dayEnd: 2, role: "suggested" },
+      { id: "kyoto", name: "Kyoto", arrivalDate: "2026-11-03", departureDate: "2026-11-04", nights: 1, dayStart: 3, dayEnd: 4, role: "suggested" },
+    ],
+    transitLegs: [],
+    warnings: [],
+  };
+
+  await planRouteStops({
+    routePlan,
+    baseTrip: {
+      activities: ["international"],
+      children: [],
+      pets: [],
+      cachedAttractionsByStopId: cachedByStopId,
+    },
+    geocodeLocationFn: async (name) => ({ lat: 35, lon: 139, displayName: `${name}, Japan`, countryCode: "JP" }),
+    getWeatherForecastFn: async () => ({ summary: "Clear", forecast: [] }),
+    generateTripPlanChunkedFn: async (tripInput) => {
+      seen[tripInput.routeStop.id] = tripInput.cachedAttractions;
+      return {
+        overview: tripInput.destination,
+        suggestedActivities: [],
+        dailyItinerary: [{ day: "Day 1", activities: [], notes: "" }],
+        tips: [],
+      };
+    },
+    scheduleItineraryFn: (plan) => plan.dailyItinerary,
+  });
+
+  assert.deepEqual(seen.tokyo, cachedByStopId.tokyo);
+  assert.deepEqual(seen.kyoto, cachedByStopId.kyoto);
+});
