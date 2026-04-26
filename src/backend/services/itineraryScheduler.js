@@ -33,6 +33,16 @@ function formatTime(minutes) {
   return `${h12}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
+function isMajorThemeParkActivity(activity) {
+  const name = String(activity?.name || activity?.title || "").toLowerCase();
+  const category = String(activity?.category || "").toLowerCase().replace(/\s+/g, "_");
+  return (
+    category === "theme_park" ||
+    category === "theme_parks" ||
+    /\b(disneyland|disneysea|disney world|universal studios|universal orlando|legoland|six flags|theme park|amusement park)\b/.test(name)
+  );
+}
+
 function parseDuration(durationStr) {
   if (!durationStr) return 120; // default 2 hours
   const lower = durationStr.toLowerCase();
@@ -47,6 +57,11 @@ function parseDuration(durationStr) {
   const minMatch = lower.match(/(\d+)\s*min/);
   if (minMatch) return parseInt(minMatch[1]);
   return 120;
+}
+
+function durationForActivity(activity) {
+  if (isMajorThemeParkActivity(activity)) return 480;
+  return parseDuration(activity?.duration);
 }
 
 /**
@@ -172,7 +187,8 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
   };
 }
 
-const MAX_END_TIME = 1200; // 8:00 PM — no activities after this for family trips
+const DEFAULT_MAX_ACTIVITY_END_TIME = 1200; // 8:00 PM for adults-only / unspecified trips
+const FAMILY_MAX_ACTIVITY_END_TIME = 1080; // 6:00 PM for trips with children
 const MIN_VISIBLE_ACTIVITIES_PER_DAY = 2;
 const TARGET_VISIBLE_ACTIVITIES_PER_DAY = 3;
 
@@ -214,7 +230,7 @@ function buildScheduledActivity(activity, {
   };
 }
 
-function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds = null) {
+function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds = null, options = {}) {
   const activityMap = {};
   const activityNameMap = {};
   (suggestedActivities || []).forEach((a) => {
@@ -232,6 +248,9 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
   const scheduled = [];
   const warnings = [];
   const deferredDuplicates = [];
+  const maxActivityEndTime = options.hasChildren
+    ? FAMILY_MAX_ACTIVITY_END_TIME
+    : Number(options.maxActivityEndTime) || DEFAULT_MAX_ACTIVITY_END_TIME;
   const minimumVisibleActivities = Math.max(
     MIN_VISIBLE_ACTIVITIES_PER_DAY,
     Math.min(TARGET_VISIBLE_ACTIVITIES_PER_DAY, rawActivities.length),
@@ -249,7 +268,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
 
     const name = activity.name || activity.title || actRef;
     const enriched = enrichedMap[name] || enrichedMap[actRef] || null;
-    const duration = parseDuration(activity.duration);
+    const duration = durationForActivity(activity);
 
     // Check opening hours
     let hours = null;
@@ -302,10 +321,14 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       }
     }
 
-    // ── 8 PM hard cap — no activities after this for family trips ──
-    if (startTime >= MAX_END_TIME) break;
+    if (startTime >= maxActivityEndTime) break;
 
-    const endTime = Math.min(startTime + duration, MAX_END_TIME);
+    const endTime = startTime + duration;
+    if (endTime > maxActivityEndTime) {
+      const message = `${name} needs ${Math.round(duration / 60)} hours and would run past ${formatTime(maxActivityEndTime)}. Move it earlier or give it its own day.`;
+      warnings.push({ activity: name, type: "too_late", message });
+      continue;
+    }
 
     // ── Cross-day dedup — skip activities already used on previous days ──
     const actId = activity.id || name;
@@ -340,7 +363,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
   while (
     countNonMealActivities(scheduled) < minimumVisibleActivities &&
     deferredDuplicates.length > 0 &&
-    currentTime < 1140
+    currentTime < maxActivityEndTime
   ) {
     const duplicate = deferredDuplicates.shift();
     if (!duplicate) break;
@@ -350,9 +373,17 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       startTime = duplicate.hours.open;
     }
 
-    if (startTime >= MAX_END_TIME) break;
+    if (startTime >= maxActivityEndTime) break;
 
-    const endTime = Math.min(startTime + duplicate.duration, MAX_END_TIME);
+    const endTime = startTime + duplicate.duration;
+    if (endTime > maxActivityEndTime) {
+      warnings.push({
+        activity: duplicate.name,
+        type: "too_late",
+        message: `${duplicate.name} needs ${Math.round(duplicate.duration / 60)} hours and would run past ${formatTime(maxActivityEndTime)}. Move it earlier or give it its own day.`,
+      });
+      continue;
+    }
     const repeatWarning = "Also appears on another day of this trip.";
 
     scheduled.push(buildScheduledActivity(duplicate.activity, {
@@ -398,7 +429,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
  * @param {string} startDate - "2026-05-21"
  * @returns {object[]} Array of scheduled days
  */
-export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) {
+export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null, options = {}) {
   const { dailyItinerary = [], suggestedActivities = [] } = tripPlan;
   const usedActivityIds = new Set(); // Cross-day dedup
 
@@ -409,7 +440,7 @@ export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) 
       d.setDate(d.getDate() + i);
       dateStr = d.toISOString().split("T")[0];
     }
-    return scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds);
+    return scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds, options);
   });
 }
 

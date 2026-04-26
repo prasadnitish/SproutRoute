@@ -56,16 +56,19 @@ function normalizeMealField(meals) {
   return normalized;
 }
 
-function normalizeActivityDuration(activity) {
-  const rawDuration = String(activity?.duration || "2 hours").trim();
+function isMajorThemeParkActivity(activity) {
   const name = String(activity?.name || activity?.title || "").toLowerCase();
   const category = String(activity?.category || "").toLowerCase().replace(/\s+/g, "_");
-  const isMajorThemePark =
+  return (
     category === "theme_park" ||
     category === "theme_parks" ||
-    /\b(disneyland|disneysea|disney world|universal studios|universal orlando|legoland|six flags|theme park|amusement park)\b/.test(name);
+    /\b(disneyland|disneysea|disney world|universal studios|universal orlando|legoland|six flags|theme park|amusement park)\b/.test(name)
+  );
+}
 
-  if (isMajorThemePark) return "full day";
+function normalizeActivityDuration(activity) {
+  const rawDuration = String(activity?.duration || "2 hours").trim();
+  if (isMajorThemeParkActivity(activity)) return "full day";
   return rawDuration;
 }
 
@@ -269,7 +272,11 @@ function buildCachedReplacementActivity(attraction, index, { hasPets = false } =
     whatItIs: String(attraction?.what_it_is || attraction?.whatItIs || summary).trim(),
     whyRecommended,
     timingTip,
-    duration: mapDurationBucket(attraction?.duration_bucket || attraction?.durationBucket),
+    duration: normalizeActivityDuration({
+      name,
+      category,
+      duration: mapDurationBucket(attraction?.duration_bucket || attraction?.durationBucket),
+    }),
     kidFriendly: Boolean(attraction?.stroller_friendly || kidAppeal >= 6),
     weatherDependent: indoorOutdoor ? indoorOutdoor !== "indoor" : true,
     ...(hasPets ? { petFriendly: Boolean(attraction?.pet_friendly || attraction?.petFriendly) } : {}),

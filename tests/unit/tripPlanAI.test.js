@@ -1076,6 +1076,74 @@ test("generateTripPlan deterministically tops up sparse daily itineraries to fou
   assert.equal(new Set(allIds).size, 8, "all scheduled activities should remain unique across the trip");
 });
 
+test("generateTripPlan keeps cached major theme park replacements as full-day activities", async () => {
+  delete process.env.AI_PROVIDER;
+
+  const sparsePlan = JSON.stringify({
+    overview: "Sparse Tokyo day",
+    suggestedActivities: [
+      { id: "a1", name: "Ueno Zoo", category: "wildlife", description: "Zoo", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Nakamise Shopping Street", category: "shopping", description: "Street", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Odaiba Beach", category: "beach", description: "Beach", duration: "2 hours", kidFriendly: true, weatherDependent: true },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3"], meals: { dinner: { name: "Dinner" } }, notes: "" },
+    ],
+    tips: ["Reserve early."],
+  });
+
+  const result = await generateTripPlan(
+    {
+      destination: "Tokyo, Japan",
+      startDate: "2026-07-10",
+      endDate: "2026-07-10",
+      activities: ["theme_parks"],
+      children: [{ age: 5 }],
+      cachedAttractions: [
+        {
+          canonical_name: "Tokyo Disneyland",
+          category: "theme_parks",
+          short_summary: "Major family theme park.",
+          why_recommended: "This is a full-day anchor for a five-year-old.",
+          stroller_friendly: true,
+          indoor_outdoor: "both",
+        },
+      ],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => sparsePlan,
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: {
+        messages: {
+          create: async () => {
+            throw new Error("cached top-up should not require a retry");
+          },
+        },
+      },
+      openaiClient: {
+        chat: {
+          completions: {
+            create: async () => ({
+              choices: [{ message: { content: sparsePlan }, finish_reason: "stop" }],
+            }),
+          },
+        },
+      },
+    },
+  );
+
+  const disney = result.suggestedActivities.find((activity) => activity.name === "Tokyo Disneyland");
+  assert.ok(disney, "cached Disneyland candidate should be used to top up the sparse family day");
+  assert.equal(disney.duration, "full day");
+});
+
 // ── Shortlist-driven itinerary (Phase 4) ────────────────────────────────────
 
 test("generateTripPlan includes MANDATORY ATTRACTION LIST in prompt when cachedAttractions provided", async () => {
