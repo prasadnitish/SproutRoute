@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Icon } from "./Icon.jsx";
+import PremiumRouteMap from "./maps/PremiumRouteMap.jsx";
+import { pointsFromStops } from "../utils/mapGeometry.js";
 
 function defaultStopId(name, index) {
   const id = String(name || "")
@@ -16,6 +18,8 @@ function normalizeStops(parsedInput) {
       id: stop.id || defaultStopId(stop.name, index),
       name: stop.name || `Stop ${index + 1}`,
       countryCode: stop.countryCode || parsedInput?.countryTour?.countryCode || null,
+      lat: stop.lat ?? stop.latitude ?? null,
+      lon: stop.lon ?? stop.lng ?? stop.longitude ?? null,
       role: stop.role || "must_visit",
       requestedNights: stop.requestedNights || "",
       mustInclude: stop.mustInclude ?? stop.role === "must_visit",
@@ -122,6 +126,8 @@ export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinu
     () => stops.flatMap((stop) => (stop.notes || []).map((note) => `${stop.name}: ${note}`)),
     [stops],
   );
+  const totalDays = inclusiveDayCount(parsedInput?.startDate, parsedInput?.endDate);
+  const routeMapPoints = useMemo(() => pointsFromStops(stops), [stops]);
 
   const updateStop = (index, patch) => {
     setStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)));
@@ -185,6 +191,16 @@ export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinu
             <Icon name={readyCount > 0 ? "check" : "sparkle"} size={12} /> {prefetchLabel}
           </p>
         )}
+      </div>
+
+      <div className="mt-4">
+        <PremiumRouteMap
+          eyebrow="Route map"
+          title={title}
+          points={routeMapPoints}
+          totalDays={totalDays}
+          minHeight="min-h-[280px]"
+        />
       </div>
 
       {showCandidatePicker && (

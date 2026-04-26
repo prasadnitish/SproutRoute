@@ -83,6 +83,24 @@ export interface TripPlanResult {
   tips: string[];
 }
 
+export interface ScheduledDayRouteMeta {
+  orderedBy: "input" | "spatial" | "anchor";
+  mappedStopCount: number;
+  totalDistanceMiles: number;
+  totalTravelMinutes: number;
+  inputDistanceMiles?: number;
+  optimizedDistanceMiles?: number;
+}
+
+export interface ScheduledItineraryDay {
+  day: string | number;
+  date?: string;
+  scheduled: unknown[];
+  warnings: Array<{ type?: string; message?: string; activity?: string }>;
+  notes?: string | null;
+  routeMeta?: ScheduledDayRouteMeta;
+}
+
 // ── Route-Aware Trip Plan ───────────────────────────────────────────────────
 
 export interface RouteStop {

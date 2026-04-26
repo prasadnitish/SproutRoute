@@ -556,7 +556,7 @@ test("POST /api/v1/safety/pet-travel-check skips airlines for drive mode", async
   assert.equal(res.body.entryRequirements, null, "no entry requirements for US domestic");
 });
 
-test("CSP allows Google Fonts and OpenStreetMap iframe", async () => {
+test("CSP allows Google Fonts and Google Maps iframe", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const app = createApp({ enableRequestLogging: false });
 
@@ -587,7 +587,8 @@ test("CSP allows Google Fonts and OpenStreetMap iframe", async () => {
   assert.ok(csp, "Content-Security-Policy header must be set");
   assert.ok(csp.includes("fonts.googleapis.com"), "CSP must allow Google Fonts stylesheets");
   assert.ok(csp.includes("fonts.gstatic.com"), "CSP must allow Google Fonts files");
-  assert.ok(csp.includes("openstreetmap.org"), "CSP must allow OSM iframe");
+  assert.ok(csp.includes("https://www.google.com"), "CSP must allow Google Maps iframe");
+  assert.ok(csp.includes("https://maps.google.com"), "CSP must allow Google Maps route iframe");
   assert.ok(nextCalled, "middleware must call next()");
 });
 

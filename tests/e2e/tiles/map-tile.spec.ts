@@ -8,14 +8,16 @@ test.describe("MapTile", () => {
     await goToResults(page);
   });
 
-  test("renders an iframe", async ({ page }) => {
-    // Multiple iframes may exist (map + day route map), use .first()
+  test("renders the premium day map", async ({ page }) => {
+    await expect(page.getByRole("region", { name: /day map day 1 route/i })).toBeVisible();
+    await expect(page.getByText(/mapped travel/i)).toBeVisible();
     await expect(page.locator("iframe").first()).toBeVisible();
   });
 
-  test("iframe src contains trip coordinates", async ({ page }) => {
+  test("iframe src contains mapped day coordinates", async ({ page }) => {
     const iframe = page.locator("iframe").first();
     const src = await iframe.getAttribute("src");
+    expect(src).toContain("maps.google.com");
     expect(src).toContain("20.7984");
     expect(src).toContain("156.3319");
   });
