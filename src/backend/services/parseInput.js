@@ -8,6 +8,8 @@ const VALID_PACES = new Set(["slow", "moderate", "fast"]);
 const VALID_TRIP_SHAPES = new Set(["single_destination", "multi_stop", "country_tour"]);
 const VALID_STOP_ROLES = new Set(["must_visit", "suggested", "transit"]);
 const COUNTRY_TOUR_DEFAULTS = {
+  europe: { country: "Europe", countryCode: null, stops: ["Amsterdam", "Berlin", "Budapest", "Prague", "Vienna", "Athens", "Barcelona", "Paris"] },
+  "eastern europe": { country: "Eastern Europe", countryCode: null, stops: ["Prague", "Vienna", "Budapest", "Krakow", "Bratislava", "Ljubljana", "Zagreb", "Split"] },
   japan: { country: "Japan", countryCode: "JP", stops: ["Tokyo", "Kyoto", "Osaka", "Hakone"] },
   italy: { country: "Italy", countryCode: "IT", stops: ["Rome", "Florence", "Venice", "Milan"] },
   france: { country: "France", countryCode: "FR", stops: ["Paris", "Lyon", "Provence", "Nice"] },
@@ -92,7 +94,7 @@ function normalizeStops(value) {
         requestedNights: Number.isFinite(requestedNights) && requestedNights > 0
           ? Math.floor(requestedNights)
           : null,
-        mustInclude: source.mustInclude !== false,
+        mustInclude: source.mustInclude ?? source.role === "must_visit",
         notes: normalizeStringArray(source.notes, 4),
       };
     })
@@ -103,7 +105,9 @@ function normalizeStops(value) {
 function detectKnownCountryIntent(text, parsed) {
   const destination = String(parsed?.destination || "").trim().toLowerCase();
   const input = String(text || "").toLowerCase();
-  const matched = Object.entries(COUNTRY_TOUR_DEFAULTS).find(([key, config]) => {
+  const matched = Object.entries(COUNTRY_TOUR_DEFAULTS)
+    .sort(([a], [b]) => b.length - a.length)
+    .find(([key, config]) => {
     const countryMentioned = destination === key || input.match(new RegExp(`\\b${key}\\b`));
     if (!countryMentioned) return false;
     return !config.stops.some((stop) => input.match(new RegExp(`\\b${stop.toLowerCase()}\\b`)));
