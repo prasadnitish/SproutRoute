@@ -277,6 +277,40 @@ test("generateTripPlan user prompt includes tripType label", async () => {
   );
 });
 
+test("generateTripPlan constrains route-stop prompts to one city at a time", async () => {
+  delete process.env.AI_PROVIDER;
+  const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
+
+  await generateTripPlan(
+    {
+      destination: "Tokyo",
+      startDate: "2026-11-01",
+      endDate: "2026-11-02",
+      activities: ["international"],
+      children: [],
+      routeStop: { id: "tokyo", name: "Tokyo", dayStart: 1, dayEnd: 2, arrivalDate: "2026-11-01", departureDate: "2026-11-03" },
+      routePlan: {
+        stops: [
+          { id: "tokyo", name: "Tokyo" },
+          { id: "kyoto", name: "Kyoto" },
+          { id: "osaka", name: "Osaka" },
+          { id: "hakone", name: "Hakone" },
+        ],
+      },
+    },
+    mockWeather,
+    { geminiModel: mockGeminiModel, anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient },
+  );
+
+  const systemText = extractSystemText(captured.calls[0]);
+  const userText = captured.calls[0].user;
+  assert.ok(systemText.includes("MULTI-STOP ROUTE STOP RULES"), "System prompt should include route-stop rules");
+  assert.ok(systemText.includes("ONLY for Tokyo"), "System prompt should scope generation to the active stop");
+  assert.ok(systemText.includes("Do NOT schedule activities in Kyoto, Osaka, Hakone"), "System prompt should ban other route stops");
+  assert.ok(userText.includes("Route stop: Tokyo"), "User prompt should identify the active stop");
+  assert.ok(userText.includes("Global route days: 1-2"), "User prompt should include the global day span");
+});
+
 test("generateTripPlan injects compact planner summary when provided", async () => {
   delete process.env.AI_PROVIDER;
   const { captured, mockGeminiModel, mockAnthropicClient, mockOpenAIClient } = createCapturingMock();
@@ -532,6 +566,49 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
   assert.equal(result.suggestedActivities[0].timingTip, "Go right after breakfast for fewer crowds.");
   assert.deepEqual(result.dailyItinerary[0].activities, ["act-1"]);
   assert.equal(result.dailyItinerary[0].meals.breakfast, "The Cottage");
+});
+
+test("generateTripPlan upgrades major theme park durations from two hours to full day", async () => {
+  delete process.env.AI_PROVIDER;
+  const disneyPlan = JSON.stringify({
+    overview: "Theme park day",
+    suggestedActivities: [
+      { id: "a1", name: "Tokyo Disneyland", category: "theme_park", description: "Major park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a2", name: "Ueno Park", category: "parks", description: "Park", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a3", name: "Asakusa Walk", category: "city", description: "Walk", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+      { id: "a4", name: "Ginza Stroll", category: "shopping", description: "Shopping", duration: "2 hours", kidFriendly: true, weatherDependent: false },
+    ],
+    dailyItinerary: [
+      { day: "Day 1", activities: ["a1", "a2", "a3", "a4"], meals: { dinner: { name: "Dinner" } }, notes: "" },
+    ],
+    tips: ["Reserve timed entry."],
+  });
+
+  const result = await generateTripPlan(
+    {
+      destination: "Tokyo",
+      startDate: "2026-11-01",
+      endDate: "2026-11-01",
+      activities: ["theme_parks"],
+      children: [],
+    },
+    mockWeather,
+    {
+      geminiModel: {
+        generateContent: async () => ({
+          response: {
+            text: () => disneyPlan,
+            candidates: [{ finishReason: "STOP" }],
+          },
+        }),
+      },
+      anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: disneyPlan }], stop_reason: "end_turn" }) } },
+      openaiClient: { chat: { completions: { create: async () => ({ choices: [{ message: { content: disneyPlan }, finish_reason: "stop" }] }) } } },
+    },
+  );
+
+  const disney = result.suggestedActivities.find((activity) => activity.name === "Tokyo Disneyland");
+  assert.equal(disney.duration, "full day");
 });
 
 test("generateTripPlan trims itinerary days to the requested trip length", async () => {

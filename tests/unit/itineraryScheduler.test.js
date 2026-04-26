@@ -80,3 +80,26 @@ test("scheduleItinerary does not mark unique later-day activities as cross-trip 
   assert.equal(day2Activities.length, 2);
   assert.ok(day2Activities.every((item) => item.repeatAcrossTrip !== true));
 });
+
+test("scheduleItinerary treats full-day attractions as a real full day", () => {
+  const tripPlan = {
+    suggestedActivities: [
+      makeActivity("act-1", "Tokyo Disneyland", "full day"),
+    ],
+    dailyItinerary: [
+      {
+        day: "Day 1",
+        activities: ["act-1"],
+        meals: { dinner: { name: "Dinner One" } },
+        notes: "",
+      },
+    ],
+  };
+
+  const scheduled = scheduleItinerary(tripPlan, {}, "2026-05-21");
+  const disney = scheduled[0].scheduled.find((item) => item.name === "Tokyo Disneyland");
+
+  assert.equal(disney.duration, 480);
+  assert.equal(disney.scheduledStart, "9:00 AM");
+  assert.equal(disney.scheduledEnd, "5:00 PM");
+});
