@@ -157,7 +157,9 @@ export async function planRouteStops({
         if (shouldAbort()) return;
         let scheduledItinerary = null;
         try {
-          scheduledItinerary = scheduleItineraryFn(chunkResult, {}, stop.arrivalDate);
+          scheduledItinerary = scheduleItineraryFn(chunkResult, {}, stop.arrivalDate, {
+            hasChildren: (baseTrip?.children || []).length > 0,
+          });
         } catch { /* non-fatal */ }
         const localDayOffset = meta?.dayOffset || 0;
         const normalizedChunk = normalizeStopTripPlan(enrichedStop, chunkResult, localDayOffset);
@@ -177,7 +179,9 @@ export async function planRouteStops({
     try {
       scheduledByStop[stop.id] = normalizeScheduledStopDays(
         enrichedStop,
-        scheduleItineraryFn(tripPlan, {}, stop.arrivalDate),
+        scheduleItineraryFn(tripPlan, {}, stop.arrivalDate, {
+          hasChildren: (baseTrip?.children || []).length > 0,
+        }),
       );
     } catch {
       scheduledByStop[stop.id] = null;

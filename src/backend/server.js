@@ -552,7 +552,7 @@ export function createApp(deps = {}) {
       // Schedule itinerary using time-slot heuristics only (no Places data needed).
       let scheduledItinerary = null;
       try {
-        scheduledItinerary = scheduleItinerary(tripPlan, {}, startDate);
+        scheduledItinerary = scheduleItinerary(tripPlan, {}, startDate, { hasChildren: children.length > 0 });
       } catch (scheduleErr) {
         devLog(`Schedule failed (non-blocking): ${scheduleErr.message}`);
       }
@@ -1453,7 +1453,7 @@ export function createApp(deps = {}) {
             let scheduled = null;
             try {
               const chunkStartDate = chunks[meta.chunk - 1]?.startDate || startDate;
-              scheduled = scheduleItinerary(chunkResult, {}, chunkStartDate);
+              scheduled = scheduleItinerary(chunkResult, {}, chunkStartDate, { hasChildren: children.length > 0 });
             } catch { /* non-fatal */ }
 
             if (!send("itinerary-chunk", {
