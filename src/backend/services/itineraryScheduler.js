@@ -36,7 +36,7 @@ function formatTime(minutes) {
 function parseDuration(durationStr) {
   if (!durationStr) return 120; // default 2 hours
   const lower = durationStr.toLowerCase();
-  if (lower.includes("full day")) return 360;
+  if (lower.includes("full day")) return 480;
   if (lower.includes("half day")) return 240;
   const hourMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*h/);
   if (hourMatch) {
