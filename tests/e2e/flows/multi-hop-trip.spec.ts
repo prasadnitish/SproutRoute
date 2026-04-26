@@ -208,6 +208,70 @@ test("route review prefetches city ideas and sends reordered stops on continue",
   expect(streamPayload.prefetchedAttractionsByStopId.osaka[0].canonical_name).toBe("Dotonbori");
 });
 
+test("blanket Europe prompt shows route bundles and selectable city candidates", async ({ page }) => {
+  let streamPayload: any = null;
+  await mockAllApis(page);
+  await page.route("**/api/v1/trip/parse-input", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        destination: "Europe",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "country_tour",
+        stops: [
+          { id: "amsterdam", name: "Amsterdam", role: "suggested" },
+          { id: "berlin", name: "Berlin", role: "suggested" },
+          { id: "budapest", name: "Budapest", role: "suggested" },
+          { id: "prague", name: "Prague", role: "suggested" },
+          { id: "vienna", name: "Vienna", role: "suggested" },
+          { id: "athens", name: "Athens", role: "suggested" },
+          { id: "barcelona", name: "Barcelona", role: "suggested" },
+        ],
+        countryTour: {
+          country: "Europe",
+          countryCode: null,
+          requestedRegions: [],
+          suggestedStopCount: 5,
+        },
+      }),
+    }),
+  );
+  await page.route("**/api/v1/trip/stream", async (route) => {
+    streamPayload = route.request().postDataJSON();
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: routeSseBody(),
+    });
+  });
+
+  await page.goto("/");
+  await page.locator("textarea").fill("Europe for 10 days with my best friend");
+  await page.getByRole("button", { name: /plan it/i }).click();
+
+  await expect(page.getByRole("heading", { name: /Europe route/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /relaxed/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /balanced/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /ambitious/i })).toBeVisible();
+  await expect(page.getByLabel(/include Prague/i)).toBeVisible();
+
+  await page.getByRole("button", { name: /ambitious/i }).click();
+  await page.getByLabel(/include Athens/i).uncheck();
+  await page.getByLabel(/include Prague/i).check();
+  await page.getByRole("button", { name: /continue/i }).click();
+
+  await expect.poll(() => streamPayload?.stops?.length).toBeGreaterThan(3);
+  await expect.poll(() => streamPayload?.stops?.some((stop: any) => stop.name === "Prague")).toBe(true);
+  await expect.poll(() => streamPayload?.stops?.some((stop: any) => stop.name === "Athens")).toBe(false);
+});
+
 const popularRouteCases = [
   {
     name: "Japan country tour",
@@ -364,7 +428,12 @@ for (const routeCase of popularRouteCases) {
 
     await expect(page.getByRole("heading", { name: routeCase.heading })).toBeVisible();
     for (const [index, stop] of routeCase.stops.entries()) {
-      await expect(page.locator(`input[aria-label="Stop ${index + 1} name"]`)).toHaveValue(stop);
+      const stopInput = page.locator(`input[aria-label="Stop ${index + 1} name"]`);
+      if (await stopInput.count()) {
+        await expect(stopInput).toHaveValue(stop);
+      } else {
+        await expect(page.getByLabel(`Include ${stop}`)).toBeVisible();
+      }
     }
     if (routeCase.warning) {
       await expect(page.getByText(routeCase.warning)).toBeVisible();

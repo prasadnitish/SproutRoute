@@ -224,6 +224,57 @@ describe("parseInput", () => {
     assert.deepEqual(result.stops.map((stop) => stop.name), ["San Francisco", "Monterey", "Los Angeles", "San Diego"]);
   });
 
+  it("upgrades blanket Europe prompt into selectable region candidates", async () => {
+    const result = await parseInput("Europe for 10 days with my best friend", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "Europe",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Europe");
+    assert.ok(result.stops.length >= 6);
+    assert.ok(result.stops.some((stop) => stop.name === "Amsterdam"));
+    assert.ok(result.stops.some((stop) => stop.name === "Budapest"));
+  });
+
+  it("upgrades Eastern Europe prompt into selectable region candidates", async () => {
+    const result = await parseInput("Eastern Europe in 10 days", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "Eastern Europe",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Eastern Europe");
+    assert.ok(result.stops.some((stop) => stop.name === "Prague"));
+    assert.ok(result.stops.some((stop) => stop.name === "Krakow"));
+  });
+
   it("dedupes repeated city stops from parser output", async () => {
     const result = await parseInput("Tokyo Osaka Osaka Kyoto", {
       clientDate: "2026-04-26",

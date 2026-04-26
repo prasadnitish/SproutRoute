@@ -15,9 +15,10 @@ function normalizeStops(parsedInput) {
     return stops.map((stop, index) => ({
       id: stop.id || defaultStopId(stop.name, index),
       name: stop.name || `Stop ${index + 1}`,
+      countryCode: stop.countryCode || parsedInput?.countryTour?.countryCode || null,
       role: stop.role || "must_visit",
       requestedNights: stop.requestedNights || "",
-      mustInclude: stop.mustInclude !== false,
+      mustInclude: stop.mustInclude ?? stop.role === "must_visit",
       notes: Array.isArray(stop.notes) ? stop.notes : [],
     }));
   }
@@ -39,11 +40,75 @@ function moveItem(items, fromIndex, toIndex) {
   return next;
 }
 
+function inclusiveDayCount(startDate, endDate) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 7;
+  return Math.round((end - start) / 86400000) + 1;
+}
+
+function isBlanketRoute(parsedInput, candidates) {
+  return (
+    parsedInput?.tripShape === "country_tour" &&
+    candidates.length > 3 &&
+    candidates.every((stop) => stop.role === "suggested" && stop.mustInclude === false)
+  );
+}
+
+function clampCount(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function countForPace({ totalDays, candidateCount, hasChildren, pace }) {
+  const totalNights = Math.max(1, totalDays - 1);
+  const minNightsByPace = {
+    relaxed: hasChildren ? 4 : 3,
+    balanced: hasChildren ? 3 : 2,
+    ambitious: hasChildren ? 2.25 : 1.5,
+  };
+  return clampCount(Math.floor(totalNights / minNightsByPace[pace]), 2, candidateCount);
+}
+
+function buildRouteBundles(parsedInput, candidates) {
+  if (!isBlanketRoute(parsedInput, candidates)) return [];
+  const totalDays = inclusiveDayCount(parsedInput?.startDate, parsedInput?.endDate);
+  const hasChildren = (parsedInput?.childrenAges || []).length > 0;
+  const relaxedCount = countForPace({ totalDays, candidateCount: candidates.length, hasChildren, pace: "relaxed" });
+  const balancedCount = clampCount(
+    Math.max(relaxedCount, countForPace({ totalDays, candidateCount: candidates.length, hasChildren, pace: "balanced" })),
+    2,
+    candidates.length,
+  );
+  const ambitiousCount = clampCount(
+    Math.max(balancedCount, countForPace({ totalDays, candidateCount: candidates.length, hasChildren, pace: "ambitious" })),
+    2,
+    candidates.length,
+  );
+
+  return [
+    { id: "relaxed", label: "Relaxed", count: relaxedCount, stops: candidates.slice(0, relaxedCount) },
+    { id: "balanced", label: "Balanced", count: balancedCount, stops: candidates.slice(0, balancedCount) },
+    { id: "ambitious", label: "Ambitious", count: ambitiousCount, stops: candidates.slice(0, ambitiousCount) },
+  ].filter((bundle, index, all) => index === 0 || bundle.count !== all[index - 1].count);
+}
+
+function initialStopsFor(parsedInput) {
+  const candidates = normalizeStops(parsedInput);
+  const bundles = buildRouteBundles(parsedInput, candidates);
+  return bundles.find((bundle) => bundle.id === "balanced")?.stops || bundles[0]?.stops || candidates;
+}
+
 export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinue, onBack }) {
-  const [stops, setStops] = useState(() => normalizeStops(parsedInput));
+  const candidates = useMemo(() => normalizeStops(parsedInput), [parsedInput]);
+  const routeBundles = useMemo(() => buildRouteBundles(parsedInput, candidates), [parsedInput, candidates]);
+  const [stops, setStops] = useState(() => initialStopsFor(parsedInput));
+  const [selectedBundle, setSelectedBundle] = useState(
+    () => routeBundles.find((bundle) => bundle.id === "balanced")?.id || routeBundles[0]?.id || null,
+  );
   const [optimizationMode, setOptimizationMode] = useState(
     parsedInput?.tripShape === "country_tour" ? "recommended" : "user_order",
   );
+  const showCandidatePicker = routeBundles.length > 0;
 
   const title = parsedInput?.tripShape === "country_tour"
     ? `${parsedInput?.countryTour?.country || parsedInput?.destination} route`
@@ -60,11 +125,29 @@ export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinu
 
   const updateStop = (index, patch) => {
     setStops((prev) => prev.map((stop, i) => (i === index ? { ...stop, ...patch } : stop)));
+    setSelectedBundle(null);
   };
 
   const moveStop = (index, direction) => {
     setStops((prev) => moveItem(prev, index, index + direction));
     setOptimizationMode("user_order");
+    setSelectedBundle(null);
+  };
+
+  const applyBundle = (bundle) => {
+    setStops(bundle.stops);
+    setSelectedBundle(bundle.id);
+    setOptimizationMode("recommended");
+  };
+
+  const toggleCandidate = (candidate) => {
+    setStops((prev) => {
+      const exists = prev.some((stop) => stop.id === candidate.id);
+      if (exists) return prev.filter((stop) => stop.id !== candidate.id);
+      return [...prev, candidate];
+    });
+    setOptimizationMode("user_order");
+    setSelectedBundle(null);
   };
 
   const canContinue = stops.filter((stop) => stop.name.trim()).length >= 2;
@@ -77,7 +160,7 @@ export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinu
       ? "Finding ideas..."
       : "";
   const routeReason = optimizationMode === "recommended"
-    ? "Recommended route: we picked a classic order with manageable transfers. You can still rearrange it."
+    ? `${selectedBundle ? `${routeBundles.find((bundle) => bundle.id === selectedBundle)?.label || "Recommended"} route` : "Recommended route"}: ${stops.length} selected stop${stops.length === 1 ? "" : "s"} with manageable transfers.`
     : "Your order: we will keep the stops in this order unless you move them.";
 
   return (
@@ -103,6 +186,53 @@ export default function RouteReviewPanel({ parsedInput, routePrefetch, onContinu
           </p>
         )}
       </div>
+
+      {showCandidatePicker && (
+        <div className="mt-4 space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            {routeBundles.map((bundle) => (
+              <button
+                key={bundle.id}
+                type="button"
+                onClick={() => applyBundle(bundle)}
+                className={`rounded-xl border px-3 py-2 text-left transition ${
+                  selectedBundle === bundle.id
+                    ? "border-meadow-500 bg-meadow-50 text-meadow-800"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-meadow-300"
+                }`}
+              >
+                <span className="block text-[13px] font-bold">{bundle.label}</span>
+                <span className="block text-[11px] text-gray-500">{bundle.count} stops</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {candidates.map((candidate) => {
+              const checked = stops.some((stop) => stop.id === candidate.id);
+              const disableRemove = checked && stops.length <= 2;
+              return (
+                <label
+                  key={candidate.id}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px] font-semibold ${
+                    checked ? "border-meadow-300 bg-meadow-50 text-meadow-800" : "border-gray-200 bg-white text-gray-600"
+                  } ${disableRemove ? "opacity-70" : ""}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disableRemove}
+                    onChange={() => toggleCandidate(candidate)}
+                    aria-label={`Include ${candidate.name}`}
+                    className="h-3.5 w-3.5 accent-meadow-600"
+                  />
+                  {candidate.name}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="mt-4 flex gap-1 rounded-xl bg-gray-100 p-1">
         <button

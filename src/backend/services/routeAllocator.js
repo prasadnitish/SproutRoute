@@ -5,6 +5,8 @@ import { scoreRouteFeasibility } from "./routeFeasibility.js";
 const MAX_ROUTE_STOPS = 8;
 
 const COUNTRY_TOUR_DEFAULTS = {
+  EUROPE: ["Amsterdam", "Berlin", "Budapest", "Prague", "Vienna", "Athens", "Barcelona", "Paris"],
+  "EASTERN EUROPE": ["Prague", "Vienna", "Budapest", "Krakow", "Bratislava", "Ljubljana", "Zagreb", "Split"],
   JP: ["Tokyo", "Kyoto", "Osaka", "Hakone", "Hiroshima"],
   JAPAN: ["Tokyo", "Kyoto", "Osaka", "Hakone", "Hiroshima"],
   IT: ["Rome", "Florence", "Venice", "Milan"],
@@ -25,6 +27,8 @@ const COUNTRY_TOUR_DEFAULTS = {
 };
 
 const COUNTRY_TOUR_RATIONALES = {
+  EUROPE: "Broad Europe route; choose cities first so the itinerary matches your pace instead of over-compressing the continent.",
+  "EASTERN EUROPE": "Train-friendly regional route; starts with classic Central/Eastern Europe bases and lets you tune coverage.",
   JP: "Classic first-time route; major international entry point first, then cultural core, food hub, and slower scenic finish.",
   JAPAN: "Classic first-time route; major international entry point first, then cultural core, food hub, and slower scenic finish.",
   IT: "Classic northbound route; starts with Rome and moves through Tuscany toward northern rail hubs.",
@@ -56,6 +60,13 @@ const CITY_COORDS = {
   venice: { lat: 45.4408, lon: 12.3155 },
   milan: { lat: 45.4642, lon: 9.19 },
   paris: { lat: 48.8566, lon: 2.3522 },
+  prague: { lat: 50.0755, lon: 14.4378 },
+  vienna: { lat: 48.2082, lon: 16.3738 },
+  krakow: { lat: 50.0647, lon: 19.945 },
+  bratislava: { lat: 48.1486, lon: 17.1077 },
+  ljubljana: { lat: 46.0569, lon: 14.5058 },
+  zagreb: { lat: 45.815, lon: 15.9819 },
+  split: { lat: 43.5081, lon: 16.4402 },
   lyon: { lat: 45.764, lon: 4.8357 },
   provence: { lat: 43.9352, lon: 6.0679 },
   nice: { lat: 43.7102, lon: 7.262 },
@@ -84,6 +95,7 @@ const BROAD_REGION_NAMES = new Set([
   "france",
   "spain",
   "europe",
+  "eastern europe",
   "uk",
   "united kingdom",
   "united states",
@@ -97,6 +109,11 @@ const EU_COUNTRIES = new Set([
   "paris",
   "prague",
   "vienna",
+  "krakow",
+  "bratislava",
+  "ljubljana",
+  "zagreb",
+  "split",
   "rome",
   "florence",
   "venice",
