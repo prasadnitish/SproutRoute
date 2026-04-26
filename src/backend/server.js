@@ -278,22 +278,22 @@ function sanitizePrefetchedAttraction(attraction) {
     attraction.canonical_name || attraction.canonicalName || attraction.name || "",
   );
   if (!canonicalName) return null;
+  const kidAppealScore = Number(attraction.kid_appeal_score || attraction.kidAppealScore || 0);
   return {
-    ...attraction,
     canonical_name: canonicalName,
-    canonicalName,
     name: canonicalName,
-    category: sanitizeString(attraction.category || "general", 60).toLowerCase() || "general",
-    short_summary: sanitizeString(attraction.short_summary || attraction.shortSummary || "", 240),
-    shortSummary: sanitizeString(attraction.short_summary || attraction.shortSummary || "", 240),
-    what_it_is: sanitizeString(attraction.what_it_is || attraction.whatItIs || "", 240),
-    whatItIs: sanitizeString(attraction.what_it_is || attraction.whatItIs || "", 240),
-    why_recommended: sanitizeString(attraction.why_recommended || attraction.whyRecommended || "", 240),
-    whyRecommended: sanitizeString(attraction.why_recommended || attraction.whyRecommended || "", 240),
-    timing_tip: sanitizeString(attraction.timing_tip || attraction.timingTip || "", 160),
-    timingTip: sanitizeString(attraction.timing_tip || attraction.timingTip || "", 160),
-    duration_bucket: sanitizeString(attraction.duration_bucket || attraction.durationBucket || "", 40),
-    durationBucket: sanitizeString(attraction.duration_bucket || attraction.durationBucket || "", 40),
+    category: sanitizeString(attraction.category || "general", 40).toLowerCase() || "general",
+    city_display_name: sanitizeString(attraction.city_display_name || attraction.cityDisplayName || "", 80),
+    short_summary: sanitizeString(attraction.short_summary || attraction.shortSummary || "", 120),
+    what_it_is: sanitizeString(attraction.what_it_is || attraction.whatItIs || "", 120),
+    why_recommended: sanitizeString(attraction.why_recommended || attraction.whyRecommended || "", 120),
+    timing_tip: sanitizeString(attraction.timing_tip || attraction.timingTip || "", 100),
+    indoor_outdoor: sanitizeString(attraction.indoor_outdoor || attraction.indoorOutdoor || "", 20),
+    duration_bucket: sanitizeString(attraction.duration_bucket || attraction.durationBucket || "", 30),
+    verification_status: sanitizeString(attraction.verification_status || attraction.verificationStatus || "unverified", 30),
+    stroller_friendly: Boolean(attraction.stroller_friendly || attraction.strollerFriendly),
+    pet_friendly: Boolean(attraction.pet_friendly || attraction.petFriendly),
+    kid_appeal_score: Number.isFinite(kidAppealScore) ? Math.max(0, Math.min(10, kidAppealScore)) : 0,
   };
 }
 
@@ -305,7 +305,7 @@ function sanitizePrefetchedAttractionsByStopId(raw, allowedStopIds = []) {
     const stopId = sanitizeString(rawStopId, 80);
     if (!stopId || (allowed.size > 0 && !allowed.has(stopId)) || !Array.isArray(rawAttractions)) continue;
     const attractions = rawAttractions
-      .slice(0, 36)
+      .slice(0, 12)
       .map(sanitizePrefetchedAttraction)
       .filter(Boolean);
     if (attractions.length > 0) result[stopId] = attractions;
@@ -366,9 +366,9 @@ export function createApp(deps = {}) {
     }),
   );
 
-  // Enforce reasonable request body size limits to prevent memory exhaustion attacks
-  app.use(express.json({ limit: "10kb" }));
-  app.use(express.urlencoded({ limit: "10kb", extended: false }));
+  // Enforce reasonable request body size limits while allowing multi-city route review payloads.
+  app.use(express.json({ limit: "64kb" }));
+  app.use(express.urlencoded({ limit: "64kb", extended: false }));
 
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -907,9 +907,11 @@ export function createApp(deps = {}) {
             accessibilityNeeds,
             pace,
             pets,
-            maxResults: 24,
+            maxResults: 12,
           });
-          attractionsByStopId[stop.id] = Array.isArray(attractions) ? attractions : [];
+          attractionsByStopId[stop.id] = Array.isArray(attractions)
+            ? attractions.slice(0, 12).map(sanitizePrefetchedAttraction).filter(Boolean)
+            : [];
           statusByStopId[stop.id] = attractionsByStopId[stop.id].length > 0 ? "ready" : "empty";
         } catch (error) {
           log.warn("route-attractions:stop-error", { stopId: stop.id, error: error.message });
