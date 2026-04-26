@@ -166,6 +166,35 @@ const popularRouteCases = [
     stops: ["Tokyo", "Kyoto", "Osaka", "Hakone"],
   },
   {
+    name: "plain Japan country prompt",
+    prompt: "trip to Japan",
+    parsed: {
+      destination: "Japan",
+      suggestedDestinations: [],
+      startDate: "2026-11-01",
+      endDate: "2026-11-08",
+      adults: 2,
+      childrenAges: [],
+      pets: [],
+      vibe: "international",
+      tripShape: "country_tour",
+      stops: [
+        { id: "tokyo", name: "Tokyo", countryCode: "JP", role: "suggested" },
+        { id: "kyoto", name: "Kyoto", countryCode: "JP", role: "suggested" },
+        { id: "osaka", name: "Osaka", countryCode: "JP", role: "suggested" },
+        { id: "hakone", name: "Hakone", countryCode: "JP", role: "suggested" },
+      ],
+      countryTour: {
+        country: "Japan",
+        countryCode: "JP",
+        requestedRegions: ["Tokyo", "Kyoto", "Osaka", "Hakone"],
+        suggestedStopCount: 4,
+      },
+    },
+    heading: /Japan route/i,
+    stops: ["Tokyo", "Kyoto", "Osaka", "Hakone"],
+  },
+  {
     name: "Europe friend trip",
     prompt: "Europe trip with best friend cover Amsterdam, Greece, Berlin, Budapest in 10 days",
     parsed: {

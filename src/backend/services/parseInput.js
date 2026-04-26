@@ -7,6 +7,12 @@ const PARSE_MAX_TOKENS = 1200;
 const VALID_PACES = new Set(["slow", "moderate", "fast"]);
 const VALID_TRIP_SHAPES = new Set(["single_destination", "multi_stop", "country_tour"]);
 const VALID_STOP_ROLES = new Set(["must_visit", "suggested", "transit"]);
+const COUNTRY_TOUR_DEFAULTS = {
+  japan: { country: "Japan", countryCode: "JP", stops: ["Tokyo", "Kyoto", "Osaka", "Hakone"] },
+  italy: { country: "Italy", countryCode: "IT", stops: ["Rome", "Florence", "Venice", "Milan"] },
+  france: { country: "France", countryCode: "FR", stops: ["Paris", "Lyon", "Provence", "Nice"] },
+  spain: { country: "Spain", countryCode: "ES", stops: ["Madrid", "Seville", "Granada", "Barcelona"] },
+};
 
 const normalizeStringArray = (value, maxLength = 8) =>
   Array.isArray(value)
@@ -26,9 +32,46 @@ const slugifyStopId = (value, index) => {
   return id || `stop-${index + 1}`;
 };
 
+const normalizePlaceKey = (value) =>
+  String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\b(japan|italy|france|spain|usa|united states|uk|united kingdom)\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+function dedupeByName(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    const key = normalizePlaceKey(item?.name || item);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeSuggestedDestinations(value) {
+  if (!Array.isArray(value)) return [];
+  return dedupeByName(value
+    .map((suggestion) => {
+      const source = suggestion && typeof suggestion === "object" ? suggestion : { name: suggestion };
+      const name = typeof source.name === "string" ? source.name.trim() : String(source.name || "").trim();
+      if (!name) return null;
+      return {
+        name,
+        ...(source.emoji ? { emoji: String(source.emoji) } : {}),
+        ...(source.description ? { description: String(source.description).trim() } : {}),
+        ...(source.season_note ? { season_note: String(source.season_note).trim() } : {}),
+      };
+    })
+    .filter(Boolean))
+    .slice(0, 3);
+}
+
 function normalizeStops(value) {
   if (!Array.isArray(value)) return [];
-  return value
+  return dedupeByName(value
     .map((stop, index) => {
       const source = stop && typeof stop === "object" ? stop : { name: stop };
       const name = typeof source.name === "string" ? source.name.trim() : String(source.name || "").trim();
@@ -48,8 +91,31 @@ function normalizeStops(value) {
         notes: normalizeStringArray(source.notes, 4),
       };
     })
-    .filter(Boolean)
+    .filter(Boolean))
     .slice(0, 8);
+}
+
+function detectKnownCountryIntent(text, parsed) {
+  const destination = String(parsed?.destination || "").trim().toLowerCase();
+  const input = String(text || "").toLowerCase();
+  const matched = Object.entries(COUNTRY_TOUR_DEFAULTS).find(([key, config]) => {
+    const countryMentioned = destination === key || input.match(new RegExp(`\\b${key}\\b`));
+    if (!countryMentioned) return false;
+    return !config.stops.some((stop) => input.match(new RegExp(`\\b${stop.toLowerCase()}\\b`)));
+  });
+  return matched?.[1] || null;
+}
+
+function buildCountryTourStops(countryConfig) {
+  return countryConfig.stops.map((name, index) => ({
+    id: slugifyStopId(name, index),
+    name,
+    countryCode: countryConfig.countryCode,
+    role: "suggested",
+    requestedNights: null,
+    mustInclude: false,
+    notes: [],
+  }));
 }
 
 function normalizeCountryTour(value) {
@@ -246,15 +312,34 @@ export async function parseInput(text, deps = {}) {
     }
   }
 
-  const stops = normalizeStops(parsed.stops);
-  const countryTour = normalizeCountryTour(parsed.countryTour);
+  const suggestedDestinations = normalizeSuggestedDestinations(parsed.suggestedDestinations);
+  let stops = normalizeStops(parsed.stops);
+  let countryTour = normalizeCountryTour(parsed.countryTour);
+  let destination = parsed.destination || null;
   const parsedTripShape = VALID_TRIP_SHAPES.has(parsed.tripShape) ? parsed.tripShape : null;
-  const tripShape = parsedTripShape
+  let tripShape = parsedTripShape
     || (countryTour ? "country_tour" : stops.length > 1 ? "multi_stop" : "single_destination");
 
+  const countryIntent = detectKnownCountryIntent(text, parsed);
+  if (
+    countryIntent
+    && (!countryTour || stops.length < 2)
+    && (!destination || normalizePlaceKey(destination) === normalizePlaceKey(countryIntent.country))
+  ) {
+    destination = countryIntent.country;
+    tripShape = "country_tour";
+    countryTour = {
+      country: countryIntent.country,
+      countryCode: countryIntent.countryCode,
+      requestedRegions: countryIntent.stops,
+      suggestedStopCount: countryIntent.stops.length,
+    };
+    stops = buildCountryTourStops(countryIntent);
+  }
+
   return {
-    destination: parsed.destination || null,
-    suggestedDestinations: parsed.suggestedDestinations || [],
+    destination,
+    suggestedDestinations: tripShape === "country_tour" ? [] : suggestedDestinations,
     startDate,
     endDate,
     adults: parsed.adults || 2,

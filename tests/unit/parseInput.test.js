@@ -45,6 +45,55 @@ describe("parseInput", () => {
     assert.equal(result.suggestedDestinations[0].name, "Maui, Hawaii");
   });
 
+  it("deduplicates destination suggestions returned by the parser", async () => {
+    const result = await parseInput("relaxing city trip", {
+      callAI: async () => JSON.stringify({
+        destination: null,
+        suggestedDestinations: [
+          { name: "New York, NY", emoji: "🏙️", description: "Big city", season_note: "Good in spring" },
+          { name: "Boston, MA", emoji: "🧭", description: "History", season_note: "Good in spring" },
+          { name: "Boston, MA", emoji: "🧭", description: "History", season_note: "Good in spring" },
+          { name: "Philadelphia, PA", emoji: "🔔", description: "Museums", season_note: "Good in spring" },
+        ],
+        adults: 2,
+        childrenAges: [],
+        vibe: "city",
+      }),
+    });
+
+    assert.deepEqual(result.suggestedDestinations.map((s) => s.name), [
+      "New York, NY",
+      "Boston, MA",
+      "Philadelphia, PA",
+    ]);
+  });
+
+  it("rescues broad country prompts into country tour flow instead of duplicate city choices", async () => {
+    const result = await parseInput("trip to japan", {
+      callAI: async () => JSON.stringify({
+        destination: null,
+        suggestedDestinations: [
+          { name: "Tokyo", emoji: "🏙️", description: "Big city", season_note: "Good in spring" },
+          { name: "Osaka", emoji: "🍜", description: "Food hub", season_note: "Good in spring" },
+          { name: "Osaka", emoji: "🍜", description: "Food hub", season_note: "Good in spring" },
+        ],
+        adults: 2,
+        childrenAges: [],
+        vibe: "international",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+      }),
+    });
+
+    assert.equal(result.destination, "Japan");
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Japan");
+    assert.equal(result.countryTour.countryCode, "JP");
+    assert.deepEqual(result.suggestedDestinations, []);
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto", "Osaka", "Hakone"]);
+  });
+
   it("includes detectedRegion when provided", async () => {
     const result = await parseInput("beach vacation in Maui with two kids age 4 and 8", {
       callAI: mockAI,
