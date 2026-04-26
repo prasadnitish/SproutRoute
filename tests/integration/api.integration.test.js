@@ -84,6 +84,12 @@ async function invokeStreamRoute(app, body) {
   return { writes, body: writes.join("") };
 }
 
+function listen(app) {
+  return new Promise((resolve) => {
+    const server = app.listen(0, () => resolve(server));
+  });
+}
+
 function parseSseEvents(body) {
   return body
     .split("\n\n")
@@ -660,6 +666,75 @@ test("POST /api/v1/trip/stream emits route before stop-level weather and itinera
   assert.equal(events.find((entry) => entry.event === "done").data.routePlan.stops[1].name, "Berlin");
 });
 
+test("POST /api/v1/trip/stream accepts prefetched multi-stop attraction payloads", async () => {
+  const app = createApp({
+    enableRequestLogging: false,
+    planRouteStopsFn: async ({ routePlan }) => ({
+      routePlan,
+      stopWeather: {},
+      stopItineraries: {},
+      tripPlan: { suggestedActivities: [], dailyItinerary: [], tips: [] },
+    }),
+  });
+  const server = await listen(app);
+
+  try {
+    const port = server.address().port;
+    const longText = "family-friendly verified attraction candidate ".repeat(10);
+    const attractions = Array.from({ length: 12 }, (_, index) => ({
+      canonical_name: `Attraction ${index + 1}`,
+      category: "museum",
+      city_display_name: "Tokyo",
+      what_it_is: longText,
+      why_recommended: longText,
+      timing_tip: longText,
+      verification_status: "verified",
+    }));
+    const payload = {
+      destination: "Japan",
+      startDate: "2026-11-01",
+      endDate: "2026-11-08",
+      activities: ["international"],
+      adults: 2,
+      childrenAges: [],
+      tripShape: "country_tour",
+      stops: [
+        { id: "tokyo", name: "Tokyo", countryCode: "JP" },
+        { id: "kyoto", name: "Kyoto", countryCode: "JP" },
+        { id: "osaka", name: "Osaka", countryCode: "JP" },
+      ],
+      countryTour: { country: "Japan", countryCode: "JP" },
+      prefetchedAttractionsByStopId: {
+        tokyo: attractions,
+        kyoto: attractions,
+        osaka: attractions,
+      },
+    };
+
+    assert.ok(
+      JSON.stringify(payload).length > 10_000,
+      "regression payload must exceed the former 10kb parser limit",
+    );
+    assert.ok(
+      JSON.stringify(payload).length < 64_000,
+      "regression payload should represent the compact prefetch budget",
+    );
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/v1/trip/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(text, /event: route/);
+    assert.match(text, /event: done/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("POST /api/v1/trip/route-attractions prefetches candidates per stop without raw prompt text", async () => {
   const calls = [];
   const app = createApp({
@@ -667,7 +742,14 @@ test("POST /api/v1/trip/route-attractions prefetches candidates per stop without
     attractionMemoryService: {
       getPlanningCandidates: async (payload) => {
         calls.push(payload);
-        return [{ canonical_name: `${payload.destination} Museum`, category: "museum" }];
+        return [{
+          canonical_name: `${payload.destination} Museum`,
+          category: "museum",
+          what_it_is: "A compact museum summary",
+          why_recommended: "Works well for families",
+          internal_notes: "do not send operational notes",
+          raw_description: "x".repeat(2000),
+        }];
       },
     },
   });
@@ -688,6 +770,9 @@ test("POST /api/v1/trip/route-attractions prefetches candidates per stop without
   assert.equal(res.body.tripRequestId, "trip-123");
   assert.deepEqual(Object.keys(res.body.attractionsByStopId), ["tokyo", "kyoto"]);
   assert.equal(res.body.statusByStopId.tokyo, "ready");
+  assert.equal(res.body.attractionsByStopId.tokyo[0].canonical_name, "Tokyo Museum");
+  assert.equal("internal_notes" in res.body.attractionsByStopId.tokyo[0], false);
+  assert.equal("raw_description" in res.body.attractionsByStopId.tokyo[0], false);
   assert.equal(calls.length, 2);
   assert.equal(calls[0].destination, "Tokyo");
   assert.deepEqual(calls[0].childrenAges, [4, 9]);

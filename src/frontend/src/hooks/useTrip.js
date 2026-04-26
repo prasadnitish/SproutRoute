@@ -12,6 +12,47 @@ import {
   getCarSeatGuidance,
 } from "../services/api.js";
 
+function compactText(value, maxLength) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function compactPrefetchedAttraction(attraction) {
+  if (!attraction || typeof attraction !== "object") return null;
+  const canonicalName = compactText(attraction.canonical_name || attraction.canonicalName || attraction.name, 80);
+  if (!canonicalName) return null;
+  const kidAppealScore = Number(attraction.kid_appeal_score || attraction.kidAppealScore || 0);
+  return {
+    canonical_name: canonicalName,
+    name: canonicalName,
+    category: compactText(attraction.category || "general", 40).toLowerCase() || "general",
+    city_display_name: compactText(attraction.city_display_name || attraction.cityDisplayName, 80),
+    short_summary: compactText(attraction.short_summary || attraction.shortSummary, 120),
+    what_it_is: compactText(attraction.what_it_is || attraction.whatItIs, 120),
+    why_recommended: compactText(attraction.why_recommended || attraction.whyRecommended, 120),
+    timing_tip: compactText(attraction.timing_tip || attraction.timingTip, 100),
+    indoor_outdoor: compactText(attraction.indoor_outdoor || attraction.indoorOutdoor, 20),
+    duration_bucket: compactText(attraction.duration_bucket || attraction.durationBucket, 30),
+    verification_status: compactText(attraction.verification_status || attraction.verificationStatus || "unverified", 30),
+    stroller_friendly: Boolean(attraction.stroller_friendly || attraction.strollerFriendly),
+    pet_friendly: Boolean(attraction.pet_friendly || attraction.petFriendly),
+    kid_appeal_score: Number.isFinite(kidAppealScore) ? Math.max(0, Math.min(10, kidAppealScore)) : 0,
+  };
+}
+
+function compactPrefetchedAttractionsByStopId(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([stopId, attractions]) => [
+        stopId,
+        Array.isArray(attractions)
+          ? attractions.slice(0, 12).map(compactPrefetchedAttraction).filter(Boolean)
+          : [],
+      ])
+      .filter(([, attractions]) => attractions.length > 0),
+  );
+}
+
 export function useTrip() {
   const [screen, setScreen] = useState("input"); // "input" | "generating" | "results"
   const [tripInput, setTripInput] = useState("");
@@ -99,7 +140,7 @@ export function useTrip() {
         setRoutePrefetch({
           tripRequestId: result.tripRequestId || tripRequestId,
           statusByStopId: result.statusByStopId || {},
-          attractionsByStopId: result.attractionsByStopId || {},
+          attractionsByStopId: compactPrefetchedAttractionsByStopId(result.attractionsByStopId),
         });
       })
       .catch(() => {
@@ -194,7 +235,7 @@ export function useTrip() {
       tripShape: routeDraft.tripShape || parsedInput.tripShape,
       stops: routeDraft.stops || parsedInput.stops || [],
       countryTour: routeDraft.countryTour !== undefined ? routeDraft.countryTour : parsedInput.countryTour || null,
-      prefetchedAttractionsByStopId: routePrefetch.attractionsByStopId || {},
+      prefetchedAttractionsByStopId: compactPrefetchedAttractionsByStopId(routePrefetch.attractionsByStopId),
     };
     setParsedInput(updated);
     try {
@@ -236,7 +277,7 @@ export function useTrip() {
       tripShape: parsed.tripShape || "single_destination",
       stops: parsed.stops || [],
       countryTour: parsed.countryTour || null,
-      prefetchedAttractionsByStopId: parsed.prefetchedAttractionsByStopId || {},
+      prefetchedAttractionsByStopId: compactPrefetchedAttractionsByStopId(parsed.prefetchedAttractionsByStopId),
       savedProfile: parsed.savedProfile || null,
     };
 
