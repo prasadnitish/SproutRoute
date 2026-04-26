@@ -200,6 +200,57 @@ describe("parseInput", () => {
     assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto", "Osaka"]);
   });
 
+  it("upgrades whole-USA prompt into a country tour with California family defaults", async () => {
+    const result = await parseInput("USA road trip with my 5 year old", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "United States",
+        suggestedDestinations: [],
+        startDate: "2026-07-01",
+        endDate: "2026-07-12",
+        adults: 2,
+        childrenAges: [5],
+        pets: [],
+        vibe: "adventure",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.countryCode, "US");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["San Francisco", "Monterey", "Los Angeles", "San Diego"]);
+  });
+
+  it("dedupes repeated city stops from parser output", async () => {
+    const result = await parseInput("Tokyo Osaka Osaka Kyoto", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "Japan multi-city trip",
+        suggestedDestinations: [],
+        startDate: "2026-11-01",
+        endDate: "2026-11-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "multi_stop",
+        stops: [
+          { id: "tokyo", name: "Tokyo", role: "must_visit" },
+          { id: "osaka", name: "Osaka", role: "must_visit" },
+          { id: "osaka-2", name: "Osaka", role: "must_visit" },
+          { id: "kyoto", name: "Kyoto", role: "must_visit" },
+        ],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Osaka", "Kyoto"]);
+  });
+
   it("fills expanded trip intent fields with safe defaults when omitted", async () => {
     const result = await parseInput("simple beach vacation", { callAI: mockAI });
 

@@ -159,6 +159,8 @@ export async function planRouteStops({
         try {
           scheduledItinerary = scheduleItineraryFn(chunkResult, {}, stop.arrivalDate, {
             hasChildren: (baseTrip?.children || []).length > 0,
+            routePlan,
+            routeStop: enrichedStop,
           });
         } catch { /* non-fatal */ }
         const localDayOffset = meta?.dayOffset || 0;
@@ -181,6 +183,8 @@ export async function planRouteStops({
         enrichedStop,
         scheduleItineraryFn(tripPlan, {}, stop.arrivalDate, {
           hasChildren: (baseTrip?.children || []).length > 0,
+          routePlan,
+          routeStop: enrichedStop,
         }),
       );
     } catch {

@@ -159,3 +159,31 @@ test("scheduleItinerary does not schedule long child-trip attractions into the e
     "scheduler should explain that the late long activity was skipped",
   );
 });
+
+test("scheduleItinerary skips activities outside the current route stop", () => {
+  const tripPlan = {
+    suggestedActivities: [
+      { ...makeActivity("act-1", "Tokyo National Museum", "2 hours"), cityDisplayName: "Tokyo" },
+      { ...makeActivity("act-2", "Fushimi Inari Shrine", "2 hours"), cityDisplayName: "Kyoto" },
+    ],
+    dailyItinerary: [
+      {
+        day: "Day 1",
+        activities: ["act-1", "act-2"],
+        meals: { dinner: { name: "Dinner One" } },
+        notes: "",
+      },
+    ],
+  };
+
+  const scheduled = scheduleItinerary(tripPlan, {}, "2026-11-01", {
+    routeStop: { id: "tokyo", name: "Tokyo" },
+  });
+  const activities = scheduled[0].scheduled.filter((item) => !item.isMeal);
+
+  assert.deepEqual(activities.map((item) => item.name), ["Tokyo National Museum"]);
+  assert.ok(
+    scheduled[0].warnings.some((warning) => warning.type === "wrong_route_stop"),
+    "scheduler should explain cross-stop activities are skipped",
+  );
+});

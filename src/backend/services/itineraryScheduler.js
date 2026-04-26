@@ -5,6 +5,7 @@
 // Output: scheduledItinerary with actual times, travel gaps, conflict warnings
 
 import { log } from "../utils/logger.js";
+import { classifyActivityConstraint } from "./activityKnowledgeBase.js";
 
 // ── Time slot defaults (family-friendly) ───────────────────────────────────
 
@@ -60,6 +61,10 @@ function parseDuration(durationStr) {
 }
 
 function durationForActivity(activity) {
+  const constraint = classifyActivityConstraint(activity);
+  if (Number.isFinite(constraint.durationMinutes) && constraint.durationMinutes > 0) {
+    return constraint.durationMinutes;
+  }
   if (isMajorThemeParkActivity(activity)) return 480;
   return parseDuration(activity?.duration);
 }
@@ -111,6 +116,13 @@ function estimateTravelMinutes(/* from, to */) {
   // Rough estimate: 20 min between activities in the same city
   // Future: use Google Distance Matrix API for real estimates
   return 20;
+}
+
+function activityMatchesRouteStop(activity, routeStop) {
+  if (!routeStop?.name) return true;
+  const explicitPlace = activity?.cityDisplayName || activity?.city_display_name || activity?.stopName || activity?.location;
+  if (!explicitPlace) return true;
+  return String(explicitPlace).toLowerCase().includes(String(routeStop.name).toLowerCase());
 }
 
 // ── Main Scheduler ─────────────────────────────────────────────────────────
@@ -269,6 +281,15 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
     const name = activity.name || activity.title || actRef;
     const enriched = enrichedMap[name] || enrichedMap[actRef] || null;
     const duration = durationForActivity(activity);
+
+    if (!activityMatchesRouteStop(activity, options.routeStop)) {
+      warnings.push({
+        activity: name,
+        type: "wrong_route_stop",
+        message: `${name} belongs outside ${options.routeStop.name}, so it was not scheduled on this day.`,
+      });
+      continue;
+    }
 
     // Check opening hours
     let hours = null;

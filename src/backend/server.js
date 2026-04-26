@@ -1275,6 +1275,7 @@ export function createApp(deps = {}) {
           destination,
           startDate,
           endDate,
+          childrenAges: (children || []).map((child) => child.age).filter((age) => Number.isFinite(age)),
         });
         const prefetchedAttractionsByStopId = sanitizePrefetchedAttractionsByStopId(
           req.body?.prefetchedAttractionsByStopId,

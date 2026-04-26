@@ -316,6 +316,35 @@ const popularRouteCases = [
     heading: /multi-stop route/i,
     stops: ["Rome", "Florence", "Venice", "Milan"],
   },
+  {
+    name: "USA family road trip",
+    prompt: "USA road trip with a 5 year old next summer",
+    parsed: {
+      destination: "United States",
+      suggestedDestinations: [],
+      startDate: "2026-07-01",
+      endDate: "2026-07-12",
+      adults: 2,
+      childrenAges: [5],
+      pets: [],
+      vibe: "adventure",
+      tripShape: "country_tour",
+      stops: [
+        { id: "san-francisco", name: "San Francisco", countryCode: "US", role: "suggested" },
+        { id: "monterey", name: "Monterey", countryCode: "US", role: "suggested" },
+        { id: "los-angeles", name: "Los Angeles", countryCode: "US", role: "suggested" },
+        { id: "san-diego", name: "San Diego", countryCode: "US", role: "suggested" },
+      ],
+      countryTour: {
+        country: "United States",
+        countryCode: "US",
+        requestedRegions: ["California"],
+        suggestedStopCount: 4,
+      },
+    },
+    heading: /United States route/i,
+    stops: ["San Francisco", "Monterey", "Los Angeles", "San Diego"],
+  },
 ];
 
 for (const routeCase of popularRouteCases) {
