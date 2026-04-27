@@ -35,6 +35,39 @@ function resolveItinerary(rawDays, suggestedActivities) {
   });
 }
 
+function parseRouteDay(value) {
+  const direct = Number(value);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const match = String(value || "").match(/\bday\s+(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function findRouteStopForDay(routePlan, day, dayIndex = 0) {
+  const stops = routePlan?.stops || [];
+  if (!stops.length) return null;
+
+  const stopId = day?.stopId || day?.routeStopId;
+  if (stopId) {
+    const byId = stops.find((stop) => stop.id === stopId);
+    if (byId) return byId;
+  }
+
+  const stopName = String(day?.stopName || day?.cityDisplayName || "").toLowerCase();
+  if (stopName) {
+    const byName = stops.find((stop) =>
+      String(stop.name || stop.displayName || "").toLowerCase() === stopName
+    );
+    if (byName) return byName;
+  }
+
+  const routeDay = parseRouteDay(day?.routeDay || day?.day || day?.date) || dayIndex + 1;
+  const byDay = stops.find((stop) =>
+    routeDay >= (Number(stop.dayStart) || 1) &&
+    routeDay <= (Number(stop.dayEnd) || Number(stop.dayStart) || 1)
+  );
+  return byDay || stops[Math.min(dayIndex, stops.length - 1)] || null;
+}
+
 function TabButton({ id, activeTab, setActiveTab, icon, label, count }) {
   const active = activeTab === id;
   return (
@@ -203,6 +236,10 @@ export default function ResultsScreen({
     }, 0),
     [destination, tripData?.trip?.lat, tripData?.trip?.lon],
   );
+  const activeDayFallbackCenter = useMemo(() => {
+    const routeStop = findRouteStopForDay(routePlan, activeDayMap.day, activeDayMap.dayIndex);
+    return routeStop ? toMapPoint(routeStop, activeDayMap.dayIndex || 0) : tripCenter;
+  }, [activeDayMap.day, activeDayMap.dayIndex, routePlan, tripCenter]);
 
   // Pack count = total items
   const packCount = useMemo(() => {
@@ -294,7 +331,7 @@ export default function ResultsScreen({
               eyebrow="Day map"
               title={`Day ${(activeDayMap.dayIndex || 0) + 1} route`}
               points={activeDayPoints}
-              fallbackCenter={tripCenter}
+              fallbackCenter={activeDayFallbackCenter}
               routeMeta={activeDayMap.day?.routeMeta || null}
               minHeight="min-h-[380px]"
             />
