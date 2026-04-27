@@ -136,6 +136,117 @@ test("multi-hop trip shows route review before streaming route-aware results", a
   await expect(page.getByText("Berlin").first()).toBeVisible();
 });
 
+test("route results day map falls back to the active route stop when activities lack coordinates", async ({ page }) => {
+  const routePlanWithCoords = {
+    ...routePlan,
+    stops: routePlan.stops.map((stop) => ({ ...stop })),
+  };
+  const scheduledItinerary = [
+    {
+      day: "Day 1: Amsterdam",
+      stopId: "amsterdam",
+      stopName: "Amsterdam",
+      routeDay: 1,
+      scheduled: [
+        {
+          id: "ams-museum",
+          name: "Amsterdam Museum",
+          category: "museum",
+          scheduledStart: "10:00 AM",
+          scheduledEnd: "12:00 PM",
+          duration: 120,
+          status: "scheduled",
+          enriched: null,
+        },
+      ],
+      warnings: [],
+      routeMeta: {
+        orderedBy: "input",
+        mappedStopCount: 0,
+        totalDistanceMiles: 0,
+        totalTravelMinutes: 0,
+      },
+    },
+  ];
+
+  await mockAllApis(page);
+  await page.route("**/api/v1/trip/parse-input", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        destination: "Europe multi-city trip",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-05",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "multi_stop",
+        stops: [
+          { id: "amsterdam", name: "Amsterdam", role: "must_visit" },
+          { id: "berlin", name: "Berlin", role: "must_visit" },
+        ],
+        countryTour: null,
+      }),
+    }),
+  );
+  await page.route("**/api/v1/trip/stream", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: [
+        `event: route\ndata: ${JSON.stringify({
+          routePlan: routePlanWithCoords,
+          trip: {
+            destination: "Europe multi-city trip",
+            startDate: "2026-06-01",
+            endDate: "2026-06-05",
+            duration: 5,
+            activities: ["international"],
+            children: [],
+            pets: [],
+          },
+        })}\n`,
+        `event: stop-itinerary\ndata: ${JSON.stringify({
+          stop: routePlanWithCoords.stops[0],
+          tripPlan: {
+            overview: "Amsterdam first.",
+            suggestedActivities: [{ id: "ams-museum", name: "Amsterdam Museum", category: "museum" }],
+            dailyItinerary: [{ day: "Day 1: Amsterdam", activities: ["ams-museum"] }],
+            tips: [],
+          },
+          scheduledItinerary,
+        })}\n`,
+        `event: done\ndata: ${JSON.stringify({
+          trip: { destination: "Europe multi-city trip" },
+          routePlan: routePlanWithCoords,
+          tripPlan: {
+            overview: "Amsterdam first.",
+            suggestedActivities: [{ id: "ams-museum", name: "Amsterdam Museum", category: "museum" }],
+            dailyItinerary: [{ day: "Day 1: Amsterdam", activities: ["ams-museum"] }],
+            tips: [],
+          },
+        })}\n`,
+      ].join("\n"),
+    }),
+  );
+
+  await page.goto("/");
+  await page.locator("textarea").fill("Europe trip with best friend cover Amsterdam and Berlin in 5 days");
+  await page.getByRole("button", { name: /plan it/i }).click();
+  await page.getByRole("button", { name: /continue/i }).click();
+
+  await expect(page.getByRole("region", { name: /day map day 1 route/i })).toBeVisible();
+  await expect(page.getByText("Map appears once we have coordinates.")).not.toBeVisible();
+  const dayMapIframe = page.getByRole("region", { name: /day map day 1 route/i }).locator("iframe");
+  await expect(dayMapIframe).toBeVisible();
+  const src = await dayMapIframe.getAttribute("src");
+  expect(src).toContain("52.37");
+  expect(src).toContain("4.9");
+});
+
 test("route review prefetches city ideas and sends reordered stops on continue", async ({ page }) => {
   let prefetchRequests = 0;
   let streamPayload: any = null;
