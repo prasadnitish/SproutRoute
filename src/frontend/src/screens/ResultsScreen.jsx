@@ -326,6 +326,7 @@ export default function ResultsScreen({
               tripDuration={tripData?.trip?.duration || 0}
               childCount={childCount}
               onOpenSafety={() => setActiveTab("safety")}
+              isItineraryComplete={progress?.itinerary === "done"}
             />
             <PremiumRouteMap
               eyebrow="Day map"

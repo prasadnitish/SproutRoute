@@ -5,6 +5,8 @@
 import { test, expect } from "@playwright/test";
 import { mockAllApis, goToResults } from "../fixtures/mock-api";
 
+const packTab = (page) => page.getByRole("button", { name: /^pack/i });
+
 test.describe("PackingTile (stub — full tests blocked pending component integration)", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
@@ -12,16 +14,16 @@ test.describe("PackingTile (stub — full tests blocked pending component integr
   });
 
   test("Pack tab button is visible", async ({ page }) => {
-    await expect(page.getByRole("button", { name: /pack/i }).or(page.getByText(/pack/i))).toBeVisible();
+    await expect(packTab(page)).toBeVisible();
   });
 
   test("clicking Pack tab does not crash", async ({ page }) => {
-    await page.getByText(/pack/i, { exact: false }).click();
+    await packTab(page).click();
     await expect(page.locator("body")).not.toContainText("TypeError");
   });
 
   test("Pack tab renders item count or stub text", async ({ page }) => {
-    await page.getByText(/pack/i, { exact: false }).click();
+    await packTab(page).click();
     await expect(page.locator("body")).not.toBeEmpty();
   });
 });
@@ -31,7 +33,7 @@ test.describe("PackingTile — Shop button", () => {
     await mockAllApis(page);
     await goToResults(page);
     // Navigate to the Pack tab
-    await page.getByRole("button", { name: /pack/i }).click();
+    await packTab(page).click();
     // Find the shop button by aria-label
     const shopButton = page.getByLabel(/shop for/i).first();
     await expect(shopButton).toBeVisible();
@@ -40,7 +42,7 @@ test.describe("PackingTile — Shop button", () => {
   test("Tapping Shop expands panel with 3 store links", async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
-    await page.getByRole("button", { name: /pack/i }).click();
+    await packTab(page).click();
     const shopButton = page.getByLabel(/shop for/i).first();
     await shopButton.click();
     await expect(page.getByRole("link", { name: /Amazon/i })).toBeVisible();
@@ -51,7 +53,7 @@ test.describe("PackingTile — Shop button", () => {
   test("Disclosure text visible in expanded Shop panel", async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
-    await page.getByRole("button", { name: /pack/i }).click();
+    await packTab(page).click();
     const shopButton = page.getByLabel(/shop for/i).first();
     await shopButton.click();
     await expect(page.getByText(/may earn a small commission/i)).toBeVisible();
