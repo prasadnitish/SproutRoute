@@ -158,8 +158,8 @@ test("POST /api/trip-plan applies default activities when none are provided", as
 
   const res = await invokeRoute(app, "POST", "/api/trip-plan", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-04",
+    startDate: "2027-05-01",
+    endDate: "2027-05-04",
     activities: [],
     children: [{ age: 2 }],
   });
@@ -179,8 +179,8 @@ test("POST /api/generate rejects requests with no activities", async () => {
   const app = createApp({ enableRequestLogging: false });
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-02",
+    startDate: "2027-05-01",
+    endDate: "2027-05-02",
     activities: [],
     children: [{ age: 4 }],
   });
@@ -215,8 +215,8 @@ test("POST /api/generate returns trip, weather, and packing list", async () => {
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-03",
+    startDate: "2027-05-01",
+    endDate: "2027-05-03",
     activities: ["parks"],
     children: [{ age: 2 }],
   });
@@ -427,8 +427,8 @@ test("POST /api/generate includes shopLinks on packing list items", async () => 
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-03",
+    startDate: "2027-05-01",
+    endDate: "2027-05-03",
     activities: ["parks"],
     children: [{ age: 2 }],
   });
