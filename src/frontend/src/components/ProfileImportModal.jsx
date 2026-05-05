@@ -72,12 +72,15 @@ export default function ProfileImportModal({ isOpen, onClose, onSaved }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-import-title"
         className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-display font-bold text-gray-900">
+          <h2 id="profile-import-title" className="text-xl font-display font-bold text-gray-900">
             {step === "prompt" && "Import from AI"}
             {step === "paste" && "Paste your profile"}
             {step === "review" && "Review your profile"}

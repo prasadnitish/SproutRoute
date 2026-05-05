@@ -321,4 +321,27 @@ describe("parseInput", () => {
     assert.deepEqual(result.stops, []);
     assert.equal(result.countryTour, null);
   });
+
+  it("normalizes explicit day-count prompts to inclusive trip dates", async () => {
+    const result = await parseInput("Five days in San Diego with a toddler and a dog", {
+      clientDate: "2026-05-05",
+      callAI: async () => JSON.stringify({
+        destination: "San Diego, CA",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-06",
+        adults: 2,
+        childrenAges: [2],
+        pets: [{ type: "dog" }],
+        vibe: "beach",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.startDate, "2026-06-01");
+    assert.equal(result.endDate, "2026-06-05");
+  });
 });
