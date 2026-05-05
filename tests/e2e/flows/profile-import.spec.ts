@@ -81,11 +81,13 @@ test.describe("Profile Import Flow", () => {
     // If there's no import button yet, the test documents future behavior
     if (await importButton.isVisible().catch(() => false)) {
       await importButton.click();
+      const dialog = page.getByRole("dialog", { name: /import from ai|paste your profile|review your profile/i });
+      await dialog.getByRole("button", { name: /json ready/i }).click();
       // Paste invalid JSON
-      const textarea = page.locator("textarea").last();
+      const textarea = dialog.locator("textarea").last();
       await textarea.fill("not valid json");
       // Click validate/import
-      const submitBtn = page.getByRole("button", { name: /validate|import|save/i });
+      const submitBtn = dialog.getByRole("button", { name: /validate|import|save/i });
       if (await submitBtn.isVisible().catch(() => false)) {
         await submitBtn.click();
         // Should show error
