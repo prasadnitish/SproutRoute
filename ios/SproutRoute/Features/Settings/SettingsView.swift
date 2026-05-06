@@ -35,8 +35,10 @@ struct SettingsView: View {
             }
 
             Section("Privacy and terms") {
-                Link("Privacy Policy", destination: URL(string: "https://sproutroute-production.up.railway.app/privacy.html")!)
-                Link("Terms of Service", destination: URL(string: "https://sproutroute-production.up.railway.app/terms.html")!)
+                Link("Privacy Policy", destination: URL(string: "https://www.sproutroute.app/privacy.html")!)
+                Link("Privacy Choices", destination: URL(string: "https://www.sproutroute.app/privacy-choices.html")!)
+                Link("Terms of Service", destination: URL(string: "https://www.sproutroute.app/terms.html")!)
+                Link("Support", destination: URL(string: "https://www.sproutroute.app/support.html")!)
                 Button(role: .destructive) {
                     confirmingDelete = true
                 } label: {
