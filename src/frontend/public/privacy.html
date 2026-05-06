@@ -63,7 +63,7 @@
       <li><strong>Weather providers:</strong> Weather.gov and Visual Crossing support web and backend weather planning. On iOS, Apple Weather and WeatherKit may refresh destination forecasts and display Apple Weather attribution where required.</li>
       <li><strong>Maps, geocoding, and places:</strong> OpenStreetMap Nominatim, Google Places, Apple Maps, and MapKit support destination lookup, place enrichment, maps, and handoff to Apple Maps.</li>
       <li><strong>Safety and advisory data:</strong> government travel advisory sources, static car-seat rule datasets, airline pet policy datasets, and pet entry rule datasets support safety cards. Some neighborhood safety functionality may use Amadeus Safe Place where configured.</li>
-      <li><strong>Analytics, hosting, and storage:</strong> PostHog, Supabase, Railway, and Cloudflare may process product analytics, authenticated profile data, hosting logs, performance data, and security events.</li>
+      <li><strong>Analytics, hosting, and storage:</strong> the web app may use PostHog for product analytics. The current native iOS app does not include the PostHog SDK and does not send iOS app events to PostHog. Supabase, Railway, and Cloudflare may process authenticated profile data, hosting logs, performance data, and security events where configured.</li>
       <li><strong>Apple services:</strong> App Store, TestFlight, App Analytics, WeatherKit, MapKit, UserNotifications, App Intents, ActivityKit, WidgetKit, and Spotlight may process data according to Apple's policies. We are not responsible for data Apple independently collects through Apple frameworks and services.</li>
     </ul>
   </section>
@@ -97,6 +97,11 @@
   <section>
     <h2>Sale, sharing, and tracking</h2>
     <p>We do not sell personal information. We do not knowingly share personal information for cross-context behavioral advertising. If our data practices change, we will update this policy and App Store privacy disclosures before shipping the change.</p>
+  </section>
+
+  <section>
+    <h2>iOS analytics transparency</h2>
+    <p>The current native iOS build does not include PostHog analytics, advertising SDKs, or third-party tracking SDKs. The iOS app still communicates with the SproutRoute backend to generate trips, enrich places, and refresh safety or packing guidance. Apple may provide App Store, TestFlight, crash, and App Analytics information through Apple's developer tools according to Apple's policies.</p>
   </section>
 
   <section>
