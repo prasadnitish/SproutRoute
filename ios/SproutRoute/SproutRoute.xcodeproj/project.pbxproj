@@ -1,0 +1,799 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		05CCBBCD74AEB0A060D7B094 /* LiveActivityController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C50485BE3C65676955AE1BBC /* LiveActivityController.swift */; };
+		1A5993AA2CDCD7BCEB80F325 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7383B7CD9018390CAE6674AD /* APIClient.swift */; };
+		21ACA2B04F2ACD969059B809 /* SSEParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBE087DCA4773976200A5F26 /* SSEParserTests.swift */; };
+		262BC077AF37EB47E8DFDE80 /* WeatherKitAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */; };
+		26431BBBDBB193E685EE12F5 /* DeepLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06C0054B89E5EF67E223F73 /* DeepLinks.swift */; };
+		2D4565D2063D0520A9BFEAFB /* ReleaseReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A8D840FD261B0DF092C318F /* ReleaseReadinessTests.swift */; };
+		3135628241E22F9E1694A166 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */; };
+		3BFB6539D8D5814E64ABD686 /* APIContractDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D509AE1C48517EBCB1611A28 /* APIContractDecodingTests.swift */; };
+		3E2CBC0E088B621585ACCE1A /* DeepLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06C0054B89E5EF67E223F73 /* DeepLinks.swift */; };
+		45CEDDF55A5350CC7FA2C434 /* NativeUXRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6B2BEAEEABCD05F49E18279 /* NativeUXRegressionTests.swift */; };
+		49E8A8D86A9837335826220B /* SnapshotStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE2D11116D8685C2A2E7550E /* SnapshotStoreTests.swift */; };
+		4A8522A6527BDFD1872178AB /* SpotlightIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */; };
+		55797F992641F756D0AF824D /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 542A336B4D7C1429BD3C8CD5 /* AppRootView.swift */; };
+		5809DA2D20CA4D377D62E306 /* SproutRouteWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621CAB49FF98DF6C7C5A1E36 /* SproutRouteWidgetBundle.swift */; };
+		5932A2FDFFF417350BE15609 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E2E46F90C69F82DB5D49E012 /* Assets.xcassets */; };
+		652313E5821D4AA055D55442 /* SavedTripsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 939ECCCD140D5992225CC7E1 /* SavedTripsView.swift */; };
+		696FB8965C354BC7BA392CC3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E2E46F90C69F82DB5D49E012 /* Assets.xcassets */; };
+		70034D812C4F738C03A6A394 /* APIClientSSEStreamingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2619A92C50399FFA9C2C7A00 /* APIClientSSEStreamingTests.swift */; };
+		71F56898B2567D420B759A00 /* SwiftDataPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D5544B7BF69F1B0048EA91 /* SwiftDataPersistenceTests.swift */; };
+		7357560D9608FB38B0A3E8B1 /* PlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9D663D051DE9AE1BF87250 /* PlanView.swift */; };
+		74F7CF93CF66DC0B741A4350 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DD4A43663FFE61233ED1BE /* Snapshots.swift */; };
+		78B20E596269107716071551 /* APIContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F86F8A605570E272397CFE42 /* APIContracts.swift */; };
+		7F2CF895D864B0ADDE0C1CC9 /* SproutRouteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6841553E50EC09921B7D26F /* SproutRouteApp.swift */; };
+		818D5676217A534840064C5D /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DD4A43663FFE61233ED1BE /* Snapshots.swift */; };
+		828AC40A5DDA32B40402BB7D /* TripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */; };
+		8329ABDF00831F19344D091A /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
+		8E4672B5B5B6D22C5B250994 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */; };
+		93F449EE8BFE204E3D9440B5 /* TripPlannerProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23242DAF1070905566684223 /* TripPlannerProgressTests.swift */; };
+		9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */; };
+		9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A279D9F9164F9BB491D6660E /* ProfileContracts.swift */; };
+		9FF8BE8A514DD2FEC4CA6D5D /* FoundationModelsRecapService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */; };
+		A39475D8D3360EB982592DC9 /* TripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */; };
+		A9ACCCD47DC1559656B06FAB /* SproutRouteWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AAFCD79FBC305E31F072E6D0 /* ProfileImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF6964AD61006C9723404751 /* ProfileImportView.swift */; };
+		AB814F3E28F08D647762857B /* SproutRouteIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B2E91F5020862EA92C8760 /* SproutRouteIntents.swift */; };
+		ABF684099B67FCD2E7156FA8 /* TripMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DE6A41E2B6E3473B24C4A3F /* TripMapView.swift */; };
+		B08A494E668EFEF9670A9098 /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39F312D0264D11959CB79D50 /* ResultsView.swift */; };
+		B1BEEA052864C3070F25F5EA /* APIClientConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD9B2484B23A72612AD500B /* APIClientConfigurationTests.swift */; };
+		B80A05D25664BB91AFB1A0CA /* ItineraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */; };
+		BA017A5F4CA3B649AE66AC8E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */; };
+		EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
+		ECDE8AD1A90FBC61E9B44895 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */; };
+		EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DD678EEBCE106556B89B3 /* TripPlanner.swift */; };
+		F88396DDEFC0D0F44E8A3DED /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB95C865F62EFEA101F1C28A /* SSEParser.swift */; };
+		FE30BE735E618CB2E2F079A2 /* SwiftDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2B936B9C2C60B53D32E443 /* SwiftDataModels.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		87D4E2FDC05E347BA8752EFE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC350D703871F6E6BA039A22 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CC444250478A1B46AA6DD888;
+			remoteInfo = SproutRouteWidget;
+		};
+		C682D426734CFE4216849A0F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AC350D703871F6E6BA039A22 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FF2385CE076E331D7EAFEC26;
+			remoteInfo = SproutRoute;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		35DE29A11BA9760AEED1AFC0 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A9ACCCD47DC1559656B06FAB /* SproutRouteWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		0A9D663D051DE9AE1BF87250 /* PlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanView.swift; sourceTree = "<group>"; };
+		0CD9B2484B23A72612AD500B /* APIClientConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientConfigurationTests.swift; sourceTree = "<group>"; };
+		0F2B936B9C2C60B53D32E443 /* SwiftDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataModels.swift; sourceTree = "<group>"; };
+		1907E05BE2D487D9DEDF1F93 /* SproutRouteTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SproutRouteTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		200A7D9807456872C47B14F8 /* SproutTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutTheme.swift; sourceTree = "<group>"; };
+		23242DAF1070905566684223 /* TripPlannerProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripPlannerProgressTests.swift; sourceTree = "<group>"; };
+		243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
+		2619A92C50399FFA9C2C7A00 /* APIClientSSEStreamingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientSSEStreamingTests.swift; sourceTree = "<group>"; };
+		2A8D840FD261B0DF092C318F /* ReleaseReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseReadinessTests.swift; sourceTree = "<group>"; };
+		39F312D0264D11959CB79D50 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
+		4DE6A41E2B6E3473B24C4A3F /* TripMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripMapView.swift; sourceTree = "<group>"; };
+		542A336B4D7C1429BD3C8CD5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		621CAB49FF98DF6C7C5A1E36 /* SproutRouteWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteWidgetBundle.swift; sourceTree = "<group>"; };
+		62DD4A43663FFE61233ED1BE /* Snapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snapshots.swift; sourceTree = "<group>"; };
+		64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItineraryPresentation.swift; sourceTree = "<group>"; };
+		6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
+		7383B7CD9018390CAE6674AD /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SproutRouteWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitAdapter.swift; sourceTree = "<group>"; };
+		90D5544B7BF69F1B0048EA91 /* SwiftDataPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataPersistenceTests.swift; sourceTree = "<group>"; };
+		939ECCCD140D5992225CC7E1 /* SavedTripsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedTripsView.swift; sourceTree = "<group>"; };
+		98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A279D9F9164F9BB491D6660E /* ProfileContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileContracts.swift; sourceTree = "<group>"; };
+		AB95C865F62EFEA101F1C28A /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
+		AF6964AD61006C9723404751 /* ProfileImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileImportView.swift; sourceTree = "<group>"; };
+		B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsRecapService.swift; sourceTree = "<group>"; };
+		B6B2BEAEEABCD05F49E18279 /* NativeUXRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeUXRegressionTests.swift; sourceTree = "<group>"; };
+		BE2D11116D8685C2A2E7550E /* SnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotStoreTests.swift; sourceTree = "<group>"; };
+		C50485BE3C65676955AE1BBC /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
+		C5B2E91F5020862EA92C8760 /* SproutRouteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteIntents.swift; sourceTree = "<group>"; };
+		CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripActivityAttributes.swift; sourceTree = "<group>"; };
+		D06C0054B89E5EF67E223F73 /* DeepLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinks.swift; sourceTree = "<group>"; };
+		D509AE1C48517EBCB1611A28 /* APIContractDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIContractDecodingTests.swift; sourceTree = "<group>"; };
+		D8801812CC9689D768A24FB5 /* SproutRoute.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SproutRoute.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D98DD678EEBCE106556B89B3 /* TripPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripPlanner.swift; sourceTree = "<group>"; };
+		DBE087DCA4773976200A5F26 /* SSEParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParserTests.swift; sourceTree = "<group>"; };
+		E2E46F90C69F82DB5D49E012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripRepository.swift; sourceTree = "<group>"; };
+		F6841553E50EC09921B7D26F /* SproutRouteApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteApp.swift; sourceTree = "<group>"; };
+		F86F8A605570E272397CFE42 /* APIContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIContracts.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		00DB2527166733AC8AFDF9ED /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		09A0B23C564B766E073AA189 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				D06C0054B89E5EF67E223F73 /* DeepLinks.swift */,
+				62DD4A43663FFE61233ED1BE /* Snapshots.swift */,
+				200A7D9807456872C47B14F8 /* SproutTheme.swift */,
+				CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		1A3004FA7FC7AEF4BA15CD6E = {
+			isa = PBXGroup;
+			children = (
+				E2E46F90C69F82DB5D49E012 /* Assets.xcassets */,
+				FFDE0B76E28CD0E1716075B8 /* Config */,
+				F82B650CEF9504AA20ACB2BD /* Features */,
+				1EF40C97D2E9F8B2974FD357 /* Intents */,
+				BE5C1FF57804E2AC2F9D49D3 /* Models */,
+				D153461E7C475F38D4819172 /* Persistence */,
+				A82250921B6263ADBB26DE5D /* Services */,
+				09A0B23C564B766E073AA189 /* Shared */,
+				8F70ED21F48D9638F8E11900 /* SproutRouteApp */,
+				6FDDBF52527A69086A1F8129 /* SproutRouteTests */,
+				C77C3E38FD11263976597DC1 /* Widgets */,
+				EDC79ADCB70110C2911FED7A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		1EAC95F2CD0DE7F89DE8FFBD /* Trips */ = {
+			isa = PBXGroup;
+			children = (
+				939ECCCD140D5992225CC7E1 /* SavedTripsView.swift */,
+			);
+			path = Trips;
+			sourceTree = "<group>";
+		};
+		1EF40C97D2E9F8B2974FD357 /* Intents */ = {
+			isa = PBXGroup;
+			children = (
+				C5B2E91F5020862EA92C8760 /* SproutRouteIntents.swift */,
+			);
+			path = Intents;
+			sourceTree = "<group>";
+		};
+		5FDC81D241B61C683057E7B5 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				4DE6A41E2B6E3473B24C4A3F /* TripMapView.swift */,
+			);
+			path = Map;
+			sourceTree = "<group>";
+		};
+		6FDDBF52527A69086A1F8129 /* SproutRouteTests */ = {
+			isa = PBXGroup;
+			children = (
+				0CD9B2484B23A72612AD500B /* APIClientConfigurationTests.swift */,
+				2619A92C50399FFA9C2C7A00 /* APIClientSSEStreamingTests.swift */,
+				D509AE1C48517EBCB1611A28 /* APIContractDecodingTests.swift */,
+				B6B2BEAEEABCD05F49E18279 /* NativeUXRegressionTests.swift */,
+				2A8D840FD261B0DF092C318F /* ReleaseReadinessTests.swift */,
+				BE2D11116D8685C2A2E7550E /* SnapshotStoreTests.swift */,
+				DBE087DCA4773976200A5F26 /* SSEParserTests.swift */,
+				90D5544B7BF69F1B0048EA91 /* SwiftDataPersistenceTests.swift */,
+				23242DAF1070905566684223 /* TripPlannerProgressTests.swift */,
+			);
+			path = SproutRouteTests;
+			sourceTree = "<group>";
+		};
+		72EDDC7709ED147DD9476B98 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				AF6964AD61006C9723404751 /* ProfileImportView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		877581CAC310D08333100D2D /* Plan */ = {
+			isa = PBXGroup;
+			children = (
+				0A9D663D051DE9AE1BF87250 /* PlanView.swift */,
+			);
+			path = Plan;
+			sourceTree = "<group>";
+		};
+		8F70ED21F48D9638F8E11900 /* SproutRouteApp */ = {
+			isa = PBXGroup;
+			children = (
+				542A336B4D7C1429BD3C8CD5 /* AppRootView.swift */,
+				F6841553E50EC09921B7D26F /* SproutRouteApp.swift */,
+			);
+			path = SproutRouteApp;
+			sourceTree = "<group>";
+		};
+		9E731EE4F45A5DF669C7F286 /* Results */ = {
+			isa = PBXGroup;
+			children = (
+				64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */,
+				39F312D0264D11959CB79D50 /* ResultsView.swift */,
+			);
+			path = Results;
+			sourceTree = "<group>";
+		};
+		A82250921B6263ADBB26DE5D /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				7383B7CD9018390CAE6674AD /* APIClient.swift */,
+				B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */,
+				C50485BE3C65676955AE1BBC /* LiveActivityController.swift */,
+				243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */,
+				6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */,
+				AB95C865F62EFEA101F1C28A /* SSEParser.swift */,
+				D98DD678EEBCE106556B89B3 /* TripPlanner.swift */,
+				90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		BE5C1FF57804E2AC2F9D49D3 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F86F8A605570E272397CFE42 /* APIContracts.swift */,
+				A279D9F9164F9BB491D6660E /* ProfileContracts.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		C77C3E38FD11263976597DC1 /* Widgets */ = {
+			isa = PBXGroup;
+			children = (
+				621CAB49FF98DF6C7C5A1E36 /* SproutRouteWidgetBundle.swift */,
+			);
+			path = Widgets;
+			sourceTree = "<group>";
+		};
+		D153461E7C475F38D4819172 /* Persistence */ = {
+			isa = PBXGroup;
+			children = (
+				0F2B936B9C2C60B53D32E443 /* SwiftDataModels.swift */,
+				F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		EDC79ADCB70110C2911FED7A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				D8801812CC9689D768A24FB5 /* SproutRoute.app */,
+				1907E05BE2D487D9DEDF1F93 /* SproutRouteTests.xctest */,
+				76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F82B650CEF9504AA20ACB2BD /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				5FDC81D241B61C683057E7B5 /* Map */,
+				877581CAC310D08333100D2D /* Plan */,
+				72EDDC7709ED147DD9476B98 /* Profile */,
+				9E731EE4F45A5DF669C7F286 /* Results */,
+				00DB2527166733AC8AFDF9ED /* Settings */,
+				1EAC95F2CD0DE7F89DE8FFBD /* Trips */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		FFDE0B76E28CD0E1716075B8 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		170E9DC9B2AB8C3E1F1F4A5A /* SproutRouteTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 531008781FEE534AE08A8A52 /* Build configuration list for PBXNativeTarget "SproutRouteTests" */;
+			buildPhases = (
+				170D437D21192CF2D2893955 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F8497846E54665486DD00284 /* PBXTargetDependency */,
+			);
+			name = SproutRouteTests;
+			packageProductDependencies = (
+			);
+			productName = SproutRouteTests;
+			productReference = 1907E05BE2D487D9DEDF1F93 /* SproutRouteTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		CC444250478A1B46AA6DD888 /* SproutRouteWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A83E3E112AADBBE82780DDB0 /* Build configuration list for PBXNativeTarget "SproutRouteWidget" */;
+			buildPhases = (
+				666586D0A5BBFA9C6F5AFDF1 /* Sources */,
+				76CC35DD5523859A4D8214E9 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SproutRouteWidget;
+			packageProductDependencies = (
+			);
+			productName = SproutRouteWidget;
+			productReference = 76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		FF2385CE076E331D7EAFEC26 /* SproutRoute */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1FFB3FE0855C8FDEC0AECFDA /* Build configuration list for PBXNativeTarget "SproutRoute" */;
+			buildPhases = (
+				564A1EEF1D9521EB6C189D30 /* Sources */,
+				B81F55B9A7EFE035BD84ADEA /* Resources */,
+				35DE29A11BA9760AEED1AFC0 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				5CAA0FFB0D491368632E45CA /* PBXTargetDependency */,
+			);
+			name = SproutRoute;
+			packageProductDependencies = (
+			);
+			productName = SproutRoute;
+			productReference = D8801812CC9689D768A24FB5 /* SproutRoute.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AC350D703871F6E6BA039A22 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					170E9DC9B2AB8C3E1F1F4A5A = {
+						DevelopmentTeam = YNCCXQ5TUR;
+						ProvisioningStyle = Automatic;
+					};
+					CC444250478A1B46AA6DD888 = {
+						DevelopmentTeam = YNCCXQ5TUR;
+						ProvisioningStyle = Automatic;
+					};
+					FF2385CE076E331D7EAFEC26 = {
+						DevelopmentTeam = YNCCXQ5TUR;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = A140A30AD524FB628FF4E0C3 /* Build configuration list for PBXProject "SproutRoute" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1A3004FA7FC7AEF4BA15CD6E;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = EDC79ADCB70110C2911FED7A /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				FF2385CE076E331D7EAFEC26 /* SproutRoute */,
+				170E9DC9B2AB8C3E1F1F4A5A /* SproutRouteTests */,
+				CC444250478A1B46AA6DD888 /* SproutRouteWidget */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		76CC35DD5523859A4D8214E9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				696FB8965C354BC7BA392CC3 /* Assets.xcassets in Resources */,
+				3135628241E22F9E1694A166 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B81F55B9A7EFE035BD84ADEA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5932A2FDFFF417350BE15609 /* Assets.xcassets in Resources */,
+				BA017A5F4CA3B649AE66AC8E /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		170D437D21192CF2D2893955 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1BEEA052864C3070F25F5EA /* APIClientConfigurationTests.swift in Sources */,
+				70034D812C4F738C03A6A394 /* APIClientSSEStreamingTests.swift in Sources */,
+				3BFB6539D8D5814E64ABD686 /* APIContractDecodingTests.swift in Sources */,
+				45CEDDF55A5350CC7FA2C434 /* NativeUXRegressionTests.swift in Sources */,
+				2D4565D2063D0520A9BFEAFB /* ReleaseReadinessTests.swift in Sources */,
+				21ACA2B04F2ACD969059B809 /* SSEParserTests.swift in Sources */,
+				49E8A8D86A9837335826220B /* SnapshotStoreTests.swift in Sources */,
+				71F56898B2567D420B759A00 /* SwiftDataPersistenceTests.swift in Sources */,
+				93F449EE8BFE204E3D9440B5 /* TripPlannerProgressTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		564A1EEF1D9521EB6C189D30 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1A5993AA2CDCD7BCEB80F325 /* APIClient.swift in Sources */,
+				78B20E596269107716071551 /* APIContracts.swift in Sources */,
+				55797F992641F756D0AF824D /* AppRootView.swift in Sources */,
+				26431BBBDBB193E685EE12F5 /* DeepLinks.swift in Sources */,
+				9FF8BE8A514DD2FEC4CA6D5D /* FoundationModelsRecapService.swift in Sources */,
+				B80A05D25664BB91AFB1A0CA /* ItineraryPresentation.swift in Sources */,
+				05CCBBCD74AEB0A060D7B094 /* LiveActivityController.swift in Sources */,
+				8E4672B5B5B6D22C5B250994 /* NotificationScheduler.swift in Sources */,
+				7357560D9608FB38B0A3E8B1 /* PlanView.swift in Sources */,
+				9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */,
+				AAFCD79FBC305E31F072E6D0 /* ProfileImportView.swift in Sources */,
+				B08A494E668EFEF9670A9098 /* ResultsView.swift in Sources */,
+				F88396DDEFC0D0F44E8A3DED /* SSEParser.swift in Sources */,
+				652313E5821D4AA055D55442 /* SavedTripsView.swift in Sources */,
+				ECDE8AD1A90FBC61E9B44895 /* SettingsView.swift in Sources */,
+				74F7CF93CF66DC0B741A4350 /* Snapshots.swift in Sources */,
+				4A8522A6527BDFD1872178AB /* SpotlightIndexer.swift in Sources */,
+				7F2CF895D864B0ADDE0C1CC9 /* SproutRouteApp.swift in Sources */,
+				AB814F3E28F08D647762857B /* SproutRouteIntents.swift in Sources */,
+				EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */,
+				FE30BE735E618CB2E2F079A2 /* SwiftDataModels.swift in Sources */,
+				828AC40A5DDA32B40402BB7D /* TripActivityAttributes.swift in Sources */,
+				ABF684099B67FCD2E7156FA8 /* TripMapView.swift in Sources */,
+				EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */,
+				9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */,
+				262BC077AF37EB47E8DFDE80 /* WeatherKitAdapter.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		666586D0A5BBFA9C6F5AFDF1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3E2CBC0E088B621585ACCE1A /* DeepLinks.swift in Sources */,
+				818D5676217A534840064C5D /* Snapshots.swift in Sources */,
+				5809DA2D20CA4D377D62E306 /* SproutRouteWidgetBundle.swift in Sources */,
+				8329ABDF00831F19344D091A /* SproutTheme.swift in Sources */,
+				A39475D8D3360EB982592DC9 /* TripActivityAttributes.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5CAA0FFB0D491368632E45CA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CC444250478A1B46AA6DD888 /* SproutRouteWidget */;
+			targetProxy = 87D4E2FDC05E347BA8752EFE /* PBXContainerItemProxy */;
+		};
+		F8497846E54665486DD00284 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FF2385CE076E331D7EAFEC26 /* SproutRoute */;
+			targetProxy = C682D426734CFE4216849A0F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1A02B4DF2AAE842D9C285F05 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/SproutRouteWidget.entitlements;
+				INFOPLIST_FILE = "Config/SproutRouteWidget-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sproutroute.app.widget;
+				PRODUCT_NAME = SproutRouteWidget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		568D27B7A3A289276AC3B95B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/SproutRouteWidget.entitlements;
+				INFOPLIST_FILE = "Config/SproutRouteWidget-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sproutroute.app.widget;
+				PRODUCT_NAME = SproutRouteWidget;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		852FC44C4528B11127F51E85 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				INFOPLIST_FILE = "Config/SproutRouteTests-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sproutroute.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SproutRoute.app/SproutRoute";
+			};
+			name = Debug;
+		};
+		8676086FF636160F535BCE37 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				INFOPLIST_FILE = "Config/SproutRouteTests-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sproutroute.app.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SproutRoute.app/SproutRoute";
+			};
+			name = Release;
+		};
+		916FDE3B5080E5F40B71C84A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/SproutRoute.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Config/SproutRoute-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sproutroute.app;
+				PRODUCT_NAME = SproutRoute;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		96794326F9DD9F5050DC025E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = YNCCXQ5TUR;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		9F2520FB54BC5785CE91B363 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 3;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = YNCCXQ5TUR;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		CC5F1180173E042C77068254 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Config/SproutRoute.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = "Config/SproutRoute-Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.sproutroute.app;
+				PRODUCT_NAME = SproutRoute;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1FFB3FE0855C8FDEC0AECFDA /* Build configuration list for PBXNativeTarget "SproutRoute" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CC5F1180173E042C77068254 /* Debug */,
+				916FDE3B5080E5F40B71C84A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		531008781FEE534AE08A8A52 /* Build configuration list for PBXNativeTarget "SproutRouteTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				852FC44C4528B11127F51E85 /* Debug */,
+				8676086FF636160F535BCE37 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A140A30AD524FB628FF4E0C3 /* Build configuration list for PBXProject "SproutRoute" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9F2520FB54BC5785CE91B363 /* Debug */,
+				96794326F9DD9F5050DC025E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A83E3E112AADBBE82780DDB0 /* Build configuration list for PBXNativeTarget "SproutRouteWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				568D27B7A3A289276AC3B95B /* Debug */,
+				1A02B4DF2AAE842D9C285F05 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AC350D703871F6E6BA039A22 /* Project object */;
+}
