@@ -39,7 +39,7 @@ Final App Store Connect answers must match the shipped build and live backend co
 
 - User Content: trip prompt, generated saved trip content, profile import text, packing state, support messages.
 - Location: typed destination and origin; precise device location only if a feature requests it and the user grants permission.
-- Identifiers: device or diagnostic identifiers if collected by analytics, Apple services, PostHog, or operational logging.
+- Identifiers: device or diagnostic identifiers if collected by Apple services or operational logging. The current native iOS app does not include the PostHog SDK and does not send iOS app events to PostHog.
 - Usage Data and Diagnostics: app events, crash/error data, performance, and reliability logs.
 - Contact Info: only if the user contacts support or uses an account-backed web feature.
 - Sensitive Info: avoid collecting it. If users voluntarily enter medical, accessibility, or special-needs notes, disclose according to App Store Connect guidance.
@@ -48,7 +48,7 @@ For the iOS app, on-device-only data that is never sent to a server is not treat
 
 ## Children and age rating
 
-SproutRoute is for parents and guardians and is not directed to children under 13. Do not submit as a Kids Category app unless the product, analytics, third-party services, links, and parental gates are redesigned for that category.
+SproutRoute is for parents and guardians and is not directed to children under 13. Do not submit as a Kids Category app unless the product, analytics, third-party services, links, and parental gates are redesigned for that category. The current native iOS app does not include third-party analytics or advertising SDKs.
 
 The public Privacy Policy states that children under 13 should not use SproutRoute directly and that parents should not enter unnecessary child identifiers.
 

@@ -21,6 +21,8 @@ test("App Store privacy policy states collection, third parties, retention, and 
   assert.match(html, /request deletion/i);
   assert.match(html, /privacy-choices\.html/i);
   assert.match(html, /Apple Weather/i);
+  assert.match(html, /native iOS app does not include the PostHog SDK/i);
+  assert.match(html, /does not send iOS app events to PostHog/i);
 });
 
 test("privacy choices page gives App Store user privacy controls and deletion instructions", () => {
@@ -31,6 +33,7 @@ test("privacy choices page gives App Store user privacy controls and deletion in
   assert.match(html, /Request server-side deletion/i);
   assert.match(html, /California privacy rights/i);
   assert.match(html, /we do not sell/i);
+  assert.match(html, /native iOS app currently does not send events to PostHog/i);
 });
 
 test("terms and safety disclosures position guidance as informational, not legal advice", () => {
