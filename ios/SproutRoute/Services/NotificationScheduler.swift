@@ -34,4 +34,9 @@ actor NotificationScheduler {
         let request = UNNotificationRequest(identifier: "weather-\(snapshot.id)-\(Date().timeIntervalSince1970)", content: content, trigger: trigger)
         try? await UNUserNotificationCenter.current().add(request)
     }
+
+    func clearSproutRouteNotifications() async {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+    }
 }

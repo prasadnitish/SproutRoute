@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var confirmingDelete = false
     @State private var deleteMessage: String?
     @State private var analyticsEnabled = ProductAnalytics.shared.isEnabled
+    @State private var isDeletingData = false
 
     var body: some View {
         Form {
@@ -53,16 +54,26 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Privacy and terms") {
-                Link("Privacy Policy", destination: URL(string: "https://www.sproutroute.app/privacy.html")!)
-                Link("Privacy Choices", destination: URL(string: "https://www.sproutroute.app/privacy-choices.html")!)
-                Link("Terms of Service", destination: URL(string: "https://www.sproutroute.app/terms.html")!)
-                Link("Support", destination: URL(string: "https://www.sproutroute.app/support.html")!)
+            Section("Privacy, safety, and legal") {
+                ForEach(CompliancePage.allCases) { page in
+                    NavigationLink {
+                        CompliancePageView(page: page)
+                    } label: {
+                        Label(page.title, systemImage: page.systemImage)
+                    }
+                }
+            }
+
+            Section("Data deletion") {
                 Button(role: .destructive) {
                     confirmingDelete = true
                 } label: {
                     Label("Delete all local trip data", systemImage: "trash")
                 }
+                .disabled(isDeletingData)
+                Text("This removes saved trips, imported profile data, packing progress, cached weather, local notification plans, widget snapshots, Live Activity state, and the local analytics identifier from this device.")
+                    .font(.caption)
+                    .foregroundStyle(SproutTheme.secondaryText)
                 if let deleteMessage {
                     Text(deleteMessage)
                         .font(.caption)
@@ -85,18 +96,22 @@ struct SettingsView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes saved trips, imported profile data, packing progress, cached weather, and local notification plans from this device.")
+            Text("This removes saved trips, imported profile data, packing progress, cached weather, local notification plans, widget snapshots, Live Activity state, and the local analytics identifier from this device.")
         }
     }
 
     private func deleteLocalData() {
-        do {
-            try TripRepository(modelContext: modelContext).deleteAllLocalData()
-            planner.clearCurrentTrip()
-            ProductAnalytics.shared.track(.localDataDeleted())
-            deleteMessage = "Local trip data deleted."
-        } catch {
-            deleteMessage = error.localizedDescription
+        Task {
+            isDeletingData = true
+            defer { isDeletingData = false }
+            do {
+                _ = try await LocalDataDeletionService(modelContext: modelContext).deleteAllLocalData()
+                analyticsEnabled = ProductAnalytics.shared.isEnabled
+                planner.clearCurrentTrip()
+                deleteMessage = "Local trip data deleted. Analytics was turned off and the local analytics identifier was reset."
+            } catch {
+                deleteMessage = error.localizedDescription
+            }
         }
     }
 }

@@ -66,7 +66,7 @@ test("support page provides reviewer-visible contact and required public policy 
 
 test("iOS settings use public SproutRoute app submission URLs", () => {
   const swift = readFileSync(
-    path.resolve("ios/SproutRoute/Features/Settings/SettingsView.swift"),
+    path.resolve("ios/SproutRoute/Features/Settings/ComplianceContent.swift"),
     "utf8",
   );
 
@@ -74,5 +74,11 @@ test("iOS settings use public SproutRoute app submission URLs", () => {
   assert.match(swift, /https:\/\/www\.sproutroute\.app\/terms\.html/);
   assert.match(swift, /https:\/\/www\.sproutroute\.app\/privacy-choices\.html/);
   assert.match(swift, /https:\/\/www\.sproutroute\.app\/support\.html/);
+  assert.match(swift, /https:\/\/www\.sproutroute\.app\/safety-disclosures\.html/);
+  assert.match(swift, /Privacy Policy/);
+  assert.match(swift, /Privacy Choices/);
+  assert.match(swift, /Terms of Service/);
+  assert.match(swift, /Safety and AI Disclosures/);
+  assert.match(swift, /Support/);
   assert.ok(!swift.includes("sproutroute-production.up.railway.app/privacy.html"));
 });

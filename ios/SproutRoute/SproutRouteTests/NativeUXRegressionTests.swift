@@ -181,4 +181,32 @@ final class NativeUXRegressionTests: XCTestCase {
         XCTAssertTrue(PlanPresentationPolicy.promptPlaceholder.contains("kids"))
         XCTAssertTrue(PlanPresentationPolicy.promptPlaceholder.contains("pets"))
     }
+
+    func testInAppCompliancePagesCoverSubmissionRequiredInformation() {
+        XCTAssertEqual(
+            CompliancePage.allCases.map(\.title),
+            [
+                "Privacy Policy",
+                "Privacy Choices",
+                "Terms of Service",
+                "Safety and AI Disclosures",
+                "Support"
+            ]
+        )
+
+        let allCopy = CompliancePage.allCases
+            .flatMap(\.sections)
+            .flatMap { [$0.heading, $0.body] + $0.bullets }
+            .joined(separator: " ")
+
+        XCTAssertTrue(allCopy.contains("parents and guardians"))
+        XCTAssertTrue(allCopy.contains("not directed to children"))
+        XCTAssertTrue(allCopy.contains("Share Product Analytics"))
+        XCTAssertTrue(allCopy.contains("off by default"))
+        XCTAssertTrue(allCopy.contains("raw trip prompts"))
+        XCTAssertTrue(allCopy.contains("Delete all local trip data"))
+        XCTAssertTrue(allCopy.contains("not legal advice"))
+        XCTAssertTrue(allCopy.contains("WeatherKit"))
+        XCTAssertTrue(allCopy.contains("nitish.prasad@gmail.com"))
+    }
 }

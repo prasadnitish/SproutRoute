@@ -42,4 +42,11 @@ actor LiveActivityController {
         }
         activeActivities[snapshotID] = nil
     }
+
+    func endAll() async {
+        for activity in Activity<TripActivityAttributes>.activities {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+        activeActivities.removeAll()
+    }
 }

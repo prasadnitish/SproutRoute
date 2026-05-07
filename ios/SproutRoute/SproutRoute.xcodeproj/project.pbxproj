@@ -29,12 +29,14 @@
 		7357560D9608FB38B0A3E8B1 /* PlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9D663D051DE9AE1BF87250 /* PlanView.swift */; };
 		74F7CF93CF66DC0B741A4350 /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DD4A43663FFE61233ED1BE /* Snapshots.swift */; };
 		78B20E596269107716071551 /* APIContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = F86F8A605570E272397CFE42 /* APIContracts.swift */; };
+		796A0E8A40B3A6D9A82F07EB /* ComplianceContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED28B3D09C1E81664233B58 /* ComplianceContent.swift */; };
 		7F2CF895D864B0ADDE0C1CC9 /* SproutRouteApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6841553E50EC09921B7D26F /* SproutRouteApp.swift */; };
 		818D5676217A534840064C5D /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DD4A43663FFE61233ED1BE /* Snapshots.swift */; };
 		828AC40A5DDA32B40402BB7D /* TripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */; };
 		8329ABDF00831F19344D091A /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
 		8BE16BD24D4D3400BE8AA9F6 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30CDEFAF862D6DBA91A4028 /* AnalyticsService.swift */; };
 		8E4672B5B5B6D22C5B250994 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */; };
+		8E4F3B0A7D0ED9D92CF10F0D /* LocalDataDeletionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ABC6908412ACFFBA95E1A44 /* LocalDataDeletionService.swift */; };
 		93F449EE8BFE204E3D9440B5 /* TripPlannerProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23242DAF1070905566684223 /* TripPlannerProgressTests.swift */; };
 		9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */; };
 		9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A279D9F9164F9BB491D6660E /* ProfileContracts.swift */; };
@@ -101,12 +103,14 @@
 		4DE6A41E2B6E3473B24C4A3F /* TripMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripMapView.swift; sourceTree = "<group>"; };
 		542A336B4D7C1429BD3C8CD5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		5A52D876777A07A723954A14 /* AnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTests.swift; sourceTree = "<group>"; };
+		5ABC6908412ACFFBA95E1A44 /* LocalDataDeletionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalDataDeletionService.swift; sourceTree = "<group>"; };
 		621CAB49FF98DF6C7C5A1E36 /* SproutRouteWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteWidgetBundle.swift; sourceTree = "<group>"; };
 		62DD4A43663FFE61233ED1BE /* Snapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snapshots.swift; sourceTree = "<group>"; };
 		64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItineraryPresentation.swift; sourceTree = "<group>"; };
 		6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotlightIndexer.swift; sourceTree = "<group>"; };
 		7383B7CD9018390CAE6674AD /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = SproutRouteWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		7ED28B3D09C1E81664233B58 /* ComplianceContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComplianceContent.swift; sourceTree = "<group>"; };
 		90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitAdapter.swift; sourceTree = "<group>"; };
 		90D5544B7BF69F1B0048EA91 /* SwiftDataPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataPersistenceTests.swift; sourceTree = "<group>"; };
 		939ECCCD140D5992225CC7E1 /* SavedTripsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedTripsView.swift; sourceTree = "<group>"; };
@@ -137,6 +141,7 @@
 		00DB2527166733AC8AFDF9ED /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				7ED28B3D09C1E81664233B58 /* ComplianceContent.swift */,
 				F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -253,6 +258,7 @@
 				7383B7CD9018390CAE6674AD /* APIClient.swift */,
 				B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */,
 				C50485BE3C65676955AE1BBC /* LiveActivityController.swift */,
+				5ABC6908412ACFFBA95E1A44 /* LocalDataDeletionService.swift */,
 				243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */,
 				6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */,
 				AB95C865F62EFEA101F1C28A /* SSEParser.swift */,
@@ -469,10 +475,12 @@
 				78B20E596269107716071551 /* APIContracts.swift in Sources */,
 				8BE16BD24D4D3400BE8AA9F6 /* AnalyticsService.swift in Sources */,
 				55797F992641F756D0AF824D /* AppRootView.swift in Sources */,
+				796A0E8A40B3A6D9A82F07EB /* ComplianceContent.swift in Sources */,
 				26431BBBDBB193E685EE12F5 /* DeepLinks.swift in Sources */,
 				9FF8BE8A514DD2FEC4CA6D5D /* FoundationModelsRecapService.swift in Sources */,
 				B80A05D25664BB91AFB1A0CA /* ItineraryPresentation.swift in Sources */,
 				05CCBBCD74AEB0A060D7B094 /* LiveActivityController.swift in Sources */,
+				8E4F3B0A7D0ED9D92CF10F0D /* LocalDataDeletionService.swift in Sources */,
 				8E4672B5B5B6D22C5B250994 /* NotificationScheduler.swift in Sources */,
 				7357560D9608FB38B0A3E8B1 /* PlanView.swift in Sources */,
 				9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */,
