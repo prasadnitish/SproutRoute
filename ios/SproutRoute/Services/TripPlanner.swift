@@ -41,6 +41,7 @@ final class TripPlanner {
     private let liveActivities: LiveActivityController
     private let recapService: FoundationModelsRecapService
     private let snapshotStore: AppGroupSnapshotStore
+    private let analytics: AnalyticsTracking
     private let logger = Logger(subsystem: "com.sproutroute.app", category: "planner")
 
     init(
@@ -50,7 +51,8 @@ final class TripPlanner {
         spotlight: SpotlightIndexer = SpotlightIndexer(),
         liveActivities: LiveActivityController = LiveActivityController(),
         recapService: FoundationModelsRecapService = FoundationModelsRecapService(),
-        snapshotStore: AppGroupSnapshotStore = AppGroupSnapshotStore()
+        snapshotStore: AppGroupSnapshotStore = AppGroupSnapshotStore(),
+        analytics: AnalyticsTracking = ProductAnalytics.shared
     ) {
         self.apiClient = apiClient
         self.weatherKit = weatherKit
@@ -59,6 +61,7 @@ final class TripPlanner {
         self.liveActivities = liveActivities
         self.recapService = recapService
         self.snapshotStore = snapshotStore
+        self.analytics = analytics
     }
 
     var hasResult: Bool {
@@ -88,14 +91,18 @@ final class TripPlanner {
         progress = [:]
 
         do {
+            let planningStartedAt = Date()
+            let repository = TripRepository(modelContext: modelContext)
+            let savedProfile = try? repository.latestImportedProfile()?.profile
+            analytics.track(.tripPromptSubmitted(prompt: trimmed, hasSavedProfile: savedProfile != nil))
             phase = .parsing
             mark("resolve", "active")
             logger.info("Planning started")
             let parsed = try await apiClient.parseInput(text: trimmed, detectedLat: nil, detectedLon: nil)
-            let savedProfile = try? TripRepository(modelContext: modelContext).latestImportedProfile()?.profile
             var enrichedParsed = parsed
             enrichedParsed.rawInput = trimmed
             parsedInput = enrichedParsed
+            analytics.track(.parseSucceeded(enrichedParsed))
             logger.info("Parsed input destination=\(enrichedParsed.destination ?? "nil", privacy: .public) start=\(enrichedParsed.startDate ?? "nil", privacy: .public) end=\(enrichedParsed.endDate ?? "nil", privacy: .public)")
             mark("resolve", "done")
 
@@ -105,6 +112,7 @@ final class TripPlanner {
             }
 
             phase = .generating
+            analytics.track(.planningStarted(payload))
             mark("weather", "active")
             do {
                 let streamed = try await apiClient.streamTripPlan(payload: payload) { [weak self] event in
@@ -120,10 +128,13 @@ final class TripPlanner {
             }
 
             phase = .showingResults
+            let elapsed = Int(Date().timeIntervalSince(planningStartedAt) * 1000)
+            analytics.track(.planningCompleted(currentResult, elapsedMilliseconds: elapsed))
             await fetchBackgroundData(payload: payload, modelContext: modelContext)
             try saveCurrentTrip(modelContext: modelContext)
         } catch {
             logger.error("Planning failed: \(error.localizedDescription, privacy: .public)")
+            analytics.track(.planningFailed(error))
             phase = .failed(error.localizedDescription)
         }
     }
@@ -138,10 +149,13 @@ final class TripPlanner {
                 await liveActivities.update(snapshot: snapshot)
             }
         }
+        analytics.track(.tripSaved(currentResult))
     }
 
     func requestNotificationsForCurrentTrip(modelContext: ModelContext) async {
-        guard await notifications.requestAuthorization() else { return }
+        let authorized = await notifications.requestAuthorization()
+        analytics.track(.remindersRequested(authorized: authorized))
+        guard authorized else { return }
         let snapshot = TripRepository(modelContext: modelContext).makeSnapshot(result: currentResult)
         await notifications.schedulePackingReminder(for: snapshot)
     }

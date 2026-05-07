@@ -47,6 +47,17 @@ final class ReleaseReadinessTests: XCTestCase {
         XCTAssertTrue(accessedAPIs.contains { entry in
             entry["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategoryUserDefaults"
         })
+        let collectedDataTypes = try XCTUnwrap(manifest["NSPrivacyCollectedDataTypes"] as? [[String: Any]])
+        XCTAssertTrue(collectedDataTypes.contains { entry in
+            entry["NSPrivacyCollectedDataType"] as? String == "NSPrivacyCollectedDataTypeProductInteraction"
+                && entry["NSPrivacyCollectedDataTypeTracking"] as? Bool == false
+                && entry["NSPrivacyCollectedDataTypeLinked"] as? Bool == false
+        })
+        XCTAssertTrue(collectedDataTypes.contains { entry in
+            entry["NSPrivacyCollectedDataType"] as? String == "NSPrivacyCollectedDataTypeDeviceID"
+                && entry["NSPrivacyCollectedDataTypeTracking"] as? Bool == false
+                && entry["NSPrivacyCollectedDataTypeLinked"] as? Bool == false
+        })
     }
 
     func testGeneratedProjectPackagesReleaseResources() throws {

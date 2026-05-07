@@ -104,6 +104,7 @@ struct AppRootView: View {
             ForEach(AppTab.allCases) { tab in
                 Button {
                     selectedTab = tab
+                    ProductAnalytics.shared.track(.tabViewed(tab.rawValue))
                 } label: {
                     VStack(spacing: 5) {
                         Image(systemName: tab.systemImage)

@@ -61,6 +61,9 @@ struct ProfileImportView: View {
         .background(SproutTheme.canvas.ignoresSafeArea())
         .navigationTitle("Import Profile")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            ProductAnalytics.shared.track(.profileImportOpened())
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Close") { dismiss() }
@@ -167,6 +170,13 @@ struct ProfileImportView: View {
         defer { isWorking = false }
         do {
             validation = try await apiClient.validateProfile(rawText: rawText)
+            if let validation {
+                ProductAnalytics.shared.track(.profileImportValidated(
+                    valid: validation.valid,
+                    warningCount: validation.warnings.count,
+                    errorCount: validation.errors.count
+                ))
+            }
             guard validation?.valid == true else { return }
             normalized = try await apiClient.normalizeProfile(rawText: rawText)
         } catch {
@@ -178,6 +188,7 @@ struct ProfileImportView: View {
         guard let normalized else { return }
         do {
             _ = try TripRepository(modelContext: modelContext).saveImportedProfile(normalized, rawText: rawText)
+            ProductAnalytics.shared.track(.profileImportSaved())
             dismiss()
         } catch {
             self.error = error.localizedDescription

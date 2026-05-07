@@ -33,6 +33,7 @@
 		818D5676217A534840064C5D /* Snapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62DD4A43663FFE61233ED1BE /* Snapshots.swift */; };
 		828AC40A5DDA32B40402BB7D /* TripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */; };
 		8329ABDF00831F19344D091A /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
+		8BE16BD24D4D3400BE8AA9F6 /* AnalyticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30CDEFAF862D6DBA91A4028 /* AnalyticsService.swift */; };
 		8E4672B5B5B6D22C5B250994 /* NotificationScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */; };
 		93F449EE8BFE204E3D9440B5 /* TripPlannerProgressTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23242DAF1070905566684223 /* TripPlannerProgressTests.swift */; };
 		9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */; };
@@ -47,6 +48,7 @@
 		B1BEEA052864C3070F25F5EA /* APIClientConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD9B2484B23A72612AD500B /* APIClientConfigurationTests.swift */; };
 		B80A05D25664BB91AFB1A0CA /* ItineraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */; };
 		BA017A5F4CA3B649AE66AC8E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */; };
+		E1DF55682C10D09EA9A8DA4A /* AnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A52D876777A07A723954A14 /* AnalyticsTests.swift */; };
 		EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
 		ECDE8AD1A90FBC61E9B44895 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */; };
 		EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DD678EEBCE106556B89B3 /* TripPlanner.swift */; };
@@ -98,6 +100,7 @@
 		39F312D0264D11959CB79D50 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
 		4DE6A41E2B6E3473B24C4A3F /* TripMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripMapView.swift; sourceTree = "<group>"; };
 		542A336B4D7C1429BD3C8CD5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		5A52D876777A07A723954A14 /* AnalyticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsTests.swift; sourceTree = "<group>"; };
 		621CAB49FF98DF6C7C5A1E36 /* SproutRouteWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteWidgetBundle.swift; sourceTree = "<group>"; };
 		62DD4A43663FFE61233ED1BE /* Snapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Snapshots.swift; sourceTree = "<group>"; };
 		64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItineraryPresentation.swift; sourceTree = "<group>"; };
@@ -118,6 +121,7 @@
 		C5B2E91F5020862EA92C8760 /* SproutRouteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteIntents.swift; sourceTree = "<group>"; };
 		CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripActivityAttributes.swift; sourceTree = "<group>"; };
 		D06C0054B89E5EF67E223F73 /* DeepLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLinks.swift; sourceTree = "<group>"; };
+		D30CDEFAF862D6DBA91A4028 /* AnalyticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsService.swift; sourceTree = "<group>"; };
 		D509AE1C48517EBCB1611A28 /* APIContractDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIContractDecodingTests.swift; sourceTree = "<group>"; };
 		D8801812CC9689D768A24FB5 /* SproutRoute.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SproutRoute.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D98DD678EEBCE106556B89B3 /* TripPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripPlanner.swift; sourceTree = "<group>"; };
@@ -194,6 +198,7 @@
 		6FDDBF52527A69086A1F8129 /* SproutRouteTests */ = {
 			isa = PBXGroup;
 			children = (
+				5A52D876777A07A723954A14 /* AnalyticsTests.swift */,
 				0CD9B2484B23A72612AD500B /* APIClientConfigurationTests.swift */,
 				2619A92C50399FFA9C2C7A00 /* APIClientSSEStreamingTests.swift */,
 				D509AE1C48517EBCB1611A28 /* APIContractDecodingTests.swift */,
@@ -244,6 +249,7 @@
 		A82250921B6263ADBB26DE5D /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				D30CDEFAF862D6DBA91A4028 /* AnalyticsService.swift */,
 				7383B7CD9018390CAE6674AD /* APIClient.swift */,
 				B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */,
 				C50485BE3C65676955AE1BBC /* LiveActivityController.swift */,
@@ -445,6 +451,7 @@
 				B1BEEA052864C3070F25F5EA /* APIClientConfigurationTests.swift in Sources */,
 				70034D812C4F738C03A6A394 /* APIClientSSEStreamingTests.swift in Sources */,
 				3BFB6539D8D5814E64ABD686 /* APIContractDecodingTests.swift in Sources */,
+				E1DF55682C10D09EA9A8DA4A /* AnalyticsTests.swift in Sources */,
 				45CEDDF55A5350CC7FA2C434 /* NativeUXRegressionTests.swift in Sources */,
 				2D4565D2063D0520A9BFEAFB /* ReleaseReadinessTests.swift in Sources */,
 				21ACA2B04F2ACD969059B809 /* SSEParserTests.swift in Sources */,
@@ -460,6 +467,7 @@
 			files = (
 				1A5993AA2CDCD7BCEB80F325 /* APIClient.swift in Sources */,
 				78B20E596269107716071551 /* APIContracts.swift in Sources */,
+				8BE16BD24D4D3400BE8AA9F6 /* AnalyticsService.swift in Sources */,
 				55797F992641F756D0AF824D /* AppRootView.swift in Sources */,
 				26431BBBDBB193E685EE12F5 /* DeepLinks.swift in Sources */,
 				9FF8BE8A514DD2FEC4CA6D5D /* FoundationModelsRecapService.swift in Sources */,
@@ -659,6 +667,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				POSTHOG_API_KEY = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -727,6 +736,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				POSTHOG_API_KEY = "";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;

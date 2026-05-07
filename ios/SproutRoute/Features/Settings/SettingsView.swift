@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var showingProfileImport = false
     @State private var confirmingDelete = false
     @State private var deleteMessage: String?
+    @State private var analyticsEnabled = ProductAnalytics.shared.isEnabled
 
     var body: some View {
         Form {
@@ -32,6 +33,24 @@ struct SettingsView: View {
                 Text("SproutRoute uses local reminders on this device. There is no remote push setup in this build.")
                     .font(.caption)
                     .foregroundStyle(SproutTheme.secondaryText)
+            }
+
+            Section("Product analytics") {
+                Toggle("Share product analytics", isOn: Binding(
+                    get: { analyticsEnabled },
+                    set: { newValue in
+                        analyticsEnabled = newValue
+                        ProductAnalytics.shared.setEnabled(newValue)
+                    }
+                ))
+                Text("Optional analytics helps improve planning speed, reliability, and navigation. It sends aggregate product events only, never trip prompts, profile JSON, child names, pet names, precise GPS, session replay, or advertising identifiers.")
+                    .font(.caption)
+                    .foregroundStyle(SproutTheme.secondaryText)
+                if !ProductAnalytics.shared.isConfigured {
+                    Text("Analytics is unavailable in this build until the public PostHog project key is configured.")
+                        .font(.caption)
+                        .foregroundStyle(SproutTheme.secondaryText)
+                }
             }
 
             Section("Privacy and terms") {
@@ -74,6 +93,7 @@ struct SettingsView: View {
         do {
             try TripRepository(modelContext: modelContext).deleteAllLocalData()
             planner.clearCurrentTrip()
+            ProductAnalytics.shared.track(.localDataDeleted())
             deleteMessage = "Local trip data deleted."
         } catch {
             deleteMessage = error.localizedDescription
