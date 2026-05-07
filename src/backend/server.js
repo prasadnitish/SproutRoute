@@ -39,6 +39,7 @@ import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
 // NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
 import { metrics } from "./services/metrics.js";
+import { parsePastedProfileJson } from "./utils/profileImportJson.js";
 
 dotenv.config();
 
@@ -1931,10 +1932,9 @@ export function createApp(deps = {}) {
         return res.status(413).json({ error: "rawText is too large" });
       }
 
-      // Try to parse as JSON
       let parsed;
       try {
-        parsed = JSON.parse(rawText);
+        parsed = parsePastedProfileJson(rawText);
       } catch {
         return res.json({
           valid: false,
@@ -1990,7 +1990,7 @@ export function createApp(deps = {}) {
 
       let parsed;
       try {
-        parsed = JSON.parse(rawText);
+        parsed = parsePastedProfileJson(rawText);
       } catch {
         return res.status(422).json({ error: "Invalid JSON" });
       }
