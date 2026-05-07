@@ -90,6 +90,29 @@ test("POST /api/v1/profile/import/validate with valid profile JSON returns valid
   assert.equal(res.body.detectedFormat, "external_profile_v1");
 });
 
+test("POST /api/v1/profile/import/validate accepts assistant JSON pasted with smart quotes", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  const app = makeApp();
+
+  const smartQuoteProfile = `{
+    “food_preferences”: { “cuisines_liked”: [“Indian”, “Italian”] },
+    “travel_style”: { “pace”: “moderate” },
+    “activity_preferences”: { “preferred_activities”: [“parks”] }
+  }`;
+
+  const res = await invokeRoute(
+    app,
+    "POST",
+    "/api/v1/profile/import/validate",
+    { rawText: smartQuoteProfile },
+  );
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.valid, true);
+  assert.deepEqual(res.body.errors, []);
+  assert.equal(res.body.detectedFormat, "external_profile_v1");
+});
+
 test("POST /api/v1/profile/import/validate with invalid JSON string returns valid: false", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const app = makeApp();
@@ -224,6 +247,47 @@ test("POST /api/v1/profile/import/normalize with snake_case external format norm
 
   assert.deepEqual(profile.priorities.mustHaves, ["beach", "good food"]);
   assert.deepEqual(profile.priorities.avoidances, ["crowds"]);
+});
+
+test("POST /api/v1/profile/import/normalize accepts fenced assistant JSON pasted with smart quotes", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  const app = makeApp();
+
+  const fencedSmartQuoteProfile = `Here is the JSON:
+
+\`\`\`json
+{
+  “food_preferences”: {
+    “cuisines_liked”: [“Indian”, “Italian”],
+    “kid_foods”: [“simple snacks”]
+  },
+  “travel_style”: {
+    “pace”: “moderate”,
+    “planning_style”: “structured”
+  },
+  “activity_preferences”: {
+    “preferred_activities”: [“kid-friendly attractions”],
+    “activity_intensity”: “moderate”
+  },
+  “profile_summary”: “Family-first structured planner.”
+}
+\`\`\``;
+
+  const res = await invokeRoute(
+    app,
+    "POST",
+    "/api/v1/profile/import/normalize",
+    { rawText: fencedSmartQuoteProfile },
+  );
+
+  assert.equal(res.statusCode, 200);
+  const profile = res.body.normalizedProfile;
+  assert.deepEqual(profile.food.cuisinesLiked, ["Indian", "Italian"]);
+  assert.deepEqual(profile.food.kidFoods, ["simple snacks"]);
+  assert.equal(profile.travelStyle.pace, "moderate");
+  assert.equal(profile.travelStyle.planningStyle, "structured");
+  assert.deepEqual(profile.activities.preferredActivities, ["kid-friendly attractions"]);
+  assert.equal(profile.profileSummary, "Family-first structured planner.");
 });
 
 test("POST /api/v1/profile/import/normalize with already camelCase format normalizes correctly", async () => {

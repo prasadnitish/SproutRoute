@@ -17,6 +17,25 @@ final class NativeUXRegressionTests: XCTestCase {
         XCTAssertTrue(prompt.contains("unknowns"))
     }
 
+    func testProfileImportSanitizerNormalizesSmartQuoteJsonFromChatGPT() {
+        let pasted = """
+        ```json
+        {
+          “food_preferences”: { “cuisines_liked”: [“Indian”] },
+          “travel_style”: { “pace”: “moderate” },
+          “activity_preferences”: { “preferred_activities”: [“parks”] }
+        }
+        ```
+        """
+
+        let sanitized = ProfileImportSanitizer.sanitizedPaste(pasted)
+
+        XCTAssertFalse(sanitized.contains("“"))
+        XCTAssertTrue(sanitized.contains("\"food_preferences\""))
+        XCTAssertTrue(sanitized.hasPrefix("{"))
+        XCTAssertTrue(sanitized.hasSuffix("}"))
+    }
+
     func testItineraryPresentationAddsTimeSlotsAndMapActionsWhenBackendDoesNotSchedule() {
         let plan = TripPlanResult(
             overview: "A family beach trip.",

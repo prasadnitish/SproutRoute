@@ -54,6 +54,7 @@
 		EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
 		ECDE8AD1A90FBC61E9B44895 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */; };
 		EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DD678EEBCE106556B89B3 /* TripPlanner.swift */; };
+		F4B27E6204FD5AFFFAC29C5F /* ProfileImportSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CC79E87A2FC88A1A1F5883 /* ProfileImportSanitizer.swift */; };
 		F88396DDEFC0D0F44E8A3DED /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB95C865F62EFEA101F1C28A /* SSEParser.swift */; };
 		FE30BE735E618CB2E2F079A2 /* SwiftDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F2B936B9C2C60B53D32E443 /* SwiftDataModels.swift */; };
 /* End PBXBuildFile section */
@@ -98,6 +99,7 @@
 		23242DAF1070905566684223 /* TripPlannerProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripPlannerProgressTests.swift; sourceTree = "<group>"; };
 		243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationScheduler.swift; sourceTree = "<group>"; };
 		2619A92C50399FFA9C2C7A00 /* APIClientSSEStreamingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientSSEStreamingTests.swift; sourceTree = "<group>"; };
+		29CC79E87A2FC88A1A1F5883 /* ProfileImportSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileImportSanitizer.swift; sourceTree = "<group>"; };
 		2A8D840FD261B0DF092C318F /* ReleaseReadinessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReleaseReadinessTests.swift; sourceTree = "<group>"; };
 		39F312D0264D11959CB79D50 /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
 		4DE6A41E2B6E3473B24C4A3F /* TripMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripMapView.swift; sourceTree = "<group>"; };
@@ -220,6 +222,7 @@
 		72EDDC7709ED147DD9476B98 /* Profile */ = {
 			isa = PBXGroup;
 			children = (
+				29CC79E87A2FC88A1A1F5883 /* ProfileImportSanitizer.swift */,
 				AF6964AD61006C9723404751 /* ProfileImportView.swift */,
 			);
 			path = Profile;
@@ -484,6 +487,7 @@
 				8E4672B5B5B6D22C5B250994 /* NotificationScheduler.swift in Sources */,
 				7357560D9608FB38B0A3E8B1 /* PlanView.swift in Sources */,
 				9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */,
+				F4B27E6204FD5AFFFAC29C5F /* ProfileImportSanitizer.swift in Sources */,
 				AAFCD79FBC305E31F072E6D0 /* ProfileImportView.swift in Sources */,
 				B08A494E668EFEF9670A9098 /* ResultsView.swift in Sources */,
 				F88396DDEFC0D0F44E8A3DED /* SSEParser.swift in Sources */,

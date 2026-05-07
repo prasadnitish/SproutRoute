@@ -169,7 +169,12 @@ struct ProfileImportView: View {
         error = nil
         defer { isWorking = false }
         do {
-            validation = try await apiClient.validateProfile(rawText: rawText)
+            let sanitizedText = ProfileImportSanitizer.sanitizedPaste(rawText)
+            if sanitizedText != rawText {
+                rawText = sanitizedText
+            }
+
+            validation = try await apiClient.validateProfile(rawText: sanitizedText)
             if let validation {
                 ProductAnalytics.shared.track(.profileImportValidated(
                     valid: validation.valid,
@@ -178,7 +183,7 @@ struct ProfileImportView: View {
                 ))
             }
             guard validation?.valid == true else { return }
-            normalized = try await apiClient.normalizeProfile(rawText: rawText)
+            normalized = try await apiClient.normalizeProfile(rawText: sanitizedText)
         } catch {
             self.error = error.localizedDescription
         }
