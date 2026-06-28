@@ -4,6 +4,19 @@ import { createApp } from "../../src/backend/server.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
 
+function futureDate(daysFromNow) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
+
+function futureRange(startOffsetDays = 30, durationDays = 3) {
+  return {
+    startDate: futureDate(startOffsetDays),
+    endDate: futureDate(startOffsetDays + durationDays),
+  };
+}
+
 function createMockRes() {
   return {
     statusCode: 200,
@@ -102,8 +115,7 @@ test("POST /api/trip-plan applies default activities when none are provided", as
 
   const res = await invokeRoute(app, "POST", "/api/trip-plan", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-04",
+    ...futureRange(),
     activities: [],
     children: [{ age: 2 }],
   });
@@ -123,8 +135,7 @@ test("POST /api/generate rejects requests with no activities", async () => {
   const app = createApp({ enableRequestLogging: false });
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-02",
+    ...futureRange(30, 1),
     activities: [],
     children: [{ age: 4 }],
   });
@@ -159,8 +170,7 @@ test("POST /api/generate returns trip, weather, and packing list", async () => {
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-03",
+    ...futureRange(30, 2),
     activities: ["parks"],
     children: [{ age: 2 }],
   });
@@ -194,8 +204,7 @@ test("POST /api/generate uses the deterministic packing generator by default", a
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "San Diego, CA",
-    startDate: "2026-06-01",
-    endDate: "2026-06-08",
+    ...futureRange(30, 7),
     activities: ["beach", "parks"],
     children: [{ age: 2 }],
   });
@@ -371,8 +380,7 @@ test("POST /api/generate includes shopLinks on packing list items", async () => 
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-03",
+    ...futureRange(30, 2),
     activities: ["parks"],
     children: [{ age: 2 }],
   });

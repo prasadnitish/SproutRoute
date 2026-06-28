@@ -39,8 +39,9 @@ struct TripMapView: View {
                                 openInMaps(trip: trip)
                             } label: {
                                 Image(systemName: "arrow.triangle.turn.up.right.diamond.fill")
+                                    .frame(width: SproutTheme.minimumTouchTarget, height: SproutTheme.minimumTouchTarget)
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(SproutPrimaryButtonStyle())
                         }
                     }
                     .padding(.horizontal)

@@ -1,28 +1,54 @@
-// NOTE: Check/uncheck and category/item render tests are BLOCKED pending
-// PackingChecklist being wired into the Pack tab of ResultsScreen.
-// Currently the Pack tab renders a count stub only.
-
 import { test, expect } from "@playwright/test";
 import { mockAllApis, goToResults } from "../fixtures/mock-api";
 
-test.describe("PackingTile (stub — full tests blocked pending component integration)", () => {
+async function openPackTab(page) {
+  await page.getByRole("button", { name: /pack/i }).click();
+}
+
+test.describe("PackingChecklist", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
+    await openPackTab(page);
   });
 
-  test("Pack tab button is visible", async ({ page }) => {
-    await expect(page.getByRole("button", { name: /pack/i }).or(page.getByText(/pack/i))).toBeVisible();
+  test("renders real checklist categories and items", async ({ page }) => {
+    await expect(page.getByRole("heading", { name: /what to pack/i })).toBeVisible();
+    await expect(page.getByText("Beach Essentials")).toBeVisible();
+    await expect(page.getByText("Sunscreen SPF 50")).toBeVisible();
+    await expect(page.getByText("Life jackets")).toBeVisible();
+    await expect(page.getByText(/0 of 4 items packed/i)).toBeVisible();
   });
 
-  test("clicking Pack tab does not crash", async ({ page }) => {
-    await page.getByText(/pack/i, { exact: false }).click();
-    await expect(page.locator("body")).not.toContainText("TypeError");
+  test("does not render undefined quantities when API items omit quantity", async ({ page }) => {
+    await expect(page.locator("body")).not.toContainText("×undefined");
   });
 
-  test("Pack tab renders item count or stub text", async ({ page }) => {
-    await page.getByText(/pack/i, { exact: false }).click();
-    await expect(page.locator("body")).not.toBeEmpty();
+  test("check state updates progress and persists for the same regenerated list", async ({ page }) => {
+    await page.getByRole("checkbox", { name: /sunscreen spf 50/i }).check();
+    await expect(page.getByText(/1 of 4 items packed/i)).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: /packing progress/i })).toHaveAttribute("aria-valuenow", "25");
+
+    await goToResults(page);
+    await openPackTab(page);
+
+    await expect(page.getByRole("checkbox", { name: /sunscreen spf 50/i })).toBeChecked();
+    await expect(page.getByText(/1 of 4 items packed/i)).toBeVisible();
+  });
+
+  test("custom items can be added, packed, and removed", async ({ page }) => {
+    await page.getByPlaceholder(/add item to beach essentials/i).fill("Water shoes");
+    await page.getByRole("button", { name: /\+ add/i }).first().click();
+
+    await expect(page.getByText("Water shoes")).toBeVisible();
+    await expect(page.getByText(/0 of 5 items packed/i)).toBeVisible();
+
+    await page.getByRole("checkbox", { name: /water shoes/i }).check();
+    await expect(page.getByText(/1 of 5 items packed/i)).toBeVisible();
+
+    await page.getByLabel(/remove water shoes/i).click();
+    await expect(page.getByText("Water shoes")).toHaveCount(0);
+    await expect(page.getByText(/0 of 4 items packed/i)).toBeVisible();
   });
 });
 
@@ -30,9 +56,7 @@ test.describe("PackingTile — Shop button", () => {
   test("Shop button visible on unchecked items with shopLinks", async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
-    // Navigate to the Pack tab
-    await page.getByRole("button", { name: /pack/i }).click();
-    // Find the shop button by aria-label
+    await openPackTab(page);
     const shopButton = page.getByLabel(/shop for/i).first();
     await expect(shopButton).toBeVisible();
   });
@@ -40,7 +64,7 @@ test.describe("PackingTile — Shop button", () => {
   test("Tapping Shop expands panel with 3 store links", async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
-    await page.getByRole("button", { name: /pack/i }).click();
+    await openPackTab(page);
     const shopButton = page.getByLabel(/shop for/i).first();
     await shopButton.click();
     await expect(page.getByRole("link", { name: /Amazon/i })).toBeVisible();
@@ -51,7 +75,7 @@ test.describe("PackingTile — Shop button", () => {
   test("Disclosure text visible in expanded Shop panel", async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
-    await page.getByRole("button", { name: /pack/i }).click();
+    await openPackTab(page);
     const shopButton = page.getByLabel(/shop for/i).first();
     await shopButton.click();
     await expect(page.getByText(/may earn a small commission/i)).toBeVisible();

@@ -181,8 +181,56 @@ actor SproutAPIClient {
         return try await post("/api/v1/places/enrich", body: Body(activityName: activityName, destination: destination, category: category))
     }
 
-    private func get<T: Decodable>(_ path: String) async throws -> T {
-        let request = try makeRequest(path: path, method: "GET", body: Optional<String>.none)
+    func createGroupTrip(_ payload: GroupTripCreateRequest) async throws -> GroupTripWorkspaceResponse {
+        try await post("/api/v1/group-trips", body: payload)
+    }
+
+    func joinGroupTrip(_ payload: GroupTripJoinRequest) async throws -> GroupTripWorkspaceResponse {
+        try await post("/api/v1/group-trips/join", body: payload)
+    }
+
+    func createGroupTripItem(_ payload: GroupTripItemCreateRequest) async throws -> GroupTripItemResponse {
+        try await post("/api/v1/group-trips/items", body: payload)
+    }
+
+    func createGroupTripDecision(_ payload: GroupTripDecisionCreateRequest) async throws -> GroupTripDecisionResponse {
+        try await post("/api/v1/group-trips/decisions", body: payload)
+    }
+
+    func voteGroupTripDecision(_ payload: GroupTripDecisionVoteRequest) async throws -> GroupTripDecisionResponse {
+        try await post("/api/v1/group-trips/decisions/vote", body: payload)
+    }
+
+    func createGroupTripExpense(_ payload: GroupTripExpenseCreateRequest) async throws -> GroupTripExpenseResponse {
+        try await post("/api/v1/group-trips/expenses", body: payload)
+    }
+
+    func setGroupTripLocationSharing(_ payload: GroupTripLocationSharingRequest) async throws -> GroupTripLocationSharingResponse {
+        try await post("/api/v1/group-trips/location-sharing", body: payload)
+    }
+
+    func groupTripSnapshot(
+        tripId: String,
+        participantId: String,
+        participantAccessToken: String
+    ) async throws -> GroupTripSnapshotResponse {
+        var components = URLComponents()
+        components.path = "/api/v1/group-trips/snapshot"
+        components.queryItems = [
+            URLQueryItem(name: "tripId", value: tripId),
+            URLQueryItem(name: "participantId", value: participantId)
+        ]
+        return try await get(
+            components.string ?? "/api/v1/group-trips/snapshot",
+            headers: ["X-Group-Trip-Participant-Token": participantAccessToken]
+        )
+    }
+
+    private func get<T: Decodable>(_ path: String, headers: [String: String] = [:]) async throws -> T {
+        var request = try makeRequest(path: path, method: "GET", body: Optional<String>.none)
+        for (name, value) in headers {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
         logger.info("GET \(path, privacy: .public)")
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)

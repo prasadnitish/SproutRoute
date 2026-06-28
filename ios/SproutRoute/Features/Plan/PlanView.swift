@@ -30,7 +30,7 @@ struct PlanView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: SproutTheme.spacing.lg) {
                 header
                 if !planner.hasResult || isWorking || composingAfterResult {
                     promptCard
@@ -44,7 +44,7 @@ struct PlanView: View {
                     } label: {
                         Label("Plan another trip", systemImage: "plus.circle")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SproutSecondaryButtonStyle())
                 }
                 if PlanPresentationPolicy.shouldShowResults(
                     hasResult: planner.hasResult,
@@ -59,9 +59,11 @@ struct PlanView: View {
                     )
                 }
             }
-            .padding()
+            .padding(.horizontal, SproutTheme.spacing.lg)
+            .padding(.top, SproutTheme.spacing.md)
+            .padding(.bottom, SproutTheme.spacing.xxl)
         }
-        .background(SproutTheme.canvas.ignoresSafeArea())
+        .sproutScreenBackground()
         .sheet(isPresented: $showingProfileImport) {
             NavigationStack {
                 ProfileImportView()
@@ -75,15 +77,40 @@ struct PlanView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Plan a family trip")
-                .font(.title2.bold())
-                .foregroundStyle(SproutTheme.primaryText)
-            Text("Add dates, kids, pets, pace, and must-dos. SproutRoute builds weather, itinerary, packing, and safety guidance.")
-                .font(.callout)
-                .foregroundStyle(SproutTheme.secondaryText)
+        SproutHeroCard {
+            VStack(alignment: .leading, spacing: SproutTheme.spacing.md) {
+                Label(SproutTheme.designLanguage.name, systemImage: "map.fill")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.white.opacity(0.78))
+                Text("Plan a family trip")
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+                Text("Drop in dates, kids, pets, pace, and must-dos. SproutRoute turns it into weather-aware days, packing, safety, and group-ready logistics.")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.84))
+                HStack(spacing: 8) {
+                    headerPill("Weather", systemImage: "cloud.sun")
+                    headerPill("Itinerary", systemImage: "list.bullet.rectangle")
+                    headerPill("Packing", systemImage: "backpack")
+                }
+                .padding(.top, 2)
+            }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private func headerPill(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .foregroundStyle(.white)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(.white.opacity(0.14), in: Capsule(style: .continuous))
     }
 
     private var promptCard: some View {
@@ -92,9 +119,12 @@ struct PlanView: View {
                 Text("Describe the trip")
                     .font(.headline)
                     .foregroundStyle(SproutTheme.primaryText)
+                Text("Natural language works best. Include the constraints you would normally text to the group.")
+                    .font(.caption)
+                    .foregroundStyle(SproutTheme.secondaryText)
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $draft)
-                        .frame(minHeight: 106)
+                        .frame(minHeight: 132)
                         .padding(10)
                         .scrollContentBackground(.hidden)
                         .background(SproutTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -119,8 +149,7 @@ struct PlanView: View {
                     HStack {
                         ForEach(examples, id: \.self) { example in
                             Button(example) { draft = example }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
+                                .buttonStyle(SproutChipButtonStyle())
                         }
                     }
                 }
@@ -131,7 +160,7 @@ struct PlanView: View {
                     } label: {
                         Label("Import profile", systemImage: "person.crop.circle.badge.plus")
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(SproutSecondaryButtonStyle())
 
                     Spacer()
 
@@ -143,8 +172,7 @@ struct PlanView: View {
                     } label: {
                         Label("Plan trip", systemImage: "arrow.right.circle.fill")
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(SproutTheme.accent)
+                    .buttonStyle(SproutPrimaryButtonStyle())
                     .disabled(isWorking)
                 }
             }

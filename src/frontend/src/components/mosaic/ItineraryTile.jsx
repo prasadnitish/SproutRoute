@@ -250,6 +250,20 @@ export default function ItineraryTile({
   }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!days || days.length === 0) {
+    if (receivedChunks >= totalChunks && receivedChunks > 0) {
+      return (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
+          <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600 mb-2">
+            {"\u{1F4C5}"} Itinerary
+          </p>
+          <p className="font-semibold text-gray-800">No itinerary data yet</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Try regenerating the trip or adding more specific activities.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <LoadingEngagement
         destination={destination}

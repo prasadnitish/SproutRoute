@@ -14,7 +14,8 @@ test.describe("Happy Path — full input → results journey", () => {
     await expect(page.getByText("Road to Hana").first()).toBeVisible();
     // Safety tile — emergency number
     await expect(page.getByText("911")).toBeVisible();
-    // Map tile — iframe (multiple iframes may exist: map + day route map)
-    await expect(page.locator("iframe").first()).toBeVisible();
+    // Map tile
+    await expect(page.getByText(/map/i).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /explore on google maps/i })).toBeVisible();
   });
 });

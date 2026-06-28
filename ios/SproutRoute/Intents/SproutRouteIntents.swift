@@ -31,6 +31,16 @@ struct OpenPackingListIntent: AppIntent {
     }
 }
 
+struct OpenTripHubIntent: AppIntent {
+    static var title: LocalizedStringResource = "Open SproutRoute Trip Hub"
+    static var description = IntentDescription("Open the shared trip organizer.")
+    static var openAppWhenRun: Bool = true
+
+    func perform() async throws -> some IntentResult {
+        .result()
+    }
+}
+
 struct MarkPackingItemPackedIntent: AppIntent {
     static var title: LocalizedStringResource = "Mark Packing Item Packed"
     static var description = IntentDescription("Update local packing progress for the latest saved trip.")
@@ -83,6 +93,16 @@ struct SproutRouteShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Packing",
             systemImageName: "backpack"
+        )
+
+        AppShortcut(
+            intent: OpenTripHubIntent(),
+            phrases: [
+                "Open Trip Hub in \(.applicationName)",
+                "Show Trip Hub in \(.applicationName)"
+            ],
+            shortTitle: "Trip Hub",
+            systemImageName: "person.3.sequence"
         )
 
         AppShortcut(

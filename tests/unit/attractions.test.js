@@ -39,6 +39,19 @@ const minimalDeps = {
   generatePackingListFn: async () => ({ categories: [] }),
 };
 
+function futureDate(daysFromNow) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
+
+function futureRange(startOffsetDays = 30, durationDays = 3) {
+  return {
+    startDate: futureDate(startOffsetDays),
+    endDate: futureDate(startOffsetDays + durationDays),
+  };
+}
+
 function makeServer(extraDeps = {}) {
   const app = createApp({ ...minimalDeps, ...extraDeps });
   const server = http.createServer(app);
@@ -157,8 +170,7 @@ test("POST /api/v1/trip/plan passes cached attractions into trip generation and 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         destination: "San Diego, CA",
-        startDate: "2026-06-01",
-        endDate: "2026-06-04",
+        ...futureRange(),
         activities: ["parks", "family-friendly"],
         children: [{ age: 4 }],
       }),

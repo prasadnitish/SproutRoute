@@ -41,6 +41,7 @@
 		9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */; };
 		9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A279D9F9164F9BB491D6660E /* ProfileContracts.swift */; };
 		9FF8BE8A514DD2FEC4CA6D5D /* FoundationModelsRecapService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */; };
+		A2E7D8B6D1B74B41964F1885 /* TripHubController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D37A1E41B54C819C0E8942 /* TripHubController.swift */; };
 		A39475D8D3360EB982592DC9 /* TripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */; };
 		A9ACCCD47DC1559656B06FAB /* SproutRouteWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AAFCD79FBC305E31F072E6D0 /* ProfileImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF6964AD61006C9723404751 /* ProfileImportView.swift */; };
@@ -122,6 +123,7 @@
 		AF6964AD61006C9723404751 /* ProfileImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileImportView.swift; sourceTree = "<group>"; };
 		B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsRecapService.swift; sourceTree = "<group>"; };
 		B6B2BEAEEABCD05F49E18279 /* NativeUXRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeUXRegressionTests.swift; sourceTree = "<group>"; };
+		B8D37A1E41B54C819C0E8942 /* TripHubController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripHubController.swift; sourceTree = "<group>"; };
 		BE2D11116D8685C2A2E7550E /* SnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotStoreTests.swift; sourceTree = "<group>"; };
 		C50485BE3C65676955AE1BBC /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
 		C5B2E91F5020862EA92C8760 /* SproutRouteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteIntents.swift; sourceTree = "<group>"; };
@@ -265,6 +267,7 @@
 				243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */,
 				6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */,
 				AB95C865F62EFEA101F1C28A /* SSEParser.swift */,
+				B8D37A1E41B54C819C0E8942 /* TripHubController.swift */,
 				D98DD678EEBCE106556B89B3 /* TripPlanner.swift */,
 				90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */,
 			);
@@ -500,6 +503,7 @@
 				EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */,
 				FE30BE735E618CB2E2F079A2 /* SwiftDataModels.swift in Sources */,
 				828AC40A5DDA32B40402BB7D /* TripActivityAttributes.swift in Sources */,
+				A2E7D8B6D1B74B41964F1885 /* TripHubController.swift in Sources */,
 				ABF684099B67FCD2E7156FA8 /* TripMapView.swift in Sources */,
 				EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */,
 				9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */,

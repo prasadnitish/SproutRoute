@@ -16,7 +16,11 @@
 
 ```
 NODE_ENV=production
-ANTHROPIC_API_KEY=sk-ant-...  (your actual Anthropic API key)
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...  (or the key for the configured AI_PROVIDER)
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co
+SUPABASE_SERVICE_KEY=YOUR-SERVICE-ROLE-KEY
+SUPABASE_ANON_KEY=YOUR-ANON-KEY
 ALLOWED_ORIGINS=https://YOUR-CLOUDFLARE-PAGES-URL.pages.dev
 PORT=3000  (Railway will override this, but ensure it's set)
 ```
@@ -34,7 +38,7 @@ railway up
 ```
 
 **What will happen at startup:**
-- ✅ If `ANTHROPIC_API_KEY` is missing → server exits immediately with clear error
+- ✅ If the selected `AI_PROVIDER` key is missing → server exits immediately with clear error
 - ✅ If `ALLOWED_ORIGINS` is empty → server exits immediately with clear error
 - ✅ Server starts successfully if both are set
 - ✅ Logs will show: "SproutRoute API server running on http://localhost:3000"
@@ -132,6 +136,26 @@ Unset `VITE_API_URL` in Cloudflare Pages env vars, rebuild.
 
 **Expected:** Build fails with: `FATAL: VITE_API_URL is not configured`
 
+### Test 6: Trip Hub Shared Organizer Connector
+
+Run the non-mutating live route check after Railway deploy:
+
+```bash
+npm run smoke:trip-hub
+```
+
+**Expected:** The command passes and reports `mode: "route-check"`.
+
+Run the full shared-trip flow once after confirming the backend points at the correct Supabase project:
+
+```bash
+SUPABASE_URL=https://YOUR-PROJECT-REF.supabase.co \
+SUPABASE_SERVICE_KEY=YOUR-SERVICE-ROLE-KEY \
+npm run smoke:trip-hub:mutating
+```
+
+**Expected:** The command creates a Trip Hub, joins a second participant, adds an itinerary item, creates and votes on a decision, records an expense, enables location sharing, reloads the snapshot, verifies participant token material is hidden, and deletes the smoke row from Supabase.
+
 ---
 
 ## 📋 ENVIRONMENT VARIABLE QUICK REFERENCE
@@ -141,7 +165,14 @@ Unset `VITE_API_URL` in Cloudflare Pages env vars, rebuild.
 | Variable | Required | Example | Notes |
 |----------|----------|---------|-------|
 | `NODE_ENV` | Yes | `production` | Must be "production" for Railway |
-| `ANTHROPIC_API_KEY` | Yes | `sk-ant-...` | From Anthropic console |
+| `AI_PROVIDER` | Yes | `anthropic` | Supported: `anthropic`, `gemini`, `openai`, `deepseek` |
+| `ANTHROPIC_API_KEY` | If `AI_PROVIDER=anthropic` | `sk-ant-...` | From Anthropic console |
+| `GOOGLE_GEMINI_API_KEY` | If `AI_PROVIDER=gemini` | `...` | From Google AI Studio |
+| `OPENAI_API_KEY` | If `AI_PROVIDER=openai` | `sk-...` | From OpenAI dashboard |
+| `DEEPSEEK_API_KEY` | If `AI_PROVIDER=deepseek` | `...` | From DeepSeek dashboard |
+| `SUPABASE_URL` | Yes | `https://abc.supabase.co` | Required for Trip Hub, profiles, metrics, and attraction memory |
+| `SUPABASE_SERVICE_KEY` | Yes | `...` | Backend-only service role key; `SUPABASE_SERVICE_ROLE_KEY` is also accepted |
+| `SUPABASE_ANON_KEY` | Yes | `...` | User-scoped Supabase client |
 | `ALLOWED_ORIGINS` | Yes | `https://myapp.pages.dev` | Your Cloudflare domain |
 | `PORT` | No | `3000` | Railway sets automatically |
 
@@ -201,6 +232,9 @@ done
 - [ ] VITE_API_URL environment variable is set
 - [ ] Frontend can resolve location (test with "Seattle, WA")
 - [ ] Trip planning API calls complete (should make 4 API calls)
+- [ ] `npm run smoke:trip-hub` passes against production
+- [ ] `npm run smoke:trip-hub:mutating` passes once with Supabase cleanup env vars
+- [ ] Supabase `public.group_trip_documents` has RLS enabled and only service-role backend access
 - [ ] Rate limiting triggers at 31 requests
 - [ ] Error messages are user-friendly (no PII, no stack traces)
 

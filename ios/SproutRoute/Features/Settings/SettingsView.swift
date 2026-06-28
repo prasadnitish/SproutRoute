@@ -82,7 +82,7 @@ struct SettingsView: View {
             }
         }
         .scrollContentBackground(.hidden)
-        .background(SproutTheme.canvas.ignoresSafeArea())
+        .sproutScreenBackground()
         .sheet(isPresented: $showingProfileImport) {
             NavigationStack { ProfileImportView() }
         }

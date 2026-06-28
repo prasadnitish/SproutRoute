@@ -64,7 +64,8 @@ enum CompliancePage: String, CaseIterable, Identifiable {
                     body: "SproutRoute sends trip planning content to the SproutRoute backend when you ask it to generate a plan. That may include destination, dates, family composition, pets, food preferences, accessibility needs, packing context, and any free-text details you choose to type.",
                     bullets: [
                         "Avoid entering unnecessary child names, medical details, legal details, or other sensitive information.",
-                        "Saved trips, imported profiles, packing progress, cached weather, widget snapshots, Spotlight records, local notification plans, and Live Activity payloads are stored locally on this device or in the app's App Group container."
+                        "Saved trips, imported profiles, packing progress, cached weather, widget snapshots, Spotlight records, local notification plans, and Live Activity payloads are stored locally on this device or in the app's App Group container.",
+                        "Trip Hub location sharing sends your current location to the backend only when you explicitly share it, and turning sharing off clears the last location from the shared trip state."
                     ]
                 ),
                 ComplianceContentSection(
@@ -90,6 +91,7 @@ enum CompliancePage: String, CaseIterable, Identifiable {
                     heading: "Manage permissions",
                     body: "Location and notification permissions can be managed in iOS Settings. SproutRoute can still plan from a typed destination if location permission is off.",
                     bullets: [
+                        "Trip Hub location sharing is off until you turn it on or share your current location.",
                         "Remove widgets from the Home Screen or delete local trip data to clear local extension surfaces.",
                         "Turn off Share Product Analytics in Settings to stop future iOS product analytics and reset the local analytics identifier."
                     ]
@@ -181,12 +183,13 @@ struct CompliancePageView: View {
                     Label("Open web version", systemImage: "safari")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
-                .tint(SproutTheme.accent)
+                .buttonStyle(SproutSecondaryButtonStyle())
             }
-            .padding()
+            .padding(.horizontal, SproutTheme.spacing.lg)
+            .padding(.top, SproutTheme.spacing.md)
+            .padding(.bottom, SproutTheme.spacing.xxl)
         }
-        .background(SproutTheme.canvas.ignoresSafeArea())
+        .sproutScreenBackground()
         .navigationTitle(page.title)
         .navigationBarTitleDisplayMode(.inline)
     }

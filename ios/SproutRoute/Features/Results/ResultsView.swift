@@ -9,7 +9,7 @@ struct ResultsView: View {
     @State private var selectedActivity: ScheduledActivity?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: SproutTheme.spacing.lg) {
             hero
             sectionContent
         }
@@ -47,21 +47,25 @@ struct ResultsView: View {
     }
 
     private var hero: some View {
-        NativeCard {
-            VStack(alignment: .leading, spacing: 8) {
+        SproutHeroCard {
+            VStack(alignment: .leading, spacing: SproutTheme.spacing.md) {
+                Label("Generated trip plan", systemImage: "sparkles")
+                    .font(.caption.weight(.bold))
+                    .textCase(.uppercase)
+                    .foregroundStyle(.white.opacity(0.78))
                 Text(result.trip?.destination ?? "Trip plan")
-                    .font(.title2.bold())
-                    .foregroundStyle(SproutTheme.primaryText)
+                    .font(.title.bold())
+                    .foregroundStyle(.white)
                 Text(result.tripPlan?.overview ?? "SproutRoute is preparing itinerary, packing, and safety guidance.")
                     .font(.subheadline)
-                    .foregroundStyle(SproutTheme.secondaryText)
+                    .foregroundStyle(.white.opacity(0.84))
                 HStack {
                     Label(result.trip?.startDate ?? "Start", systemImage: "calendar")
                     Text("to")
                     Text(result.trip?.endDate ?? "End")
                 }
                 .font(.caption)
-                .foregroundStyle(SproutTheme.tertiaryText)
+                .foregroundStyle(.white.opacity(0.76))
             }
         }
     }
@@ -154,6 +158,10 @@ struct NativeWeatherDayRow: View {
         }
         .padding(12)
         .background(SproutTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous)
+                .stroke(SproutTheme.border.opacity(0.32), lineWidth: 1)
+        }
     }
 
     private func temp(_ value: Double?) -> String {
@@ -185,6 +193,10 @@ struct BackendWeatherDayRow: View {
         }
         .padding(12)
         .background(SproutTheme.elevatedSurface, in: RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous)
+                .stroke(SproutTheme.border.opacity(0.32), lineWidth: 1)
+        }
     }
 
     private func temp(_ value: Double?) -> String {
@@ -289,7 +301,7 @@ struct ItineraryDayPicker: View {
                         .padding(.vertical, 10)
                         .padding(.horizontal, 12)
                         .background(
-                            selectedDayID == day.id ? SproutTheme.accentSoft : SproutTheme.elevatedSurface,
+                            selectedDayID == day.id ? SproutTheme.accentSoft : SproutTheme.surface,
                             in: RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous)
                         )
                         .overlay {
@@ -408,6 +420,10 @@ struct ActivityTimelineRow: View {
             }
             .padding(12)
             .background(SproutTheme.surface, in: RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous)
+                    .stroke(SproutTheme.border.opacity(0.26), lineWidth: 1)
+            }
         }
         .buttonStyle(.plain)
         .accessibilityLabel(activity.name)
@@ -570,7 +586,7 @@ struct ActivityDetailSheet: View {
                                 Label("Website", systemImage: "safari")
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(SproutSecondaryButtonStyle())
                         }
 
                         if let phoneURL = liveDetail?.phoneURL {
@@ -578,7 +594,7 @@ struct ActivityDetailSheet: View {
                                 Label("Call", systemImage: "phone")
                                     .frame(maxWidth: .infinity)
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(SproutSecondaryButtonStyle())
                         }
                     }
 
@@ -588,12 +604,11 @@ struct ActivityDetailSheet: View {
                         Label("Open in Apple Maps", systemImage: "map")
                             .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(SproutTheme.accent)
+                    .buttonStyle(SproutPrimaryButtonStyle())
                 }
                 .padding()
             }
-            .background(SproutTheme.canvas.ignoresSafeArea())
+            .sproutScreenBackground()
             .navigationTitle("Activity")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

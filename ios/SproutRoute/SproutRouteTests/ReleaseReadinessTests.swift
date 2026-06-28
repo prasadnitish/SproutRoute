@@ -1,5 +1,7 @@
 import XCTest
 import ImageIO
+import SwiftData
+@testable import SproutRoute
 
 final class ReleaseReadinessTests: XCTestCase {
     private var projectRoot: URL {
@@ -13,7 +15,8 @@ final class ReleaseReadinessTests: XCTestCase {
 
         XCTAssertEqual(plist["CFBundleDisplayName"] as? String, "SproutRoute")
         XCTAssertEqual(plist["NSSupportsLiveActivities"] as? Bool, true)
-        XCTAssertNotNil(plist["NSLocationWhenInUseUsageDescription"])
+        let locationPurpose = try XCTUnwrap(plist["NSLocationWhenInUseUsageDescription"] as? String)
+        XCTAssertTrue(locationPurpose.contains("Trip Hub"))
     }
 
     func testAppInfoPlistSupportsAllIPadOrientations() throws {
@@ -58,6 +61,15 @@ final class ReleaseReadinessTests: XCTestCase {
                 && entry["NSPrivacyCollectedDataTypeTracking"] as? Bool == false
                 && entry["NSPrivacyCollectedDataTypeLinked"] as? Bool == false
         })
+        XCTAssertTrue(collectedDataTypes.contains { entry in
+            guard entry["NSPrivacyCollectedDataType"] as? String == "NSPrivacyCollectedDataTypePreciseLocation" else {
+                return false
+            }
+            let purposes = entry["NSPrivacyCollectedDataTypePurposes"] as? [String]
+            return entry["NSPrivacyCollectedDataTypeTracking"] as? Bool == false
+                && entry["NSPrivacyCollectedDataTypeLinked"] as? Bool == true
+                && purposes?.contains("NSPrivacyCollectedDataTypePurposeAppFunctionality") == true
+        })
     }
 
     func testGeneratedProjectPackagesReleaseResources() throws {
@@ -83,6 +95,82 @@ final class ReleaseReadinessTests: XCTestCase {
         }
 
         XCTAssertEqual(forbiddenArtifacts, [], "Remove local desktop/debug artifacts before archiving or committing.")
+    }
+
+    func testAppModelContainerFallsBackToInMemoryStoreWhenPersistentStoreCannotOpen() throws {
+        enum FixtureError: Error {
+            case persistentStoreUnavailable
+        }
+
+        let state = SproutRouteModelContainerFactory.make(
+            persistentFactory: {
+                throw FixtureError.persistentStoreUnavailable
+            },
+            fallbackFactory: {
+                let schema = Schema(SproutRouteSchema.models)
+                let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+                return try ModelContainer(for: schema, configurations: [config])
+            }
+        )
+
+        switch state {
+        case .ready(let container, let storageMode):
+            XCTAssertNotNil(container)
+            XCTAssertEqual(storageMode, .inMemoryFallback)
+        case .unavailable(let message):
+            XCTFail("Expected an in-memory fallback container, got unavailable state: \(message)")
+        }
+    }
+
+    func testAppModelContainerUnavailableMessageDoesNotExposeStorageInternals() {
+        enum FixtureError: Error, CustomStringConvertible {
+            case storagePathLeak
+
+            var description: String {
+                "/private/var/mobile/Containers/Data/Application/local.sqlite"
+            }
+        }
+
+        let state = SproutRouteModelContainerFactory.make(
+            persistentFactory: {
+                throw FixtureError.storagePathLeak
+            },
+            fallbackFactory: {
+                throw FixtureError.storagePathLeak
+            }
+        )
+
+        switch state {
+        case .ready:
+            XCTFail("Expected unavailable state when persistent and fallback stores both fail.")
+        case .unavailable(let message):
+            XCTAssertEqual(message, "SproutRoute could not open local trip storage. Restart the app and try again.")
+            XCTAssertFalse(message.contains("/private/var/mobile"))
+            XCTAssertFalse(message.contains("local.sqlite"))
+        }
+    }
+
+    func testProductionSwiftSourceDoesNotContainTripHubDemoFixtureData() throws {
+        let bannedFixtureStrings = [
+            "Vegas 2026",
+            "VEGAS1",
+            "gtp_owner_token"
+        ]
+        let swiftFiles = try productionSwiftFiles()
+        var violations: [String] = []
+
+        for fileURL in swiftFiles {
+            let source = try String(contentsOf: fileURL, encoding: .utf8)
+            for banned in bannedFixtureStrings where source.contains(banned) {
+                violations.append("\(fileURL.lastPathComponent): \(banned)")
+            }
+        }
+
+        XCTAssertEqual(
+            violations,
+            [],
+            "Production app source should not ship local Trip Hub demo fixture data."
+        )
     }
 
     func testAppIconAssetExistsForArchive() throws {
@@ -122,5 +210,22 @@ final class ReleaseReadinessTests: XCTestCase {
 
         XCTAssertEqual(properties[kCGImagePropertyPixelWidth as String] as? Int, width, file: file, line: line)
         XCTAssertEqual(properties[kCGImagePropertyPixelHeight as String] as? Int, height, file: file, line: line)
+    }
+
+    private func productionSwiftFiles() throws -> [URL] {
+        let enumerator = FileManager.default.enumerator(
+            at: projectRoot,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        var files: [URL] = []
+        while let url = enumerator?.nextObject() as? URL {
+            guard url.pathExtension == "swift" else { continue }
+            let path = url.path
+            guard !path.contains("/SproutRouteTests/") else { continue }
+            files.append(url)
+        }
+        return files.sorted { $0.path < $1.path }
     }
 }

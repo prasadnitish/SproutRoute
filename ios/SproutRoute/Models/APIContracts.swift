@@ -30,6 +30,7 @@ struct FeatureFlags: Codable, Hashable {
     var customItems: Bool
     var darkMode: Bool
     var pwa: Bool
+    var internationalSupport: Bool?
     var ios26Features: Ios26Features?
 }
 
@@ -463,6 +464,225 @@ struct PlaceEnrichmentResponse: Codable, Hashable {
     var phone: String?
     var photoUrl: String?
     var openingHours: [String]?
+}
+
+struct GroupTripCreateRequest: Codable, Hashable {
+    var title: String
+    var destination: String
+    var startDate: String
+    var endDate: String
+    var ownerName: String
+}
+
+struct GroupTripJoinRequest: Codable, Hashable {
+    var inviteCode: String
+    var displayName: String
+}
+
+struct GroupTripItemCreateRequest: Codable, Hashable {
+    var tripId: String
+    var actorParticipantId: String
+    var actorParticipantAccessToken: String
+    var kind: String
+    var title: String
+    var startAt: String?
+    var endAt: String?
+    var locationName: String?
+    var notes: String?
+}
+
+struct GroupTripDecisionCreateRequest: Codable, Hashable {
+    var tripId: String
+    var actorParticipantId: String
+    var actorParticipantAccessToken: String
+    var title: String
+    var options: [String]
+}
+
+struct GroupTripDecisionVoteRequest: Codable, Hashable {
+    var tripId: String
+    var decisionId: String
+    var participantId: String
+    var participantAccessToken: String
+    var optionId: String
+}
+
+struct GroupTripExpenseCreateRequest: Codable, Hashable {
+    var tripId: String
+    var actorParticipantId: String
+    var actorParticipantAccessToken: String
+    var paidByParticipantId: String
+    var title: String
+    var amountCents: Int
+    var currency: String
+    var splitParticipantIds: [String]
+}
+
+struct GroupTripLocationSharingRequest: Codable, Hashable {
+    var tripId: String
+    var participantId: String
+    var participantAccessToken: String
+    var isEnabled: Bool
+    var latitude: Double? = nil
+    var longitude: Double? = nil
+    var accuracyMeters: Double? = nil
+}
+
+struct GroupTripWorkspace: Codable, Hashable, Identifiable {
+    var id: String
+    var title: String
+    var destination: String
+    var startDate: String
+    var endDate: String
+    var inviteCode: String
+    var status: String
+    var createdAt: String?
+    var updatedAt: String?
+}
+
+enum GroupTripParticipantRole: String, Codable, Hashable {
+    case owner
+    case editor
+}
+
+struct GroupTripParticipant: Codable, Hashable, Identifiable {
+    var id: String
+    var tripId: String
+    var displayName: String
+    var role: GroupTripParticipantRole
+    var locationSharingEnabled: Bool? = nil
+    var lastLocation: GroupTripParticipantLocation? = nil
+    var accessToken: String? = nil
+    var joinedAt: String?
+}
+
+struct GroupTripParticipantLocation: Codable, Hashable {
+    var latitude: Double
+    var longitude: Double
+    var accuracyMeters: Double?
+    var updatedAt: String?
+}
+
+struct GroupTripItem: Codable, Hashable, Identifiable {
+    var id: String
+    var tripId: String
+    var kind: String
+    var title: String
+    var startAt: String?
+    var endAt: String?
+    var locationName: String?
+    var notes: String?
+    var status: String
+    var createdByParticipantId: String
+    var createdAt: String?
+    var updatedAt: String?
+}
+
+struct GroupTripDecisionOption: Codable, Hashable, Identifiable {
+    var id: String
+    var title: String
+}
+
+struct GroupTripDecisionVote: Codable, Hashable {
+    var participantId: String
+    var optionId: String
+    var updatedAt: String?
+}
+
+struct GroupTripDecision: Codable, Hashable, Identifiable {
+    var id: String
+    var tripId: String
+    var title: String
+    var status: String
+    var options: [GroupTripDecisionOption]
+    var votes: [GroupTripDecisionVote]
+    var createdByParticipantId: String
+    var createdAt: String?
+    var updatedAt: String?
+}
+
+struct GroupTripExpense: Codable, Hashable, Identifiable {
+    var id: String
+    var tripId: String
+    var title: String
+    var amountCents: Int
+    var currency: String
+    var paidByParticipantId: String
+    var splitParticipantIds: [String]
+    var createdByParticipantId: String
+    var createdAt: String?
+    var updatedAt: String?
+}
+
+struct GroupTripBalance: Codable, Hashable {
+    var fromParticipantId: String
+    var toParticipantId: String
+    var amountCents: Int
+    var currency: String
+}
+
+struct GroupTripActivityEvent: Codable, Hashable, Identifiable {
+    var id: String
+    var tripId: String
+    var type: String
+    var actorParticipantId: String?
+    var summary: String
+    var createdAt: String?
+}
+
+struct GroupTripAISuggestion: Codable, Hashable, Identifiable {
+    var id: String
+    var tripId: String?
+    var type: String
+    var severity: String?
+    var title: String
+    var summary: String
+    var status: String
+    var relatedItemIds: [String]?
+}
+
+struct GroupTripWorkspaceResponse: Codable, Hashable {
+    var requestId: String?
+    var trip: GroupTripWorkspace
+    var currentParticipant: GroupTripParticipant
+    var participants: [GroupTripParticipant]
+}
+
+struct GroupTripSnapshotResponse: Codable, Hashable {
+    var requestId: String?
+    var trip: GroupTripWorkspace
+    var participants: [GroupTripParticipant]
+    var items: [GroupTripItem]
+    var decisions: [GroupTripDecision]
+    var expenses: [GroupTripExpense]
+    var balances: [GroupTripBalance]
+    var activity: [GroupTripActivityEvent]
+    var aiSuggestions: [GroupTripAISuggestion]
+}
+
+struct GroupTripItemResponse: Codable, Hashable {
+    var requestId: String?
+    var item: GroupTripItem
+    var activity: GroupTripActivityEvent
+}
+
+struct GroupTripDecisionResponse: Codable, Hashable {
+    var requestId: String?
+    var decision: GroupTripDecision
+    var activity: GroupTripActivityEvent?
+}
+
+struct GroupTripExpenseResponse: Codable, Hashable {
+    var requestId: String?
+    var expense: GroupTripExpense
+    var balances: [GroupTripBalance]
+    var activity: GroupTripActivityEvent
+}
+
+struct GroupTripLocationSharingResponse: Codable, Hashable {
+    var requestId: String?
+    var participant: GroupTripParticipant
+    var activity: GroupTripActivityEvent
 }
 
 struct ApiErrorEnvelope: Codable, Error, LocalizedError, Hashable {

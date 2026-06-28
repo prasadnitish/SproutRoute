@@ -1,7 +1,31 @@
 import Foundation
 import UserNotifications
 
+struct TripHubNotificationPlan: Hashable {
+    var identifier: String
+    var title: String
+    var body: String
+    var url: URL
+}
+
 actor NotificationScheduler {
+    static func tripHubPlans(for snapshot: GroupTripSnapshotResponse) -> [TripHubNotificationPlan] {
+        snapshot.aiSuggestions
+            .filter { suggestion in
+                suggestion.status == "open" &&
+                    (suggestion.severity == "warning" || suggestion.type == "schedule_conflict")
+            }
+            .prefix(3)
+            .map { suggestion in
+                TripHubNotificationPlan(
+                    identifier: "trip-hub-\(snapshot.trip.id)-\(suggestion.id)",
+                    title: "\(snapshot.trip.title) needs attention",
+                    body: suggestion.summary,
+                    url: SproutRouteDeepLink.tripHubURL(id: snapshot.trip.id)
+                )
+            }
+    }
+
     func requestAuthorization() async -> Bool {
         do {
             return try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound])
@@ -33,6 +57,20 @@ actor NotificationScheduler {
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
         let request = UNNotificationRequest(identifier: "weather-\(snapshot.id)-\(Date().timeIntervalSince1970)", content: content, trigger: trigger)
         try? await UNUserNotificationCenter.current().add(request)
+    }
+
+    func scheduleTripHubSuggestions(for snapshot: GroupTripSnapshotResponse) async {
+        for plan in Self.tripHubPlans(for: snapshot) {
+            let content = UNMutableNotificationContent()
+            content.title = plan.title
+            content.body = plan.body
+            content.sound = .default
+            content.userInfo = ["url": plan.url.absoluteString]
+
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: false)
+            let request = UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
+            try? await UNUserNotificationCenter.current().add(request)
+        }
     }
 
     func clearSproutRouteNotifications() async {

@@ -56,9 +56,11 @@ struct ProfileImportView: View {
                         .background(SproutTheme.danger.opacity(0.12), in: RoundedRectangle(cornerRadius: SproutTheme.compactRadius, style: .continuous))
                 }
             }
-            .padding()
+            .padding(.horizontal, SproutTheme.spacing.lg)
+            .padding(.top, SproutTheme.spacing.md)
+            .padding(.bottom, SproutTheme.spacing.xxl)
         }
-        .background(SproutTheme.canvas.ignoresSafeArea())
+        .sproutScreenBackground()
         .navigationTitle("Import Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
@@ -96,8 +98,7 @@ struct ProfileImportView: View {
                 } label: {
                     Label(copiedPrompt ? "Prompt copied" : "Copy prompt", systemImage: copiedPrompt ? "checkmark.circle.fill" : "doc.on.doc")
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(SproutTheme.accent)
+                .buttonStyle(SproutPrimaryButtonStyle())
             }
         }
     }
@@ -119,9 +120,9 @@ struct ProfileImportView: View {
                     Task { await validateAndNormalize() }
                 } label: {
                     Label(isWorking ? "Checking profile" : "Validate and review", systemImage: "checkmark.seal")
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(SproutTheme.accent)
+                .buttonStyle(SproutPrimaryButtonStyle())
                 .disabled(rawText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isWorking)
             }
         }
@@ -158,8 +159,7 @@ struct ProfileImportView: View {
                 Button("Save locally") {
                     saveProfile()
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(SproutTheme.accent)
+                .buttonStyle(SproutPrimaryButtonStyle())
             }
         }
     }

@@ -38,6 +38,8 @@ struct SavedTripsView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .sproutScreenBackground()
         .toolbar {
             Button {
                 Task { try? planner.saveCurrentTrip(modelContext: modelContext) }
@@ -62,7 +64,7 @@ struct SavedTripDetailView: View {
                 ContentUnavailableView("Trip data unavailable", systemImage: "exclamationmark.triangle")
             }
         }
-        .background(SproutTheme.warmWhite.ignoresSafeArea())
+        .sproutScreenBackground()
         .navigationTitle(trip.destination)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: trip.id) {

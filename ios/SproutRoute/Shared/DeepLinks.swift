@@ -3,6 +3,7 @@ import Foundation
 enum SproutRouteDeepLink: Hashable {
     case plan(destination: String?)
     case trip(id: String)
+    case tripHub(id: String, inviteCode: String? = nil)
     case packing(id: String)
     case day(id: String, date: String)
     case settings
@@ -24,6 +25,14 @@ enum SproutRouteDeepLink: Hashable {
             return .settings
         }
 
+        if host == "trip-hub", let id = path.first {
+            let inviteCode = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "inviteCode" })?
+                .value
+            return .tripHub(id: id, inviteCode: inviteCode)
+        }
+
         if host == "trip", let id = path.first {
             if path.count >= 2, path[1] == "packing" {
                 return .packing(id: id)
@@ -39,6 +48,17 @@ enum SproutRouteDeepLink: Hashable {
 
     static func tripURL(id: String) -> URL {
         URL(string: "sproutroute://trip/\(id)")!
+    }
+
+    static func tripHubURL(id: String, inviteCode: String? = nil) -> URL {
+        var components = URLComponents()
+        components.scheme = "sproutroute"
+        components.host = "trip-hub"
+        components.path = "/\(id)"
+        if let inviteCode, !inviteCode.isEmpty {
+            components.queryItems = [URLQueryItem(name: "inviteCode", value: inviteCode)]
+        }
+        return components.url!
     }
 
     static func packingURL(id: String) -> URL {
