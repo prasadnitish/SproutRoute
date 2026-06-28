@@ -1,9 +1,17 @@
 import { test, expect } from "@playwright/test";
-import { mockAllApis } from "../fixtures/mock-api";
+import { buildSSEBody, mockAllApis } from "../fixtures/mock-api";
 
 test.describe("GeneratingScreen", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
+    await page.route("**/api/v1/trip/stream", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: buildSSEBody(),
+      });
+    });
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();

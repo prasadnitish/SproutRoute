@@ -9,11 +9,8 @@ test.describe("ItineraryTile", () => {
   });
 
   test("renders day tabs", async ({ page }) => {
-    // TODO: DayTabs currently renders raw ISO dates (e.g. "2026-04-12") as labels.
-    // Update to /apr 12/i when date formatting is added to DayTabs.
-    // (ItineraryTile sets label = day.date, and DayTabs renders day.label || day.date.)
-    await expect(page.getByRole("button", { name: /2026-04-12/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /2026-04-13/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /apr 12/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /apr 13/i })).toBeVisible();
   });
 
   test("day 1 activities are visible by default", async ({ page }) => {
@@ -21,9 +18,7 @@ test.describe("ItineraryTile", () => {
   });
 
   test("switching to day 2 shows day 2 activities", async ({ page }) => {
-    // TODO: DayTabs currently renders raw ISO dates (e.g. "2026-04-13") as labels.
-    // Update to /apr 13/i when date formatting is added to DayTabs.
-    await page.getByText(/2026-04-13/, { exact: false }).click();
+    await page.getByRole("button", { name: /apr 13/i }).click();
     await expect(page.getByText("Snorkeling at Molokini").first()).toBeVisible();
     await expect(page.getByText("Road to Hana")).not.toBeVisible();
   });

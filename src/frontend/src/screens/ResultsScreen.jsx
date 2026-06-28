@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { Suspense, lazy, useState, useMemo } from "react";
 import HeroTile from "../components/mosaic/HeroTile";
 import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
@@ -11,6 +11,8 @@ const TABS = [
   { key: "plan", label: "\u{1F4C5} Plan" },
   { key: "pack", label: "\u{1F392} Pack" },
 ];
+
+const MapTile = lazy(() => import("../components/mosaic/MapTile"));
 
 function resolveItinerary(rawDays, suggestedActivities) {
   if (!rawDays || rawDays.length === 0) return [];
@@ -68,6 +70,7 @@ export default function ResultsScreen({
     tripData?.parsed?.destination || tripData?.trip?.destination;
   const lat = tripData?.trip?.lat;
   const lon = tripData?.trip?.lon;
+  const hasItineraryPayload = Boolean(tripData?.tripPlan || scheduledItinerary || tripData?.itinerary);
   const hasPets = (tripData?.trip?.pets?.length || parsedInput?.pets?.length || 0) > 0;
 
   const handleActivityTap = (activity) => {
@@ -136,6 +139,19 @@ export default function ResultsScreen({
             />
           </div>
 
+          {/* Map */}
+          <div className="mb-3">
+            <Suspense
+              fallback={
+                <div className="bg-white border border-gray-200 rounded-2xl p-4 text-sm text-gray-500">
+                  Loading map...
+                </div>
+              }
+            >
+              <MapTile destination={destination} lat={lat} lon={lon} />
+            </Suspense>
+          </div>
+
           {/* Itinerary — full width */}
           <div className="mb-3">
             <ItineraryTile
@@ -145,7 +161,7 @@ export default function ResultsScreen({
               onActivityTap={handleActivityTap}
               hasPets={hasPets}
               totalChunks={tripData?._totalChunks || 1}
-              receivedChunks={tripData?._receivedChunks || 1}
+              receivedChunks={hasItineraryPayload ? (tripData?._receivedChunks || 1) : 0}
               tips={tripData?.tripPlan?.tips || []}
               destination={destination}
               tripDuration={tripData?.trip?.duration || 0}

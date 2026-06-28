@@ -25,6 +25,7 @@ import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js
 import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMerge.js";
 import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
 import { createAttractionMemoryService } from "./services/attractionMemory.js";
+import { createGroupTripStore } from "./services/groupTripStore.js";
 import { ensureUserRecord } from "./services/userStore.js";
 import {
   sanitizeString,
@@ -129,13 +130,50 @@ function ago(ts){if(!ts)return"?";const d=Date.now()-new Date(ts).getTime();if(d
 load();setInterval(load,15000);
 </script></body></html>`;
 
-// Validate required environment variables at startup
-function validateEnvironmentVariables() {
-  if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY === "your_api_key_here") {
-    console.error("FATAL: ANTHROPIC_API_KEY must be set and valid in environment variables");
-    console.error("Please set ANTHROPIC_API_KEY in your .env file or environment.");
+const AI_PROVIDER_ENV = {
+  anthropic: "ANTHROPIC_API_KEY",
+  gemini: "GOOGLE_GEMINI_API_KEY",
+  openai: "OPENAI_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+};
+
+function hasConfiguredSecret(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return false;
+  if (trimmed === "replace_me") return false;
+  if (trimmed.toLowerCase().startsWith("your_")) return false;
+  if (trimmed.toLowerCase().includes("placeholder")) return false;
+  return true;
+}
+
+function failEnvironmentValidation(message, exitOnFailure) {
+  console.error(message);
+  if (exitOnFailure) {
     process.exit(1);
   }
+  throw new Error(message);
+}
+
+// Validate required environment variables at startup
+export function validateEnvironmentVariables({ exitOnFailure = true } = {}) {
+  const provider = String(process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
+  const requiredKey = AI_PROVIDER_ENV[provider];
+
+  if (!requiredKey) {
+    return failEnvironmentValidation(
+      `FATAL: AI_PROVIDER must be one of ${Object.keys(AI_PROVIDER_ENV).join(", ")}.`,
+      exitOnFailure,
+    );
+  }
+
+  if (!hasConfiguredSecret(process.env[requiredKey])) {
+    return failEnvironmentValidation(
+      `FATAL: ${requiredKey} must be set and valid when AI_PROVIDER=${provider}.`,
+      exitOnFailure,
+    );
+  }
+
+  return { aiProvider: provider, requiredEnvVar: requiredKey };
 }
 
 function buildAllowedOrigins() {
@@ -263,6 +301,7 @@ export function createApp(deps = {}) {
     enrichActivityFn = enrichActivity,
     getPetTravelGuidanceFn = getPetTravelGuidance,
     attractionMemoryService = createAttractionMemoryService(),
+    groupTripStore = createGroupTripStore(),
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -729,6 +768,177 @@ export function createApp(deps = {}) {
     });
   }
 
+  function groupTripError(res, statusCode, requestId, message, details) {
+    const code = statusCode === 503
+      ? "GROUP_TRIP_STORAGE_ERROR"
+      : statusCode === 403
+        ? "GROUP_TRIP_AUTH_ERROR"
+        : statusCode === 404
+          ? "GROUP_TRIP_NOT_FOUND"
+          : "GROUP_TRIP_VALIDATION_ERROR";
+    const category = statusCode === 503
+      ? "dependency"
+      : statusCode === 403
+        ? "authentication"
+        : statusCode === 404
+          ? "not_found"
+          : "validation";
+
+    return v1Error(res, statusCode, {
+      code,
+      message,
+      category,
+      retryable: statusCode === 503,
+      requestId,
+      details: Array.isArray(details) ? { errors: details } : details,
+    });
+  }
+
+  function groupTripStatus(result, fallbackStatus = 400) {
+    if (result.storageError) return 503;
+    if (result.unauthorized) return 403;
+    if (result.notFound) return 404;
+    return fallbackStatus;
+  }
+
+  app.post("/api/v1/group-trips", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.createTrip(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
+    }
+
+    return res.status(201).json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/join", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.joinTrip(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/items", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.addItem(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.status(201).json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/decisions", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.createDecision(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.status(201).json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/decisions/vote", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.voteDecision(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/expenses", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.createExpense(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.status(201).json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/location-sharing", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.setLocationSharing(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.json({ requestId, ...result });
+  });
+
+  app.get("/api/v1/group-trips/snapshot", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const participantAccessToken =
+      req.get?.("x-group-trip-participant-token") ||
+      req.headers?.["x-group-trip-participant-token"] ||
+      req.headers?.["X-Group-Trip-Participant-Token"];
+    const result = await groupTripStore.snapshot({
+      ...(req.query || {}),
+      ...(req.body || {}),
+      ...(participantAccessToken ? { participantAccessToken } : {}),
+    });
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.json({ requestId, ...result });
+  });
+
   // GET /api/v1/meta/capabilities
   // Returns feature flags, supported countries, weather providers, safety modes.
   app.get("/api/v1/meta/capabilities", (req, res) => {
@@ -755,8 +965,8 @@ export function createApp(deps = {}) {
         neighborhoodSafety: !!process.env.AMADEUS_API_KEY,
       },
       featureFlags: {
-        shareLinks: false,
-        customItems: false,
+        shareLinks: true,
+        customItems: true,
         darkMode: false,
         pwa: false,
         internationalSupport: true,
@@ -766,10 +976,10 @@ export function createApp(deps = {}) {
     // iOS-specific feature flags (Phase 3b)
     if (client === "ios") {
       payload.ios26Features = {
-        liquidGlass: false,         // Phase 3b
-        weatherKitFastPath: false,  // Phase 3b
-        foundationModelRecap: false, // Phase 3b
-        appIntents: false,          // Phase 3b
+        liquidGlass: false,
+        weatherKitFastPath: true,
+        foundationModelRecap: true,
+        appIntents: true,
       };
     }
 
