@@ -45,6 +45,15 @@ export interface GroupTripItemCreateRequest extends GroupTripAuthenticatedMutati
   endAt?: string | null;
   locationName?: string | null;
   notes?: string | null;
+  assignedParticipantIds?: string[];
+}
+
+export interface GroupTripItemUpdateRequest extends GroupTripItemCreateRequest {
+  itemId: string;
+}
+
+export interface GroupTripItemsImportTextRequest extends GroupTripAuthenticatedMutation {
+  text: string;
 }
 
 export interface GroupTripDecisionCreateRequest extends GroupTripAuthenticatedMutation {
@@ -127,6 +136,7 @@ export interface GroupTripItem {
   endAt?: string | null;
   locationName?: string | null;
   notes?: string | null;
+  assignedParticipantIds: string[];
   status: GroupTripItemStatus | string;
   createdByParticipantId: string;
   createdAt?: string | null;
@@ -218,6 +228,13 @@ export interface GroupTripSnapshotResponse {
 export interface GroupTripItemResponse {
   requestId?: string;
   item: GroupTripItem;
+  activity: GroupTripActivityEvent;
+}
+
+export interface GroupTripItemsImportTextResponse {
+  requestId?: string;
+  items: GroupTripItem[];
+  importedCount: number;
   activity: GroupTripActivityEvent;
 }
 

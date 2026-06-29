@@ -17,6 +17,8 @@ test("shared contracts export the Trip Hub API surface", async () => {
     "GroupTripCreateRequest",
     "GroupTripJoinRequest",
     "GroupTripItemCreateRequest",
+    "GroupTripItemUpdateRequest",
+    "GroupTripItemsImportTextRequest",
     "GroupTripDecisionCreateRequest",
     "GroupTripDecisionVoteRequest",
     "GroupTripExpenseCreateRequest",
@@ -24,6 +26,7 @@ test("shared contracts export the Trip Hub API surface", async () => {
     "GroupTripWorkspaceResponse",
     "GroupTripSnapshotResponse",
     "GroupTripItemResponse",
+    "GroupTripItemsImportTextResponse",
     "GroupTripDecisionResponse",
     "GroupTripExpenseResponse",
     "GroupTripLocationSharingResponse",
@@ -51,6 +54,11 @@ test("shared contracts export the Trip Hub API surface", async () => {
     groupTripSource,
     /locationSharingEnabled/,
     "participant contracts must expose the opt-in location sharing state",
+  );
+  assert.match(
+    groupTripSource,
+    /assignedParticipantIds/,
+    "Trip Hub item contracts must expose participant tags",
   );
   assert.match(
     apiSource,

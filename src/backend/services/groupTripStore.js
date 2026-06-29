@@ -104,6 +104,105 @@ function sanitizeOptionalString(value, maxLength = 200) {
   return sanitizeString(String(value), maxLength) || null;
 }
 
+function uniqueSanitizedStrings(values, maxLength = 80) {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const value of values) {
+    const sanitized = sanitizeString(String(value ?? ""), maxLength);
+    if (!sanitized || seen.has(sanitized)) continue;
+    seen.add(sanitized);
+    result.push(sanitized);
+  }
+  return result;
+}
+
+function normalizeStoredItem(item = {}) {
+  return {
+    ...item,
+    assignedParticipantIds: uniqueSanitizedStrings(item.assignedParticipantIds),
+  };
+}
+
+function stripImportPrefix(line) {
+  return sanitizeString(String(line ?? "").replace(/^[\s>*•-]+/, "").replace(/^\d+[\).]\s*/, ""), 500)
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizedImportTitle(value) {
+  return sanitizeString(String(value ?? "").replace(/^[\s:|,-]+/, "").replace(/[\s:|,-]+$/, ""), 160);
+}
+
+function inferItemKind(text) {
+  const lower = text.toLowerCase();
+  if (/\b(flight|airport|depart|departure|arrive|arrival|las|terminal|gate)\b/.test(lower)) return "flight";
+  if (/\b(hotel|resort|check[- ]?in|checkout|airbnb|lodging|stay)\b/.test(lower)) return "lodging";
+  if (/\b(uber|lyft|taxi|cab|drive|rental|shuttle|transfer|pickup|drop[- ]?off)\b/.test(lower)) return "transport";
+  if (/\b(dinner|lunch|breakfast|brunch|meal|reservation|restaurant)\b/.test(lower)) return "meal";
+  if (/\b(show|concert|ticket|game|event)\b/.test(lower)) return "event";
+  return "activity";
+}
+
+function parseImportDateTime(line, trip) {
+  const tripYear = Number.parseInt(String(trip?.startDate ?? "").slice(0, 4), 10) || new Date().getUTCFullYear();
+  let remaining = line;
+  let year = tripYear;
+  let month = null;
+  let day = null;
+  let hour = 9;
+  let minute = 0;
+
+  const isoDateMatch = remaining.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/);
+  const slashDateMatch = remaining.match(/\b(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)?\s*(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/i);
+  const timeMatch = remaining.match(/\b(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\b/i) ||
+    remaining.match(/\b(\d{1,2}):(\d{2})\b/);
+
+  if (isoDateMatch) {
+    year = Number.parseInt(isoDateMatch[1], 10);
+    month = Number.parseInt(isoDateMatch[2], 10);
+    day = Number.parseInt(isoDateMatch[3], 10);
+    remaining = remaining.replace(isoDateMatch[0], " ");
+  } else if (slashDateMatch) {
+    month = Number.parseInt(slashDateMatch[1], 10);
+    day = Number.parseInt(slashDateMatch[2], 10);
+    if (slashDateMatch[3]) {
+      const parsedYear = Number.parseInt(slashDateMatch[3], 10);
+      year = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+    }
+    remaining = remaining.replace(slashDateMatch[0], " ");
+  }
+
+  if (timeMatch) {
+    hour = Number.parseInt(timeMatch[1], 10);
+    minute = Number.parseInt(timeMatch[2] ?? "0", 10);
+    const meridiem = timeMatch[3]?.toUpperCase();
+    if (meridiem === "PM" && hour < 12) hour += 12;
+    if (meridiem === "AM" && hour === 12) hour = 0;
+    remaining = remaining.replace(timeMatch[0], " ");
+  }
+
+  if (!month || !day || month < 1 || month > 12 || day < 1 || day > 31) {
+    return { startAt: null, remaining: normalizedImportTitle(remaining) };
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+  if (!Number.isFinite(date.getTime())) {
+    return { startAt: null, remaining: normalizedImportTitle(remaining) };
+  }
+
+  return {
+    startAt: date.toISOString(),
+    remaining: normalizedImportTitle(remaining),
+  };
+}
+
+function locationFromImportTitle(title) {
+  const atMatch = title.match(/\s@\s*([^|]+)$/);
+  if (!atMatch) return null;
+  return sanitizeOptionalString(atMatch[1], 160);
+}
+
 function hasCoordinateValue(value) {
   return value !== undefined && value !== null && String(value).trim() !== "";
 }
@@ -243,7 +342,7 @@ export function createInMemoryGroupTripStore(initialState = {}) {
   const trips = new Map(initialTrips.map((trip) => [trip.id, { ...trip }]));
   const inviteCodes = new Map(initialTrips.map((trip) => [trip.inviteCode, trip.id]));
   const participantsByTrip = mapByTrip(initialState.participantsByTrip, normalizeStoredParticipant);
-  const itemsByTrip = mapByTrip(initialState.itemsByTrip);
+  const itemsByTrip = mapByTrip(initialState.itemsByTrip, normalizeStoredItem);
   const decisionsByTrip = mapByTrip(initialState.decisionsByTrip);
   const expensesByTrip = mapByTrip(initialState.expensesByTrip);
   const activityByTrip = mapByTrip(initialState.activityByTrip);
@@ -320,6 +419,89 @@ export function createInMemoryGroupTripStore(initialState = {}) {
 
     if (!hasValidParticipantAccessToken(participant, participantAccessToken)) return authFailure();
     return { ok: true, trip, participant, tripId, participantId };
+  }
+
+  function sanitizeAssignedParticipantIds(input, tripId) {
+    const assignedParticipantIds = uniqueSanitizedStrings(input.assignedParticipantIds);
+    const errors = [];
+
+    for (const participantId of assignedParticipantIds) {
+      if (!participantFor(tripId, participantId)) {
+        errors.push("Assigned participants must belong to this trip.");
+        break;
+      }
+    }
+
+    return { assignedParticipantIds, errors };
+  }
+
+  function sanitizeItemFields(input = {}, tripId) {
+    const kind = sanitizeString(input.kind, 40).toLowerCase();
+    const title = sanitizeString(input.title, 160);
+    const { assignedParticipantIds, errors } = sanitizeAssignedParticipantIds(input, tripId);
+
+    if (!kind) errors.push("Item kind is required.");
+    if (!title) errors.push("Item title is required.");
+
+    return {
+      value: {
+        kind,
+        title,
+        startAt: sanitizeOptionalString(input.startAt, 40),
+        endAt: sanitizeOptionalString(input.endAt, 40),
+        locationName: sanitizeOptionalString(input.locationName, 160),
+        notes: sanitizeOptionalString(input.notes, 500),
+        assignedParticipantIds,
+      },
+      errors,
+    };
+  }
+
+  function participantTagsForText(tripId, text) {
+    const lower = String(text ?? "").toLowerCase();
+    return participantsFor(tripId)
+      .filter((participant) => {
+        const displayName = String(participant.displayName ?? "").trim().toLowerCase();
+        if (displayName.length < 2) return false;
+        const firstName = displayName.split(/\s+/)[0];
+        return lower.includes(displayName) || (firstName.length > 1 && lower.includes(firstName));
+      })
+      .map((participant) => participant.id);
+  }
+
+  function parseImportText(input = {}, base) {
+    const text = sanitizeString(String(input.text ?? ""), 5000);
+    if (!text) return { items: [], errors: ["Paste itinerary text before importing."] };
+
+    const lines = text
+      .split(/\r?\n|;/)
+      .map(stripImportPrefix)
+      .filter(Boolean)
+      .slice(0, 50);
+
+    const items = lines
+      .map((line) => {
+        const parsedDate = parseImportDateTime(line, base.trip);
+        const title = parsedDate.remaining || normalizedImportTitle(line);
+        if (!title) return null;
+
+        return {
+          kind: inferItemKind(line),
+          title,
+          startAt: parsedDate.startAt,
+          endAt: null,
+          locationName: locationFromImportTitle(title),
+          notes: null,
+          assignedParticipantIds: participantTagsForText(base.tripId, line),
+        };
+      })
+      .filter(Boolean);
+
+    if (items.length === 0) {
+      return { items, errors: ["No itinerary items could be found in the pasted text."] };
+    }
+
+    return { items, errors: [] };
   }
 
   function appendActivity(tripId, event) {
@@ -492,24 +674,14 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       const base = validateTripAndActor(input);
       if (!base.ok) return base;
 
-      const kind = sanitizeString(input.kind, 40);
-      const title = sanitizeString(input.title, 160);
-      const errors = [];
-
-      if (!kind) errors.push("Item kind is required.");
-      if (!title) errors.push("Item title is required.");
+      const { value, errors } = sanitizeItemFields(input, base.tripId);
       if (errors.length) return { ok: false, errors };
 
       const now = new Date().toISOString();
       const item = {
         id: makeId("item"),
         tripId: base.tripId,
-        kind,
-        title,
-        startAt: sanitizeOptionalString(input.startAt, 40),
-        endAt: sanitizeOptionalString(input.endAt, 40),
-        locationName: sanitizeOptionalString(input.locationName, 160),
-        notes: sanitizeOptionalString(input.notes, 500),
+        ...value,
         status: "planned",
         createdByParticipantId: base.actor.id,
         createdAt: now,
@@ -529,6 +701,80 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       });
 
       return { ok: true, item, activity };
+    },
+
+    updateItem(input = {}) {
+      const base = validateTripAndActor(input);
+      if (!base.ok) return base;
+
+      const itemId = sanitizeString(input.itemId, 80);
+      const { value, errors } = sanitizeItemFields(input, base.tripId);
+
+      if (!itemId) errors.push("Item id is required.");
+      if (errors.length) return { ok: false, errors };
+
+      const items = itemsFor(base.tripId);
+      const existingItem = items.find((candidate) => candidate.id === itemId);
+      if (!existingItem) {
+        return { ok: false, notFound: true, errors: ["Item was not found."] };
+      }
+
+      const now = new Date().toISOString();
+      const item = {
+        ...existingItem,
+        ...value,
+        updatedAt: now,
+      };
+
+      itemsByTrip.set(
+        base.tripId,
+        items.map((candidate) => (candidate.id === itemId ? item : candidate)),
+      );
+      base.trip.updatedAt = now;
+
+      const activity = appendActivity(base.tripId, {
+        id: makeId("activity"),
+        tripId: base.tripId,
+        type: "item_updated",
+        actorParticipantId: base.actor.id,
+        summary: `${base.actor.displayName} updated ${item.title}`,
+        createdAt: now,
+      });
+
+      return { ok: true, item, activity };
+    },
+
+    importItemsFromText(input = {}) {
+      const base = validateTripAndActor(input);
+      if (!base.ok) return base;
+
+      const parsed = parseImportText(input, base);
+      if (parsed.errors.length) return { ok: false, errors: parsed.errors };
+
+      const now = new Date().toISOString();
+      const importedItems = parsed.items.map((item) => ({
+        id: makeId("item"),
+        tripId: base.tripId,
+        ...item,
+        status: "planned",
+        createdByParticipantId: base.actor.id,
+        createdAt: now,
+        updatedAt: now,
+      }));
+
+      itemsByTrip.set(base.tripId, [...itemsFor(base.tripId), ...importedItems]);
+      base.trip.updatedAt = now;
+
+      const activity = appendActivity(base.tripId, {
+        id: makeId("activity"),
+        tripId: base.tripId,
+        type: "items_imported",
+        actorParticipantId: base.actor.id,
+        summary: `${base.actor.displayName} imported ${importedItems.length} itinerary item${importedItems.length === 1 ? "" : "s"}`,
+        createdAt: now,
+      });
+
+      return { ok: true, items: importedItems, importedCount: importedItems.length, activity };
     },
 
     createDecision(input = {}) {
@@ -823,6 +1069,8 @@ function createUnavailableGroupTripStore(error) {
     createTrip: failure,
     joinTrip: failure,
     addItem: failure,
+    updateItem: failure,
+    importItemsFromText: failure,
     createDecision: failure,
     voteDecision: failure,
     createExpense: failure,
@@ -858,6 +1106,14 @@ export function createSupabaseGroupTripStore({ admin }) {
 
     addItem(input) {
       return executeMutation("addItem", input, (result) => result.item.tripId);
+    },
+
+    updateItem(input) {
+      return executeMutation("updateItem", input, (result) => result.item.tripId);
+    },
+
+    importItemsFromText(input) {
+      return executeMutation("importItemsFromText", input, (result) => result.items[0].tripId);
     },
 
     createDecision(input) {

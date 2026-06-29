@@ -228,6 +228,10 @@ test("GET /api/v1/group-trips/snapshot accepts participant access token header",
 test("POST /api/v1/group-trips/items adds editable logistics to the shared snapshot", async () => {
   const app = createApp({ enableRequestLogging: false });
   const created = await createVegasTrip(app);
+  const joined = await invokeRoute(app, "POST", "/api/v1/group-trips/join", {
+    inviteCode: created.body.trip.inviteCode,
+    displayName: "Priya",
+  });
 
   const itemRes = await invokeRoute(app, "POST", "/api/v1/group-trips/items", {
     tripId: created.body.trip.id,
@@ -238,6 +242,11 @@ test("POST /api/v1/group-trips/items adds editable logistics to the shared snaps
     endAt: "2026-09-18T18:45:00Z",
     locationName: "Harry Reid International Airport",
     notes: "Share confirmation numbers in the group chat.",
+    assignedParticipantIds: [
+      created.body.currentParticipant.id,
+      joined.body.currentParticipant.id,
+      joined.body.currentParticipant.id,
+    ],
   });
 
   assert.equal(itemRes.statusCode, 201);
@@ -247,6 +256,10 @@ test("POST /api/v1/group-trips/items adds editable logistics to the shared snaps
   assert.equal(itemRes.body.item.title, "Arrive at LAS");
   assert.equal(itemRes.body.item.status, "planned");
   assert.equal(itemRes.body.item.createdByParticipantId, created.body.currentParticipant.id);
+  assert.deepEqual(itemRes.body.item.assignedParticipantIds, [
+    created.body.currentParticipant.id,
+    joined.body.currentParticipant.id,
+  ]);
   assert.equal(itemRes.body.activity.summary, "Nitish added Arrive at LAS");
 
   const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
@@ -256,8 +269,111 @@ test("POST /api/v1/group-trips/items adds editable logistics to the shared snaps
 
   assert.equal(snapshot.body.items.length, 1);
   assert.equal(snapshot.body.items[0].title, "Arrive at LAS");
-  assert.equal(snapshot.body.activity.length, 1);
-  assert.equal(snapshot.body.activity[0].type, "item_created");
+  assert.deepEqual(snapshot.body.items[0].assignedParticipantIds, [
+    created.body.currentParticipant.id,
+    joined.body.currentParticipant.id,
+  ]);
+  assert.equal(snapshot.body.activity.at(-1).type, "item_created");
+});
+
+test("POST /api/v1/group-trips/items/update edits itinerary items and participant tags", async () => {
+  const app = createApp({ enableRequestLogging: false });
+  const created = await createVegasTrip(app);
+  const joined = await invokeRoute(app, "POST", "/api/v1/group-trips/join", {
+    inviteCode: created.body.trip.inviteCode,
+    displayName: "Priya",
+  });
+
+  const createdItem = await invokeRoute(app, "POST", "/api/v1/group-trips/items", {
+    tripId: created.body.trip.id,
+    ...actorAuth(created.body.currentParticipant),
+    kind: "activity",
+    title: "Pool cabana",
+    startAt: "2026-09-19T18:00:00Z",
+    locationName: "Resort pool",
+    assignedParticipantIds: [created.body.currentParticipant.id],
+  });
+
+  const updated = await invokeRoute(app, "POST", "/api/v1/group-trips/items/update", {
+    tripId: created.body.trip.id,
+    ...actorAuth(joined.body.currentParticipant),
+    itemId: createdItem.body.item.id,
+    kind: "meal",
+    title: "Dinner reservation",
+    startAt: "2026-09-19T20:00:00Z",
+    endAt: "2026-09-19T22:00:00Z",
+    locationName: "Best Friend",
+    notes: "Moved after the cabana.",
+    assignedParticipantIds: [
+      joined.body.currentParticipant.id,
+      created.body.currentParticipant.id,
+    ],
+  });
+
+  assert.equal(updated.statusCode, 200);
+  assert.equal(updated.body.item.id, createdItem.body.item.id);
+  assert.equal(updated.body.item.kind, "meal");
+  assert.equal(updated.body.item.title, "Dinner reservation");
+  assert.equal(updated.body.item.locationName, "Best Friend");
+  assert.equal(updated.body.item.createdByParticipantId, created.body.currentParticipant.id);
+  assert.deepEqual(updated.body.item.assignedParticipantIds, [
+    joined.body.currentParticipant.id,
+    created.body.currentParticipant.id,
+  ]);
+  assert.equal(updated.body.activity.type, "item_updated");
+  assert.equal(updated.body.activity.actorParticipantId, joined.body.currentParticipant.id);
+
+  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
+    tripId: created.body.trip.id,
+    ...snapshotAuth(created.body.currentParticipant),
+  });
+
+  assert.equal(snapshot.body.items.length, 1);
+  assert.equal(snapshot.body.items[0].title, "Dinner reservation");
+  assert.equal(snapshot.body.items[0].createdByParticipantId, created.body.currentParticipant.id);
+  assert.deepEqual(
+    snapshot.body.activity.map((event) => event.type),
+    ["participant_joined", "item_created", "item_updated"],
+  );
+});
+
+test("POST /api/v1/group-trips/items/import-text creates tagged items from pasted itinerary text", async () => {
+  const app = createApp({ enableRequestLogging: false });
+  const created = await createVegasTrip(app);
+  const joined = await invokeRoute(app, "POST", "/api/v1/group-trips/join", {
+    inviteCode: created.body.trip.inviteCode,
+    displayName: "Priya",
+  });
+
+  const imported = await invokeRoute(app, "POST", "/api/v1/group-trips/items/import-text", {
+    tripId: created.body.trip.id,
+    ...actorAuth(created.body.currentParticipant),
+    text: `
+      Fri 9/18 5:30 PM - Arrive at LAS - Nitish
+      Sat 9/19 8:00 PM - Dinner at Best Friend with Priya
+      Sunday 9/20 11 AM - Pool cabana @ Bellagio
+    `,
+  });
+
+  assert.equal(imported.statusCode, 201);
+  assert.equal(imported.body.importedCount, 3);
+  assert.equal(imported.body.items.length, 3);
+  assert.equal(imported.body.items[0].kind, "flight");
+  assert.equal(imported.body.items[0].title, "Arrive at LAS - Nitish");
+  assert.equal(imported.body.items[0].startAt, "2026-09-18T17:30:00.000Z");
+  assert.deepEqual(imported.body.items[0].assignedParticipantIds, [created.body.currentParticipant.id]);
+  assert.equal(imported.body.items[1].kind, "meal");
+  assert.equal(imported.body.items[1].startAt, "2026-09-19T20:00:00.000Z");
+  assert.deepEqual(imported.body.items[1].assignedParticipantIds, [joined.body.currentParticipant.id]);
+  assert.equal(imported.body.activity.type, "items_imported");
+
+  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
+    tripId: created.body.trip.id,
+    ...snapshotAuth(created.body.currentParticipant),
+  });
+
+  assert.equal(snapshot.body.items.length, 3);
+  assert.equal(snapshot.body.activity.at(-1).summary, "Nitish imported 3 itinerary items");
 });
 
 test("POST /api/v1/group-trips/items rejects forged participant mutations", async () => {

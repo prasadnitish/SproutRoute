@@ -51,8 +51,34 @@ test("Supabase-backed group trip store persists shared workspace state across st
     title: "Arrive at LAS",
     startAt: "2026-09-18T17:30:00Z",
     locationName: "Harry Reid International Airport",
+    assignedParticipantIds: [created.currentParticipant.id],
   });
   assert.equal(item.ok, true);
+
+  const updatedItem = await store.updateItem({
+    tripId: created.trip.id,
+    actorParticipantId: joined.currentParticipant.id,
+    actorParticipantAccessToken: joined.currentParticipant.accessToken,
+    itemId: item.item.id,
+    kind: "meal",
+    title: "Dinner at Best Friend",
+    startAt: "2026-09-19T20:00:00Z",
+    locationName: "Best Friend",
+    assignedParticipantIds: [
+      joined.currentParticipant.id,
+      created.currentParticipant.id,
+    ],
+  });
+  assert.equal(updatedItem.ok, true);
+
+  const importedItems = await store.importItemsFromText({
+    tripId: created.trip.id,
+    actorParticipantId: created.currentParticipant.id,
+    actorParticipantAccessToken: created.currentParticipant.accessToken,
+    text: "Sun 9/20 11 AM - Pool cabana with Priya",
+  });
+  assert.equal(importedItems.ok, true);
+  assert.equal(importedItems.items.length, 1);
 
   const decision = await store.createDecision({
     tripId: created.trip.id,
@@ -113,7 +139,13 @@ test("Supabase-backed group trip store persists shared workspace state across st
   assert.equal(snapshot.participants[1].lastLocation.latitude, 36.1699);
   assert.equal(snapshot.participants[0].accessToken, undefined);
   assert.equal(snapshot.participants[0].accessTokenHash, undefined);
-  assert.equal(snapshot.items[0].title, "Arrive at LAS");
+  assert.equal(snapshot.items[0].title, "Dinner at Best Friend");
+  assert.deepEqual(snapshot.items[0].assignedParticipantIds, [
+    joined.currentParticipant.id,
+    created.currentParticipant.id,
+  ]);
+  assert.equal(snapshot.items[1].title, "Pool cabana with Priya");
+  assert.deepEqual(snapshot.items[1].assignedParticipantIds, [joined.currentParticipant.id]);
   assert.equal(snapshot.decisions[0].title, "Friday dinner");
   assert.equal(snapshot.decisions[0].votes[0].participantId, joined.currentParticipant.id);
   assert.equal(snapshot.expenses[0].title, "Hotel deposit");
@@ -130,7 +162,8 @@ test("Supabase-backed group trip store persists shared workspace state across st
   assert.match(admin.documents.get(created.trip.id).participants_json[0].accessTokenHash, /^sha256_[A-Za-z0-9_-]{32,}$/);
   assert.equal(admin.documents.get(created.trip.id).participants_json[1].accessToken, undefined);
   assert.match(admin.documents.get(created.trip.id).participants_json[1].accessTokenHash, /^sha256_[A-Za-z0-9_-]{32,}$/);
-  assert.equal(admin.documents.get(created.trip.id).items_json.length, 1);
+  assert.equal(admin.documents.get(created.trip.id).items_json.length, 2);
+  assert.equal(admin.documents.get(created.trip.id).items_json[0].title, "Dinner at Best Friend");
   assert.equal(admin.documents.get(created.trip.id).decisions_json.length, 1);
   assert.equal(admin.documents.get(created.trip.id).expenses_json.length, 1);
   assert.equal(admin.documents.get(created.trip.id).activity_json.at(-1).type, "location_sharing_enabled");
