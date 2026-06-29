@@ -312,6 +312,8 @@ enum TripHubPresentation {
         switch title {
         case "Add":
             return "Add itinerary item"
+        case "Import":
+            return "Import itinerary text"
         case "Decide":
             return "Create decision"
         case "Expense":
@@ -335,12 +337,27 @@ enum TripHubPresentation {
     }
 }
 
-enum TripHubSheetDestination: String, Identifiable {
-    case item
+enum TripHubSheetDestination: Identifiable, Hashable {
+    case addItem
+    case editItem(GroupTripItem)
+    case importText
     case decision
     case expense
 
-    var id: String { rawValue }
+    var id: String {
+        switch self {
+        case .addItem:
+            "add-item"
+        case .editItem(let item):
+            "edit-item-\(item.id)"
+        case .importText:
+            "import-text"
+        case .decision:
+            "decision"
+        case .expense:
+            "expense"
+        }
+    }
 }
 
 enum TripHubCreateDefaults {
@@ -567,8 +584,12 @@ struct TripHubView: View {
     private func tripHubSheet(_ destination: TripHubSheetDestination) -> some View {
         if let snapshot = controller.snapshot {
             switch destination {
-            case .item:
-                TripHubItemEditor(controller: controller)
+            case .addItem:
+                TripHubItemEditor(controller: controller, participants: snapshot.participants)
+            case .editItem(let item):
+                TripHubItemEditor(controller: controller, item: item, participants: snapshot.participants)
+            case .importText:
+                TripHubTextImportEditor(controller: controller)
             case .decision:
                 TripHubDecisionEditor(controller: controller)
             case .expense:
@@ -585,7 +606,10 @@ struct TripHubView: View {
         NativeCard {
             HStack(spacing: 10) {
                 TripHubActionButton(title: "Add", systemImage: "plus.circle") {
-                    presentedSheet = .item
+                    presentedSheet = .addItem
+                }
+                TripHubActionButton(title: "Import", systemImage: "doc.text") {
+                    presentedSheet = .importText
                 }
                 TripHubActionButton(title: "Decide", systemImage: "checkmark.seal") {
                     presentedSheet = .decision
@@ -767,7 +791,7 @@ struct TripHubView: View {
         NativeCard {
             VStack(alignment: .leading, spacing: 12) {
                 TripHubSectionHeader(title: "Timeline", systemImage: "list.bullet.rectangle") {
-                    presentedSheet = .item
+                    presentedSheet = .addItem
                 }
 
                 if snapshot.items.isEmpty {
@@ -776,7 +800,9 @@ struct TripHubView: View {
                         .foregroundStyle(SproutTheme.secondaryText)
                 } else {
                     ForEach(snapshot.items.sorted { ($0.startAt ?? "") < ($1.startAt ?? "") }) { item in
-                        TripHubTimelineRow(item: item)
+                        TripHubTimelineRow(item: item, participants: snapshot.participants) {
+                            presentedSheet = .editItem(item)
+                        }
                     }
                 }
             }
@@ -942,6 +968,8 @@ struct TripHubSectionHeader: View {
 
 struct TripHubTimelineRow: View {
     let item: GroupTripItem
+    let participants: [GroupTripParticipant]
+    let edit: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -964,16 +992,49 @@ struct TripHubTimelineRow: View {
                         .font(.caption)
                         .foregroundStyle(SproutTheme.tertiaryText)
                 }
+                let taggedParticipants = assignedParticipants
+                if !taggedParticipants.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(taggedParticipants) { participant in
+                            Label(participant.displayName, systemImage: "person.crop.circle.fill")
+                                .font(.caption2.weight(.semibold))
+                                .lineLimit(1)
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 7)
+                                .background(SproutTheme.accentSoft, in: Capsule())
+                                .foregroundStyle(SproutTheme.primaryText)
+                        }
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Tagged people: \(taggedParticipants.map(\.displayName).joined(separator: ", "))")
+                }
             }
             Spacer()
-            if let startAt = item.startAt, !startAt.isEmpty {
-                Text(compactDateTime(startAt))
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(SproutTheme.tertiaryText)
-                    .multilineTextAlignment(.trailing)
+            VStack(alignment: .trailing, spacing: 6) {
+                Button(action: edit) {
+                    Image(systemName: "pencil.circle")
+                        .font(.body.weight(.semibold))
+                        .frame(width: SproutTheme.minimumTouchTarget, height: SproutTheme.minimumTouchTarget)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(SproutTheme.accent)
+                .accessibilityLabel("Edit \(item.title)")
+                .accessibilityHint("Opens the itinerary item editor.")
+
+                if let startAt = item.startAt, !startAt.isEmpty {
+                    Text(compactDateTime(startAt))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(SproutTheme.tertiaryText)
+                        .multilineTextAlignment(.trailing)
+                }
             }
         }
         .padding(.vertical, 6)
+    }
+
+    private var assignedParticipants: [GroupTripParticipant] {
+        let assignedIds = Set(item.assignedParticipantIds)
+        return participants.filter { assignedIds.contains($0.id) }
     }
 
     private var iconName: String {
@@ -1095,15 +1156,18 @@ struct TripHubBalanceRow: View {
 
 struct TripHubItemEditor: View {
     let controller: TripHubController
+    let item: GroupTripItem?
+    let participants: [GroupTripParticipant]
     @Environment(\.dismiss) private var dismiss
-    @State private var kind = "flight"
-    @State private var title = ""
-    @State private var locationName = ""
-    @State private var notes = ""
-    @State private var hasStartTime = true
-    @State private var startDate = Date()
-    @State private var hasEndTime = false
-    @State private var endDate = Date().addingTimeInterval(3600)
+    @State private var kind: String
+    @State private var title: String
+    @State private var locationName: String
+    @State private var notes: String
+    @State private var hasStartTime: Bool
+    @State private var startDate: Date
+    @State private var hasEndTime: Bool
+    @State private var endDate: Date
+    @State private var selectedParticipantIds: Set<String>
     @State private var isSaving = false
 
     private let kinds = [
@@ -1114,6 +1178,30 @@ struct TripHubItemEditor: View {
         ("event", "Event"),
         ("activity", "Activity")
     ]
+
+    init(
+        controller: TripHubController,
+        item: GroupTripItem? = nil,
+        participants: [GroupTripParticipant]
+    ) {
+        self.controller = controller
+        self.item = item
+        self.participants = participants
+
+        let parsedStartDate = Self.date(from: item?.startAt)
+        let parsedEndDate = Self.date(from: item?.endAt)
+        let defaultStartDate = parsedStartDate ?? Date()
+
+        _kind = State(initialValue: item?.kind ?? "flight")
+        _title = State(initialValue: item?.title ?? "")
+        _locationName = State(initialValue: item?.locationName ?? "")
+        _notes = State(initialValue: item?.notes ?? "")
+        _hasStartTime = State(initialValue: item == nil || parsedStartDate != nil)
+        _startDate = State(initialValue: defaultStartDate)
+        _hasEndTime = State(initialValue: parsedEndDate != nil)
+        _endDate = State(initialValue: parsedEndDate ?? defaultStartDate.addingTimeInterval(3600))
+        _selectedParticipantIds = State(initialValue: Set(item?.assignedParticipantIds ?? []))
+    }
 
     var body: some View {
         NavigationStack {
@@ -1140,8 +1228,29 @@ struct TripHubItemEditor: View {
                         DatePicker("End", selection: $endDate)
                     }
                 }
+
+                if !participants.isEmpty {
+                    Section("People") {
+                        ForEach(participants) { participant in
+                            Button {
+                                toggleParticipant(participant.id)
+                            } label: {
+                                HStack {
+                                    Image(systemName: selectedParticipantIds.contains(participant.id) ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(selectedParticipantIds.contains(participant.id) ? SproutTheme.accent : SproutTheme.tertiaryText)
+                                    Text(participant.displayName)
+                                        .foregroundStyle(SproutTheme.primaryText)
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(participant.displayName)
+                            .accessibilityValue(selectedParticipantIds.contains(participant.id) ? "Tagged" : "Not tagged")
+                        }
+                    }
+                }
             }
-            .navigationTitle("Add Item")
+            .navigationTitle(item == nil ? "Add Item" : "Edit Item")
             .navigationBarTitleDisplayMode(.inline)
             .scrollContentBackground(.hidden)
             .sproutScreenBackground()
@@ -1163,26 +1272,110 @@ struct TripHubItemEditor: View {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func toggleParticipant(_ participantId: String) {
+        if selectedParticipantIds.contains(participantId) {
+            selectedParticipantIds.remove(participantId)
+        } else {
+            selectedParticipantIds.insert(participantId)
+        }
+    }
+
     private func save() async {
         isSaving = true
-        await controller.addTripHubItem(
-            kind: kind,
-            title: title,
-            startAt: hasStartTime ? Self.isoDateTime(startDate) : nil,
-            endAt: hasEndTime ? Self.isoDateTime(endDate) : nil,
-            locationName: locationName,
-            notes: notes
-        )
+        let assignedParticipantIds = participants
+            .filter { selectedParticipantIds.contains($0.id) }
+            .map(\.id)
+        if let item {
+            await controller.updateTripHubItem(
+                itemId: item.id,
+                kind: kind,
+                title: title,
+                startAt: hasStartTime ? Self.isoDateTime(startDate) : nil,
+                endAt: hasEndTime ? Self.isoDateTime(endDate) : nil,
+                locationName: locationName,
+                notes: notes,
+                assignedParticipantIds: assignedParticipantIds
+            )
+        } else {
+            await controller.addTripHubItem(
+                kind: kind,
+                title: title,
+                startAt: hasStartTime ? Self.isoDateTime(startDate) : nil,
+                endAt: hasEndTime ? Self.isoDateTime(endDate) : nil,
+                locationName: locationName,
+                notes: notes,
+                assignedParticipantIds: assignedParticipantIds
+            )
+        }
         isSaving = false
         if case .ready = controller.phase {
             dismiss()
         }
     }
 
+    private static func date(from value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
     private static func isoDateTime(_ date: Date) -> String {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: date)
+    }
+}
+
+struct TripHubTextImportEditor: View {
+    let controller: TripHubController
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var isImporting = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Itinerary Text") {
+                    TextEditor(text: $text)
+                        .frame(minHeight: 180)
+                        .textInputAutocapitalization(.sentences)
+                        .accessibilityIdentifier("trip-hub-import-text")
+                }
+            }
+            .navigationTitle("Import Itinerary")
+            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
+            .sproutScreenBackground()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isImporting ? "Importing" : "Import") {
+                        Task { await importText() }
+                    }
+                    .disabled(!canImport || isImporting)
+                }
+            }
+        }
+    }
+
+    private var canImport: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func importText() async {
+        isImporting = true
+        await controller.importTripHubItemsText(text)
+        isImporting = false
+        if case .ready = controller.phase {
+            dismiss()
+        }
     }
 }
 

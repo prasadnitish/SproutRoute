@@ -137,6 +137,7 @@ final class APIClientConfigurationTests: XCTestCase {
             "endAt": "2026-09-18T18:45:00Z",
             "locationName": "Harry Reid International Airport",
             "notes": "Share confirmation numbers.",
+            "assignedParticipantIds": ["participant_1", "participant_2"],
             "status": "planned",
             "createdByParticipantId": "participant_1",
             "createdAt": "2026-06-28T12:10:00.000Z",
@@ -170,7 +171,8 @@ final class APIClientConfigurationTests: XCTestCase {
                 startAt: "2026-09-18T17:30:00Z",
                 endAt: "2026-09-18T18:45:00Z",
                 locationName: "Harry Reid International Airport",
-                notes: "Share confirmation numbers."
+                notes: "Share confirmation numbers.",
+                assignedParticipantIds: ["participant_1", "participant_2"]
             )
         )
 
@@ -179,8 +181,146 @@ final class APIClientConfigurationTests: XCTestCase {
         XCTAssertEqual(MockAPIURLProtocol.requestURL?.path, "/api/v1/group-trips/items")
         XCTAssertEqual(json["kind"] as? String, "flight")
         XCTAssertEqual(json["actorParticipantAccessToken"] as? String, "gtp_owner_token")
+        XCTAssertEqual(json["assignedParticipantIds"] as? [String], ["participant_1", "participant_2"])
         XCTAssertEqual(response.item.createdByParticipantId, "participant_1")
+        XCTAssertEqual(response.item.assignedParticipantIds, ["participant_1", "participant_2"])
         XCTAssertEqual(response.activity.type, "item_created")
+    }
+
+    func testUpdateGroupTripItemUsesSharedTripContract() async throws {
+        MockAPIURLProtocol.responseData = Data("""
+        {
+          "requestId": "req-item-update",
+          "item": {
+            "id": "item_1",
+            "tripId": "trip_abc123",
+            "kind": "meal",
+            "title": "Dinner reservation",
+            "startAt": "2026-09-19T20:00:00Z",
+            "endAt": "2026-09-19T22:00:00Z",
+            "locationName": "Best Friend",
+            "notes": "Moved after the cabana.",
+            "assignedParticipantIds": ["participant_2"],
+            "status": "planned",
+            "createdByParticipantId": "participant_1",
+            "createdAt": "2026-06-28T12:10:00.000Z",
+            "updatedAt": "2026-06-28T12:30:00.000Z"
+          },
+          "activity": {
+            "id": "activity_2",
+            "tripId": "trip_abc123",
+            "type": "item_updated",
+            "actorParticipantId": "participant_2",
+            "summary": "Priya updated Dinner reservation",
+            "createdAt": "2026-06-28T12:30:00.000Z"
+          }
+        }
+        """.utf8)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockAPIURLProtocol.self]
+        let client = SproutAPIClient(
+            baseURL: URL(string: "https://example.test")!,
+            session: URLSession(configuration: configuration)
+        )
+
+        let response = try await client.updateGroupTripItem(
+            GroupTripItemUpdateRequest(
+                tripId: "trip_abc123",
+                actorParticipantId: "participant_2",
+                actorParticipantAccessToken: "gtp_editor_token",
+                itemId: "item_1",
+                kind: "meal",
+                title: "Dinner reservation",
+                startAt: "2026-09-19T20:00:00Z",
+                endAt: "2026-09-19T22:00:00Z",
+                locationName: "Best Friend",
+                notes: "Moved after the cabana.",
+                assignedParticipantIds: ["participant_2"]
+            )
+        )
+
+        let body = try XCTUnwrap(MockAPIURLProtocol.requestBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(MockAPIURLProtocol.requestURL?.path, "/api/v1/group-trips/items/update")
+        XCTAssertEqual(json["itemId"] as? String, "item_1")
+        XCTAssertEqual(json["kind"] as? String, "meal")
+        XCTAssertEqual(json["assignedParticipantIds"] as? [String], ["participant_2"])
+        XCTAssertEqual(response.item.title, "Dinner reservation")
+        XCTAssertEqual(response.activity.type, "item_updated")
+    }
+
+    func testImportGroupTripItemsTextUsesSharedTripContract() async throws {
+        MockAPIURLProtocol.responseData = Data("""
+        {
+          "requestId": "req-import",
+          "importedCount": 2,
+          "items": [
+            {
+              "id": "item_1",
+              "tripId": "trip_abc123",
+              "kind": "flight",
+              "title": "Arrive at LAS",
+              "startAt": "2026-09-18T17:30:00.000Z",
+              "endAt": null,
+              "locationName": null,
+              "notes": null,
+              "assignedParticipantIds": ["participant_1"],
+              "status": "planned",
+              "createdByParticipantId": "participant_1",
+              "createdAt": "2026-06-28T12:10:00.000Z",
+              "updatedAt": "2026-06-28T12:10:00.000Z"
+            },
+            {
+              "id": "item_2",
+              "tripId": "trip_abc123",
+              "kind": "meal",
+              "title": "Dinner at Best Friend with Priya",
+              "startAt": "2026-09-19T20:00:00.000Z",
+              "endAt": null,
+              "locationName": null,
+              "notes": null,
+              "assignedParticipantIds": ["participant_2"],
+              "status": "planned",
+              "createdByParticipantId": "participant_1",
+              "createdAt": "2026-06-28T12:10:00.000Z",
+              "updatedAt": "2026-06-28T12:10:00.000Z"
+            }
+          ],
+          "activity": {
+            "id": "activity_import",
+            "tripId": "trip_abc123",
+            "type": "items_imported",
+            "actorParticipantId": "participant_1",
+            "summary": "Nitish imported 2 itinerary items",
+            "createdAt": "2026-06-28T12:10:00.000Z"
+          }
+        }
+        """.utf8)
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockAPIURLProtocol.self]
+        let client = SproutAPIClient(
+            baseURL: URL(string: "https://example.test")!,
+            session: URLSession(configuration: configuration)
+        )
+
+        let response = try await client.importGroupTripItemsText(
+            GroupTripItemsImportTextRequest(
+                tripId: "trip_abc123",
+                actorParticipantId: "participant_1",
+                actorParticipantAccessToken: "gtp_owner_token",
+                text: "Fri 9/18 5:30 PM - Arrive at LAS - Nitish"
+            )
+        )
+
+        let body = try XCTUnwrap(MockAPIURLProtocol.requestBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(MockAPIURLProtocol.requestURL?.path, "/api/v1/group-trips/items/import-text")
+        XCTAssertEqual(json["text"] as? String, "Fri 9/18 5:30 PM - Arrive at LAS - Nitish")
+        XCTAssertEqual(response.importedCount, 2)
+        XCTAssertEqual(response.items.first?.assignedParticipantIds, ["participant_1"])
+        XCTAssertEqual(response.activity.type, "items_imported")
     }
 
     func testCreateGroupTripExpenseUsesLedgerContract() async throws {

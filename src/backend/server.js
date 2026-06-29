@@ -846,6 +846,40 @@ export function createApp(deps = {}) {
     return res.status(201).json({ requestId, ...result });
   });
 
+  app.post("/api/v1/group-trips/items/update", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.updateItem(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/items/import-text", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.importItemsFromText(req.body || {});
+
+    if (!result.ok) {
+      return groupTripError(
+        res,
+        groupTripStatus(result),
+        requestId,
+        result.errors.join(" "),
+        result.errors,
+      );
+    }
+
+    return res.status(201).json({ requestId, ...result });
+  });
+
   app.post("/api/v1/group-trips/decisions", apiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const result = await groupTripStore.createDecision(req.body || {});

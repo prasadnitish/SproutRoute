@@ -193,6 +193,14 @@ actor SproutAPIClient {
         try await post("/api/v1/group-trips/items", body: payload)
     }
 
+    func updateGroupTripItem(_ payload: GroupTripItemUpdateRequest) async throws -> GroupTripItemResponse {
+        try await post("/api/v1/group-trips/items/update", body: payload)
+    }
+
+    func importGroupTripItemsText(_ payload: GroupTripItemsImportTextRequest) async throws -> GroupTripItemsImportTextResponse {
+        try await post("/api/v1/group-trips/items/import-text", body: payload)
+    }
+
     func createGroupTripDecision(_ payload: GroupTripDecisionCreateRequest) async throws -> GroupTripDecisionResponse {
         try await post("/api/v1/group-trips/decisions", body: payload)
     }

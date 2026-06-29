@@ -7,6 +7,8 @@ protocol GroupTripServicing {
     func createGroupTrip(_ payload: GroupTripCreateRequest) async throws -> GroupTripWorkspaceResponse
     func joinGroupTrip(_ payload: GroupTripJoinRequest) async throws -> GroupTripWorkspaceResponse
     func createGroupTripItem(_ payload: GroupTripItemCreateRequest) async throws -> GroupTripItemResponse
+    func updateGroupTripItem(_ payload: GroupTripItemUpdateRequest) async throws -> GroupTripItemResponse
+    func importGroupTripItemsText(_ payload: GroupTripItemsImportTextRequest) async throws -> GroupTripItemsImportTextResponse
     func createGroupTripDecision(_ payload: GroupTripDecisionCreateRequest) async throws -> GroupTripDecisionResponse
     func voteGroupTripDecision(_ payload: GroupTripDecisionVoteRequest) async throws -> GroupTripDecisionResponse
     func createGroupTripExpense(_ payload: GroupTripExpenseCreateRequest) async throws -> GroupTripExpenseResponse
@@ -425,7 +427,8 @@ final class TripHubController {
         startAt: String?,
         endAt: String?,
         locationName: String?,
-        notes: String?
+        notes: String?,
+        assignedParticipantIds: [String] = []
     ) async {
         guard let session = activeSession else {
             phase = .failed("Open a Trip Hub before adding itinerary items.")
@@ -434,6 +437,7 @@ final class TripHubController {
 
         let itemKind = normalized(kind).lowercased()
         let itemTitle = normalized(title)
+        let assignedParticipantIds = uniqueNormalized(assignedParticipantIds)
 
         guard !itemKind.isEmpty, !itemTitle.isEmpty else {
             phase = .failed("Item type and title are required.")
@@ -452,10 +456,89 @@ final class TripHubController {
                     startAt: normalizedOptional(startAt),
                     endAt: normalizedOptional(endAt),
                     locationName: normalizedOptional(locationName),
-                    notes: normalizedOptional(notes)
+                    notes: normalizedOptional(notes),
+                    assignedParticipantIds: assignedParticipantIds
                 )
             )
             applyItem(response)
+            phase = .ready
+        } catch {
+            phase = .failed(message(for: error))
+        }
+    }
+
+    func updateTripHubItem(
+        itemId: String,
+        kind: String,
+        title: String,
+        startAt: String?,
+        endAt: String?,
+        locationName: String?,
+        notes: String?,
+        assignedParticipantIds: [String] = []
+    ) async {
+        guard let session = activeSession else {
+            phase = .failed("Open a Trip Hub before editing itinerary items.")
+            return
+        }
+
+        let itemId = normalized(itemId)
+        let itemKind = normalized(kind).lowercased()
+        let itemTitle = normalized(title)
+        let assignedParticipantIds = uniqueNormalized(assignedParticipantIds)
+
+        guard !itemId.isEmpty, !itemKind.isEmpty, !itemTitle.isEmpty else {
+            phase = .failed("Item type, title, and item id are required.")
+            return
+        }
+
+        phase = .loading("Updating timeline item")
+        do {
+            let response = try await service.updateGroupTripItem(
+                GroupTripItemUpdateRequest(
+                    tripId: session.tripId,
+                    actorParticipantId: session.participantId,
+                    actorParticipantAccessToken: session.participantAccessToken,
+                    itemId: itemId,
+                    kind: itemKind,
+                    title: itemTitle,
+                    startAt: normalizedOptional(startAt),
+                    endAt: normalizedOptional(endAt),
+                    locationName: normalizedOptional(locationName),
+                    notes: normalizedOptional(notes),
+                    assignedParticipantIds: assignedParticipantIds
+                )
+            )
+            applyItem(response)
+            phase = .ready
+        } catch {
+            phase = .failed(message(for: error))
+        }
+    }
+
+    func importTripHubItemsText(_ text: String) async {
+        guard let session = activeSession else {
+            phase = .failed("Open a Trip Hub before importing itinerary text.")
+            return
+        }
+
+        let text = normalized(text)
+        guard !text.isEmpty else {
+            phase = .failed("Paste itinerary text before importing.")
+            return
+        }
+
+        phase = .loading("Importing itinerary")
+        do {
+            let response = try await service.importGroupTripItemsText(
+                GroupTripItemsImportTextRequest(
+                    tripId: session.tripId,
+                    actorParticipantId: session.participantId,
+                    actorParticipantAccessToken: session.participantAccessToken,
+                    text: text
+                )
+            )
+            applyItemsImport(response)
             phase = .ready
         } catch {
             phase = .failed(message(for: error))
@@ -713,6 +796,20 @@ final class TripHubController {
             updatedSnapshot.items[index] = response.item
         } else {
             updatedSnapshot.items.append(response.item)
+        }
+        updatedSnapshot.items.sort { ($0.startAt ?? "") < ($1.startAt ?? "") }
+        updatedSnapshot.activity.insert(response.activity, at: 0)
+        snapshot = updatedSnapshot
+    }
+
+    private func applyItemsImport(_ response: GroupTripItemsImportTextResponse) {
+        guard var updatedSnapshot = snapshot else { return }
+        for item in response.items {
+            if let index = updatedSnapshot.items.firstIndex(where: { $0.id == item.id }) {
+                updatedSnapshot.items[index] = item
+            } else {
+                updatedSnapshot.items.append(item)
+            }
         }
         updatedSnapshot.items.sort { ($0.startAt ?? "") < ($1.startAt ?? "") }
         updatedSnapshot.activity.insert(response.activity, at: 0)

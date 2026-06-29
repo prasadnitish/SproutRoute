@@ -556,17 +556,97 @@ final class NativeUXRegressionTests: XCTestCase {
             startAt: "2026-09-18T17:30:00Z",
             endAt: nil,
             locationName: " Harry Reid International Airport ",
-            notes: " Share confirmation numbers "
+            notes: " Share confirmation numbers ",
+            assignedParticipantIds: [" participant_1 ", "participant_2", "participant_2"]
         )
 
         XCTAssertEqual(controller.phase, .ready)
         XCTAssertEqual(controller.snapshot?.items.map(\.title), ["Arrive at LAS"])
+        XCTAssertEqual(controller.snapshot?.items.first?.assignedParticipantIds, ["participant_1", "participant_2"])
         XCTAssertEqual(controller.snapshot?.activity.first?.type, "item_created")
         XCTAssertEqual(TripHubPresentation.nextUpTitle(in: controller.snapshot!), "Arrive at LAS")
         XCTAssertEqual(service.recordedCalls, [
             "create:Vegas 2026:Las Vegas, NV:Nitish",
             "snapshot:trip_abc123:participant_1:gtp_owner_token",
-            "item:trip_abc123:participant_1:gtp_owner_token:flight:Arrive at LAS"
+            "item:trip_abc123:participant_1:gtp_owner_token:flight:Arrive at LAS:participant_1|participant_2"
+        ])
+    }
+
+    @MainActor
+    func testTripHubControllerUpdatesTimelineItemAndParticipantTags() async throws {
+        let service = StubGroupTripService()
+        let store = InMemoryTripHubSessionStore()
+        let controller = TripHubController(service: service, sessionStore: store)
+
+        await controller.createTrip(
+            title: "Vegas 2026",
+            destination: "Las Vegas, NV",
+            startDate: "2026-09-18",
+            endDate: "2026-09-21",
+            ownerName: "Nitish"
+        )
+        await controller.addTripHubItem(
+            kind: "activity",
+            title: "Pool cabana",
+            startAt: "2026-09-19T18:00:00Z",
+            endAt: nil,
+            locationName: "Resort pool",
+            notes: nil,
+            assignedParticipantIds: ["participant_1"]
+        )
+        let item = try XCTUnwrap(controller.snapshot?.items.first)
+
+        await controller.updateTripHubItem(
+            itemId: item.id,
+            kind: " meal ",
+            title: " Dinner reservation ",
+            startAt: "2026-09-19T20:00:00Z",
+            endAt: "2026-09-19T22:00:00Z",
+            locationName: " Best Friend ",
+            notes: " Moved after cabana ",
+            assignedParticipantIds: ["participant_2"]
+        )
+
+        XCTAssertEqual(controller.phase, .ready)
+        XCTAssertEqual(controller.snapshot?.items.first?.id, item.id)
+        XCTAssertEqual(controller.snapshot?.items.first?.title, "Dinner reservation")
+        XCTAssertEqual(controller.snapshot?.items.first?.assignedParticipantIds, ["participant_2"])
+        XCTAssertEqual(controller.snapshot?.activity.first?.type, "item_updated")
+        XCTAssertEqual(service.recordedCalls, [
+            "create:Vegas 2026:Las Vegas, NV:Nitish",
+            "snapshot:trip_abc123:participant_1:gtp_owner_token",
+            "item:trip_abc123:participant_1:gtp_owner_token:activity:Pool cabana:participant_1",
+            "update-item:trip_abc123:participant_1:gtp_owner_token:item_1:meal:Dinner reservation:participant_2"
+        ])
+    }
+
+    @MainActor
+    func testTripHubControllerImportsPastedTextIntoTimeline() async {
+        let service = StubGroupTripService()
+        let store = InMemoryTripHubSessionStore()
+        let controller = TripHubController(service: service, sessionStore: store)
+
+        await controller.createTrip(
+            title: "Vegas 2026",
+            destination: "Las Vegas, NV",
+            startDate: "2026-09-18",
+            endDate: "2026-09-21",
+            ownerName: "Nitish"
+        )
+        await controller.importTripHubItemsText("""
+        Fri 9/18 5:30 PM - Arrive at LAS - Nitish
+        Sat 9/19 8 PM - Dinner at Best Friend with Priya
+        """)
+
+        XCTAssertEqual(controller.phase, .ready)
+        XCTAssertEqual(controller.snapshot?.items.map(\.title), ["Arrive at LAS", "Dinner at Best Friend with Priya"])
+        XCTAssertEqual(controller.snapshot?.items.first?.assignedParticipantIds, ["participant_1"])
+        XCTAssertEqual(controller.snapshot?.items.last?.assignedParticipantIds, ["participant_2"])
+        XCTAssertEqual(controller.snapshot?.activity.first?.type, "items_imported")
+        XCTAssertEqual(service.recordedCalls, [
+            "create:Vegas 2026:Las Vegas, NV:Nitish",
+            "snapshot:trip_abc123:participant_1:gtp_owner_token",
+            "import-text:trip_abc123:participant_1:gtp_owner_token:Fri 9/18 5:30 PM - Arrive at LAS - Nitish\nSat 9/19 8 PM - Dinner at Best Friend with Priya"
         ])
     }
 
@@ -893,7 +973,7 @@ private final class StubGroupTripService: GroupTripServicing {
     }
 
     func createGroupTripItem(_ payload: GroupTripItemCreateRequest) async throws -> GroupTripItemResponse {
-        recordedCalls.append("item:\(payload.tripId):\(payload.actorParticipantId):\(payload.actorParticipantAccessToken):\(payload.kind):\(payload.title)")
+        recordedCalls.append("item:\(payload.tripId):\(payload.actorParticipantId):\(payload.actorParticipantAccessToken):\(payload.kind):\(payload.title):\(payload.assignedParticipantIds.joined(separator: "|"))")
         let item = GroupTripItem(
             id: "item_1",
             tripId: payload.tripId,
@@ -903,6 +983,7 @@ private final class StubGroupTripService: GroupTripServicing {
             endAt: payload.endAt,
             locationName: payload.locationName,
             notes: payload.notes,
+            assignedParticipantIds: payload.assignedParticipantIds,
             status: "planned",
             createdByParticipantId: payload.actorParticipantId,
             createdAt: nil,
@@ -917,6 +998,86 @@ private final class StubGroupTripService: GroupTripServicing {
                 type: "item_created",
                 actorParticipantId: payload.actorParticipantId,
                 summary: "Nitish added \(payload.title)",
+                createdAt: nil
+            )
+        )
+    }
+
+    func updateGroupTripItem(_ payload: GroupTripItemUpdateRequest) async throws -> GroupTripItemResponse {
+        recordedCalls.append("update-item:\(payload.tripId):\(payload.actorParticipantId):\(payload.actorParticipantAccessToken):\(payload.itemId):\(payload.kind):\(payload.title):\(payload.assignedParticipantIds.joined(separator: "|"))")
+        let item = GroupTripItem(
+            id: payload.itemId,
+            tripId: payload.tripId,
+            kind: payload.kind,
+            title: payload.title,
+            startAt: payload.startAt,
+            endAt: payload.endAt,
+            locationName: payload.locationName,
+            notes: payload.notes,
+            assignedParticipantIds: payload.assignedParticipantIds,
+            status: "planned",
+            createdByParticipantId: "participant_1",
+            createdAt: nil,
+            updatedAt: nil
+        )
+        return GroupTripItemResponse(
+            requestId: "req-item-update",
+            item: item,
+            activity: GroupTripActivityEvent(
+                id: "activity_item_update",
+                tripId: payload.tripId,
+                type: "item_updated",
+                actorParticipantId: payload.actorParticipantId,
+                summary: "Nitish updated \(payload.title)",
+                createdAt: nil
+            )
+        )
+    }
+
+    func importGroupTripItemsText(_ payload: GroupTripItemsImportTextRequest) async throws -> GroupTripItemsImportTextResponse {
+        recordedCalls.append("import-text:\(payload.tripId):\(payload.actorParticipantId):\(payload.actorParticipantAccessToken):\(payload.text)")
+        let items = [
+            GroupTripItem(
+                id: "item_1",
+                tripId: payload.tripId,
+                kind: "flight",
+                title: "Arrive at LAS",
+                startAt: "2026-09-18T17:30:00.000Z",
+                endAt: nil,
+                locationName: nil,
+                notes: nil,
+                assignedParticipantIds: ["participant_1"],
+                status: "planned",
+                createdByParticipantId: payload.actorParticipantId,
+                createdAt: nil,
+                updatedAt: nil
+            ),
+            GroupTripItem(
+                id: "item_2",
+                tripId: payload.tripId,
+                kind: "meal",
+                title: "Dinner at Best Friend with Priya",
+                startAt: "2026-09-19T20:00:00.000Z",
+                endAt: nil,
+                locationName: nil,
+                notes: nil,
+                assignedParticipantIds: ["participant_2"],
+                status: "planned",
+                createdByParticipantId: payload.actorParticipantId,
+                createdAt: nil,
+                updatedAt: nil
+            )
+        ]
+        return GroupTripItemsImportTextResponse(
+            requestId: "req-import",
+            items: items,
+            importedCount: items.count,
+            activity: GroupTripActivityEvent(
+                id: "activity_import",
+                tripId: payload.tripId,
+                type: "items_imported",
+                actorParticipantId: payload.actorParticipantId,
+                summary: "Nitish imported \(items.count) itinerary items",
                 createdAt: nil
             )
         )

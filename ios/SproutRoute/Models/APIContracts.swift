@@ -489,6 +489,28 @@ struct GroupTripItemCreateRequest: Codable, Hashable {
     var endAt: String?
     var locationName: String?
     var notes: String?
+    var assignedParticipantIds: [String] = []
+}
+
+struct GroupTripItemUpdateRequest: Codable, Hashable {
+    var tripId: String
+    var actorParticipantId: String
+    var actorParticipantAccessToken: String
+    var itemId: String
+    var kind: String
+    var title: String
+    var startAt: String?
+    var endAt: String?
+    var locationName: String?
+    var notes: String?
+    var assignedParticipantIds: [String] = []
+}
+
+struct GroupTripItemsImportTextRequest: Codable, Hashable {
+    var tripId: String
+    var actorParticipantId: String
+    var actorParticipantAccessToken: String
+    var text: String
 }
 
 struct GroupTripDecisionCreateRequest: Codable, Hashable {
@@ -572,10 +594,74 @@ struct GroupTripItem: Codable, Hashable, Identifiable {
     var endAt: String?
     var locationName: String?
     var notes: String?
+    var assignedParticipantIds: [String]
     var status: String
     var createdByParticipantId: String
     var createdAt: String?
     var updatedAt: String?
+
+    init(
+        id: String,
+        tripId: String,
+        kind: String,
+        title: String,
+        startAt: String?,
+        endAt: String?,
+        locationName: String?,
+        notes: String?,
+        assignedParticipantIds: [String] = [],
+        status: String,
+        createdByParticipantId: String,
+        createdAt: String?,
+        updatedAt: String?
+    ) {
+        self.id = id
+        self.tripId = tripId
+        self.kind = kind
+        self.title = title
+        self.startAt = startAt
+        self.endAt = endAt
+        self.locationName = locationName
+        self.notes = notes
+        self.assignedParticipantIds = assignedParticipantIds
+        self.status = status
+        self.createdByParticipantId = createdByParticipantId
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case tripId
+        case kind
+        case title
+        case startAt
+        case endAt
+        case locationName
+        case notes
+        case assignedParticipantIds
+        case status
+        case createdByParticipantId
+        case createdAt
+        case updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        tripId = try container.decode(String.self, forKey: .tripId)
+        kind = try container.decode(String.self, forKey: .kind)
+        title = try container.decode(String.self, forKey: .title)
+        startAt = try container.decodeIfPresent(String.self, forKey: .startAt)
+        endAt = try container.decodeIfPresent(String.self, forKey: .endAt)
+        locationName = try container.decodeIfPresent(String.self, forKey: .locationName)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes)
+        assignedParticipantIds = try container.decodeIfPresent([String].self, forKey: .assignedParticipantIds) ?? []
+        status = try container.decode(String.self, forKey: .status)
+        createdByParticipantId = try container.decode(String.self, forKey: .createdByParticipantId)
+        createdAt = try container.decodeIfPresent(String.self, forKey: .createdAt)
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
 }
 
 struct GroupTripDecisionOption: Codable, Hashable, Identifiable {
@@ -663,6 +749,13 @@ struct GroupTripSnapshotResponse: Codable, Hashable {
 struct GroupTripItemResponse: Codable, Hashable {
     var requestId: String?
     var item: GroupTripItem
+    var activity: GroupTripActivityEvent
+}
+
+struct GroupTripItemsImportTextResponse: Codable, Hashable {
+    var requestId: String?
+    var items: [GroupTripItem]
+    var importedCount: Int
     var activity: GroupTripActivityEvent
 }
 
