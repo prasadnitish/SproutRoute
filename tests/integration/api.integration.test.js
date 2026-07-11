@@ -180,8 +180,8 @@ test("POST /api/generate rejects requests with no activities", async () => {
   const app = createApp({ enableRequestLogging: false });
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2026-05-01",
-    endDate: "2026-05-02",
+    startDate: "2027-05-01",
+    endDate: "2027-05-02",
     activities: [],
     children: [{ age: 4 }],
   });

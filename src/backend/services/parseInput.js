@@ -21,6 +21,30 @@ const COUNTRY_TOUR_DEFAULTS = {
   thailand: { country: "Thailand", countryCode: "TH", stops: ["Bangkok", "Chiang Mai", "Phuket"] },
 };
 
+const NUMBER_WORDS = new Map([
+  ["one", 1],
+  ["two", 2],
+  ["three", 3],
+  ["four", 4],
+  ["five", 5],
+  ["six", 6],
+  ["seven", 7],
+  ["eight", 8],
+  ["nine", 9],
+  ["ten", 10],
+  ["eleven", 11],
+  ["twelve", 12],
+  ["thirteen", 13],
+  ["fourteen", 14],
+  ["fifteen", 15],
+  ["sixteen", 16],
+  ["seventeen", 17],
+  ["eighteen", 18],
+  ["nineteen", 19],
+  ["twenty", 20],
+  ["twenty one", 21],
+]);
+
 const normalizeStringArray = (value, maxLength = 8) =>
   Array.isArray(value)
     ? value
@@ -146,8 +170,51 @@ function defaultDates() {
   const start = new Date();
   start.setDate(start.getDate() + 14);
   const end = new Date(start);
-  end.setDate(end.getDate() + 7);
+  end.setDate(end.getDate() + 4);
   return { startDate: fmt(start), endDate: fmt(end) };
+}
+
+function parseDayCountToken(token) {
+  const normalized = String(token || "").toLowerCase().replace(/-/g, " ").trim();
+  if (NUMBER_WORDS.has(normalized)) return NUMBER_WORDS.get(normalized);
+  const numeric = Number.parseInt(normalized, 10);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function extractRequestedDayCount(text) {
+  const input = String(text || "").toLowerCase();
+  const numberPattern = "(\\d{1,2}|twenty[-\\s]one|nineteen|eighteen|seventeen|sixteen|fifteen|fourteen|thirteen|twelve|eleven|twenty|ten|nine|eight|seven|six|five|four|three|two|one)";
+  const patterns = [
+    new RegExp(`(?:^|\\b)${numberPattern}[-\\s]+days?\\s+(?:in|to|at|around|through|for)\\b`, "i"),
+    new RegExp(`\\b(?:for|over|spend|spending|take|taking|plan|planning)\\s+(?:a\\s+)?${numberPattern}[-\\s]+days?\\b`, "i"),
+    new RegExp(`(?:^|\\b)${numberPattern}[-\\s]*day\\s+(?:trip|vacation|visit|getaway|holiday)\\b`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const match = input.match(pattern);
+    const count = parseDayCountToken(match?.[1]);
+    if (count && count >= 1 && count <= 21) return count;
+  }
+
+  return null;
+}
+
+function normalizeEndDateForRequestedDays(text, startDate, endDate) {
+  const requestedDayCount = extractRequestedDayCount(text);
+  if (!requestedDayCount) return endDate;
+
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())) {
+    return endDate;
+  }
+
+  const currentInclusiveDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  if (currentInclusiveDays === requestedDayCount) return endDate;
+
+  const normalizedEnd = new Date(start);
+  normalizedEnd.setDate(normalizedEnd.getDate() + requestedDayCount - 1);
+  return fmt(normalizedEnd);
 }
 
 const PARSE_PROMPT = (userText, region, clientDate = null) => `You are a trip planner assistant. Parse this trip request into structured JSON.
@@ -320,6 +387,8 @@ export async function parseInput(text, deps = {}) {
       endDate = new Date(new Date(startDate).getTime() + 7 * 86400000).toISOString().split("T")[0];
     }
   }
+
+  endDate = normalizeEndDateForRequestedDays(text, startDate, endDate);
 
   const suggestedDestinations = normalizeSuggestedDestinations(parsed.suggestedDestinations);
   let stops = normalizeStops(parsed.stops);

@@ -28,7 +28,7 @@ test.describe("WeatherTile", () => {
   });
 
   test("renders low temperature", async ({ page }) => {
-    await expect(page.getByText(/68/, { exact: false })).toBeVisible();
+    await expect(page.getByText(/68/, { exact: false }).first()).toBeVisible();
   });
 
   test("shows historical avg badge when forecast dates mismatch trip dates", async ({ page }) => {
