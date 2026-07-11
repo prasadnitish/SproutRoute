@@ -195,7 +195,7 @@ export async function runRetrievalAgent(input, deps = {}) {
     coords,
     countryCode,
     childrenAges: (children || []).map((child) => child.age).filter(Number.isFinite),
-    requestedActivities: activities || [],
+    requestedActivities: activities?.length ? activities : ["family-friendly", "parks", "city"],
     tripGoals: tripIntent.tripGoals || [],
     mustHaves: tripIntent.mustHaves || [],
     avoidances: tripIntent.avoidances || [],
