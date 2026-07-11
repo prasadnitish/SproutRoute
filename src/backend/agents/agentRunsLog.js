@@ -11,17 +11,24 @@ export async function logAgentSpan(
   const { getSupabaseAdminFn = getSupabaseAdmin } = deps;
   try {
     const admin = getSupabaseAdminFn();
-    const { error } = await admin.from("agent_runs").insert({
-      run_id: runId,
-      parent_agent: "orchestrator",
-      child_agent: childAgent,
-      status,
-      latency_ms: latencyMs,
-      edge_summary: edgeSummary,
-    });
-    if (error) log.warn("agent-runs:persist-fail", { error: error.message, childAgent });
+    admin
+      .from("agent_runs")
+      .insert({
+        run_id: runId,
+        parent_agent: "orchestrator",
+        child_agent: childAgent,
+        status,
+        latency_ms: latencyMs,
+        edge_summary: edgeSummary,
+      })
+      .then(({ error }) => {
+        if (error) log.warn("agent-runs:persist-fail", { error: error.message, childAgent });
+      })
+      .catch(() => {
+        // Insert call itself rejected (e.g. network error) — silently skip.
+      });
   } catch {
-    // Supabase not configured — silently skip, matches metrics.js pattern.
+    // getSupabaseAdminFn() threw synchronously (Supabase not configured) — silently skip.
   }
 }
 
