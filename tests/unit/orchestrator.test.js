@@ -71,3 +71,40 @@ test("runOrchestrator marks all downstream agents skipped when retrieval fails",
     assert.equal(span.status, "skipped", `${agent} should be skipped when retrieval fails`);
   }
 });
+
+test("runOrchestrator runs itinerary and safety concurrently, not sequentially", async () => {
+  const spans = [];
+  const events = [];
+  const deps = happyDeps(spans);
+  deps.generateTripPlanChunkedFn = async (_tripPayload, _weather, onChunk) => {
+    events.push("itinerary:start");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    onChunk({}, { chunk: 1, totalChunks: 1, dayOffset: 0 });
+    events.push("itinerary:end");
+    return { overview: "Trip", suggestedActivities: [], dailyItinerary: [], tips: [] };
+  };
+  deps.getTravelAdvisoryFn = async () => {
+    events.push("safety:advisory:start");
+    return null;
+  };
+
+  await runOrchestrator(baseInput, deps);
+
+  const itineraryEndIndex = events.indexOf("itinerary:end");
+  const safetyStartIndex = events.indexOf("safety:advisory:start");
+  assert.ok(
+    safetyStartIndex !== -1 && safetyStartIndex < itineraryEndIndex,
+    `expected safety's advisory call to start before itinerary finished (proves parallelism); got order: ${events.join(", ")}`,
+  );
+});
+
+test("runOrchestrator rejects when the graph exceeds the configured timeout", async () => {
+  const deps = happyDeps([]);
+  deps.geocodeLocationFn = () => new Promise(() => {}); // never resolves
+  deps.timeoutMs = 50;
+
+  await assert.rejects(
+    runOrchestrator(baseInput, deps),
+    /timed out after/,
+  );
+});

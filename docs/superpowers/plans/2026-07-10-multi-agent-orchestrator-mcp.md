@@ -1008,6 +1008,43 @@ test("runOrchestrator marks all downstream agents skipped when retrieval fails",
     assert.equal(span.status, "skipped", `${agent} should be skipped when retrieval fails`);
   }
 });
+
+test("runOrchestrator runs itinerary and safety concurrently, not sequentially", async () => {
+  const spans = [];
+  const events = [];
+  const deps = happyDeps(spans);
+  deps.generateTripPlanChunkedFn = async (_tripPayload, _weather, onChunk) => {
+    events.push("itinerary:start");
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    onChunk({}, { chunk: 1, totalChunks: 1, dayOffset: 0 });
+    events.push("itinerary:end");
+    return { overview: "Trip", suggestedActivities: [], dailyItinerary: [], tips: [] };
+  };
+  deps.getTravelAdvisoryFn = async () => {
+    events.push("safety:advisory:start");
+    return null;
+  };
+
+  await runOrchestrator(baseInput, deps);
+
+  const itineraryEndIndex = events.indexOf("itinerary:end");
+  const safetyStartIndex = events.indexOf("safety:advisory:start");
+  assert.ok(
+    safetyStartIndex !== -1 && safetyStartIndex < itineraryEndIndex,
+    `expected safety's advisory call to start before itinerary finished (proves parallelism); got order: ${events.join(", ")}`,
+  );
+});
+
+test("runOrchestrator rejects when the graph exceeds the configured timeout", async () => {
+  const deps = happyDeps([]);
+  deps.geocodeLocationFn = () => new Promise(() => {}); // never resolves
+  deps.timeoutMs = 50;
+
+  await assert.rejects(
+    runOrchestrator(baseInput, deps),
+    /timed out after/,
+  );
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1040,45 +1077,55 @@ const OrchestratorState = Annotation.Root({
   packingResult: Annotation(),
 });
 
+// Span logging must never affect agent result attribution or escape a node —
+// a failure here is a logging problem, not a trip-planning problem.
+async function safeLogSpan(logSpanFn, spanData) {
+  try {
+    await logSpanFn(spanData);
+  } catch {
+    // Intentionally swallowed — see comment above.
+  }
+}
+
 function buildGraph(deps) {
-  const logSpanFn = deps.logAgentSpanFn || logAgentSpan;
+  const logSpanFn = deps.logAgentSpanFn ?? logAgentSpan;
 
   return new StateGraph(OrchestratorState)
     .addNode("retrieval", async (state) => {
       const start = Date.now();
       try {
         const result = await runRetrievalAgent(state.input, deps);
-        await logSpanFn({ runId: state.runId, childAgent: "retrieval", status: "ok", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "retrieval", status: "ok", latencyMs: Date.now() - start });
         return { retrievalResult: result };
       } catch (error) {
-        await logSpanFn({ runId: state.runId, childAgent: "retrieval", status: "error", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "retrieval", status: "error", latencyMs: Date.now() - start });
         return { retrievalResult: { error: error.message } };
       }
     })
     .addNode("itinerary", async (state) => {
       const start = Date.now();
       if (state.retrievalResult?.error) {
-        await logSpanFn({ runId: state.runId, childAgent: "itinerary", status: "skipped", latencyMs: 0 });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "itinerary", status: "skipped", latencyMs: 0 });
         return { itineraryResult: { status: "unavailable", reason: "retrieval failed" } };
       }
       try {
         const result = await runItineraryAgent(state.input, state.retrievalResult, deps);
-        await logSpanFn({ runId: state.runId, childAgent: "itinerary", status: "ok", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "itinerary", status: "ok", latencyMs: Date.now() - start });
         return { itineraryResult: result };
       } catch (error) {
-        await logSpanFn({ runId: state.runId, childAgent: "itinerary", status: "error", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "itinerary", status: "error", latencyMs: Date.now() - start });
         return { itineraryResult: { status: "unavailable", reason: error.message } };
       }
     })
     .addNode("safety", async (state) => {
       const start = Date.now();
       if (state.retrievalResult?.error) {
-        await logSpanFn({ runId: state.runId, childAgent: "safety", status: "skipped", latencyMs: 0 });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "safety", status: "skipped", latencyMs: 0 });
         return { safetyResult: { status: "unavailable", reason: "retrieval failed" } };
       }
       try {
         const result = await runSafetyAgent(state.input, state.retrievalResult, deps);
-        await logSpanFn({
+        await safeLogSpan(logSpanFn, {
           runId: state.runId,
           childAgent: "safety",
           status: "ok",
@@ -1087,7 +1134,7 @@ function buildGraph(deps) {
         });
         return { safetyResult: result };
       } catch (error) {
-        await logSpanFn({ runId: state.runId, childAgent: "safety", status: "error", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "safety", status: "error", latencyMs: Date.now() - start });
         return { safetyResult: { status: "unavailable", reason: error.message } };
       }
     })
@@ -1097,15 +1144,15 @@ function buildGraph(deps) {
       // packingAgent.js's own doc comment — so it only skips when retrieval
       // itself failed, not when itinerary/safety failed.
       if (state.retrievalResult?.error) {
-        await logSpanFn({ runId: state.runId, childAgent: "packing", status: "skipped", latencyMs: 0 });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "packing", status: "skipped", latencyMs: 0 });
         return { packingResult: { status: "unavailable", reason: "retrieval failed" } };
       }
       try {
         const result = await runPackingAgent(state.input, state.retrievalResult, deps);
-        await logSpanFn({ runId: state.runId, childAgent: "packing", status: "ok", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "packing", status: "ok", latencyMs: Date.now() - start });
         return { packingResult: result };
       } catch (error) {
-        await logSpanFn({ runId: state.runId, childAgent: "packing", status: "error", latencyMs: Date.now() - start });
+        await safeLogSpan(logSpanFn, { runId: state.runId, childAgent: "packing", status: "error", latencyMs: Date.now() - start });
         return { packingResult: { status: "unavailable", reason: error.message } };
       }
     })
@@ -1123,9 +1170,10 @@ const TIMEOUT_MS = 30000;
 export async function runOrchestrator(input, deps = {}) {
   const runId = crypto.randomUUID();
   const graph = buildGraph(deps);
+  const timeoutMs = deps.timeoutMs ?? TIMEOUT_MS;
 
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("plan_trip timed out after 30s")), TIMEOUT_MS),
+    setTimeout(() => reject(new Error(`plan_trip timed out after ${timeoutMs}ms`)), timeoutMs),
   );
   const finalState = await Promise.race([graph.invoke({ input, runId }), timeout]);
 
@@ -1143,12 +1191,12 @@ export async function runOrchestrator(input, deps = {}) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/unit/orchestrator.test.js`
-Expected: `# pass 3`, `# fail 0`
+Expected: `# pass 5`, `# fail 0`
 
 - [ ] **Step 5: Run the full suite and commit**
 
 Run: `npm test`
-Expected: `# pass 433` (430 after agentRunsLog (5 tests, grew from 3 during review) + 3 orchestrator), `# fail 0`
+Expected: `# pass 435` (430 after agentRunsLog (5 tests, grew from 3 during review) + 5 orchestrator), `# fail 0`
 
 ```bash
 git add src/backend/agents/orchestrator.js tests/unit/orchestrator.test.js
