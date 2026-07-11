@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../../src/backend/server.js";
+import { daysFromNow } from "../helpers/testDates.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -158,8 +159,8 @@ test("POST /api/trip-plan applies default activities when none are provided", as
 
   const res = await invokeRoute(app, "POST", "/api/trip-plan", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-04",
+    startDate: daysFromNow(10),
+    endDate: daysFromNow(13),
     activities: [],
     children: [{ age: 2 }],
   });
@@ -215,8 +216,8 @@ test("POST /api/generate returns trip, weather, and packing list", async () => {
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-03",
+    startDate: daysFromNow(30),
+    endDate: daysFromNow(32),
     activities: ["parks"],
     children: [{ age: 2 }],
   });
@@ -250,8 +251,8 @@ test("POST /api/generate uses the deterministic packing generator by default", a
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "San Diego, CA",
-    startDate: "2026-06-01",
-    endDate: "2026-06-08",
+    startDate: daysFromNow(50),
+    endDate: daysFromNow(57),
     activities: ["beach", "parks"],
     children: [{ age: 2 }],
   });
@@ -427,8 +428,8 @@ test("POST /api/generate includes shopLinks on packing list items", async () => 
 
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-03",
+    startDate: daysFromNow(70),
+    endDate: daysFromNow(72),
     activities: ["parks"],
     children: [{ age: 2 }],
   });
@@ -643,8 +644,8 @@ test("POST /api/v1/trip/stream emits route before stop-level weather and itinera
 
   const result = await invokeStreamRoute(app, {
     destination: "Europe multi-city trip",
-    startDate: "2026-06-01",
-    endDate: "2026-06-05",
+    startDate: daysFromNow(90),
+    endDate: daysFromNow(94),
     adults: 2,
     childrenAges: [],
     activities: ["international"],

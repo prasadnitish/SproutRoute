@@ -16,6 +16,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { createApp } from "../../src/backend/server.js";
+import { daysFromNow } from "../helpers/testDates.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -246,8 +247,8 @@ test("POST /api/v1/trip/plan returns trip + weather + plan with requestId", asyn
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/plan", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-04",
+    startDate: daysFromNow(10),
+    endDate: daysFromNow(13),
     activities: ["parks"],
     children: [{ age: 3 }],
     client: "web",
@@ -267,8 +268,8 @@ test("POST /api/v1/trip/plan returns error envelope on missing destination", asy
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/plan", {
     // missing: destination
-    startDate: "2027-05-01",
-    endDate: "2027-05-04",
+    startDate: daysFromNow(10),
+    endDate: daysFromNow(13),
     children: [{ age: 3 }],
   });
 
@@ -282,8 +283,8 @@ test("POST /api/v1/trip/packing returns packing list with requestId", async () =
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/packing", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-04",
+    startDate: daysFromNow(30),
+    endDate: daysFromNow(33),
     activities: ["parks", "hiking"],
     children: [{ age: 2 }],
     client: "web",
@@ -301,8 +302,8 @@ test("POST /api/v1/trip/packing returns error envelope when no activities", asyn
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/packing", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-04",
+    startDate: daysFromNow(30),
+    endDate: daysFromNow(33),
     activities: [], // empty → validation error
     children: [{ age: 2 }],
   });
@@ -371,8 +372,8 @@ test("POST /api/trip-plan (legacy) still works and returns 200", async () => {
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/trip-plan", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-04",
+    startDate: daysFromNow(50),
+    endDate: daysFromNow(53),
     activities: ["parks"],
     children: [{ age: 3 }],
   });
@@ -385,8 +386,8 @@ test("POST /api/generate (legacy) still works and returns 200", async () => {
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: "2027-05-01",
-    endDate: "2027-05-03",
+    startDate: daysFromNow(70),
+    endDate: daysFromNow(72),
     activities: ["parks"],
     children: [{ age: 2 }],
   });
@@ -513,8 +514,8 @@ test("POST /api/v1/trip/stream stops emitting when the client disconnects", asyn
     path: "/api/v1/trip/stream",
     body: {
       destination: "Seattle, WA",
-      startDate: "2027-05-01",
-      endDate: "2027-05-12",
+      startDate: daysFromNow(90),
+      endDate: daysFromNow(101),
       activities: ["parks"],
       children: [{ age: 4 }],
     },
