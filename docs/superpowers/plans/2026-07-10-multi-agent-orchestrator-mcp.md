@@ -1458,6 +1458,71 @@ test("plan_trip tool call runs the orchestrator via injected deps", async () => 
     delete process.env.MCP_DEMO_TOKEN;
   }
 });
+
+test("get_agent_trace tool call returns the trace via injected deps", async () => {
+  process.env.MCP_DEMO_TOKEN = "test-demo-token";
+  const app = createApp({
+    enableRequestLogging: false,
+    getAgentTraceFn: async (runId) => [
+      { agent: "itinerary", status: "done", runId },
+      { agent: "packing", status: "done", runId },
+    ],
+  });
+  const server = app.listen(0);
+  try {
+    const port = server.address().port;
+    await postMcp(port, "test-demo-token", initializeRequest);
+    const toolCallRes = await postMcp(port, "test-demo-token", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "get_agent_trace",
+        arguments: { runId: "some-id" },
+      },
+    });
+    assert.equal(toolCallRes.statusCode, 200);
+    assert.ok(toolCallRes.body.includes("itinerary"));
+    assert.ok(toolCallRes.body.includes("some-id"));
+  } finally {
+    server.close();
+    delete process.env.MCP_DEMO_TOKEN;
+  }
+});
+
+test("plan_trip tool call surfaces a thrown orchestrator error as a graceful MCP tool error", async () => {
+  process.env.MCP_DEMO_TOKEN = "test-demo-token";
+  const app = createApp({
+    enableRequestLogging: false,
+    runOrchestratorFn: async () => {
+      throw new Error("orchestrator boom");
+    },
+  });
+  const server = app.listen(0);
+  try {
+    const port = server.address().port;
+    await postMcp(port, "test-demo-token", initializeRequest);
+    const toolCallRes = await postMcp(port, "test-demo-token", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "plan_trip",
+        arguments: { destination: "Portland, OR", startDate: "2026-08-01", endDate: "2026-08-04" },
+      },
+    });
+    // The MCP SDK converts a thrown tool-handler error into a normal JSON-RPC
+    // result with isError:true, not an HTTP-level failure — confirmed by
+    // inspecting the real response body (statusCode 200, body includes
+    // isError:true and the thrown error's message).
+    assert.equal(toolCallRes.statusCode, 200);
+    assert.ok(toolCallRes.body.includes('"isError":true'));
+    assert.ok(toolCallRes.body.includes("orchestrator boom"));
+  } finally {
+    server.close();
+    delete process.env.MCP_DEMO_TOKEN;
+  }
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1556,14 +1621,14 @@ export function mountMcpRoutes(app, deps = {}) {
 
   app.post("/mcp", mcpAuth, mcpLimiter, async (req, res) => {
     const server = buildMcpServer({ runOrchestratorFn, getAgentTraceFn });
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on("close", () => {
+      transport.close();
+      server.close();
+    });
     try {
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
-      res.on("close", () => {
-        transport.close();
-        server.close();
-      });
     } catch (error) {
       log.error("mcp:request-failed", { error: error.message });
       if (!res.headersSent) {
@@ -1573,6 +1638,8 @@ export function mountMcpRoutes(app, deps = {}) {
           id: null,
         });
       }
+      transport.close();
+      server.close();
     }
   });
 }
@@ -1597,12 +1664,12 @@ This must run before the CSP middleware would otherwise apply overly-restrictive
 - [ ] **Step 5: Run tests to verify they pass**
 
 Run: `node --test tests/integration/mcp.integration.test.js`
-Expected: `# pass 4`, `# fail 0`
+Expected: `# pass 6`, `# fail 0`
 
 - [ ] **Step 6: Run the full suite and commit**
 
 Run: `npm test`
-Expected: `# pass 443` (439 after mcpAuth (4 tests, grew from 3 during review) + 4 mcp integration), `# fail 0`
+Expected: `# pass 445` (439 after mcpAuth (4 tests, grew from 3 during review) + 6 mcp integration — grew from 4 to 6 during code review, picking up get_agent_trace coverage and a thrown-orchestrator-error regression test), `# fail 0`
 
 ```bash
 git add src/backend/mcp/mount.js src/backend/server.js tests/integration/mcp.integration.test.js

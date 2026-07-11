@@ -89,14 +89,14 @@ export function mountMcpRoutes(app, deps = {}) {
 
   app.post("/mcp", mcpAuth, mcpLimiter, async (req, res) => {
     const server = buildMcpServer({ runOrchestratorFn, getAgentTraceFn });
+    const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    res.on("close", () => {
+      transport.close();
+      server.close();
+    });
     try {
-      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
-      res.on("close", () => {
-        transport.close();
-        server.close();
-      });
     } catch (error) {
       log.error("mcp:request-failed", { error: error.message });
       if (!res.headersSent) {
@@ -106,6 +106,8 @@ export function mountMcpRoutes(app, deps = {}) {
           id: null,
         });
       }
+      transport.close();
+      server.close();
     }
   });
 }

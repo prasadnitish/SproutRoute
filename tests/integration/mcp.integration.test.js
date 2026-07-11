@@ -120,3 +120,68 @@ test("plan_trip tool call runs the orchestrator via injected deps", async () => 
     delete process.env.MCP_DEMO_TOKEN;
   }
 });
+
+test("get_agent_trace tool call returns the trace via injected deps", async () => {
+  process.env.MCP_DEMO_TOKEN = "test-demo-token";
+  const app = createApp({
+    enableRequestLogging: false,
+    getAgentTraceFn: async (runId) => [
+      { agent: "itinerary", status: "done", runId },
+      { agent: "packing", status: "done", runId },
+    ],
+  });
+  const server = app.listen(0);
+  try {
+    const port = server.address().port;
+    await postMcp(port, "test-demo-token", initializeRequest);
+    const toolCallRes = await postMcp(port, "test-demo-token", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "get_agent_trace",
+        arguments: { runId: "some-id" },
+      },
+    });
+    assert.equal(toolCallRes.statusCode, 200);
+    assert.ok(toolCallRes.body.includes("itinerary"));
+    assert.ok(toolCallRes.body.includes("some-id"));
+  } finally {
+    server.close();
+    delete process.env.MCP_DEMO_TOKEN;
+  }
+});
+
+test("plan_trip tool call surfaces a thrown orchestrator error as a graceful MCP tool error", async () => {
+  process.env.MCP_DEMO_TOKEN = "test-demo-token";
+  const app = createApp({
+    enableRequestLogging: false,
+    runOrchestratorFn: async () => {
+      throw new Error("orchestrator boom");
+    },
+  });
+  const server = app.listen(0);
+  try {
+    const port = server.address().port;
+    await postMcp(port, "test-demo-token", initializeRequest);
+    const toolCallRes = await postMcp(port, "test-demo-token", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "plan_trip",
+        arguments: { destination: "Portland, OR", startDate: "2026-08-01", endDate: "2026-08-04" },
+      },
+    });
+    // The MCP SDK converts a thrown tool-handler error into a normal JSON-RPC
+    // result with isError:true, not an HTTP-level failure — confirmed by
+    // inspecting the real response body (statusCode 200, body includes
+    // isError:true and the thrown error's message).
+    assert.equal(toolCallRes.statusCode, 200);
+    assert.ok(toolCallRes.body.includes('"isError":true'));
+    assert.ok(toolCallRes.body.includes("orchestrator boom"));
+  } finally {
+    server.close();
+    delete process.env.MCP_DEMO_TOKEN;
+  }
+});
