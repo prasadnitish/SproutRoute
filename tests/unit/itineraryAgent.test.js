@@ -77,3 +77,20 @@ test("runItineraryAgent defaults activities when none are provided", async () =>
     deps,
   );
 });
+
+test("runItineraryAgent does not include countryCode in tripPayload sent to AI", async () => {
+  const deps = {
+    generateTripPlanChunkedFn: async (tripPayload) => {
+      assert.equal(tripPayload.countryCode, undefined, "countryCode must not be in AI payload");
+      assert.equal(tripPayload.destination, "Portland, OR");
+      return { overview: "x", suggestedActivities: [], dailyItinerary: [], tips: [] };
+    },
+    scheduleItineraryFn: () => [],
+  };
+
+  await runItineraryAgent(
+    { destination: "Portland, OR", startDate: "2026-08-01", endDate: "2026-08-02", activities: [], children: [], pets: [] },
+    retrieval,
+    deps,
+  );
+});
