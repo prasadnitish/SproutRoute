@@ -39,3 +39,13 @@ test("mcpAuth accepts the correct token and calls next", () => {
   assert.equal(nextCalled, true);
   delete process.env.MCP_DEMO_TOKEN;
 });
+
+test("mcpAuth rejects a same-length incorrect token", () => {
+  process.env.MCP_DEMO_TOKEN = "secret-token";
+  const { req, res, getResult } = mockReqRes("Bearer secret-tokeX"); // same length as "secret-token", last char differs
+  let nextCalled = false;
+  mcpAuth(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, false);
+  assert.equal(getResult().statusCode, 401);
+  delete process.env.MCP_DEMO_TOKEN;
+});

@@ -18,9 +18,8 @@ export function mcpAuth(req, res, next) {
 
   if (!expected || !token) return jsonRpcUnauthorized(res);
 
-  const tokenBuf = Buffer.from(token);
-  const expectedBuf = Buffer.from(expected);
-  const valid = tokenBuf.length === expectedBuf.length && crypto.timingSafeEqual(tokenBuf, expectedBuf);
+  const hash = (value) => crypto.createHash("sha256").update(value).digest();
+  const valid = crypto.timingSafeEqual(hash(token), hash(expected));
 
   if (!valid) return jsonRpcUnauthorized(res);
   next();

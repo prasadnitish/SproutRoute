@@ -1259,6 +1259,16 @@ test("mcpAuth accepts the correct token and calls next", () => {
   assert.equal(nextCalled, true);
   delete process.env.MCP_DEMO_TOKEN;
 });
+
+test("mcpAuth rejects a same-length incorrect token", () => {
+  process.env.MCP_DEMO_TOKEN = "secret-token";
+  const { req, res, getResult } = mockReqRes("Bearer secret-tokeX"); // same length as "secret-token", last char differs
+  let nextCalled = false;
+  mcpAuth(req, res, () => { nextCalled = true; });
+  assert.equal(nextCalled, false);
+  assert.equal(getResult().statusCode, 401);
+  delete process.env.MCP_DEMO_TOKEN;
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -1291,9 +1301,8 @@ export function mcpAuth(req, res, next) {
 
   if (!expected || !token) return jsonRpcUnauthorized(res);
 
-  const tokenBuf = Buffer.from(token);
-  const expectedBuf = Buffer.from(expected);
-  const valid = tokenBuf.length === expectedBuf.length && crypto.timingSafeEqual(tokenBuf, expectedBuf);
+  const hash = (value) => crypto.createHash("sha256").update(value).digest();
+  const valid = crypto.timingSafeEqual(hash(token), hash(expected));
 
   if (!valid) return jsonRpcUnauthorized(res);
   next();
@@ -1303,7 +1312,7 @@ export function mcpAuth(req, res, next) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/unit/mcpAuth.test.js`
-Expected: `# pass 3`, `# fail 0`
+Expected: `# pass 4`, `# fail 0`
 
 - [ ] **Step 5: Commit**
 
