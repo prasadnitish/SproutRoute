@@ -71,3 +71,21 @@ test("runRetrievalAgent defaults pace to empty string when unknown", async () =>
     deps,
   );
 });
+
+test("runRetrievalAgent defaults requestedActivities when empty array is passed", async () => {
+  const deps = {
+    geocodeLocationFn: async () => ({ lat: 1, lon: 1, countryCode: "US" }),
+    getWeatherForecastFn: async () => ({ summary: "", forecast: [] }),
+    attractionMemoryService: {
+      getPlanningCandidates: async (args) => {
+        assert.deepEqual(args.requestedActivities, ["family-friendly", "parks", "city"]);
+        return [];
+      },
+    },
+  };
+
+  await runRetrievalAgent(
+    { destination: "X", startDate: "2026-08-01", endDate: "2026-08-02", activities: [], children: [], pets: [] },
+    deps,
+  );
+});
