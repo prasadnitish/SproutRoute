@@ -7,6 +7,12 @@ import { runOrchestrator } from "../agents/orchestrator.js";
 import { getAgentTrace } from "../agents/agentRunsLog.js";
 import { log } from "../utils/logger.js";
 
+// A real cold plan_trip (geocode + weather + chunked AI itinerary + safety +
+// packing) can exceed the orchestrator's default 30s budget, which made the MCP
+// tool time out before assembling a result. Grant a more generous budget on the
+// MCP path; tunable via env without a redeploy.
+const MCP_PLAN_TIMEOUT_MS = Number(process.env.MCP_PLAN_TIMEOUT_MS) || 90000;
+
 function buildMcpLimiter() {
   return rateLimit({
     windowMs: 60 * 60 * 1000,
@@ -56,7 +62,7 @@ function buildMcpServer({ runOrchestratorFn, getAgentTraceFn }) {
       },
     },
     async (args) => {
-      const result = await runOrchestratorFn(args);
+      const result = await runOrchestratorFn(args, { timeoutMs: MCP_PLAN_TIMEOUT_MS });
       return { content: [{ type: "text", text: JSON.stringify(result) }] };
     },
   );
