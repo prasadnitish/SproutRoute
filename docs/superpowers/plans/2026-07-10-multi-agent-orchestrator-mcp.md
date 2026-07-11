@@ -821,6 +821,32 @@ test("getAgentTrace returns spans for a run_id ordered by timestamp", async () =
   assert.equal(result.length, 2);
   assert.equal(result[0].child_agent, "retrieval");
 });
+
+test("getAgentTrace throws when the Supabase query returns an error", async () => {
+  const failingAdmin = {
+    from(table) {
+      assert.equal(table, "agent_runs");
+      return {
+        select: () => ({
+          eq: () => ({
+            order: () => Promise.resolve({ data: null, error: { message: "relation does not exist" } }),
+          }),
+        }),
+      };
+    },
+  };
+  await assert.rejects(
+    () => getAgentTrace("r1", { getSupabaseAdminFn: () => failingAdmin }),
+    (err) => err.message.includes("relation does not exist"),
+  );
+});
+
+test("getAgentTrace propagates when getSupabaseAdminFn throws synchronously", async () => {
+  await assert.rejects(
+    () => getAgentTrace("r1", { getSupabaseAdminFn: () => { throw new Error("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set"); } }),
+    (err) => err.message.includes("SUPABASE_URL"),
+  );
+});
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -846,17 +872,24 @@ export async function logAgentSpan(
   const { getSupabaseAdminFn = getSupabaseAdmin } = deps;
   try {
     const admin = getSupabaseAdminFn();
-    const { error } = await admin.from("agent_runs").insert({
-      run_id: runId,
-      parent_agent: "orchestrator",
-      child_agent: childAgent,
-      status,
-      latency_ms: latencyMs,
-      edge_summary: edgeSummary,
-    });
-    if (error) log.warn("agent-runs:persist-fail", { error: error.message, childAgent });
+    admin
+      .from("agent_runs")
+      .insert({
+        run_id: runId,
+        parent_agent: "orchestrator",
+        child_agent: childAgent,
+        status,
+        latency_ms: latencyMs,
+        edge_summary: edgeSummary,
+      })
+      .then(({ error }) => {
+        if (error) log.warn("agent-runs:persist-fail", { error: error.message, childAgent });
+      })
+      .catch(() => {
+        // Insert call itself rejected (e.g. network error) — silently skip.
+      });
   } catch {
-    // Supabase not configured — silently skip, matches metrics.js pattern.
+    // getSupabaseAdminFn() threw synchronously (Supabase not configured) — silently skip.
   }
 }
 
@@ -878,7 +911,7 @@ export async function getAgentTrace(runId, deps = {}) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/unit/agentRunsLog.test.js`
-Expected: `# pass 3`, `# fail 0`
+Expected: `# pass 5`, `# fail 0`
 
 - [ ] **Step 5: Commit**
 
