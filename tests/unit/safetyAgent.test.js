@@ -56,6 +56,7 @@ test("runSafetyAgent runs pet check when pets present, skips when absent", async
   assert.equal(withPets.edgeSummary.petCheck, "ran");
   assert.equal(petArgs.pets.length, 1);
   assert.equal(petArgs.options.countryCode, "US");
+  assert.equal(petArgs.options.travelMode, "fly", "always resolves to fly today — no origin coordinates available to derive drive distance (known v1 limitation)");
   assert.ok(withPets.petGuidance);
 
   const withoutPets = await runSafetyAgent(

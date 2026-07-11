@@ -38,6 +38,9 @@ export async function runSafetyAgent(input, retrieval, deps = {}) {
 
   let petGuidance = null;
   if (Array.isArray(pets) && pets.length > 0) {
+    // NOTE: deriveTravelMode gets no origin coordinates since MCP callers are anonymous (no client
+    // geolocation like the web app has), so it always resolves to "fly" per its own fallback rule.
+    // This is a known v1 limitation, not a computed derivation — accepted tradeoff for anonymous access.
     const travelMode = deriveTravelMode({ countryCode });
     petGuidance = await getPetTravelGuidanceFn(pets, { destination, travelMode, countryCode, startDate });
     edgeSummary.petCheck = "ran";

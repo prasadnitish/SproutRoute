@@ -566,6 +566,9 @@ export async function runSafetyAgent(input, retrieval, deps = {}) {
 
   let petGuidance = null;
   if (Array.isArray(pets) && pets.length > 0) {
+    // NOTE: deriveTravelMode gets no origin coordinates since MCP callers are anonymous (no client
+    // geolocation like the web app has), so it always resolves to "fly" per its own fallback rule.
+    // This is a known v1 limitation, not a computed derivation — accepted tradeoff for anonymous access.
     const travelMode = deriveTravelMode({ countryCode });
     petGuidance = await getPetTravelGuidanceFn(pets, { destination, travelMode, countryCode, startDate });
     edgeSummary.petCheck = "ran";
@@ -594,6 +597,8 @@ Expected: `# pass 3`, `# fail 0`
 git add src/backend/agents/safetyAgent.js tests/unit/safetyAgent.test.js
 git commit -m "feat: add safetyAgent wrapping car-seat, pet, advisory, and neighborhood checks"
 ```
+
+**Known v1 limitation:** Pet-safety `travelMode` always resolves to `"fly"` because the MCP orchestrator has no origin/geolocation input (anonymous callers, unlike the web app with client geolocation). The real web app can compute `"drive"` when both origin and destination coordinates are available; the MCP tool cannot. This is an accepted tradeoff for v1's tool schema — fixing it would require either an explicit `travelMode` override parameter or client-supplied origin coordinates, which are out of scope for v1. The limitation is tested and documented in the code via the comment above `deriveTravelMode`.
 
 ---
 
