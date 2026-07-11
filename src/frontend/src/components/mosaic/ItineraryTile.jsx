@@ -230,6 +230,7 @@ export default function ItineraryTile({
   tripDuration = 0,
   childCount = 0,
   onOpenSafety,
+  isItineraryComplete = false,
 }) {
   const [activeDay, setActiveDay] = useState(0);
 
@@ -253,6 +254,17 @@ export default function ItineraryTile({
   }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!days || days.length === 0) {
+    if (isItineraryComplete) {
+      return (
+        <div className="bg-white border border-gray-200 rounded-2xl p-5">
+          <p className="text-sm font-semibold text-gray-900">No itinerary data yet</p>
+          <p className="mt-1 text-sm text-gray-500">
+            We could not build a day-by-day plan for this request. Try adjusting the destination, dates, or trip details.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <LoadingEngagement
         destination={destination}

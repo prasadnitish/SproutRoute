@@ -3,80 +3,128 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Privacy Policy — SproutRoute</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-  <style>
-    *{margin:0;padding:0;box-sizing:border-box}
-    body{font-family:'Inter',sans-serif;color:#1f2937;line-height:1.7;background:#fff}
-    nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);border-bottom:1px solid #e5e7eb;padding:0.75rem 0}
-    .nav-inner{max-width:800px;margin:0 auto;padding:0 1.5rem;display:flex;justify-content:space-between;align-items:center}
-    .nav-brand{display:flex;align-items:center;gap:0.6rem;text-decoration:none;color:#111827}
-    .nav-brand img{height:32px;width:32px}
-    .nav-brand span{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.15rem}
-    .nav-back{color:#6b7280;text-decoration:none;font-size:0.88rem;font-weight:500}
-    .nav-back:hover{color:#16a34a}
-    main{max-width:800px;margin:0 auto;padding:3rem 1.5rem 5rem}
-    h1{font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700;margin-bottom:0.5rem}
-    .updated{color:#6b7280;font-size:0.88rem;margin-bottom:2.5rem}
-    h2{font-family:'Space Grotesk',sans-serif;font-size:1.25rem;font-weight:700;margin-top:2.5rem;margin-bottom:0.75rem;color:#111827}
-    p{margin-bottom:1rem;color:#374151;font-size:0.95rem}
-    ul{margin-bottom:1rem;padding-left:1.5rem}
-    li{margin-bottom:0.4rem;color:#374151;font-size:0.95rem}
-    a{color:#16a34a}
-  </style>
+  <title>Privacy Policy - SproutRoute</title>
+  <meta name="description" content="SproutRoute privacy policy for family trip planning, iOS app review, data collection, retention, deletion, and third-party services.">
+  <link rel="canonical" href="https://www.sproutroute.app/privacy.html">
+  <link rel="stylesheet" href="/legal.css">
 </head>
 <body>
 <nav>
   <div class="nav-inner">
-    <a href="/" class="nav-brand">
-      <svg width="32" height="32" viewBox="0 0 36 36" fill="none"><circle cx="18" cy="18" r="18" fill="#16a34a"/><path d="M18 8c0 5-4 8-4 12s2 6 4 8c2-2 4-4 4-8s-4-7-4-12z" fill="#fff"/><path d="M14 16c2-2 4-1 4 1M22 14c-2-1-4 0-4 2" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
-      <span>SproutRoute</span>
-    </a>
-    <a href="/" class="nav-back">&larr; Back to Home</a>
+    <a class="brand" href="/"><span class="brand-mark">SR</span><span>SproutRoute</span></a>
+    <div class="nav-links">
+      <a href="/support.html">Support</a>
+      <a href="/privacy-choices.html">Privacy choices</a>
+      <a href="/terms.html">Terms</a>
+    </div>
   </div>
 </nav>
 <main>
-  <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: February 26, 2026</p>
+  <div class="hero">
+    <p class="eyebrow">Privacy Policy</p>
+    <h1>Built for parents. Careful with family data.</h1>
+    <p class="lede">SproutRoute helps parents and guardians plan family trips. We collect only the information needed to generate and save trip guidance, operate the service, prevent abuse, and respond to support requests.</p>
+    <p class="updated">Last updated: May 6, 2026</p>
+  </div>
 
-  <h2>Overview</h2>
-  <p>SproutRoute is a family trip planning tool. We take your privacy seriously and collect only what is necessary to generate your trip plans.</p>
+  <section class="callout">
+    <h2>Scope and audience</h2>
+    <p>SproutRoute is a general-audience travel planning service for adults, parents, and guardians. It is not directed to children under 13, and children under 13 should not use SproutRoute directly. Parents may enter a child's age range or travel needs to receive family-appropriate planning suggestions, but they should not enter a child's full name, contact information, school, precise home address, medical records, or other unnecessary sensitive information.</p>
+  </section>
 
-  <h2>Information We Collect</h2>
-  <p>When you use SproutRoute, you provide:</p>
-  <ul>
-    <li>Destination (city or region name)</li>
-    <li>Travel dates</li>
-    <li>Number and ages of children traveling</li>
-    <li>Activity preferences</li>
-  </ul>
-  <p>This information is used solely to generate your trip plan and is not stored persistently on our servers. Trip data is processed in-session and discarded after your plan is generated.</p>
+  <section>
+    <h2>Information we collect</h2>
+    <ul>
+      <li><strong>Trip planning content:</strong> destination, origin if provided, travel dates, trip length, family composition, child ages or age ranges, pet type and travel details, pace, interests, accessibility notes, food preferences, and other free-text planning details you choose to provide.</li>
+      <li><strong>Profile import content:</strong> travel preferences pasted from ChatGPT, Claude, Gemini, or another assistant if you choose to import a reusable profile. The iOS app stores this locally unless you separately use an authenticated web feature.</li>
+      <li><strong>Saved trip data:</strong> generated itinerary, weather summary, packing list, safety guidance, saved packing progress, reminders, and local widget snapshots.</li>
+      <li><strong>Device and app data:</strong> app version, locale, timezone, unit system, operating system version, error information, diagnostic events, and similar reliability data.</li>
+      <li><strong>Location data:</strong> destinations and map queries you enter. If a web or app feature asks for device location and you grant permission, we use it only to help plan or contextualize the trip. You can deny location permission.</li>
+      <li><strong>Support communications:</strong> your email address and message contents when you contact us.</li>
+    </ul>
+  </section>
 
-  <h2>Third-Party Services</h2>
-  <p>SproutRoute uses the following third-party services to provide accurate trip information:</p>
-  <ul>
-    <li><strong>Anthropic (Claude AI)</strong> — to generate itineraries and packing lists</li>
-    <li><strong>Weather.gov / OpenWeatherMap</strong> — for weather forecasts</li>
-    <li><strong>OpenStreetMap Nominatim</strong> — for geocoding destinations</li>
-    <li><strong>US State Department API</strong> — for travel advisories</li>
-    <li><strong>Amadeus Safe Place (GeoSure)</strong> — for neighborhood safety scores</li>
-  </ul>
-  <p>Each service receives only the minimum data needed (e.g., coordinates for weather). We do not share personal or identifying information with these services.</p>
+  <section>
+    <h2>How we use information</h2>
+    <ul>
+      <li>Generate itineraries, packing lists, weather summaries, pet travel checks, and family safety guidance.</li>
+      <li>Save trips and packing progress locally on your device, and support widgets, App Intents, Spotlight, Live Activities, and reminders.</li>
+      <li>Refresh destination weather and detect meaningful forecast changes.</li>
+      <li>Debug crashes, prevent abuse, monitor service reliability, and improve the product.</li>
+      <li>Respond to support, privacy, deletion, and App Store review inquiries.</li>
+    </ul>
+  </section>
 
-  <h2>Cookies &amp; Analytics</h2>
-  <p>SproutRoute does not currently use cookies or analytics tracking. Your trip plan data is stored in your browser's local storage so you can revisit it, but it never leaves your device unless you choose to share it.</p>
+  <section>
+    <h2>Third-party services</h2>
+    <p>SproutRoute uses service providers to operate core features. Each provider receives only the information reasonably needed for its task.</p>
+    <ul>
+      <li><strong>AI providers:</strong> Anthropic, OpenAI, Google Gemini, and DeepSeek may process trip planning content to parse requests, generate itineraries, summarize safety guidance, or create packing recommendations.</li>
+      <li><strong>Weather providers:</strong> Weather.gov and Visual Crossing support web and backend weather planning. On iOS, Apple Weather and WeatherKit may refresh destination forecasts and display Apple Weather attribution where required.</li>
+      <li><strong>Maps, geocoding, and places:</strong> OpenStreetMap Nominatim, Google Places, Apple Maps, and MapKit support destination lookup, place enrichment, maps, and handoff to Apple Maps.</li>
+      <li><strong>Safety and advisory data:</strong> government travel advisory sources, static car-seat rule datasets, airline pet policy datasets, and pet entry rule datasets support safety cards. Some neighborhood safety functionality may use Amadeus Safe Place where configured.</li>
+      <li><strong>Analytics, hosting, and storage:</strong> the web app may use PostHog for product analytics. The native iOS app offers optional opt-in product analytics through a direct PostHog event endpoint when configured, but it does not include the PostHog SDK, autocapture, session replay, advertising tracking, or cross-app tracking. Supabase, Railway, and Cloudflare may process authenticated profile data, hosting logs, performance data, and security events where configured.</li>
+      <li><strong>Apple services:</strong> App Store, TestFlight, App Analytics, WeatherKit, MapKit, UserNotifications, App Intents, ActivityKit, WidgetKit, and Spotlight may process data according to Apple's policies. We are not responsible for data Apple independently collects through Apple frameworks and services.</li>
+    </ul>
+  </section>
 
-  <h2>Data Retention</h2>
-  <p>We do not store your trip data on our servers. All trip plans are generated on-demand and returned directly to your browser. Local storage data remains on your device until you clear it.</p>
+  <section>
+    <h2>AI, safety, and legal guidance</h2>
+    <p>SproutRoute uses AI and third-party data to create planning suggestions. AI output can be wrong, incomplete, or outdated. Car-seat guidance, pet travel guidance, travel advisories, weather forecasts, and neighborhood safety information are informational only. They are not legal advice, medical advice, professional safety advice, or a substitute for checking current requirements with local authorities, airlines, accommodations, veterinarians, government agencies, and other official sources.</p>
+    <p>See our <a href="/safety-disclosures.html">Safety and AI Disclosures</a> for more detail.</p>
+  </section>
 
-  <h2>Children's Privacy</h2>
-  <p>SproutRoute is designed for use by parents and guardians to plan family trips. We do not knowingly collect personal information from children under 13. The "children's ages" field is used only for activity and safety recommendations.</p>
+  <section>
+    <h2>Local-first iOS storage</h2>
+    <p>The native iOS app is designed to work local-first and account-free. Saved trips, imported profiles, packing progress, cached weather snapshots, local notification plans, widget snapshots, Spotlight records, and Live Activity payloads are stored on your device or in the app's App Group container. You can delete this local data inside the app from Settings.</p>
+  </section>
 
-  <h2>Changes to This Policy</h2>
-  <p>We may update this policy as SproutRoute evolves. Changes will be posted on this page with an updated date.</p>
+  <section>
+    <h2>Data retention</h2>
+    <ul>
+      <li><strong>On-device data:</strong> remains on your device until you delete it, uninstall the app, or clear the relevant browser/app storage.</li>
+      <li><strong>Trip requests processed by the backend:</strong> are processed to generate results and may appear in operational logs or reliability systems for debugging, abuse prevention, security, and service operation.</li>
+      <li><strong>Authenticated web profile data:</strong> if you use authenticated profile features, profile data and feedback remain until you delete them or request deletion.</li>
+      <li><strong>Support messages:</strong> are retained as needed to respond to the request, maintain records, and comply with legal obligations.</li>
+    </ul>
+  </section>
 
-  <h2>Contact</h2>
-  <p>Questions about this privacy policy? Reach out at <a href="mailto:nitish.prasad@gmail.com">nitish.prasad@gmail.com</a>.</p>
+  <section>
+    <h2>Deletion and privacy choices</h2>
+    <p>You can delete local iOS data in the app. You can also request deletion of server-side personal information, revoke optional permissions, or ask privacy questions by following the instructions on our <a href="/privacy-choices.html">User Privacy Choices</a> page.</p>
+  </section>
+
+  <section>
+    <h2>Sale, sharing, and tracking</h2>
+    <p>We do not sell personal information. We do not knowingly share personal information for cross-context behavioral advertising. If our data practices change, we will update this policy and App Store privacy disclosures before shipping the change.</p>
+  </section>
+
+  <section>
+    <h2>iOS analytics transparency</h2>
+    <p>The native iOS app includes an optional Share Product Analytics setting. It is off by default. If you turn it on, SproutRoute may send privacy-safe product events such as selected app tab, planning status, prompt length bucket, trip duration, destination country or region, child age buckets, and pet type categories. These events are used to understand reliability, navigation, and feature usage.</p>
+    <p>iOS product analytics does not send raw trip prompts, profile JSON, child names, pet names, pet breeds, special-needs notes, precise GPS location, attraction text, custom packing item text, session replay, advertising identifiers, or data for cross-context behavioral advertising. Turning analytics off in Settings stops future product analytics events and resets the local analytics identifier. The iOS app still communicates with the SproutRoute backend to generate trips, enrich places, and refresh safety or packing guidance. Apple may provide App Store, TestFlight, crash, and App Analytics information through Apple's developer tools according to Apple's policies.</p>
+  </section>
+
+  <section>
+    <h2>Security</h2>
+    <p>We use reasonable administrative, technical, and organizational safeguards designed to protect the information we process. No system is perfectly secure, so please avoid entering unnecessary sensitive information into free-text trip prompts or profile imports.</p>
+  </section>
+
+  <section>
+    <h2>International users</h2>
+    <p>SproutRoute is operated from the United States. If you use it from another country, your information may be processed in the United States or other locations where our service providers operate.</p>
+  </section>
+
+  <section>
+    <h2>Changes</h2>
+    <p>We may update this policy as SproutRoute evolves. The updated version will be posted here with a new effective date. Material changes will be reflected in App Store privacy information when required.</p>
+  </section>
+
+  <section>
+    <h2>Contact</h2>
+    <p>Questions about this policy or your data can be sent to <a href="mailto:nitish.prasad@gmail.com">nitish.prasad@gmail.com</a>. The support page is <a href="/support.html">www.sproutroute.app/support.html</a>.</p>
+  </section>
 </main>
+<footer>SproutRoute is a planning assistant for parents and guardians. Always verify time-sensitive, safety-sensitive, legal, airline, weather, and travel information with official sources.</footer>
 </body>
 </html>
