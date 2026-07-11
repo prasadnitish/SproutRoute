@@ -331,6 +331,7 @@ Create `src/backend/agents/itineraryAgent.js`:
 ```js
 import { generateTripPlanChunked } from "../services/tripPlanAI.js";
 import { scheduleItinerary } from "../services/itineraryScheduler.js";
+import { log } from "../utils/logger.js";
 
 // Wraps tripPlanAI.js's chunked generator (handles 1-21 day trips uniformly,
 // unlike the plain generateTripPlan) + itineraryScheduler.js's scheduler.
@@ -352,7 +353,6 @@ export async function runItineraryAgent(input, retrieval, deps = {}) {
     activities: activities?.length ? activities : ["family-friendly", "parks", "city"],
     children: children || [],
     pets: pets || [],
-    countryCode,
     plannerSummary,
     cachedAttractions,
   };
@@ -366,7 +366,9 @@ export async function runItineraryAgent(input, retrieval, deps = {}) {
   if (attractionMemoryService?.persistTripAttractions) {
     Promise.resolve(
       attractionMemoryService.persistTripAttractions({ destination, coords, countryCode, tripPlan }),
-    ).catch(() => {});
+    ).catch((error) => {
+      log.warn("attraction-memory:persist-failed", { error: error.message });
+    });
   }
 
   return { tripPlan, scheduledItinerary };
@@ -376,7 +378,7 @@ export async function runItineraryAgent(input, retrieval, deps = {}) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `node --test tests/unit/itineraryAgent.test.js`
-Expected: `# pass 3`, `# fail 0`
+Expected: `# pass 4`, `# fail 0`
 
 - [ ] **Step 5: Commit**
 
