@@ -121,6 +121,39 @@ test("plan_trip tool call runs the orchestrator via injected deps", async () => 
   }
 });
 
+test("plan_trip passes a generous timeout to the orchestrator", async () => {
+  process.env.MCP_DEMO_TOKEN = "test-demo-token";
+  let capturedOpts = null;
+  const app = createApp({
+    enableRequestLogging: false,
+    runOrchestratorFn: async (input, opts) => {
+      capturedOpts = opts;
+      return { runId: "t", destination: input.destination, trip: {}, packingList: {}, safety: {} };
+    },
+  });
+  const server = app.listen(0);
+  try {
+    const port = server.address().port;
+    await postMcp(port, "test-demo-token", initializeRequest);
+    await postMcp(port, "test-demo-token", {
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: {
+        name: "plan_trip",
+        arguments: { destination: "Portland, OR", startDate: "2026-08-01", endDate: "2026-08-04" },
+      },
+    });
+    assert.ok(capturedOpts, "orchestrator should receive an options arg");
+    // A real cold plan (geocode + weather + chunked AI itinerary + safety + packing)
+    // can exceed the orchestrator's default 30s budget, so the MCP path grants more.
+    assert.equal(capturedOpts.timeoutMs, 90000);
+  } finally {
+    server.close();
+    delete process.env.MCP_DEMO_TOKEN;
+  }
+});
+
 test("get_agent_trace tool call returns the trace via injected deps", async () => {
   process.env.MCP_DEMO_TOKEN = "test-demo-token";
   const app = createApp({
