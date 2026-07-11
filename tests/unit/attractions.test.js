@@ -9,6 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createApp } from "../../src/backend/server.js";
+import { daysFromNow } from "../helpers/testDates.js";
 
 const validTripPlan = {
   overview: "A great family trip",
@@ -157,8 +158,8 @@ test("POST /api/v1/trip/plan passes cached attractions into trip generation and 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         destination: "San Diego, CA",
-        startDate: "2026-06-01",
-        endDate: "2026-06-04",
+        startDate: daysFromNow(10),
+        endDate: daysFromNow(13),
         activities: ["parks", "family-friendly"],
         children: [{ age: 4 }],
       }),
