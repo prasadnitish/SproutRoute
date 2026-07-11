@@ -61,6 +61,30 @@ mobile/        Expo mobile app workspace
 docs/          architecture, code graph, PRDs, and delivery notes
 ```
 
+## Multi-Agent Orchestrator + MCP Server
+
+The trip-planning logic is also reachable as an MCP (Model Context Protocol) server, so any MCP client (e.g. Claude Desktop) can call it directly. A LangGraph.js orchestrator wraps the existing retrieval, itinerary, safety, and packing services — unchanged — into four specialist agents, fanning out and converging in a single graph. Every agent handoff is logged to Supabase (`agent_runs`) with status (`ok`/`error`/`skipped`) and latency, so a full run is inspectable end to end.
+
+Two tools are exposed at `POST /mcp`:
+
+- `plan_trip(destination, startDate, endDate, children?, pets?, activities?)` — runs the full orchestrator, returns itinerary + packing list + safety guidance.
+- `get_agent_trace(runId)` — returns the ordered handoff spans for a prior `plan_trip` call.
+
+To connect from Claude Desktop, add this to `claude_desktop_config.json` (ask for the current demo token — it's not committed anywhere):
+
+```json
+{
+  "mcpServers": {
+    "sproutroute": {
+      "url": "https://sproutroute.app/mcp",
+      "headers": { "Authorization": "Bearer <token>" }
+    }
+  }
+}
+```
+
+The endpoint sits behind a constant-time bearer-token check and a 10-request/hour rate limit (it triggers real paid LLM calls). Set `MCP_ENABLED=false` in Railway to disable it instantly without a redeploy, if the token ever leaks or costs spike.
+
 ## Deployment
 
 The web app is deployed on Railway. In production, the backend serves the built frontend assets.
