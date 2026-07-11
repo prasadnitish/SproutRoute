@@ -695,7 +695,7 @@ Expected: `# pass 2`, `# fail 0`
 - [ ] **Step 5: Run the full suite and commit**
 
 Run: `npm test`
-Expected: `# pass 423` (412 baseline + 11 new agent tests: 3 retrieval + 3 itinerary + 3 safety + 2 packing), `# fail 0`
+Expected: `# pass 425` (412 baseline + 13 new agent tests: 4 retrieval + 4 itinerary + 3 safety + 2 packing — retrieval/itinerary each grew from 3 to 4 during code review, picking up a regression test), `# fail 0`
 
 ```bash
 git add src/backend/agents/packingAgent.js tests/unit/packingAgent.test.js
@@ -1115,7 +1115,7 @@ Expected: `# pass 3`, `# fail 0`
 - [ ] **Step 5: Run the full suite and commit**
 
 Run: `npm test`
-Expected: `# pass 429` (423 after M1 + 3 agentRunsLog + 3 orchestrator), `# fail 0`
+Expected: `# pass 431` (425 after M1 + 3 agentRunsLog + 3 orchestrator), `# fail 0`
 
 ```bash
 git add src/backend/agents/orchestrator.js tests/unit/orchestrator.test.js
@@ -1512,7 +1512,7 @@ Expected: `# pass 4`, `# fail 0`
 - [ ] **Step 6: Run the full suite and commit**
 
 Run: `npm test`
-Expected: `# pass 436` (429 after M2 + 3 mcpAuth + 4 mcp integration), `# fail 0`
+Expected: `# pass 438` (431 after M2 + 3 mcpAuth + 4 mcp integration), `# fail 0`
 
 ```bash
 git add src/backend/mcp/mount.js src/backend/server.js tests/integration/mcp.integration.test.js
