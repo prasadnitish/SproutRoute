@@ -25,6 +25,7 @@ import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js
 import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMerge.js";
 import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
 import { createAttractionMemoryService } from "./services/attractionMemory.js";
+import { mountMcpRoutes } from "./mcp/mount.js";
 import { allocateRoute } from "./services/routeAllocator.js";
 import { planRouteStops } from "./services/multiStopPlanner.js";
 import { ensureUserRecord } from "./services/userStore.js";
@@ -369,6 +370,8 @@ export function createApp(deps = {}) {
   // Enforce reasonable request body size limits while allowing multi-city route review payloads.
   app.use(express.json({ limit: "64kb" }));
   app.use(express.urlencoded({ limit: "64kb", extended: false }));
+
+  mountMcpRoutes(app, deps);
 
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
