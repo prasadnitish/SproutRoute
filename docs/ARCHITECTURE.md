@@ -1,6 +1,6 @@
 # Architecture Documentation: SproutRoute
 
-**Last Updated: April 16, 2026**
+**Last Updated: April 25, 2026**
 
 ## Primary References
 
@@ -18,7 +18,7 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 - **Analytics (PostHog):** Full funnel tracking with session recordings and PII masking
 - **External APIs:** Visual Crossing (weather), Nominatim/Overpass (geocoding), Google Places (enrichment)
 
-**Architecture Pattern:** Progressive SSE rendering with background follow-up fetches. `useTrip` drives `parse-input -> trip/stream`, the results screen opens on the first destination event, itinerary chunks continue over SSE, and packing/safety/pet checks run non-blocking after first paint.
+**Architecture Pattern:** Progressive SSE rendering with background follow-up fetches. `useTrip` drives `parse-input -> trip/stream`, the results screen opens on the first destination or route event, itinerary chunks continue over SSE, and packing/safety/pet checks run non-blocking after first paint. Multi-stop and whole-country trips insert a route review step, stream a route scaffold first, then plan each stop independently.
 
 ---
 
@@ -32,7 +32,7 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │  │                                                              │ │
 │  │  Screens:                                                    │ │
 │  │    InputScreen.jsx    ← Single textarea + vibe chips         │ │
-│  │    GeneratingScreen.jsx ← Progress steps + destination picker│ │
+│  │    GeneratingScreen.jsx ← Progress + destination/route review│ │
 │  │    ResultsScreen.jsx  ← Tab layout: Plan (mosaic) + Pack    │ │
 │  │                                                              │ │
 │  │  Hooks:                                                      │ │
@@ -41,8 +41,8 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │  │    usePlacesEnrich.js ← on-demand Places enrichment          │ │
 │  │                                                              │ │
 │  │  Mosaic Tiles:                                               │ │
-│  │    HeroTile / WeatherTile / ItineraryTile / SafetyTile      │ │
-│  │    PetSafetyTile / MapTile / DayRouteMap                    │ │
+│  │    HeroTile / PremiumRouteMap / RouteTimelineTile           │ │
+│  │    WeatherTile / ItineraryTile / PetSafetyTile              │ │
 │  │                                                              │ │
 │  │  Other Components:                                           │ │
 │  │    PackingChecklist / ActivityDetailPanel                    │ │
@@ -155,15 +155,18 @@ User types free-text in `InputScreen`
 
 Phase 1 — Parse and enter generating screen:
   → POST `/api/v1/trip/parse-input`
-  → parser extracts destination, dates, party, pets, vibe, and ambiguity hints
-  → `GeneratingScreen` shows assumption card or `DestinationPicker`
+  → parser extracts destination, dates, party, pets, vibe, route shape, and ambiguity hints
+  → `GeneratingScreen` shows assumption card, `DestinationPicker`, or `RouteReviewPanel`
 
 Phase 2 — Main streamed plan path:
   → POST `/api/v1/trip/stream`
-  → server geocodes destination, fetches weather, resolves planning context
-  → server loads cached attractions and runs `generateTripPlanChunked()`
+  → single-destination path geocodes destination, fetches weather, resolves planning context
+  → single-destination path loads cached attractions and runs `generateTripPlanChunked()`
   → first `destination` SSE event opens `ResultsScreen`
   → `weather` and `itinerary-chunk` events progressively fill `WeatherTile` and `ItineraryTile`
+  → route-aware path runs `allocateRoute()`, emits `route`, then `planRouteStops()`
+  → `stop-weather` and `stop-itinerary` events progressively fill `PremiumRouteMap`, `RouteTimelineTile`, and route-aware itinerary state
+  → active day changes from `ItineraryTile` update the day-level `PremiumRouteMap`
 
 Phase 3 — Non-blocking follow-up requests:
   → POST `/api/generate`                    (current web packing path → `PackingChecklist`)
@@ -212,6 +215,7 @@ User mentions pets in free-text input
 
 - The real frontend control plane is `src/frontend/src/hooks/useTrip.js`, not `App.jsx`. `App.jsx` is now mostly a shell that wires the main hooks and current screen.
 - The default browser hot path is `parse-input -> trip/stream`. Legacy `/api/trip-plan` still exists, but it is no longer the primary web planning route.
+- Multi-stop and whole-country prompts use the same `trip/stream` endpoint, but branch through `routeAllocator.js` and `multiStopPlanner.js` after route review.
 - The browser still uses legacy `POST /api/generate` for packing in the background even though `/api/v1/trip/packing` exists. That distinction matters when changing the live web flow.
 - `ResultsScreen.jsx` is the current composition hub. Older references to `TripPlanDisplay.jsx` are historical.
 - Places enrichment is lazy and user-driven through `usePlacesEnrich`, which keeps the first-render path lighter.
@@ -278,7 +282,7 @@ User mentions pets in free-text input
 |--------|------|---------|-------------|
 | GET | `/api/health` | inline | Liveness probe |
 | POST | `/api/v1/trip/parse-input` | parseInput.js + inputSafety.js | AI-powered free-text parsing |
-| POST | `/api/v1/trip/stream` | tripPlanAI.js + SSE | Progressive streaming trip generation |
+| POST | `/api/v1/trip/stream` | tripPlanAI.js + routeAllocator.js + multiStopPlanner.js + SSE | Progressive single-destination or route-aware trip generation |
 | POST | `/api/v1/trip/plan` | weather.js + tripPlanAI.js | Non-streamed v1 itinerary response |
 | POST | `/api/v1/trip/bundle` | weather.js + tripPlanAI.js + deterministicPacking.js | Single-call plan + packing response |
 | POST | `/api/v1/trip/replan` | tripPlanAI.js | Rebuild itinerary from cached weather |

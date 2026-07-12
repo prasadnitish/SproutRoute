@@ -11,23 +11,75 @@ import {
   loadCustomItems,
   saveCustomItems,
 } from "../utils/checklist";
+import { Icon } from "./Icon.jsx";
+
+const DO_FIRST_KEYWORDS = /(kid|child|baby|toddler|document|passport|id|medical|medic|prescription|rx)/i;
+
+function isDoFirst(categoryName) {
+  return DO_FIRST_KEYWORDS.test(categoryName || "");
+}
+
+function ShopPanel({ shopLinks }) {
+  return (
+    <div className="ml-7 mt-1 mb-2 p-3 bg-gray-50 rounded-xl border border-gray-200 print:hidden">
+      <div className="flex gap-2 flex-wrap">
+        {shopLinks.map(({ store, url, color }) => (
+          <a
+            key={store}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-semibold text-white transition-opacity hover:opacity-80"
+            style={{ backgroundColor: color }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {store}
+          </a>
+        ))}
+      </div>
+      <p className="text-[11px] text-gray-400 mt-2">
+        SproutRoute may earn a small commission — at no extra cost to you
+      </p>
+    </div>
+  );
+}
 
 export default function PackingChecklist({ packingList, onUpdate }) {
   const [checkedItems, setCheckedItems] = useState(new Set());
-  const [collapsedCategories, setCollapsedCategories] = useState(new Set());
-  // customItems: { [categoryName]: Array<{ name, quantity, reason, source: "custom" }> }
+  const [collapsedCategories, setCollapsedCategories] = useState(() => new Set());
   const [customItems, setCustomItems] = useState(() => loadCustomItems());
-  // Per-category "add item" input state
   const [addInputs, setAddInputs] = useState({});
-  const [expandedShop, setExpandedShop] = useState(null); // itemId of currently expanded shop panel
+  const [expandedShop, setExpandedShop] = useState(null);
+  const [initializedCollapse, setInitializedCollapse] = useState(false);
 
   const validItemIds = useMemo(
     () => getPackingItemIds(packingList, customItems),
     [packingList, customItems],
   );
 
+  // Sort categories: do-first first, then by remaining (unchecked) count desc, then original order
+  const orderedCategories = useMemo(() => {
+    if (!packingList?.categories) return [];
+    const withCounts = packingList.categories.map((cat, originalIndex) => {
+      const catCustoms = customItems[cat.name] || [];
+      const all = [...cat.items, ...catCustoms];
+      const remaining = all.filter(
+        (it) => !checkedItems.has(makeItemId(cat.name, it.name, it.quantity)),
+      ).length;
+      return { cat, originalIndex, remaining, doFirst: isDoFirst(cat.name) };
+    });
+    return withCounts
+      .slice()
+      .sort((a, b) => {
+        if (a.doFirst !== b.doFirst) return a.doFirst ? -1 : 1;
+        if (a.remaining !== b.remaining) return b.remaining - a.remaining;
+        return a.originalIndex - b.originalIndex;
+      })
+      .map((w) => w.cat);
+  }, [packingList, customItems, checkedItems]);
+
+  // Load saved checks
   useEffect(() => {
-    // Reload saved checks and drop IDs that no longer exist in the current list version.
     const saved = localStorage.getItem("sproutroute_checked");
     if (saved) {
       try {
@@ -40,44 +92,52 @@ export default function PackingChecklist({ packingList, onUpdate }) {
     }
   }, [validItemIds]);
 
+  // F8: auto-collapse a category when every item in it has been checked off
+  useEffect(() => {
+    if (!orderedCategories.length) return;
+    setCollapsedCategories((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const cat of orderedCategories) {
+        const all = [...cat.items, ...(customItems[cat.name] || [])];
+        if (!all.length) continue;
+        const allChecked = all.every((it) =>
+          checkedItems.has(makeItemId(cat.name, it.name, it.quantity)),
+        );
+        if (allChecked && !next.has(cat.name)) {
+          next.add(cat.name);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    if (!initializedCollapse) setInitializedCollapse(true);
+  }, [orderedCategories, checkedItems, customItems, initializedCollapse]);
+
   const toggleItem = (itemId) => {
-    // Single source of truth for item toggles + persistence sync.
     const newChecked = new Set(checkedItems);
     if (newChecked.has(itemId)) {
       newChecked.delete(itemId);
     } else {
       newChecked.add(itemId);
-      setExpandedShop(null); // collapse shop when item is checked
+      setExpandedShop(null);
     }
     setCheckedItems(newChecked);
-    localStorage.setItem(
-      "sproutroute_checked",
-      JSON.stringify([...newChecked]),
-    );
+    localStorage.setItem("sproutroute_checked", JSON.stringify([...newChecked]));
     if (onUpdate) onUpdate(newChecked);
   };
 
   const toggleCategory = (categoryName) => {
-    // Category collapsing is local-only UI state; it is intentionally not persisted.
     const newCollapsed = new Set(collapsedCategories);
-    if (newCollapsed.has(categoryName)) {
-      newCollapsed.delete(categoryName);
-    } else {
-      newCollapsed.add(categoryName);
-    }
+    if (newCollapsed.has(categoryName)) newCollapsed.delete(categoryName);
+    else newCollapsed.add(categoryName);
     setCollapsedCategories(newCollapsed);
   };
 
   const handleAddCustomItem = (categoryName) => {
     const raw = (addInputs[categoryName] || "").trim();
     if (!raw) return;
-
-    const newItem = {
-      name: raw,
-      quantity: "1",
-      reason: "Added by you",
-      source: "custom",
-    };
+    const newItem = { name: raw, quantity: "1", reason: "Added by you", source: "custom" };
     const updated = {
       ...customItems,
       [categoryName]: [...(customItems[categoryName] || []), newItem],
@@ -90,124 +150,82 @@ export default function PackingChecklist({ packingList, onUpdate }) {
   const handleRemoveCustomItem = (categoryName, itemName) => {
     const updated = {
       ...customItems,
-      [categoryName]: (customItems[categoryName] || []).filter(
-        (i) => i.name !== itemName,
-      ),
+      [categoryName]: (customItems[categoryName] || []).filter((i) => i.name !== itemName),
     };
     setCustomItems(updated);
     saveCustomItems(updated);
   };
 
-  // Count all items including custom items.
-  const getTotalItems = () => {
-    return packingList.categories.reduce((sum, cat) => {
-      const customs = (customItems[cat.name] || []).length;
-      return sum + cat.items.length + customs;
-    }, 0);
-  };
+  const getTotalItems = () =>
+    packingList.categories.reduce(
+      (sum, cat) => sum + cat.items.length + (customItems[cat.name] || []).length,
+      0,
+    );
 
-  const getCheckedCount = () => {
-    // Guard against stale IDs so percent complete reflects only current list items.
-    return [...checkedItems].filter((itemId) => validItemIds.has(itemId))
-      .length;
-  };
+  const getCheckedCount = () =>
+    [...checkedItems].filter((itemId) => validItemIds.has(itemId)).length;
 
   const getProgress = () => {
     const total = getTotalItems();
     return total > 0 ? Math.round((getCheckedCount() / total) * 100) : 0;
   };
 
-  const handlePrint = () => {
-    // Browser-native print flow keeps output simple and dependency-free.
-    window.print();
-  };
+  const handlePrint = () => window.print();
 
-  const ShopPanel = ({ shopLinks }) => (
-    <div className="ml-7 mt-1 mb-2 p-3 bg-gray-50 dark:bg-dark-bg rounded-xl border border-gray-100 dark:border-dark-border print:hidden">
-      <div className="flex gap-2 flex-wrap">
-        {shopLinks.map(({ store, url, color }) => (
-          <a
-            key={store}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-80"
-            style={{ backgroundColor: color }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {store === "Amazon" ? "🛒" : store === "Walmart" ? "🏪" : "🎯"} {store}
-          </a>
-        ))}
-      </div>
-      <p className="text-[10px] text-gray-400 mt-2">
-        SproutRoute may earn a small commission — at no extra cost to you
-      </p>
-    </div>
-  );
-
-  if (!packingList || !packingList.categories) {
-    return null;
-  }
+  if (!packingList || !packingList.categories) return null;
 
   const progress = getProgress();
   const checkedCount = getCheckedCount();
   const totalItems = getTotalItems();
 
   return (
-    <div className="rounded-2xl border border-sprout-light dark:border-dark-border bg-white dark:bg-dark-card shadow-soft dark:shadow-soft-dark p-6">
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 md:p-6">
       {/* Header */}
-      <div className="flex justify-between items-start mb-5">
+      <div className="flex justify-between items-start mb-3">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-muted">
-            🎒 Packing list
+          <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.15em] text-gray-500 inline-flex items-center gap-1.5">
+            <Icon name="bag" size={12} /> Packing list
           </p>
-          <h3 className="font-heading text-xl font-bold text-sprout-dark mt-1">
-            What to pack
-          </h3>
-          <p className="text-sm text-muted mt-0.5">
+          <h3 className="font-display text-[20px] font-bold text-gray-900 mt-1">What to pack</h3>
+          <p className="text-[13px] text-gray-500 mt-0.5">
             {checkedCount} of {totalItems} items packed
           </p>
         </div>
         <button
           onClick={handlePrint}
-          className="px-4 py-2 text-xs font-semibold uppercase tracking-wider border border-sprout-light text-sprout-dark rounded-xl hover:bg-sprout-light transition-colors print:hidden"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition print:hidden"
         >
-          🖨 Print
+          Print
         </button>
       </div>
 
-      {/* Progress bar */}
-      <div className="mb-6">
-        <div className="w-full bg-gray-100 dark:bg-dark-bg rounded-full h-3 overflow-hidden">
+      {/* Sticky progress bar (F8) */}
+      <div className="sticky top-[100px] z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100 pb-3 mb-4 print:static print:bg-transparent">
+        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
           <div
             role="progressbar"
             aria-valuenow={progress}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-label="Packing progress"
-            className="h-3 rounded-full transition-all duration-500"
+            className="h-2 transition-all duration-500"
             style={{
               width: `${progress}%`,
-              background:
-                progress === 100
-                  ? "#2E7D32"
-                  : "linear-gradient(90deg, #4FC3F7, #81C784)",
+              background: progress === 100 ? "#16a34a" : "#22c55e",
             }}
           />
         </div>
         <div className="flex items-center justify-between mt-1.5">
-          <span className="text-xs text-muted">
-            {progress === 100 ? "🎉 All packed!" : "Keep going!"}
+          <span className="text-[12px] text-gray-500">
+            {progress === 100 ? "All packed" : "Keep going"}
           </span>
-          <span className="text-xs font-semibold text-sprout-dark">
-            {progress}%
-          </span>
+          <span className="text-[12px] font-mono font-semibold text-gray-700">{progress}%</span>
         </div>
       </div>
 
-      {/* Categories — two-column grid on desktop */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {packingList.categories.map((category, catIndex) => {
+      {/* Categories */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {orderedCategories.map((category, catIndex) => {
           const isCollapsed = collapsedCategories.has(category.name);
           const catCustoms = customItems[category.name] || [];
           const allItems = [
@@ -215,160 +233,146 @@ export default function PackingChecklist({ packingList, onUpdate }) {
             ...catCustoms,
           ];
           const categoryChecked = allItems.filter((item) =>
-            checkedItems.has(
-              makeItemId(category.name, item.name, item.quantity),
-            ),
+            checkedItems.has(makeItemId(category.name, item.name, item.quantity)),
           ).length;
           const categoryTotal = allItems.length;
-          const categoryDone =
-            categoryChecked === categoryTotal && categoryTotal > 0;
+          const categoryDone = categoryChecked === categoryTotal && categoryTotal > 0;
+          const doFirst = isDoFirst(category.name);
 
           return (
             <div
               key={catIndex}
-              className="rounded-xl border border-sprout-light dark:border-dark-border overflow-hidden"
+              className="rounded-2xl border border-gray-200 overflow-hidden"
             >
-              {/* Category header */}
               <button
                 onClick={() => toggleCategory(category.name)}
                 aria-expanded={!isCollapsed}
                 className={`w-full px-4 py-3 flex justify-between items-center transition-colors print:pointer-events-none ${
                   categoryDone
-                    ? "bg-sprout-dark text-white"
-                    : "bg-sprout-light dark:bg-dark-bg hover:bg-sprout-base/20 dark:hover:bg-dark-border"
+                    ? "bg-meadow-600 text-white"
+                    : "bg-gray-50 hover:bg-gray-100"
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm print:hidden">
-                    {isCollapsed ? "▶" : "▼"}
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`text-[13px] print:hidden ${categoryDone ? "text-white" : "text-gray-500"}`}>
+                    {isCollapsed ? "\u25B8" : "\u25BE"}
                   </span>
                   <h4
-                    className={`font-semibold text-sm ${
-                      categoryDone ? "text-white" : "text-sprout-dark"
+                    className={`font-semibold text-[14px] truncate ${
+                      categoryDone ? "text-white" : "text-gray-900"
                     }`}
                   >
                     {category.name}
                   </h4>
+                  {doFirst && !categoryDone && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono font-bold uppercase tracking-wider bg-amber-100 text-amber-800 rounded-full px-2 py-0.5 flex-shrink-0">
+                      Do first
+                    </span>
+                  )}
                 </div>
                 <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                    categoryDone
-                      ? "bg-white/20 text-white"
-                      : "bg-white text-sprout-dark"
+                  className={`text-[12px] font-mono font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                    categoryDone ? "bg-white/20 text-white" : "bg-white text-gray-700 border border-gray-200"
                   }`}
                 >
                   {categoryChecked}/{categoryTotal}
                 </span>
               </button>
 
-              {/* Items */}
               {!isCollapsed && (
-                <div className="p-3 space-y-1.5 bg-white dark:bg-dark-card">
+                <div className="p-3 space-y-1.5 bg-white">
                   {allItems.map((item) => {
-                    const itemId = makeItemId(
-                      category.name,
-                      item.name,
-                      item.quantity,
-                    );
+                    const itemId = makeItemId(category.name, item.name, item.quantity);
                     const isChecked = checkedItems.has(itemId);
                     const isCustom = item.source === "custom";
 
                     return (
                       <div key={itemId}>
-                      <label
-                        className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
-                          isChecked
-                            ? "bg-sprout-light/60 dark:bg-dark-border"
-                            : "hover:bg-gray-50 dark:hover:bg-dark-bg"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => toggleItem(itemId)}
-                          className="mt-0.5 h-4 w-4 rounded"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-1.5 flex-wrap">
-                            <span
-                              className={`text-sm font-medium ${
-                                isChecked
-                                  ? "line-through text-muted"
-                                  : "text-slate-text"
-                              }`}
-                            >
-                              {item.name}
-                            </span>
-                            <span className="text-xs text-muted shrink-0">
-                              ×{item.quantity}
-                            </span>
-                            {isCustom && (
-                              <span className="text-xs bg-sun/20 text-earth px-1.5 py-0 rounded-full font-semibold">
-                                Custom
+                        <label
+                          className={`flex items-start gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
+                            isChecked ? "bg-meadow-50/70" : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleItem(itemId)}
+                            className="mt-1 h-4 w-4 rounded accent-meadow-600"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-1.5 flex-wrap">
+                              <span
+                                className={`text-[14px] font-semibold ${
+                                  isChecked ? "line-through text-gray-400" : "text-gray-900"
+                                }`}
+                              >
+                                {item.name}
                               </span>
+                              <span className="text-[12px] text-gray-400 shrink-0 font-mono">
+                                {"\u00D7"}{item.quantity || 1}
+                              </span>
+                              {isCustom && (
+                                <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-amber-100 text-amber-800 rounded-full px-1.5 py-0 flex-shrink-0">
+                                  Custom
+                                </span>
+                              )}
+                            </div>
+                            {item.reason && (
+                              <p className="text-[13px] text-gray-600 mt-0.5 leading-snug">
+                                {item.reason}
+                              </p>
                             )}
                           </div>
-                          {item.reason && (
-                            <p className="text-xs text-muted mt-0.5">
-                              {item.reason}
-                            </p>
+                          {!isChecked && item.shopLinks?.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setExpandedShop(expandedShop === itemId ? null : itemId);
+                              }}
+                              className="inline-flex items-center gap-1 text-[12px] font-semibold text-white bg-gray-900 hover:bg-meadow-700 rounded-lg px-2.5 py-1 transition shrink-0 mt-0.5 print:hidden"
+                              aria-label={`Shop for ${item.name}`}
+                            >
+                              Shop
+                            </button>
                           )}
-                        </div>
-                        {!isChecked && item.shopLinks?.length > 0 && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setExpandedShop(expandedShop === itemId ? null : itemId);
-                            }}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-sprout-dark hover:bg-sprout-base rounded-lg px-2.5 py-1 transition-colors shrink-0 mt-0.5 print:hidden"
-                            aria-label={`Shop for ${item.name}`}
-                          >
-                            <span>Shop</span>
-                          </button>
+                          {isCustom && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleRemoveCustomItem(category.name, item.name);
+                              }}
+                              className="text-gray-400 hover:text-red-500 transition text-xs shrink-0 mt-1"
+                              aria-label={`Remove ${item.name}`}
+                            >
+                              <Icon name="x" size={12} />
+                            </button>
+                          )}
+                        </label>
+                        {expandedShop === itemId && item.shopLinks?.length > 0 && (
+                          <ShopPanel shopLinks={item.shopLinks} />
                         )}
-                        {isCustom && (
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              handleRemoveCustomItem(category.name, item.name);
-                            }}
-                            className="text-muted hover:text-red-500 transition-colors text-xs shrink-0 mt-0.5"
-                            aria-label={`Remove ${item.name}`}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </label>
-                      {expandedShop === itemId && item.shopLinks?.length > 0 && (
-                        <ShopPanel shopLinks={item.shopLinks} />
-                      )}
                       </div>
                     );
                   })}
 
-                  {/* Add custom item input */}
                   <div className="flex gap-2 pt-2 print:hidden">
                     <input
                       type="text"
                       value={addInputs[category.name] || ""}
                       onChange={(e) =>
-                        setAddInputs((prev) => ({
-                          ...prev,
-                          [category.name]: e.target.value,
-                        }))
+                        setAddInputs((prev) => ({ ...prev, [category.name]: e.target.value }))
                       }
                       onKeyDown={(e) => {
-                        if (e.key === "Enter")
-                          handleAddCustomItem(category.name);
+                        if (e.key === "Enter") handleAddCustomItem(category.name);
                       }}
                       placeholder={`Add item to ${category.name}…`}
-                      className="flex-1 text-xs rounded-lg border border-gray-200 dark:border-dark-border bg-gray-50 dark:bg-dark-bg px-3 py-1.5 text-slate-text dark:text-dark-text placeholder:text-muted dark:placeholder:text-dark-muted focus:border-sprout-base focus:ring-1 focus:ring-sprout-light dark:focus:ring-dark-border focus:outline-none transition"
+                      className="flex-1 text-[12px] rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-gray-900 placeholder:text-gray-400 focus:border-meadow-500 focus:ring-1 focus:ring-meadow-200 focus:outline-none transition"
                     />
                     <button
                       onClick={() => handleAddCustomItem(category.name)}
                       disabled={!(addInputs[category.name] || "").trim()}
-                      className="text-xs rounded-lg border border-sprout-light dark:border-dark-border px-2.5 py-1.5 text-sprout-dark dark:text-dark-sprout font-semibold hover:bg-sprout-light dark:hover:bg-dark-border transition-colors disabled:opacity-40"
+                      className="text-[12px] rounded-lg border border-gray-200 px-2.5 py-1.5 text-gray-700 font-semibold hover:bg-gray-50 transition disabled:opacity-40"
                     >
                       + Add
                     </button>

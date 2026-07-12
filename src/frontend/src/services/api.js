@@ -257,6 +257,14 @@ export const parseInput = async (payload, { signal, onRetry, onRateLimitInfo } =
     { maxRetries: 1, timeoutMs: 20000, onRetry, onRateLimitInfo },
   );
 
+/** Prefetch city-level attraction candidates while the user reviews a route. */
+export const prefetchRouteAttractions = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
+  fetchWithRetry(
+    `${API_BASE_URL}/api/v1/trip/route-attractions`,
+    { ...POST_OPTS(payload), signal },
+    { maxRetries: 0, timeoutMs: 12000, onRetry, onRateLimitInfo },
+  );
+
 /** Fetch travel safety tips (car seat, general safety). */
 export const getTravelSafety = async (payload, { signal, onRetry, onRateLimitInfo } = {}) =>
   fetchWithRetry(
@@ -308,7 +316,17 @@ export async function streamTripPlan(tripData, onEvent, signal) {
   if (API_CONFIG_ERROR) throw new Error(API_CONFIG_ERROR);
 
   const url = `${API_BASE_URL}/api/v1/trip/stream`;
-  const result = { trip: null, weather: null, tripPlan: null, packingList: null, safetyGuidance: null };
+  const result = {
+    trip: null,
+    weather: null,
+    tripPlan: null,
+    packingList: null,
+    safetyGuidance: null,
+    routePlan: null,
+    stopWeather: {},
+    stopItineraries: {},
+    scheduledByStop: {},
+  };
 
   try {
     const response = await fetch(url, {
@@ -346,7 +364,57 @@ export async function streamTripPlan(tripData, onEvent, signal) {
             const type = currentEventType || data.type || data.event;
             currentEventType = ""; // reset for next event
 
-            if (type === "destination") {
+            if (type === "route") {
+              result.routePlan = data.routePlan || data;
+              result.trip = data.trip || {
+                destination: result.routePlan?.title || tripData.destination,
+                startDate: tripData.startDate,
+                endDate: tripData.endDate,
+                duration: result.routePlan?.totalDays,
+                activities: tripData.activities || [],
+                children: [],
+              };
+              onEvent({ type: "route", data: { routePlan: result.routePlan, trip: result.trip } });
+            } else if (type === "stop-weather") {
+              const stopId = data.stop?.id;
+              if (stopId) result.stopWeather[stopId] = data.weather;
+              onEvent({ type: "stop-weather", data });
+            } else if (type === "stop-itinerary") {
+              const stopId = data.stop?.id;
+              if (stopId) {
+                result.stopItineraries[stopId] = data.tripPlan;
+                if (data.scheduledItinerary) result.scheduledByStop[stopId] = data.scheduledItinerary;
+              }
+              if (data.tripPlan) {
+                if (!result.tripPlan) {
+                  result.tripPlan = data.tripPlan;
+                  result.scheduledItinerary = data.scheduledItinerary || null;
+                } else {
+                  result.tripPlan = {
+                    ...result.tripPlan,
+                    suggestedActivities: [
+                      ...(result.tripPlan.suggestedActivities || []),
+                      ...(data.tripPlan.suggestedActivities || []),
+                    ],
+                    dailyItinerary: [
+                      ...(result.tripPlan.dailyItinerary || []),
+                      ...(data.tripPlan.dailyItinerary || []),
+                    ],
+                    tips: [...new Set([
+                      ...(result.tripPlan.tips || []),
+                      ...(data.tripPlan.tips || []),
+                    ])],
+                  };
+                  if (data.scheduledItinerary) {
+                    result.scheduledItinerary = [
+                      ...(result.scheduledItinerary || []),
+                      ...data.scheduledItinerary,
+                    ];
+                  }
+                }
+              }
+              onEvent({ type: "stop-itinerary", data, accumulated: result });
+            } else if (type === "destination") {
               result.trip = data;
               onEvent({ type: "destination", data });
             } else if (type === "weather") {
@@ -392,6 +460,11 @@ export async function streamTripPlan(tripData, onEvent, signal) {
             } else if (type === "safety") {
               result.safetyGuidance = data;
             } else if (type === "done") {
+              if (data.routePlan) result.routePlan = data.routePlan;
+              if (data.stopWeather) result.stopWeather = data.stopWeather;
+              if (data.stopItineraries) result.stopItineraries = data.stopItineraries;
+              if (data.tripPlan) result.tripPlan = data.tripPlan;
+              if (data.trip) result.trip = data.trip;
               onEvent({ type: "done", data: result });
             } else if (type === "error") {
               const err = new Error(data.message || data.error || "Stream error");

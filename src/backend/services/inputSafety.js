@@ -257,6 +257,71 @@ export function sanitizeFoodPreferences(fp) {
   };
 }
 
+export function sanitizeRouteIntent(input) {
+  if (!input || typeof input !== "object") {
+    return { tripShape: "single_destination", stops: [], countryTour: null };
+  }
+
+  const tripShape = ["multi_stop", "country_tour"].includes(input.tripShape)
+    ? input.tripShape
+    : "single_destination";
+  const routeOptimizationMode = ["user_order", "recommended", "suggested_improvement"].includes(input.routeOptimizationMode)
+    ? input.routeOptimizationMode
+    : null;
+
+  const stops = Array.isArray(input.stops)
+    ? input.stops.slice(0, 8).map((stop, index) => {
+      const source = stop && typeof stop === "object" ? stop : { name: stop };
+      const name = sanitizeDestination(source.name || "");
+      if (!name) return null;
+      const requestedNights = Number(source.requestedNights);
+      const role = ["must_visit", "suggested", "transit"].includes(source.role)
+        ? source.role
+        : "must_visit";
+      return {
+        id: sanitizeActivity(source.id || name.toLowerCase().replace(/\s+/g, "-")) || `stop-${index + 1}`,
+        name,
+        countryCode: source.countryCode ? sanitizeActivity(String(source.countryCode)).toUpperCase().slice(0, 3) : null,
+        role,
+        requestedNights: Number.isFinite(requestedNights) && requestedNights > 0
+          ? Math.min(21, Math.floor(requestedNights))
+          : null,
+        mustInclude: source.mustInclude !== false,
+        notes: Array.isArray(source.notes)
+          ? source.notes.slice(0, 4).map((note) => sanitizeDestination(String(note))).filter(Boolean)
+          : [],
+      };
+    }).filter(Boolean)
+    : [];
+
+  const rawCountryTour = input.countryTour && typeof input.countryTour === "object"
+    ? input.countryTour
+    : null;
+  const country = sanitizeDestination(rawCountryTour?.country || "");
+  const suggestedStopCount = Number(rawCountryTour?.suggestedStopCount);
+  const countryTour = country
+    ? {
+      country,
+      countryCode: rawCountryTour?.countryCode
+        ? sanitizeActivity(String(rawCountryTour.countryCode)).toUpperCase().slice(0, 3)
+        : null,
+      requestedRegions: Array.isArray(rawCountryTour?.requestedRegions)
+        ? rawCountryTour.requestedRegions.slice(0, 8).map((region) => sanitizeDestination(String(region))).filter(Boolean)
+        : [],
+      suggestedStopCount: Number.isFinite(suggestedStopCount) && suggestedStopCount > 0
+        ? Math.min(8, Math.floor(suggestedStopCount))
+        : null,
+    }
+    : null;
+
+  return {
+    tripShape,
+    routeOptimizationMode,
+    stops: tripShape === "single_destination" ? [] : stops,
+    countryTour: tripShape === "country_tour" ? countryTour : null,
+  };
+}
+
 // ── Pet sanitization ────────────────────────────────────────────────
 
 const ALLOWED_PET_TYPES = new Set(["dog", "cat", "small_animal"]);

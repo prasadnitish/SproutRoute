@@ -12,10 +12,11 @@ test.describe("Happy Path — full input → results journey", () => {
     await expect(page.getByText("76", { exact: false }).first()).toBeVisible();
     // Itinerary tile — first activity (use .first() because the name appears in both the card and the route panel)
     await expect(page.getByText("Road to Hana").first()).toBeVisible();
-    // Safety tile — emergency number
+    // Premium day map
+    await expect(page.getByRole("region", { name: /day map day 1 route/i })).toBeVisible();
+    await expect(page.locator("iframe").first()).toBeVisible();
+    // Safety tab — emergency number
+    await page.getByRole("button", { name: /Safety/i }).click();
     await expect(page.getByText("911")).toBeVisible();
-    // Map tile
-    await expect(page.getByText(/map/i).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /explore on google maps/i })).toBeVisible();
   });
 });

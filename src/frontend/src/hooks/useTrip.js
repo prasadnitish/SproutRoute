@@ -1,14 +1,57 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
+import { addRecentTrip } from "../utils/recentTrips.js";
 import { analytics } from "../utils/analytics.js";
 import {
   parseInput,
+  prefetchRouteAttractions,
   streamTripPlan,
   generatePackingList,
   getTravelSafety,
   petTravelCheck,
   getCarSeatGuidance,
 } from "../services/api.js";
+
+function compactText(value, maxLength) {
+  return String(value || "").trim().slice(0, maxLength);
+}
+
+function compactPrefetchedAttraction(attraction) {
+  if (!attraction || typeof attraction !== "object") return null;
+  const canonicalName = compactText(attraction.canonical_name || attraction.canonicalName || attraction.name, 80);
+  if (!canonicalName) return null;
+  const kidAppealScore = Number(attraction.kid_appeal_score || attraction.kidAppealScore || 0);
+  return {
+    canonical_name: canonicalName,
+    name: canonicalName,
+    category: compactText(attraction.category || "general", 40).toLowerCase() || "general",
+    city_display_name: compactText(attraction.city_display_name || attraction.cityDisplayName, 80),
+    short_summary: compactText(attraction.short_summary || attraction.shortSummary, 120),
+    what_it_is: compactText(attraction.what_it_is || attraction.whatItIs, 120),
+    why_recommended: compactText(attraction.why_recommended || attraction.whyRecommended, 120),
+    timing_tip: compactText(attraction.timing_tip || attraction.timingTip, 100),
+    indoor_outdoor: compactText(attraction.indoor_outdoor || attraction.indoorOutdoor, 20),
+    duration_bucket: compactText(attraction.duration_bucket || attraction.durationBucket, 30),
+    verification_status: compactText(attraction.verification_status || attraction.verificationStatus || "unverified", 30),
+    stroller_friendly: Boolean(attraction.stroller_friendly || attraction.strollerFriendly),
+    pet_friendly: Boolean(attraction.pet_friendly || attraction.petFriendly),
+    kid_appeal_score: Number.isFinite(kidAppealScore) ? Math.max(0, Math.min(10, kidAppealScore)) : 0,
+  };
+}
+
+function compactPrefetchedAttractionsByStopId(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(
+    Object.entries(raw)
+      .map(([stopId, attractions]) => [
+        stopId,
+        Array.isArray(attractions)
+          ? attractions.slice(0, 12).map(compactPrefetchedAttraction).filter(Boolean)
+          : [],
+      ])
+      .filter(([, attractions]) => attractions.length > 0),
+  );
+}
 
 export function useTrip() {
   const [screen, setScreen] = useState("input"); // "input" | "generating" | "results"
@@ -20,9 +63,11 @@ export function useTrip() {
   const [safetyData, setSafetyData] = useState(null);
   const [petSafetyData, setPetSafetyData] = useState(null);
   const [carSeatData, setCarSeatData] = useState(null);
+  const [routePrefetch, setRoutePrefetch] = useState({ tripRequestId: null, statusByStopId: {}, attractionsByStopId: {} });
   const [progress, setProgress] = useState({});
   const [error, setError] = useState(null);
   const abortRef = useRef(null);
+  const prefetchSeqRef = useRef(0);
 
   const STEPS = ["resolve", "weather", "itinerary", "packing", "safety"];
 
@@ -64,6 +109,50 @@ export function useTrip() {
     }
   }, []);
 
+  const startRouteAttractionPrefetch = useCallback((parsed, signal) => {
+    const stops = Array.isArray(parsed?.stops) ? parsed.stops.filter((stop) => stop?.name) : [];
+    if (!["multi_stop", "country_tour"].includes(parsed?.tripShape) || stops.length === 0) return;
+
+    const seq = prefetchSeqRef.current + 1;
+    prefetchSeqRef.current = seq;
+    const tripRequestId = `${Date.now()}-${seq}`;
+    setRoutePrefetch({
+      tripRequestId,
+      statusByStopId: Object.fromEntries(stops.map((stop) => [stop.id, "loading"])),
+      attractionsByStopId: {},
+    });
+
+    prefetchRouteAttractions({
+      tripRequestId,
+      stops: stops.map((stop) => ({
+        id: stop.id,
+        name: stop.name,
+        countryCode: stop.countryCode || parsed?.countryTour?.countryCode || null,
+      })),
+      childrenAges: parsed.childrenAges || [],
+      pets: (parsed.pets || []).map((pet) => ({ type: pet.type || pet.species })),
+      vibe: parsed.vibe || "",
+      pace: parsed.pacePreference || "",
+      accessibilityNeeds: parsed.accessibilityNeeds || [],
+    }, { signal })
+      .then((result) => {
+        if (signal?.aborted || prefetchSeqRef.current !== seq) return;
+        setRoutePrefetch({
+          tripRequestId: result.tripRequestId || tripRequestId,
+          statusByStopId: result.statusByStopId || {},
+          attractionsByStopId: compactPrefetchedAttractionsByStopId(result.attractionsByStopId),
+        });
+      })
+      .catch(() => {
+        if (signal?.aborted || prefetchSeqRef.current !== seq) return;
+        setRoutePrefetch({
+          tripRequestId,
+          statusByStopId: Object.fromEntries(stops.map((stop) => [stop.id, "error"])),
+          attractionsByStopId: {},
+        });
+      });
+  }, []);
+
   const submitTrip = useCallback(async (text, geolocation, savedProfile = null) => {
     // Abort any in-flight background fetches from a previous submission
     if (abortRef.current) abortRef.current.abort();
@@ -79,6 +168,7 @@ export function useTrip() {
     setSafetyData(null);
     setPetSafetyData(null);
     setCarSeatData(null);
+    setRoutePrefetch({ tripRequestId: null, statusByStopId: {}, attractionsByStopId: {} });
     setScreenWithHistory("generating");
     setProgress({});
 
@@ -111,13 +201,19 @@ export function useTrip() {
         return;
       }
 
+      if (["multi_stop", "country_tour"].includes(parsedWithContext.tripShape)) {
+        markStep("weather", "idle");
+        startRouteAttractionPrefetch(parsedWithContext, abortRef.current.signal);
+        return;
+      }
+
       await generateTrip(parsedWithContext);
     } catch (err) {
       if (err.name === "AbortError") return;
       analytics.tripError(err.name || "trip_generation_failed");
       setError(err.message || "Something went wrong");
     }
-  }, []);
+  }, [setScreenWithHistory, startRouteAttractionPrefetch]);
 
   const selectDestination = useCallback(async (destinationName) => {
     if (!parsedInput) return;
@@ -130,6 +226,25 @@ export function useTrip() {
       setError(err.message || "Something went wrong");
     }
   }, [parsedInput]);
+
+  const confirmRouteTrip = useCallback(async (routeDraft = {}) => {
+    if (!parsedInput) return;
+    const updated = {
+      ...parsedInput,
+      ...routeDraft,
+      tripShape: routeDraft.tripShape || parsedInput.tripShape,
+      stops: routeDraft.stops || parsedInput.stops || [],
+      countryTour: routeDraft.countryTour !== undefined ? routeDraft.countryTour : parsedInput.countryTour || null,
+      prefetchedAttractionsByStopId: compactPrefetchedAttractionsByStopId(routePrefetch.attractionsByStopId),
+    };
+    setParsedInput(updated);
+    try {
+      await generateTrip(updated);
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      setError(err.message || "Something went wrong");
+    }
+  }, [parsedInput, routePrefetch.attractionsByStopId]);
 
   async function generateTrip(parsed) {
     markStep("weather", "active");
@@ -159,6 +274,10 @@ export function useTrip() {
       celebrationContext: parsed.celebrationContext || null,
       specialNotes: parsed.specialNotes || [],
       extraContext: parsed.extraContext || [],
+      tripShape: parsed.tripShape || "single_destination",
+      stops: parsed.stops || [],
+      countryTour: parsed.countryTour || null,
+      prefetchedAttractionsByStopId: compactPrefetchedAttractionsByStopId(parsed.prefetchedAttractionsByStopId),
       savedProfile: parsed.savedProfile || null,
     };
 
@@ -169,6 +288,48 @@ export function useTrip() {
       if (signal?.aborted) return;
 
       switch (event.type) {
+        case "route":
+          markStep("weather", "active");
+          setTripData(prev => ({
+            ...prev,
+            trip: event.data.trip,
+            routePlan: event.data.routePlan,
+            parsed,
+          }));
+          setScreenWithHistory("results");
+          analytics.tripResultsViewed(event.data?.routePlan?.title || parsed?.destination, Date.now() - (abortRef.current?._startTime || Date.now()));
+          break;
+
+        case "stop-weather":
+          markStep("weather", "active");
+          setTripData(prev => ({
+            ...prev,
+            stopWeather: {
+              ...(prev?.stopWeather || {}),
+              [event.data.stop.id]: event.data.weather,
+            },
+          }));
+          break;
+
+        case "stop-itinerary":
+          markStep("itinerary", "active");
+          setTripData(prev => ({
+            ...prev,
+            stopItineraries: {
+              ...(prev?.stopItineraries || {}),
+              [event.data.stop.id]: event.data.tripPlan,
+            },
+            scheduledByStop: event.data.scheduledItinerary
+              ? {
+                ...(prev?.scheduledByStop || {}),
+                [event.data.stop.id]: event.data.scheduledItinerary,
+              }
+              : prev?.scheduledByStop,
+            tripPlan: event.accumulated?.tripPlan || prev?.tripPlan,
+            scheduledItinerary: event.accumulated?.scheduledItinerary || prev?.scheduledItinerary,
+          }));
+          break;
+
         case "destination":
           markStep("weather", "active");
           // Show results screen IMMEDIATELY with destination data
@@ -230,6 +391,10 @@ export function useTrip() {
             weather: result.weather,
             tripPlan: result.tripPlan,
             scheduledItinerary: result.scheduledItinerary || null,
+            routePlan: result.routePlan || null,
+            stopWeather: result.stopWeather || {},
+            stopItineraries: result.stopItineraries || {},
+            scheduledByStop: result.scheduledByStop || {},
             parsed,
           };
           setTripData(fullData);
@@ -237,7 +402,16 @@ export function useTrip() {
           if (result.packingList) {
             setPackingList(result.packingList);
           }
+          addRecentTrip({
+            destination: parsed?.destination,
+            startDate: parsed?.startDate,
+            endDate: parsed?.endDate,
+          });
           analytics.tripCompleted(parsed?.destination, fullData.trip?.duration);
+          if (result.routePlan) {
+            markStep("weather", "done");
+            markStep("itinerary", "done");
+          }
           // Only transition if not already on results (destination event handles this)
           if (screenRef.current !== "results") setScreenWithHistory("results");
           break;
@@ -376,11 +550,12 @@ export function useTrip() {
     setProgress({});
     setError(null);
     setPackingError(null);
+    setRoutePrefetch({ tripRequestId: null, statusByStopId: {}, attractionsByStopId: {} });
   }, []);
 
   return {
-    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData,
+    screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData, routePrefetch,
     progress, error, STEPS,
-    submitTrip, selectDestination, goBack, retryPacking,
+    submitTrip, selectDestination, confirmRouteTrip, goBack, retryPacking,
   };
 }

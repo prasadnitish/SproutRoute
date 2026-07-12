@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../../src/backend/server.js";
+import { daysFromNow } from "../helpers/testDates.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
 
@@ -57,6 +58,62 @@ async function invokeRoute(app, method, path, body) {
 
   await handler(req, res);
   return res;
+}
+
+async function invokeStreamRoute(app, body) {
+  const routeStack = app._router?.stack || [];
+  const routeLayer = routeStack.find(
+    (layer) =>
+      layer.route &&
+      layer.route.path === "/api/v1/trip/stream" &&
+      layer.route.methods.post,
+  );
+
+  if (!routeLayer) throw new Error("Route not found: POST /api/v1/trip/stream");
+
+  const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
+  const writes = [];
+  const req = {
+    method: "POST",
+    path: "/api/v1/trip/stream",
+    body,
+    headers: {},
+    ip: "127.0.0.1",
+    reqId: "test-stream",
+    on() {},
+    off() {},
+  };
+  const res = {
+    headers: {},
+    writableEnded: false,
+    destroyed: false,
+    setHeader(name, value) { this.headers[name] = value; },
+    write(chunk) { writes.push(String(chunk)); return true; },
+    end() { this.writableEnded = true; },
+    on() {},
+    off() {},
+  };
+
+  await handler(req, res);
+  return { writes, body: writes.join("") };
+}
+
+function listen(app) {
+  return new Promise((resolve) => {
+    const server = app.listen(0, () => resolve(server));
+  });
+}
+
+function parseSseEvents(body) {
+  return body
+    .split("\n\n")
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const event = block.match(/^event: (.+)$/m)?.[1];
+      const data = block.match(/^data: (.+)$/m)?.[1];
+      return { event, data: data ? JSON.parse(data) : null };
+    });
 }
 
 test.afterEach(() => {
@@ -508,7 +565,7 @@ test("POST /api/v1/safety/pet-travel-check skips airlines for drive mode", async
   assert.equal(res.body.entryRequirements, null, "no entry requirements for US domestic");
 });
 
-test("CSP allows Google Fonts and OpenStreetMap iframe", async () => {
+test("CSP allows Google Fonts and Google Maps iframe", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const app = createApp({ enableRequestLogging: false });
 
@@ -539,7 +596,8 @@ test("CSP allows Google Fonts and OpenStreetMap iframe", async () => {
   assert.ok(csp, "Content-Security-Policy header must be set");
   assert.ok(csp.includes("fonts.googleapis.com"), "CSP must allow Google Fonts stylesheets");
   assert.ok(csp.includes("fonts.gstatic.com"), "CSP must allow Google Fonts files");
-  assert.ok(csp.includes("openstreetmap.org"), "CSP must allow OSM iframe");
+  assert.ok(csp.includes("https://www.google.com"), "CSP must allow Google Maps iframe");
+  assert.ok(csp.includes("https://maps.google.com"), "CSP must allow Google Maps route iframe");
   assert.ok(nextCalled, "middleware must call next()");
 });
 
@@ -563,4 +621,173 @@ test("POST /api/v1/safety/pet-travel-check returns airline guidance with DI mock
 
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.airlineGuidance[0].pet, "TestDog");
+});
+
+test("POST /api/v1/trip/stream emits route before stop-level weather and itinerary for multi-stop trips", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+
+  const app = createApp({
+    enableRequestLogging: false,
+    geocodeLocationFn: async (destination) => ({
+      lat: destination === "Amsterdam" ? 52.37 : 52.52,
+      lon: destination === "Amsterdam" ? 4.9 : 13.4,
+      displayName: `${destination}, Test`,
+      countryCode: destination === "Amsterdam" ? "NL" : "DE",
+    }),
+    getWeatherForecastFn: async (_lat, _lon, countryCode, startDate) => ({
+      summary: `${countryCode} forecast`,
+      forecast: [{ date: startDate, high: 70, condition: "Clear" }],
+    }),
+    generateTripPlanChunkedFn: async (tripInput, _weather, onChunk) => {
+      const plan = {
+        overview: `Plan for ${tripInput.destination}`,
+        suggestedActivities: [{ id: "museum", name: `${tripInput.destination} Museum`, category: "museum" }],
+        dailyItinerary: [{ day: "Day 1", activities: ["museum"], notes: "" }],
+        tips: [`Tip for ${tripInput.destination}`],
+      };
+      onChunk(plan, { chunk: 1, totalChunks: 1, dayOffset: tripInput.dayOffset || 0 });
+      return plan;
+    },
+  });
+
+  const result = await invokeStreamRoute(app, {
+    destination: "Europe multi-city trip",
+    startDate: daysFromNow(90),
+    endDate: daysFromNow(94),
+    adults: 2,
+    childrenAges: [],
+    activities: ["international"],
+    tripShape: "multi_stop",
+    stops: [
+      { id: "amsterdam", name: "Amsterdam", role: "must_visit" },
+      { id: "berlin", name: "Berlin", role: "must_visit" },
+    ],
+  });
+
+  const events = parseSseEvents(result.body);
+  assert.deepEqual(events.slice(0, 4).map((entry) => entry.event), [
+    "route",
+    "stop-weather",
+    "stop-itinerary",
+    "stop-weather",
+  ]);
+  assert.equal(events[0].data.routePlan.stops.length, 2);
+  assert.equal(events[0].data.routePlan.stops[0].name, "Amsterdam");
+  assert.equal(events.find((entry) => entry.event === "done").data.routePlan.stops[1].name, "Berlin");
+});
+
+test("POST /api/v1/trip/stream accepts prefetched multi-stop attraction payloads", async () => {
+  const app = createApp({
+    enableRequestLogging: false,
+    planRouteStopsFn: async ({ routePlan }) => ({
+      routePlan,
+      stopWeather: {},
+      stopItineraries: {},
+      tripPlan: { suggestedActivities: [], dailyItinerary: [], tips: [] },
+    }),
+  });
+  const server = await listen(app);
+
+  try {
+    const port = server.address().port;
+    const longText = "family-friendly verified attraction candidate ".repeat(10);
+    const attractions = Array.from({ length: 12 }, (_, index) => ({
+      canonical_name: `Attraction ${index + 1}`,
+      category: "museum",
+      city_display_name: "Tokyo",
+      what_it_is: longText,
+      why_recommended: longText,
+      timing_tip: longText,
+      verification_status: "verified",
+    }));
+    const payload = {
+      destination: "Japan",
+      startDate: "2026-11-01",
+      endDate: "2026-11-08",
+      activities: ["international"],
+      adults: 2,
+      childrenAges: [],
+      tripShape: "country_tour",
+      stops: [
+        { id: "tokyo", name: "Tokyo", countryCode: "JP" },
+        { id: "kyoto", name: "Kyoto", countryCode: "JP" },
+        { id: "osaka", name: "Osaka", countryCode: "JP" },
+      ],
+      countryTour: { country: "Japan", countryCode: "JP" },
+      prefetchedAttractionsByStopId: {
+        tokyo: attractions,
+        kyoto: attractions,
+        osaka: attractions,
+      },
+    };
+
+    assert.ok(
+      JSON.stringify(payload).length > 10_000,
+      "regression payload must exceed the former 10kb parser limit",
+    );
+    assert.ok(
+      JSON.stringify(payload).length < 64_000,
+      "regression payload should represent the compact prefetch budget",
+    );
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/v1/trip/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      body: JSON.stringify(payload),
+    });
+    const text = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(text, /event: route/);
+    assert.match(text, /event: done/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("POST /api/v1/trip/route-attractions prefetches candidates per stop without raw prompt text", async () => {
+  const calls = [];
+  const app = createApp({
+    enableRequestLogging: false,
+    attractionMemoryService: {
+      getPlanningCandidates: async (payload) => {
+        calls.push(payload);
+        return [{
+          canonical_name: `${payload.destination} Museum`,
+          category: "museum",
+          what_it_is: "A compact museum summary",
+          why_recommended: "Works well for families",
+          internal_notes: "do not send operational notes",
+          raw_description: "x".repeat(2000),
+        }];
+      },
+    },
+  });
+
+  const res = await invokeRoute(app, "POST", "/api/v1/trip/route-attractions", {
+    tripRequestId: "trip-123",
+    rawText: "do not forward raw prompt text",
+    vibe: "international",
+    childrenAges: [4, 9],
+    pets: [{ name: "Private Pet Name", type: "dog", specialNeeds: "Private meds" }],
+    stops: [
+      { id: "tokyo", name: "Tokyo", countryCode: "JP" },
+      { id: "kyoto", name: "Kyoto", countryCode: "JP" },
+    ],
+  });
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.tripRequestId, "trip-123");
+  assert.deepEqual(Object.keys(res.body.attractionsByStopId), ["tokyo", "kyoto"]);
+  assert.equal(res.body.statusByStopId.tokyo, "ready");
+  assert.equal(res.body.attractionsByStopId.tokyo[0].canonical_name, "Tokyo Museum");
+  assert.equal("internal_notes" in res.body.attractionsByStopId.tokyo[0], false);
+  assert.equal("raw_description" in res.body.attractionsByStopId.tokyo[0], false);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].destination, "Tokyo");
+  assert.deepEqual(calls[0].childrenAges, [4, 9]);
+  assert.deepEqual(calls[0].requestedActivities, ["international"]);
+  assert.deepEqual(calls[0].pets, [{ type: "dog" }]);
+  assert.equal("rawText" in calls[0], false);
+  assert.equal("specialNeeds" in calls[0].pets[0], false);
 });
