@@ -9,8 +9,8 @@ test.describe("ItineraryTile", () => {
   });
 
   test("renders day tabs", async ({ page }) => {
-    await expect(page.getByRole("button", { name: /apr 12/i })).toBeVisible();
-    await expect(page.getByRole("button", { name: /apr 13/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Sun, Apr 12/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Mon, Apr 13/i })).toBeVisible();
   });
 
   test("day 1 activities are visible by default", async ({ page }) => {
@@ -18,7 +18,7 @@ test.describe("ItineraryTile", () => {
   });
 
   test("switching to day 2 shows day 2 activities", async ({ page }) => {
-    await page.getByRole("button", { name: /apr 13/i }).click();
+    await page.getByRole("button", { name: /Mon, Apr 13/i }).click();
     await expect(page.getByText("Snorkeling at Molokini").first()).toBeVisible();
     await expect(page.getByText("Road to Hana")).not.toBeVisible();
   });

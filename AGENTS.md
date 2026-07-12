@@ -38,6 +38,8 @@ strollerscout/
 │   │   │   │   ├── ProfileImportModal.jsx ← External AI profile import
 │   │   │   │   ├── PackingChecklist.jsx   ← Packing items + checked state + custom items
 │   │   │   │   ├── ActivityDetailPanel.jsx ← Lazy Places details for tapped activities
+│   │   │   │   ├── maps/
+│   │   │   │   │   └── PremiumRouteMap.jsx ← Google Maps route/day visualization
 │   │   │   │   └── mosaic/
 │   │   │   │       ├── HeroTile.jsx
 │   │   │   │       ├── WeatherTile.jsx
@@ -128,12 +130,13 @@ User submits free-text trip from InputScreen
 → Backend: geocode → weather → planningContext → cached attractions → chunked itinerary
 → First SSE `destination` event opens ResultsScreen immediately
 → Later SSE `weather` + `itinerary-chunk` events fill WeatherTile + ItineraryTile
+→ Route-aware trips also render PremiumRouteMap from route stops and active-day activities
 → Background fetches:
    → POST /api/generate                    (current web packing path)
    → POST /api/safety/travel-tips
    → POST /api/safety/car-seat-check       (if children)
    → POST /api/v1/safety/pet-travel-check  (if pets)
-→ ResultsScreen renders: HeroTile + WeatherTile + ItineraryTile + SafetyTile + PetSafetyTile + PackingChecklist
+→ ResultsScreen renders: HeroTile + PremiumRouteMap + WeatherTile + ItineraryTile + SafetyTile + PetSafetyTile + PackingChecklist
 ```
 
 ### Pet Travel Data Flow (when pets present)

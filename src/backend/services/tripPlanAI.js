@@ -56,6 +56,22 @@ function normalizeMealField(meals) {
   return normalized;
 }
 
+function isMajorThemeParkActivity(activity) {
+  const name = String(activity?.name || activity?.title || "").toLowerCase();
+  const category = String(activity?.category || "").toLowerCase().replace(/\s+/g, "_");
+  return (
+    category === "theme_park" ||
+    category === "theme_parks" ||
+    /\b(disneyland|disneysea|disney world|universal studios|universal orlando|legoland|six flags|theme park|amusement park)\b/.test(name)
+  );
+}
+
+function normalizeActivityDuration(activity) {
+  const rawDuration = String(activity?.duration || "2 hours").trim();
+  if (isMajorThemeParkActivity(activity)) return "full day";
+  return rawDuration;
+}
+
 function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = null } = {}) {
   if (!parsed || typeof parsed !== "object") {
     throw new Error("Trip plan response was not an object");
@@ -79,7 +95,7 @@ function normalizeTripPlanShape(parsed, { expectedDays = null, maxActivities = n
         whatItIs: String(safe.whatItIs || safe.description || safe.summary || "").trim(),
         whyRecommended: String(safe.whyRecommended || safe.reason || "").trim(),
         timingTip: String(safe.timingTip || safe.bestTime || "").trim(),
-        duration: String(safe.duration || "2 hours").trim(),
+        duration: normalizeActivityDuration(safe),
         kidFriendly: sanitizeBoolean(safe.kidFriendly, true),
         weatherDependent: sanitizeBoolean(safe.weatherDependent, false),
         ...(safe.petFriendly !== undefined ? { petFriendly: sanitizeBoolean(safe.petFriendly, false) } : {}),
@@ -256,7 +272,11 @@ function buildCachedReplacementActivity(attraction, index, { hasPets = false } =
     whatItIs: String(attraction?.what_it_is || attraction?.whatItIs || summary).trim(),
     whyRecommended,
     timingTip,
-    duration: mapDurationBucket(attraction?.duration_bucket || attraction?.durationBucket),
+    duration: normalizeActivityDuration({
+      name,
+      category,
+      duration: mapDurationBucket(attraction?.duration_bucket || attraction?.durationBucket),
+    }),
     kidFriendly: Boolean(attraction?.stroller_friendly || kidAppeal >= 6),
     weatherDependent: indoorOutdoor ? indoorOutdoor !== "indoor" : true,
     ...(hasPets ? { petFriendly: Boolean(attraction?.pet_friendly || attraction?.petFriendly) } : {}),
@@ -624,6 +644,8 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     pets = [],
     plannerSummary = "",
     cachedAttractions = [],
+    routeStop = null,
+    routePlan = null,
   } = tripData;
   const expectedDays = inclusiveDayCount(startDate, endDate);
   const maxActivities = Math.max(expectedDays * 6, 10);
@@ -639,7 +661,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       activities,
       children,
       weatherForecast,
-      { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions },
+      { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan },
     );
   const primaryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: false });
 
@@ -680,7 +702,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
           activities,
           children,
           weatherForecast,
-          { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions },
+          { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan },
         );
       const retryMaxTokens = isQualityFailure
         ? primaryMaxTokens
@@ -921,6 +943,8 @@ function buildTripPlanPrompt(
     pets = [],
     plannerSummary = "",
     cachedAttractions = [],
+    routeStop = null,
+    routePlan = null,
   } = options;
 
   const isCruise = tripType === "cruise";
@@ -935,6 +959,11 @@ function buildTripPlanPrompt(
   const childrenInfo = isAdultsOnly
     ? "Adults-only trip, no children"
     : children.map((c) => `age ${c.age}`).join(", ");
+  const otherRouteStops = routeStop && Array.isArray(routePlan?.stops)
+    ? routePlan.stops
+      .map((stop) => stop?.name)
+      .filter((name) => name && name !== routeStop.name)
+    : [];
 
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
@@ -986,6 +1015,16 @@ ${pets.map((p) => `- ${p.name || "Unnamed pet"}: ${p.breed || p.type}, ${p.weigh
 - Note any entry requirements or useful language phrases if destination is non-English-speaking
 - Include a tip about local emergency number (e.g., EU 112, UK 999) in the tips array
 - Consider time zone adjustment in the first-day itinerary if cross-continental travel` : "";
+
+  const routeStopContext = routeStop ? `
+**MULTI-STOP ROUTE STOP RULES (strict):**
+- This itinerary generation is ONLY for ${routeStop.name}.
+- Global route days for this stop: ${routeStop.dayStart || 1}-${routeStop.dayEnd || routeStop.dayStart || 1}.
+- Arrival date: ${routeStop.arrivalDate || startDate}; departure/transfer date: ${routeStop.departureDate || endDate}.
+- Do NOT schedule activities in ${otherRouteStops.length ? otherRouteStops.join(", ") : "other route stops"}.
+- Do NOT repeat the whole route inside this stop. This stop should feel like staying in ${routeStop.name}, then moving on.
+- Transit between cities belongs in the route timeline, not as multiple city activities inside the same day.
+- If this is a theme park day, use "full day" duration; do not compress major parks into 1-2 hour blocks.` : "";
 
   const profileContext = plannerSummary
     ? `
@@ -1057,6 +1096,7 @@ Generate a trip plan with the following structure:
 }
 ${cruiseInstructions}
 ${internationalContext}
+${routeStopContext}
 ${petContext}
 ${profileContext}
 ${attractionMemoryContext}
@@ -1103,6 +1143,9 @@ Return ONLY the JSON, no additional text.`;
     return `${days} days: ${dates.join(", ")}`;
   })()})
 - **YOU MUST RETURN EXACTLY ${Math.max(1, Math.ceil((new Date(endDate + "T12:00:00Z") - new Date(startDate + "T12:00:00Z")) / 86400000) + 1)} DAY OBJECTS in dailyItinerary. One for each date listed above.**
+${routeStop ? `- Route stop: ${routeStop.name}
+- Global route days: ${routeStop.dayStart || 1}-${routeStop.dayEnd || routeStop.dayStart || 1}
+- Other route stops to avoid in this stop plan: ${otherRouteStops.length ? otherRouteStops.join(", ") : "none"}` : ""}
 - Interested Activities: ${activities.join(", ")}
 - ${isAdultsOnly ? "Travelers: Adults only (no children)" : `Children: ${children.length} child(ren) - ${childrenInfo}`}
 ${plannerSummary ? `

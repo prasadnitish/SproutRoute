@@ -5,6 +5,7 @@
 // Output: scheduledItinerary with actual times, travel gaps, conflict warnings
 
 import { log } from "../utils/logger.js";
+import { classifyActivityConstraint } from "./activityKnowledgeBase.js";
 
 // ── Time slot defaults (family-friendly) ───────────────────────────────────
 
@@ -33,10 +34,20 @@ function formatTime(minutes) {
   return `${h12}:${m.toString().padStart(2, "0")} ${period}`;
 }
 
+function isMajorThemeParkActivity(activity) {
+  const name = String(activity?.name || activity?.title || "").toLowerCase();
+  const category = String(activity?.category || "").toLowerCase().replace(/\s+/g, "_");
+  return (
+    category === "theme_park" ||
+    category === "theme_parks" ||
+    /\b(disneyland|disneysea|disney world|universal studios|universal orlando|legoland|six flags|theme park|amusement park)\b/.test(name)
+  );
+}
+
 function parseDuration(durationStr) {
   if (!durationStr) return 120; // default 2 hours
   const lower = durationStr.toLowerCase();
-  if (lower.includes("full day")) return 360;
+  if (lower.includes("full day")) return 480;
   if (lower.includes("half day")) return 240;
   const hourMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*h/);
   if (hourMatch) {
@@ -47,6 +58,15 @@ function parseDuration(durationStr) {
   const minMatch = lower.match(/(\d+)\s*min/);
   if (minMatch) return parseInt(minMatch[1]);
   return 120;
+}
+
+function durationForActivity(activity) {
+  const constraint = classifyActivityConstraint(activity);
+  if (Number.isFinite(constraint.durationMinutes) && constraint.durationMinutes > 0) {
+    return constraint.durationMinutes;
+  }
+  if (isMajorThemeParkActivity(activity)) return 480;
+  return parseDuration(activity?.duration);
 }
 
 /**
@@ -92,10 +112,188 @@ function parseAmPm(timeStr) {
   return h * 60 + m;
 }
 
-function estimateTravelMinutes(/* from, to */) {
-  // Rough estimate: 20 min between activities in the same city
-  // Future: use Google Distance Matrix API for real estimates
-  return 20;
+function toFiniteNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function coordinatesFrom(value) {
+  if (!value || typeof value !== "object") return null;
+  const lat = toFiniteNumber(value.latitude ?? value.lat);
+  const lon = toFiniteNumber(value.longitude ?? value.lng ?? value.lon);
+  if (lat == null || lon == null) return null;
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+  return { lat, lon };
+}
+
+function coordinatesForActivity(activity, enriched = null) {
+  return coordinatesFrom(enriched)
+    || coordinatesFrom(activity?.enriched)
+    || coordinatesFrom(activity);
+}
+
+function distanceMiles(a, b) {
+  if (!a || !b) return null;
+  const toRad = (degrees) => degrees * Math.PI / 180;
+  const radiusMiles = 3958.8;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const x =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return radiusMiles * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function estimateTravelMinutes(from, to) {
+  const fromCoords = coordinatesForActivity(from?.activity || from, from?.enriched);
+  const toCoords = coordinatesForActivity(to?.activity || to, to?.enriched);
+  const miles = distanceMiles(fromCoords, toCoords);
+  if (!Number.isFinite(miles)) return 20;
+
+  // Mixed city travel estimate: access/egress buffer plus low-speed urban movement.
+  return Math.max(10, Math.min(90, Math.round(8 + miles * 6)));
+}
+
+function enrichedForActivity(activity, enrichedMap) {
+  const name = activity?.name || activity?.title || "";
+  return enrichedMap[name] || enrichedMap[activity?.id] || null;
+}
+
+function resolveActivityReference(actRef, activityMap, activityNameMap) {
+  if (typeof actRef === "string") {
+    return activityMap[actRef] || activityNameMap[actRef.toLowerCase()] || null;
+  }
+  return actRef || null;
+}
+
+function activitySignature(activity) {
+  return String(activity?.id || activity?.name || activity?.title || "");
+}
+
+function pathDistanceMiles(items) {
+  let total = 0;
+  let measuredLegs = 0;
+  for (let i = 1; i < items.length; i += 1) {
+    const miles = distanceMiles(items[i - 1].coords, items[i].coords);
+    if (Number.isFinite(miles)) {
+      total += miles;
+      measuredLegs += 1;
+    }
+  }
+  return measuredLegs > 0 ? total : null;
+}
+
+function nearestNeighborPath(locatedItems, startIndex) {
+  const remaining = locatedItems.filter((_, index) => index !== startIndex);
+  const route = [locatedItems[startIndex]];
+
+  while (remaining.length > 0) {
+    const last = route[route.length - 1];
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    remaining.forEach((candidate, index) => {
+      const miles = distanceMiles(last.coords, candidate.coords) ?? Infinity;
+      if (miles < bestDistance || (miles === bestDistance && candidate.originalIndex < remaining[bestIndex].originalIndex)) {
+        bestDistance = miles;
+        bestIndex = index;
+      }
+    });
+    route.push(remaining.splice(bestIndex, 1)[0]);
+  }
+
+  return route;
+}
+
+function orderActivitiesForDay(activities, enrichedMap) {
+  const resolved = (activities || []).filter(Boolean);
+  if (resolved.length < 3) {
+    return { activities: resolved, orderedBy: "input", mappedStopCount: 0, inputDistanceMiles: 0, optimizedDistanceMiles: 0 };
+  }
+
+  const firstFullDayIndex = resolved.findIndex((activity) => durationForActivity(activity) >= 420);
+  if (firstFullDayIndex >= 0) {
+    const fullDayActivity = resolved[firstFullDayIndex];
+    const others = resolved.filter((_, index) => index !== firstFullDayIndex);
+    const mappedStopCount = resolved.filter((activity) => coordinatesForActivity(activity, enrichedForActivity(activity, enrichedMap))).length;
+    return {
+      activities: [fullDayActivity, ...others],
+      orderedBy: firstFullDayIndex > 0 ? "anchor" : "input",
+      mappedStopCount,
+      inputDistanceMiles: 0,
+      optimizedDistanceMiles: 0,
+    };
+  }
+
+  const located = resolved
+    .map((activity, originalIndex) => ({
+      activity,
+      originalIndex,
+      coords: coordinatesForActivity(activity, enrichedForActivity(activity, enrichedMap)),
+    }))
+    .filter((item) => item.coords);
+
+  if (located.length < 3) {
+    return { activities: resolved, orderedBy: "input", mappedStopCount: located.length, inputDistanceMiles: 0, optimizedDistanceMiles: 0 };
+  }
+
+  const inputDistance = pathDistanceMiles(located) || 0;
+  let bestRoute = located;
+  let bestDistance = Infinity;
+  let bestStart = Infinity;
+
+  located.forEach((_, startIndex) => {
+    const route = nearestNeighborPath(located, startIndex);
+    const routeDistance = pathDistanceMiles(route) ?? Infinity;
+    const routeStart = route[0]?.originalIndex ?? Infinity;
+    if (routeDistance < bestDistance || (routeDistance === bestDistance && routeStart < bestStart)) {
+      bestRoute = route;
+      bestDistance = routeDistance;
+      bestStart = routeStart;
+    }
+  });
+
+  const locatedIndexes = new Set(bestRoute.map((item) => item.originalIndex));
+  const unlocated = resolved
+    .map((activity, originalIndex) => ({ activity, originalIndex }))
+    .filter((item) => !locatedIndexes.has(item.originalIndex));
+  const ordered = [...bestRoute.map((item) => item.activity), ...unlocated.map((item) => item.activity)];
+  const changed = ordered.map(activitySignature).join("|") !== resolved.map(activitySignature).join("|");
+
+  return {
+    activities: ordered,
+    orderedBy: changed ? "spatial" : "input",
+    mappedStopCount: located.length,
+    inputDistanceMiles: Math.round(inputDistance * 10) / 10,
+    optimizedDistanceMiles: Number.isFinite(bestDistance) ? Math.round(bestDistance * 10) / 10 : 0,
+  };
+}
+
+function buildDayRouteMeta(scheduled, orderResult) {
+  const mapped = (scheduled || [])
+    .filter((item) => item?.status === "scheduled" && !item?.isMeal)
+    .map((item) => ({ item, coords: coordinatesForActivity(item) }))
+    .filter((item) => item.coords);
+  const totalDistance = pathDistanceMiles(mapped) || 0;
+  const totalTravelMinutes = (scheduled || []).reduce(
+    (sum, item) => sum + (Number(item?.travelFromPreviousMinutes) || 0),
+    0,
+  );
+
+  return {
+    orderedBy: orderResult.orderedBy,
+    mappedStopCount: mapped.length,
+    totalDistanceMiles: Math.round(totalDistance * 10) / 10,
+    totalTravelMinutes,
+    inputDistanceMiles: orderResult.inputDistanceMiles,
+    optimizedDistanceMiles: orderResult.optimizedDistanceMiles,
+  };
+}
+
+function activityMatchesRouteStop(activity, routeStop) {
+  if (!routeStop?.name) return true;
+  const explicitPlace = activity?.cityDisplayName || activity?.city_display_name || activity?.stopName || activity?.location;
+  if (!explicitPlace) return true;
+  return String(explicitPlace).toLowerCase().includes(String(routeStop.name).toLowerCase());
 }
 
 // ── Main Scheduler ─────────────────────────────────────────────────────────
@@ -172,7 +370,8 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
   };
 }
 
-const MAX_END_TIME = 1200; // 8:00 PM — no activities after this for family trips
+const DEFAULT_MAX_ACTIVITY_END_TIME = 1200; // 8:00 PM for adults-only / unspecified trips
+const FAMILY_MAX_ACTIVITY_END_TIME = 1080; // 6:00 PM for trips with children
 const MIN_VISIBLE_ACTIVITIES_PER_DAY = 2;
 const TARGET_VISIBLE_ACTIVITIES_PER_DAY = 3;
 
@@ -186,6 +385,7 @@ function buildScheduledActivity(activity, {
   duration,
   startTime,
   endTime,
+  travelFromPreviousMinutes = 0,
   closeWarning = null,
   openingHours = null,
   repeatAcrossTrip = false,
@@ -196,6 +396,7 @@ function buildScheduledActivity(activity, {
     scheduledStart: formatTime(startTime),
     scheduledEnd: formatTime(endTime),
     duration,
+    travelFromPreviousMinutes,
     status: "scheduled",
     warning: closeWarning,
     openingHours,
@@ -214,7 +415,7 @@ function buildScheduledActivity(activity, {
   };
 }
 
-function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds = null) {
+function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds = null, options = {}) {
   const activityMap = {};
   const activityNameMap = {};
   (suggestedActivities || []).forEach((a) => {
@@ -223,6 +424,11 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
   });
 
   const rawActivities = day.activities || [];
+  const resolvedActivities = rawActivities
+    .map((actRef) => resolveActivityReference(actRef, activityMap, activityNameMap))
+    .filter(Boolean);
+  const orderResult = orderActivitiesForDay(resolvedActivities, enrichedMap);
+  const orderedActivities = orderResult.activities;
   const dayOfWeek = dateStr ? new Date(dateStr + "T12:00:00Z").getDay() : null;
 
   // Parse meals (new format: { breakfast, lunch, dinner } or legacy string)
@@ -232,6 +438,9 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
   const scheduled = [];
   const warnings = [];
   const deferredDuplicates = [];
+  const maxActivityEndTime = options.hasChildren
+    ? FAMILY_MAX_ACTIVITY_END_TIME
+    : Number(options.maxActivityEndTime) || DEFAULT_MAX_ACTIVITY_END_TIME;
   const minimumVisibleActivities = Math.max(
     MIN_VISIBLE_ACTIVITIES_PER_DAY,
     Math.min(TARGET_VISIBLE_ACTIVITIES_PER_DAY, rawActivities.length),
@@ -240,16 +449,30 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
   // No breakfast/lunch — families find those on their own
   // Only dinner is scheduled (at 7 PM)
   let dinnerInserted = false;
+  let previousTravelActivity = null;
 
-  for (const actRef of rawActivities) {
-    const activity = typeof actRef === "string"
-      ? activityMap[actRef] || activityNameMap[actRef.toLowerCase()]
-      : actRef;
+  if (orderResult.orderedBy === "spatial") {
+    warnings.push({
+      type: "spatial_order",
+      message: "Reordered this day to reduce cross-town backtracking.",
+    });
+  }
+
+  for (const activity of orderedActivities) {
     if (!activity) continue;
 
-    const name = activity.name || activity.title || actRef;
-    const enriched = enrichedMap[name] || enrichedMap[actRef] || null;
-    const duration = parseDuration(activity.duration);
+    const name = activity.name || activity.title || "Activity";
+    const enriched = enrichedForActivity(activity, enrichedMap);
+    const duration = durationForActivity(activity);
+
+    if (!activityMatchesRouteStop(activity, options.routeStop)) {
+      warnings.push({
+        activity: name,
+        type: "wrong_route_stop",
+        message: `${name} belongs outside ${options.routeStop.name}, so it was not scheduled on this day.`,
+      });
+      continue;
+    }
 
     // Check opening hours
     let hours = null;
@@ -257,8 +480,12 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       hours = getOpeningHoursForDay(enriched.openingHours, dayOfWeek);
     }
 
+    const travelFromPreviousMinutes = previousTravelActivity
+      ? estimateTravelMinutes(previousTravelActivity, { activity, enriched })
+      : 0;
+
     // Determine start time
-    let startTime = currentTime;
+    let startTime = currentTime + travelFromPreviousMinutes;
 
     if (hours && !hours.isOpen) {
       warnings.push({
@@ -302,10 +529,14 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       }
     }
 
-    // ── 8 PM hard cap — no activities after this for family trips ──
-    if (startTime >= MAX_END_TIME) break;
+    if (startTime >= maxActivityEndTime) break;
 
-    const endTime = Math.min(startTime + duration, MAX_END_TIME);
+    const endTime = startTime + duration;
+    if (endTime > maxActivityEndTime) {
+      const message = `${name} needs ${Math.round(duration / 60)} hours and would run past ${formatTime(maxActivityEndTime)}. Move it earlier or give it its own day.`;
+      warnings.push({ activity: name, type: "too_late", message });
+      continue;
+    }
 
     // ── Cross-day dedup — skip activities already used on previous days ──
     const actId = activity.id || name;
@@ -327,6 +558,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       duration,
       startTime,
       endTime,
+      travelFromPreviousMinutes,
       closeWarning,
       openingHours: hours?.open ? `${formatTime(hours.open)} - ${formatTime(hours.close)}` : null,
     }));
@@ -334,25 +566,37 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
     // Track this activity as used for cross-day dedup
     if (usedActivityIds) usedActivityIds.add(actId);
 
-    currentTime = endTime + estimateTravelMinutes();
+    previousTravelActivity = { activity, enriched };
+    currentTime = endTime;
   }
 
   while (
     countNonMealActivities(scheduled) < minimumVisibleActivities &&
     deferredDuplicates.length > 0 &&
-    currentTime < 1140
+    currentTime < maxActivityEndTime
   ) {
     const duplicate = deferredDuplicates.shift();
     if (!duplicate) break;
 
-    let startTime = currentTime;
+    const travelFromPreviousMinutes = previousTravelActivity
+      ? estimateTravelMinutes(previousTravelActivity, { activity: duplicate.activity, enriched: duplicate.enriched })
+      : 0;
+    let startTime = currentTime + travelFromPreviousMinutes;
     if (duplicate.hours?.open && duplicate.hours.open > startTime) {
       startTime = duplicate.hours.open;
     }
 
-    if (startTime >= MAX_END_TIME) break;
+    if (startTime >= maxActivityEndTime) break;
 
-    const endTime = Math.min(startTime + duplicate.duration, MAX_END_TIME);
+    const endTime = startTime + duplicate.duration;
+    if (endTime > maxActivityEndTime) {
+      warnings.push({
+        activity: duplicate.name,
+        type: "too_late",
+        message: `${duplicate.name} needs ${Math.round(duplicate.duration / 60)} hours and would run past ${formatTime(maxActivityEndTime)}. Move it earlier or give it its own day.`,
+      });
+      continue;
+    }
     const repeatWarning = "Also appears on another day of this trip.";
 
     scheduled.push(buildScheduledActivity(duplicate.activity, {
@@ -361,6 +605,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       duration: duplicate.duration,
       startTime,
       endTime,
+      travelFromPreviousMinutes,
       closeWarning: repeatWarning,
       openingHours: duplicate.hours?.open ? `${formatTime(duplicate.hours.open)} - ${formatTime(duplicate.hours.close)}` : null,
       repeatAcrossTrip: true,
@@ -372,7 +617,8 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
       message: `${duplicate.name} was reused to keep this day from becoming too sparse.`,
     });
 
-    currentTime = endTime + estimateTravelMinutes();
+    previousTravelActivity = { activity: duplicate.activity, enriched: duplicate.enriched };
+    currentTime = endTime;
   }
 
   // ── Guarantee dinner even if no activity triggered it ──
@@ -381,12 +627,21 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
     if (dinnerCard) scheduled.push(dinnerCard);
   }
 
+  const routeMeta = buildDayRouteMeta(scheduled, orderResult);
+  if (routeMeta.mappedStopCount >= 2 && (routeMeta.totalDistanceMiles > 60 || routeMeta.totalTravelMinutes > 150)) {
+    warnings.push({
+      type: "high_travel",
+      message: `This day covers about ${routeMeta.totalDistanceMiles} miles between mapped stops. Consider splitting it into neighborhoods.`,
+    });
+  }
+
   return {
     day: day.day,
     date: dateStr,
     scheduled,
     warnings,
     notes: day.notes,
+    routeMeta,
   };
 }
 
@@ -398,7 +653,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
  * @param {string} startDate - "2026-05-21"
  * @returns {object[]} Array of scheduled days
  */
-export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) {
+export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null, options = {}) {
   const { dailyItinerary = [], suggestedActivities = [] } = tripPlan;
   const usedActivityIds = new Set(); // Cross-day dedup
 
@@ -409,7 +664,7 @@ export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null) 
       d.setDate(d.getDate() + i);
       dateStr = d.toISOString().split("T")[0];
     }
-    return scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds);
+    return scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds, options);
   });
 }
 

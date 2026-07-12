@@ -45,6 +45,55 @@ describe("parseInput", () => {
     assert.equal(result.suggestedDestinations[0].name, "Maui, Hawaii");
   });
 
+  it("deduplicates destination suggestions returned by the parser", async () => {
+    const result = await parseInput("relaxing city trip", {
+      callAI: async () => JSON.stringify({
+        destination: null,
+        suggestedDestinations: [
+          { name: "New York, NY", emoji: "🏙️", description: "Big city", season_note: "Good in spring" },
+          { name: "Boston, MA", emoji: "🧭", description: "History", season_note: "Good in spring" },
+          { name: "Boston, MA", emoji: "🧭", description: "History", season_note: "Good in spring" },
+          { name: "Philadelphia, PA", emoji: "🔔", description: "Museums", season_note: "Good in spring" },
+        ],
+        adults: 2,
+        childrenAges: [],
+        vibe: "city",
+      }),
+    });
+
+    assert.deepEqual(result.suggestedDestinations.map((s) => s.name), [
+      "New York, NY",
+      "Boston, MA",
+      "Philadelphia, PA",
+    ]);
+  });
+
+  it("rescues broad country prompts into country tour flow instead of duplicate city choices", async () => {
+    const result = await parseInput("trip to japan", {
+      callAI: async () => JSON.stringify({
+        destination: null,
+        suggestedDestinations: [
+          { name: "Tokyo", emoji: "🏙️", description: "Big city", season_note: "Good in spring" },
+          { name: "Osaka", emoji: "🍜", description: "Food hub", season_note: "Good in spring" },
+          { name: "Osaka", emoji: "🍜", description: "Food hub", season_note: "Good in spring" },
+        ],
+        adults: 2,
+        childrenAges: [],
+        vibe: "international",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+      }),
+    });
+
+    assert.equal(result.destination, "Japan");
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Japan");
+    assert.equal(result.countryTour.countryCode, "JP");
+    assert.deepEqual(result.suggestedDestinations, []);
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto", "Osaka", "Hakone"]);
+  });
+
   it("includes detectedRegion when provided", async () => {
     const result = await parseInput("beach vacation in Maui with two kids age 4 and 8", {
       callAI: mockAI,
@@ -91,6 +140,168 @@ describe("parseInput", () => {
     assert.deepEqual(result.extraContext, ["first time visiting"]);
   });
 
+  it("parses explicit multi-city prompt into ordered stops", async () => {
+    const result = await parseInput("Europe trip with best friend, cover Amsterdam, Greece, Berlin, Budapest in 10 days", {
+      callAI: async () => JSON.stringify({
+        destination: "Europe multi-city trip",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        vibe: "international",
+        tripShape: "multi_stop",
+        stops: [
+          { id: "amsterdam", name: "Amsterdam", role: "must_visit", mustInclude: true },
+          { id: "greece", name: "Greece", role: "must_visit", mustInclude: true, notes: ["Broad region; confirm city"] },
+          { id: "berlin", name: "Berlin", role: "must_visit", mustInclude: true },
+          { id: "budapest", name: "Budapest", role: "must_visit", mustInclude: true },
+        ],
+        countryTour: null,
+      }),
+    });
+
+    assert.equal(result.tripShape, "multi_stop");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Amsterdam", "Greece", "Berlin", "Budapest"]);
+    assert.equal(result.stops[1].role, "must_visit");
+    assert.equal(result.stops[1].mustInclude, true);
+    assert.deepEqual(result.stops[1].notes, ["Broad region; confirm city"]);
+    assert.equal(result.countryTour, null);
+  });
+
+  it("parses whole-country prompt into country tour metadata and suggested stops", async () => {
+    const result = await parseInput("2 weeks in Japan with food and trains", {
+      callAI: async () => JSON.stringify({
+        destination: "Japan",
+        suggestedDestinations: [],
+        startDate: "2026-11-01",
+        endDate: "2026-11-14",
+        adults: 2,
+        childrenAges: [],
+        vibe: "international",
+        tripShape: "country_tour",
+        stops: [
+          { id: "tokyo", name: "Tokyo", role: "suggested" },
+          { id: "kyoto", name: "Kyoto", role: "suggested" },
+          { id: "osaka", name: "Osaka", role: "suggested" },
+        ],
+        countryTour: {
+          country: "Japan",
+          countryCode: "JP",
+          requestedRegions: ["Tokyo", "Kyoto", "Osaka"],
+          suggestedStopCount: 3,
+        },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Japan");
+    assert.equal(result.countryTour.countryCode, "JP");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto", "Osaka"]);
+  });
+
+  it("upgrades whole-USA prompt into a country tour with California family defaults", async () => {
+    const result = await parseInput("USA road trip with my 5 year old", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "United States",
+        suggestedDestinations: [],
+        startDate: "2026-07-01",
+        endDate: "2026-07-12",
+        adults: 2,
+        childrenAges: [5],
+        pets: [],
+        vibe: "adventure",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.countryCode, "US");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["San Francisco", "Monterey", "Los Angeles", "San Diego"]);
+  });
+
+  it("upgrades blanket Europe prompt into selectable region candidates", async () => {
+    const result = await parseInput("Europe for 10 days with my best friend", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "Europe",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Europe");
+    assert.ok(result.stops.length >= 6);
+    assert.ok(result.stops.some((stop) => stop.name === "Amsterdam"));
+    assert.ok(result.stops.some((stop) => stop.name === "Budapest"));
+  });
+
+  it("upgrades Eastern Europe prompt into selectable region candidates", async () => {
+    const result = await parseInput("Eastern Europe in 10 days", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "Eastern Europe",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.tripShape, "country_tour");
+    assert.equal(result.countryTour.country, "Eastern Europe");
+    assert.ok(result.stops.some((stop) => stop.name === "Prague"));
+    assert.ok(result.stops.some((stop) => stop.name === "Krakow"));
+  });
+
+  it("dedupes repeated city stops from parser output", async () => {
+    const result = await parseInput("Tokyo Osaka Osaka Kyoto", {
+      clientDate: "2026-04-26",
+      callAI: async () => JSON.stringify({
+        destination: "Japan multi-city trip",
+        suggestedDestinations: [],
+        startDate: "2026-11-01",
+        endDate: "2026-11-10",
+        adults: 2,
+        childrenAges: [],
+        pets: [],
+        vibe: "international",
+        tripShape: "multi_stop",
+        stops: [
+          { id: "tokyo", name: "Tokyo", role: "must_visit" },
+          { id: "osaka", name: "Osaka", role: "must_visit" },
+          { id: "osaka-2", name: "Osaka", role: "must_visit" },
+          { id: "kyoto", name: "Kyoto", role: "must_visit" },
+        ],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Osaka", "Kyoto"]);
+  });
+
   it("fills expanded trip intent fields with safe defaults when omitted", async () => {
     const result = await parseInput("simple beach vacation", { callAI: mockAI });
 
@@ -106,5 +317,31 @@ describe("parseInput", () => {
     assert.equal(result.celebrationContext, null);
     assert.deepEqual(result.specialNotes, []);
     assert.deepEqual(result.extraContext, []);
+    assert.equal(result.tripShape, "single_destination");
+    assert.deepEqual(result.stops, []);
+    assert.equal(result.countryTour, null);
+  });
+
+  it("normalizes explicit day-count prompts to inclusive trip dates", async () => {
+    const result = await parseInput("Five days in San Diego with a toddler and a dog", {
+      clientDate: "2026-05-05",
+      callAI: async () => JSON.stringify({
+        destination: "San Diego, CA",
+        suggestedDestinations: [],
+        startDate: "2026-06-01",
+        endDate: "2026-06-06",
+        adults: 2,
+        childrenAges: [2],
+        pets: [{ type: "dog" }],
+        vibe: "beach",
+        tripShape: "single_destination",
+        stops: [],
+        countryTour: null,
+        foodPreferences: { dietary: [], cuisines: [], avoidances: [], kidFoods: [], budget: null },
+      }),
+    });
+
+    assert.equal(result.startDate, "2026-06-01");
+    assert.equal(result.endDate, "2026-06-05");
   });
 });

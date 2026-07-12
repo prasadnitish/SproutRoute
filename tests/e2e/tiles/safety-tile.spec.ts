@@ -5,6 +5,7 @@ test.describe("SafetyTile", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
+    await page.getByRole("button", { name: /Safety/i }).click();
   });
 
   test("renders advisory level", async ({ page }) => {
