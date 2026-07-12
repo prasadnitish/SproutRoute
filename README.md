@@ -87,6 +87,10 @@ The endpoint sits behind a constant-time bearer-token check and a 10-request/hou
 
 ## Deployment
 
+### Optional governed LLM gateway
+
+Set `LLM_GATEWAY_URL` and `LLM_GATEWAY_API_KEY` together to route the unified AI client through the central OpenAI-compatible gateway. The existing `caller` becomes the gateway task type; tenant and service attribution use `LLM_GATEWAY_TENANT_ID` and `LLM_GATEWAY_SERVICE_ID`. If either URL or credential is absent, the direct-provider path remains active. Non-local gateway URLs must use HTTPS.
+
 The web app is deployed on Railway. In production, the backend serves the built frontend assets.
 
 ## Current State

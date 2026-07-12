@@ -274,6 +274,47 @@ function modelIdForProvider(provider, caller = "") {
   return resolveModelId(provider, caller);
 }
 
+function resolveGatewayConfig(injected) {
+  const config = injected ?? {
+    url: process.env.LLM_GATEWAY_URL,
+    apiKey: process.env.LLM_GATEWAY_API_KEY,
+    tenantId: process.env.LLM_GATEWAY_TENANT_ID || "sproutroute",
+    serviceId: process.env.LLM_GATEWAY_SERVICE_ID || "backend",
+    environment: process.env.NODE_ENV || "development",
+  };
+  if (!config.url || !config.apiKey) return null;
+  const url = new URL(config.url);
+  if (url.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
+    throw new Error("LLM gateway URL must use HTTPS outside localhost");
+  }
+  return { ...config, url: config.url.replace(/\/$/, "") };
+}
+
+async function callGateway(config, prompt, fetchImpl) {
+  const response = await fetchImpl(`${config.url}/v1/chat/completions`, {
+    method: "POST",
+    signal: prompt.signal,
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${config.apiKey}`,
+      "x-tenant-id": config.tenantId,
+      "x-service-id": config.serviceId,
+      "x-environment": config.environment,
+      "x-task-type": prompt.caller || "unknown",
+      "x-data-class": "internal",
+    },
+    body: JSON.stringify({
+      messages: [{ role: "system", content: prompt.system }, { role: "user", content: prompt.user }],
+      max_tokens: prompt.maxTokens,
+      temperature: prompt.temperature,
+    }),
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(`LLM gateway request failed: ${payload.error?.code || response.status}`);
+  const choice = payload.choices?.[0];
+  return { responseText: choice?.message?.content ?? "", stopReason: choice?.finish_reason ?? null };
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /**
@@ -310,6 +351,15 @@ export async function callModel(prompt, deps = {}) {
   const t0 = Date.now();
   const timeoutMs = positiveTimeout(prompt.timeoutMs || process.env.AI_PROVIDER_TIMEOUT_MS);
   const deadlineAt = Date.now() + timeoutMs;
+  const gateway = resolveGatewayConfig(deps.gatewayConfig);
+
+  if (gateway) {
+    const result = await callGateway(gateway, { ...prompt, maxTokens, temperature }, deps.gatewayFetch ?? fetch);
+    const ms = Date.now() - t0;
+    log.info("ai:call", { caller, provider: "gateway", model: "policy-managed", ms, outChars: result.responseText?.length || 0 });
+    metrics.recordAiCall({ caller, provider: "gateway", model: "policy-managed", ms, outChars: result.responseText?.length || 0, success: true });
+    return result;
+  }
 
   // Determine fallback chain: gemini → anthropic → deepseek
   const fallbackProviders = [];
