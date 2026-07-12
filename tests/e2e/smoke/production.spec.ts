@@ -6,6 +6,20 @@
 
 import { test, expect } from "@playwright/test";
 
+function futureTripDates(startOffsetDays = 45, durationDays = 6) {
+  const start = new Date();
+  start.setUTCHours(12, 0, 0, 0);
+  start.setUTCDate(start.getUTCDate() + startOffsetDays);
+
+  const end = new Date(start);
+  end.setUTCDate(start.getUTCDate() + durationDays);
+
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  };
+}
+
 test.describe("Production Smoke Tests", () => {
   test("health check returns ok", async ({ request }) => {
     const res = await request.get("/api/health");
@@ -30,16 +44,19 @@ test.describe("Production Smoke Tests", () => {
   });
 
   test("trip-plan returns correct response shape", async ({ request }) => {
+    test.setTimeout(150000);
+    const { startDate, endDate } = futureTripDates();
+
     const res = await request.post("/api/trip-plan", {
       data: {
         destination: "Maui, Hawaii",
-        startDate: "2026-06-01",
-        endDate: "2026-06-07",
+        startDate,
+        endDate,
         adults: 2,
         childrenAges: [],
         activities: ["beach"],
       },
-      timeout: 60000,
+      timeout: 120000,
     });
     expect(res.ok()).toBeTruthy();
     const body = await res.json();

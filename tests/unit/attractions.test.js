@@ -9,7 +9,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createApp } from "../../src/backend/server.js";
-import { daysFromNow } from "../helpers/testDates.js";
 
 const validTripPlan = {
   overview: "A great family trip",
@@ -39,6 +38,19 @@ const minimalDeps = {
   generateTripPlanFn: async () => validTripPlan,
   generatePackingListFn: async () => ({ categories: [] }),
 };
+
+function futureDate(daysFromNow) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
+
+function futureRange(startOffsetDays = 30, durationDays = 3) {
+  return {
+    startDate: futureDate(startOffsetDays),
+    endDate: futureDate(startOffsetDays + durationDays),
+  };
+}
 
 function makeServer(extraDeps = {}) {
   const app = createApp({ ...minimalDeps, ...extraDeps });
@@ -158,8 +170,7 @@ test("POST /api/v1/trip/plan passes cached attractions into trip generation and 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         destination: "San Diego, CA",
-        startDate: daysFromNow(10),
-        endDate: daysFromNow(13),
+        ...futureRange(),
         activities: ["parks", "family-friendly"],
         children: [{ age: 4 }],
       }),

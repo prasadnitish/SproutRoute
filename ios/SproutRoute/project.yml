@@ -1,0 +1,90 @@
+name: SproutRoute
+options:
+  minimumXcodeGenVersion: 2.42.0
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    DEVELOPMENT_TEAM: "YNCCXQ5TUR"
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "2.0"
+    CURRENT_PROJECT_VERSION: "6"
+    GENERATE_INFOPLIST_FILE: NO
+    POSTHOG_API_KEY: ""
+packages: {}
+targets:
+  SproutRoute:
+    type: application
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - SproutRouteApp
+      - Shared
+      - Models
+      - Persistence
+      - Services
+      - Features
+      - Intents
+      - Assets.xcassets
+      - Config/PrivacyInfo.xcprivacy
+    entitlements:
+      path: Config/SproutRoute.entitlements
+      properties:
+        com.apple.developer.weatherkit: true
+        com.apple.security.application-groups:
+          - group.com.sproutroute.app
+        com.apple.developer.associated-domains:
+          - applinks:sproutroute.app
+          - applinks:www.sproutroute.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sproutroute.app
+        PRODUCT_NAME: SproutRoute
+        INFOPLIST_FILE: Config/SproutRoute-Info.plist
+    dependencies:
+      - target: SproutRouteWidget
+        embed: true
+  SproutRouteWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - Shared
+      - Widgets
+      - Assets.xcassets
+      - Config/PrivacyInfo.xcprivacy
+    entitlements:
+      path: Config/SproutRouteWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.sproutroute.app
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sproutroute.app.widget
+        PRODUCT_NAME: SproutRouteWidget
+        INFOPLIST_FILE: Config/SproutRouteWidget-Info.plist
+  SproutRouteTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "18.0"
+    sources:
+      - SproutRouteTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sproutroute.app.tests
+        INFOPLIST_FILE: Config/SproutRouteTests-Info.plist
+    dependencies:
+      - target: SproutRoute
+schemes:
+  SproutRoute:
+    build:
+      targets:
+        SproutRoute: all
+        SproutRouteWidget: all
+        SproutRouteTests: [test]
+    test:
+      gatherCoverageData: true
+      targets:
+        - SproutRouteTests

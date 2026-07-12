@@ -210,7 +210,7 @@ export function useTrip() {
       await generateTrip(parsedWithContext);
     } catch (err) {
       if (err.name === "AbortError") return;
-      analytics.tripError(err.message, text);
+      analytics.tripError(err.name || "trip_generation_failed");
       setError(err.message || "Something went wrong");
     }
   }, [setScreenWithHistory, startRouteAttractionPrefetch]);

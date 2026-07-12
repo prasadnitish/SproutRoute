@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const publicPage = (fileName) => readFileSync(
@@ -65,11 +65,10 @@ test("support page provides reviewer-visible contact and required public policy 
 });
 
 test("iOS settings use public SproutRoute app submission URLs", () => {
-  const swiftPath = path.resolve("ios/SproutRoute/Features/Settings/ComplianceContent.swift");
-  if (!existsSync(swiftPath)) {
-    return;
-  }
-  const swift = readFileSync(swiftPath, "utf8");
+  const swift = readFileSync(
+    path.resolve("ios/SproutRoute/Features/Settings/ComplianceContent.swift"),
+    "utf8",
+  );
 
   assert.match(swift, /https:\/\/www\.sproutroute\.app\/privacy\.html/);
   assert.match(swift, /https:\/\/www\.sproutroute\.app\/terms\.html/);

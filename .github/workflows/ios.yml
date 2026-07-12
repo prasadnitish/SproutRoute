@@ -1,0 +1,64 @@
+name: iOS Build & Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  ios:
+    name: iOS Simulator Tests + Release Archive
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode environment
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list devices available
+
+      - name: Resolve iPhone simulator
+        id: simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          simulator_id="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ { print $2; exit }')"
+          if [[ -z "${simulator_id}" ]]; then
+            echo "No available iPhone simulator found." >&2
+            exit 1
+          fi
+          echo "destination=platform=iOS Simulator,id=${simulator_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Run iOS simulator tests
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/SproutRoute/SproutRoute.xcodeproj \
+            -scheme SproutRoute \
+            -destination "${{ steps.simulator.outputs.destination }}" \
+            test
+
+      - name: Build Release archive
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ios/SproutRoute/SproutRoute.xcodeproj \
+            -scheme SproutRoute \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath "${RUNNER_TEMP}/SproutRoute.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Upload iOS archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: SproutRoute.xcarchive
+          path: ${{ runner.temp }}/SproutRoute.xcarchive
+          retention-days: 7

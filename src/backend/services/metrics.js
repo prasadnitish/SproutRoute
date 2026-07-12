@@ -8,6 +8,7 @@
 
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
 import { log } from "../utils/logger.js";
+import { bucketTextLength } from "./privacyTelemetry.js";
 
 const MAX_MEMORY = 200;
 
@@ -51,15 +52,24 @@ export const metrics = {
   },
 
   recordSearch(data) {
-    pushMem(mem.searches, data);
+    const safeSearch = {
+      destination: data.destination,
+      textLengthBucket: data.textLengthBucket || bucketTextLength(data.text || ""),
+      vibe: data.vibe || null,
+      childCount: data.childCount || 0,
+      petCount: data.petCount || 0,
+      ms: data.ms || null,
+    };
+    pushMem(mem.searches, safeSearch);
     persistAsync({
       event_type: "search",
-      destination: data.destination,
-      search_text: (data.text || "").slice(0, 200),
-      vibe: data.vibe || null,
-      child_count: data.childCount || 0,
-      pet_count: data.petCount || 0,
-      latency_ms: data.ms || null,
+      destination: safeSearch.destination,
+      search_text: null,
+      text_length_bucket: safeSearch.textLengthBucket,
+      vibe: safeSearch.vibe,
+      child_count: safeSearch.childCount,
+      pet_count: safeSearch.petCount,
+      latency_ms: safeSearch.ms,
     });
   },
 
@@ -127,7 +137,11 @@ export const metrics = {
     } catch {
       // Fall back to in-memory
       dbTrips = mem.trips.map(t => ({ ...t, created_at: t.ts, timing_json: t.timing }));
-      dbSearches = mem.searches.map(s => ({ ...s, created_at: s.ts, search_text: s.text }));
+      dbSearches = mem.searches.map(s => ({
+        ...s,
+        created_at: s.ts,
+        text_length_bucket: s.textLengthBucket,
+      }));
       dbAiCalls = mem.aiCalls.map(a => ({ ...a, created_at: a.ts, latency_ms: a.ms, output_chars: a.outChars }));
       dbErrors = mem.errors.map(e => ({ ...e, created_at: e.ts, error_message: e.error }));
       dbTimeRange = "in-memory (Supabase unavailable)";
@@ -242,7 +256,7 @@ export const metrics = {
 
       recentSearches: dbSearches.slice(0, 20).map(s => ({
         ts: s.created_at || s.ts,
-        text: (s.search_text || s.text || "").slice(0, 100),
+        textLengthBucket: s.text_length_bucket || s.textLengthBucket || "unknown",
         destination: s.destination,
         vibe: s.vibe,
         childCount: s.child_count || s.childCount || 0,

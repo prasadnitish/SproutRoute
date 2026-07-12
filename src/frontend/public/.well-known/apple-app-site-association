@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["YNCCXQ5TUR.com.sproutroute.app"],
+        "components": [
+          {
+            "/": "/trip-hub/*/join",
+            "comment": "Open Trip Hub invitations in SproutRoute"
+          }
+        ]
+      }
+    ]
+  }
+}

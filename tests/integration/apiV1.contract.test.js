@@ -16,11 +16,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { createApp } from "../../src/backend/server.js";
-import { daysFromNow } from "../helpers/testDates.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+function futureDate(daysFromNow) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + daysFromNow);
+  return date.toISOString().slice(0, 10);
+}
+
+function futureRange(startOffsetDays = 30, durationDays = 3) {
+  return {
+    startDate: futureDate(startOffsetDays),
+    endDate: futureDate(startOffsetDays + durationDays),
+  };
+}
 
 function createMockRes() {
   return {
@@ -180,6 +192,8 @@ test("GET /api/v1/meta/capabilities returns capability payload shape", async () 
   // Feature flags shape
   assert.strictEqual(typeof body.featureFlags.shareLinks, "boolean");
   assert.strictEqual(typeof body.featureFlags.customItems, "boolean");
+  assert.strictEqual(body.featureFlags.shareLinks, true, "web share links are implemented and should be advertised");
+  assert.strictEqual(body.featureFlags.customItems, true, "custom packing items are implemented and should be advertised");
 });
 
 test("GET /api/v1/meta/capabilities includes ios26Features when client=ios", async () => {
@@ -212,6 +226,10 @@ test("GET /api/v1/meta/capabilities includes ios26Features when client=ios", asy
   assert.strictEqual(typeof res.body.ios26Features.weatherKitFastPath, "boolean");
   assert.strictEqual(typeof res.body.ios26Features.foundationModelRecap, "boolean");
   assert.strictEqual(typeof res.body.ios26Features.appIntents, "boolean");
+  assert.strictEqual(res.body.ios26Features.liquidGlass, false, "Liquid Glass should stay off until the UI is migrated");
+  assert.strictEqual(res.body.ios26Features.weatherKitFastPath, true, "WeatherKit fast path is implemented in the iOS app");
+  assert.strictEqual(res.body.ios26Features.foundationModelRecap, true, "Foundation Models recap is implemented in the iOS app");
+  assert.strictEqual(res.body.ios26Features.appIntents, true, "App Intents are implemented in the iOS app");
 });
 
 // ── POST /api/v1/trip/resolve ──────────────────────────────────────────────
@@ -247,8 +265,7 @@ test("POST /api/v1/trip/plan returns trip + weather + plan with requestId", asyn
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/plan", {
     destination: "Seattle, WA",
-    startDate: daysFromNow(10),
-    endDate: daysFromNow(13),
+    ...futureRange(),
     activities: ["parks"],
     children: [{ age: 3 }],
     client: "web",
@@ -268,8 +285,7 @@ test("POST /api/v1/trip/plan returns error envelope on missing destination", asy
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/plan", {
     // missing: destination
-    startDate: daysFromNow(10),
-    endDate: daysFromNow(13),
+    ...futureRange(),
     children: [{ age: 3 }],
   });
 
@@ -283,8 +299,7 @@ test("POST /api/v1/trip/packing returns packing list with requestId", async () =
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/packing", {
     destination: "Seattle, WA",
-    startDate: daysFromNow(30),
-    endDate: daysFromNow(33),
+    ...futureRange(),
     activities: ["parks", "hiking"],
     children: [{ age: 2 }],
     client: "web",
@@ -302,8 +317,7 @@ test("POST /api/v1/trip/packing returns error envelope when no activities", asyn
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/v1/trip/packing", {
     destination: "Seattle, WA",
-    startDate: daysFromNow(30),
-    endDate: daysFromNow(33),
+    ...futureRange(),
     activities: [], // empty → validation error
     children: [{ age: 2 }],
   });
@@ -372,8 +386,7 @@ test("POST /api/trip-plan (legacy) still works and returns 200", async () => {
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/trip-plan", {
     destination: "Seattle, WA",
-    startDate: daysFromNow(50),
-    endDate: daysFromNow(53),
+    ...futureRange(),
     activities: ["parks"],
     children: [{ age: 3 }],
   });
@@ -386,8 +399,7 @@ test("POST /api/generate (legacy) still works and returns 200", async () => {
   const app = createTestApp();
   const res = await invokeRoute(app, "POST", "/api/generate", {
     destination: "Seattle, WA",
-    startDate: daysFromNow(70),
-    endDate: daysFromNow(72),
+    ...futureRange(30, 2),
     activities: ["parks"],
     children: [{ age: 2 }],
   });
@@ -514,8 +526,7 @@ test("POST /api/v1/trip/stream stops emitting when the client disconnects", asyn
     path: "/api/v1/trip/stream",
     body: {
       destination: "Seattle, WA",
-      startDate: daysFromNow(90),
-      endDate: daysFromNow(101),
+      ...futureRange(30, 11),
       activities: ["parks"],
       children: [{ age: 4 }],
     },
