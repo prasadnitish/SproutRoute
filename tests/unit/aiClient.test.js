@@ -423,6 +423,48 @@ test("callModel with cacheSystemPrompt=true still returns responseText correctly
   assert.strictEqual(result.stopReason, "end_turn");
 });
 
+test("callModel aborts a provider that exceeds the application deadline", async () => {
+  process.env.AI_PROVIDER = "anthropic";
+  const mockAnthropicClient = {
+    messages: {
+      create: async () => new Promise(() => {}),
+    },
+  };
+
+  const startedAt = Date.now();
+  await assert.rejects(
+    () => callModel(
+      { system: "s", user: "u", timeoutMs: 25 },
+      { anthropicClient: mockAnthropicClient },
+    ),
+    /deadline exceeded/i,
+  );
+  assert.ok(Date.now() - startedAt < 250, "deadline should stop the hung provider promptly");
+});
+
+test("callModel forwards cancellation and remaining timeout to provider SDKs", async () => {
+  process.env.AI_PROVIDER = "openai";
+  let requestOptions;
+  const openaiClient = {
+    chat: {
+      completions: {
+        create: async (_body, options) => {
+          requestOptions = options;
+          return { choices: [{ message: { content: "{}" }, finish_reason: "stop" }] };
+        },
+      },
+    },
+  };
+
+  await callModel(
+    { system: "s", user: "u", timeoutMs: 500 },
+    { openaiClient },
+  );
+
+  assert.ok(requestOptions.signal instanceof AbortSignal);
+  assert.ok(requestOptions.timeout > 0 && requestOptions.timeout <= 500);
+});
+
 // ── Gemini provider ─────────────────────────────────────────────────────────
 
 test("callModel with gemini provider calls generateContent and returns responseText", async () => {

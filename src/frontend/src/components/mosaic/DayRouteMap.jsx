@@ -25,6 +25,29 @@ function createNumberedIcon(number, isMeal) {
   });
 }
 
+function appendPopupLine(root, tagName, text, color) {
+  if (text === undefined || text === null || text === "") return;
+  root.appendChild(document.createElement("br"));
+  const node = document.createElement(tagName);
+  node.textContent = String(text);
+  if (color) node.style.color = color;
+  root.appendChild(node);
+}
+
+export function createRoutePopupNode(marker) {
+  const root = document.createElement("div");
+  const title = document.createElement("strong");
+  title.textContent = String(marker.name || "Stop");
+  root.appendChild(title);
+  appendPopupLine(root, "span", marker.time, "#666");
+  const rating = Number(marker.rating);
+  if (Number.isFinite(rating) && rating > 0 && rating <= 5) {
+    appendPopupLine(root, "span", `${"\u2605".repeat(Math.round(rating))} ${rating}`);
+  }
+  appendPopupLine(root, "small", marker.address);
+  return root;
+}
+
 export default function DayRouteMap({ activities, destination, lat, lon }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -66,9 +89,7 @@ export default function DayRouteMap({ activities, destination, lat, lon }) {
       const latLngs = [];
       geoMarkers.forEach(m => {
         const icon = createNumberedIcon(m.index, m.isMeal);
-        const stars = m.rating ? "\u2605".repeat(Math.round(m.rating)) + ` ${m.rating}` : "";
-        const popup = `<b>${m.name}</b>${m.time ? `<br/><span style="color:#666">${m.time}</span>` : ""}${stars ? `<br/>${stars}` : ""}${m.address ? `<br/><small>${m.address}</small>` : ""}`;
-        L.marker([m.lat, m.lon], { icon }).addTo(map).bindPopup(popup);
+        L.marker([m.lat, m.lon], { icon }).addTo(map).bindPopup(createRoutePopupNode(m));
         latLngs.push([m.lat, m.lon]);
       });
 
@@ -79,7 +100,9 @@ export default function DayRouteMap({ activities, destination, lat, lon }) {
       map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30], maxZoom: 14 });
     } else if (lat && lon) {
       map.setView([lat, lon], 12);
-      L.marker([lat, lon]).addTo(map).bindPopup(destination || "Destination");
+      const popupLabel = document.createElement("span");
+      popupLabel.textContent = destination || "Destination";
+      L.marker([lat, lon]).addTo(map).bindPopup(popupLabel);
     } else {
       map.setView([0, 0], 2);
     }

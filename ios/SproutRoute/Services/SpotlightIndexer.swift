@@ -2,7 +2,12 @@ import CoreSpotlight
 import Foundation
 import UniformTypeIdentifiers
 
-actor SpotlightIndexer {
+protocol SpotlightDeleting {
+    func delete(id: String) async
+    func deleteAllTrips() async
+}
+
+actor SpotlightIndexer: SpotlightDeleting {
     func index(snapshot: TripWidgetSnapshot) async {
         guard snapshot.id != "empty" else { return }
         let attributes = CSSearchableItemAttributeSet(contentType: .content)
@@ -25,5 +30,11 @@ actor SpotlightIndexer {
 
     func delete(id: String) async {
         try? await CSSearchableIndex.default().deleteSearchableItems(withIdentifiers: [id])
+    }
+
+    func deleteAllTrips() async {
+        try? await CSSearchableIndex.default().deleteSearchableItems(
+            withDomainIdentifiers: ["com.sproutroute.trips"]
+        )
     }
 }

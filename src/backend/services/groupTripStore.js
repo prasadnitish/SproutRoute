@@ -2,8 +2,14 @@ import crypto from "crypto";
 import { sanitizeString } from "../utils/sanitize.js";
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
 
-const INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const GROUP_TRIP_DOCUMENTS_TABLE = "group_trip_documents";
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_PARTICIPANTS_PER_TRIP = 25;
+const MAX_ITEMS_PER_TRIP = 500;
+const MAX_ACTIVITY_EVENTS_PER_TRIP = 1_000;
+const MAX_EXPENSE_AMOUNT_CENTS = 100_000_000;
+const MAX_ACTIVE_TRIPS_PER_OWNER = 5;
+const TRIP_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
 function makeId(prefix) {
   return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
@@ -19,13 +25,32 @@ function hashParticipantAccessToken(token) {
 
 function makeInviteCode(existingCodes) {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    let code = "";
-    for (let i = 0; i < 6; i += 1) {
-      code += INVITE_ALPHABET[crypto.randomInt(0, INVITE_ALPHABET.length)];
-    }
+    const code = crypto.randomBytes(16).toString("base64url");
     if (!existingCodes.has(code)) return code;
   }
   throw new Error("Could not allocate invite code");
+}
+
+function inviteExpiresAt(now = Date.now()) {
+  return new Date(now + INVITE_TTL_MS).toISOString();
+}
+
+function isInviteUsable(trip, now = Date.now()) {
+  if (!trip || trip.status !== "active" || trip.inviteRevokedAt) return false;
+  const expiresAt = Date.parse(String(trip.inviteExpiresAt || ""));
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+
+function parseExpenseAmountCents(value) {
+  const raw = String(value ?? "").trim();
+  if (!/^[1-9]\d*$/.test(raw)) return null;
+  const amountCents = Number(raw);
+  if (!Number.isSafeInteger(amountCents) || amountCents > MAX_EXPENSE_AMOUNT_CENTS) return null;
+  return amountCents;
+}
+
+function isStoredExpenseSafe(expense) {
+  return parseExpenseAmountCents(expense?.amountCents) !== null;
 }
 
 function isValidDateString(value) {
@@ -68,7 +93,7 @@ function currentParticipant(participant, accessToken) {
 }
 
 function hasValidParticipantAccessToken(participant, token) {
-  if (!participant || !token) return false;
+  if (!participant || !token || participant.status === "left" || participant.revokedAt) return false;
   const storedHash = participant.accessTokenHash || (participant.accessToken && hashParticipantAccessToken(participant.accessToken));
   if (!storedHash) return false;
 
@@ -505,7 +530,7 @@ export function createInMemoryGroupTripStore(initialState = {}) {
   }
 
   function appendActivity(tripId, event) {
-    const activity = [...activityFor(tripId), event];
+    const activity = [...activityFor(tripId), event].slice(-MAX_ACTIVITY_EVENTS_PER_TRIP);
     activityByTrip.set(tripId, activity);
     return event;
   }
@@ -593,6 +618,9 @@ export function createInMemoryGroupTripStore(initialState = {}) {
         startDate: value.startDate,
         endDate: value.endDate,
         inviteCode,
+        inviteGeneration: crypto.randomUUID(),
+        inviteExpiresAt: inviteExpiresAt(),
+        inviteRevokedAt: null,
         status: "active",
         createdAt: now,
         updatedAt: now,
@@ -625,7 +653,7 @@ export function createInMemoryGroupTripStore(initialState = {}) {
     },
 
     joinTrip(input = {}) {
-      const inviteCode = sanitizeString(String(input.inviteCode ?? "").toUpperCase(), 12);
+      const inviteCode = sanitizeString(String(input.inviteCode ?? ""), 64);
       const displayName = sanitizeDisplayName(input.displayName);
       const errors = [];
 
@@ -639,6 +667,12 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       }
 
       const trip = trips.get(tripId);
+      if (!isInviteUsable(trip)) {
+        return { ok: false, notFound: true, errors: ["Invite code was not found."] };
+      }
+      if (participantsFor(tripId).length >= MAX_PARTICIPANTS_PER_TRIP) {
+        return { ok: false, errors: ["This trip has reached its participant limit."] };
+      }
       const participantAccessToken = makeParticipantAccessToken();
       const participant = {
         id: makeId("participant"),
@@ -675,6 +709,9 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       if (!base.ok) return base;
 
       const { value, errors } = sanitizeItemFields(input, base.tripId);
+      if (itemsFor(base.tripId).length >= MAX_ITEMS_PER_TRIP) {
+        errors.push("This trip has reached its itinerary item limit.");
+      }
       if (errors.length) return { ok: false, errors };
 
       const now = new Date().toISOString();
@@ -750,6 +787,9 @@ export function createInMemoryGroupTripStore(initialState = {}) {
 
       const parsed = parseImportText(input, base);
       if (parsed.errors.length) return { ok: false, errors: parsed.errors };
+      if (itemsFor(base.tripId).length + parsed.items.length > MAX_ITEMS_PER_TRIP) {
+        return { ok: false, errors: ["This trip has reached its itinerary item limit."] };
+      }
 
       const now = new Date().toISOString();
       const importedItems = parsed.items.map((item) => ({
@@ -878,7 +918,7 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       if (!base.ok) return base;
 
       const title = sanitizeString(input.title, 160);
-      const amountCents = Number.parseInt(String(input.amountCents), 10);
+      const amountCents = parseExpenseAmountCents(input.amountCents);
       const currency = sanitizeString(String(input.currency ?? "USD").toUpperCase(), 3);
       const paidByParticipantId = sanitizeString(input.paidByParticipantId, 80);
       const splitParticipantIds = Array.isArray(input.splitParticipantIds)
@@ -889,8 +929,8 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       const errors = [];
 
       if (!title) errors.push("Expense title is required.");
-      if (!Number.isInteger(amountCents) || amountCents <= 0) {
-        errors.push("Expense amount must be a positive number of cents.");
+      if (amountCents === null) {
+        errors.push("Expense amount must be a supported positive cents value.");
       }
       if (!currency) errors.push("Expense currency is required.");
       if (!paidByParticipantId) errors.push("Paid-by participant id is required.");
@@ -899,6 +939,9 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       const paidByParticipant = participantFor(base.tripId, paidByParticipantId);
       if (paidByParticipantId && !paidByParticipant) {
         errors.push("Paid-by participant was not found for this trip.");
+      }
+      if (paidByParticipantId && paidByParticipantId !== base.actor.id) {
+        errors.push("Only the authenticated participant can be recorded as payer.");
       }
 
       const uniqueSplitParticipantIds = Array.from(new Set(splitParticipantIds));
@@ -980,6 +1023,58 @@ export function createInMemoryGroupTripStore(initialState = {}) {
       return { ok: true, participant: publicParticipant(updatedParticipant), activity };
     },
 
+    leaveTrip(input = {}) {
+      const base = validateParticipantSession(input);
+      if (!base.ok) return base;
+
+      const now = new Date().toISOString();
+      const departedParticipant = {
+        ...base.participant,
+        status: "left",
+        revokedAt: now,
+        accessTokenHash: undefined,
+        locationSharingEnabled: false,
+        lastLocation: null,
+      };
+      participantsByTrip.set(
+        base.tripId,
+        participantsFor(base.tripId).map((candidate) =>
+          candidate.id === base.participant.id ? departedParticipant : candidate,
+        ),
+      );
+      base.trip.updatedAt = now;
+      const activity = appendActivity(base.tripId, {
+        id: makeId("activity"),
+        tripId: base.tripId,
+        type: "participant_left",
+        actorParticipantId: base.participant.id,
+        summary: `${base.participant.displayName} left the trip`,
+        createdAt: now,
+      });
+      return { ok: true, participant: publicParticipant(departedParticipant), activity };
+    },
+
+    rotateInvite(input = {}) {
+      const base = validateTripAndActor(input);
+      if (!base.ok) return base;
+      if (base.actor.role !== "owner") {
+        return { ok: false, unauthorized: true, errors: ["Only the trip owner can rotate invites."] };
+      }
+
+      const oldInviteCode = base.trip.inviteCode;
+      const nextInviteCode = makeInviteCode(inviteCodes);
+      inviteCodes.delete(oldInviteCode);
+      inviteCodes.set(nextInviteCode, base.tripId);
+      Object.assign(base.trip, {
+        inviteCode: nextInviteCode,
+        inviteGeneration: crypto.randomUUID(),
+        inviteExpiresAt: inviteExpiresAt(),
+        inviteRevokedAt: null,
+        updatedAt: new Date().toISOString(),
+      });
+      return { ok: true, trip: base.trip };
+    },
+
     snapshot(input = {}) {
       const base = validateParticipantSession(input);
       if (!base.ok) return base;
@@ -1010,14 +1105,21 @@ function stateFromRows(rows = []) {
   };
 
   for (const row of rows || []) {
-    const trip = row.trip_json || row.tripJson;
+    const storedTrip = row.trip_json || row.tripJson;
+    const trip = storedTrip ? {
+      ...storedTrip,
+      inviteExpiresAt: storedTrip.inviteExpiresAt || row.invite_expires_at || row.inviteExpiresAt,
+      inviteRevokedAt: storedTrip.inviteRevokedAt || row.invite_revoked_at || row.inviteRevokedAt || null,
+      inviteGeneration: storedTrip.inviteGeneration || row.invite_generation || row.inviteGeneration,
+    } : null;
     if (!trip?.id) continue;
 
     state.trips.push(trip);
     state.participantsByTrip[trip.id] = row.participants_json || row.participantsJson || [];
     state.itemsByTrip[trip.id] = row.items_json || row.itemsJson || [];
     state.decisionsByTrip[trip.id] = row.decisions_json || row.decisionsJson || [];
-    state.expensesByTrip[trip.id] = row.expenses_json || row.expensesJson || [];
+    state.expensesByTrip[trip.id] = (row.expenses_json || row.expensesJson || [])
+      .filter(isStoredExpenseSafe);
     state.activityByTrip[trip.id] = row.activity_json || row.activityJson || [];
   }
 
@@ -1031,6 +1133,9 @@ function rowFromState(state, tripId) {
   return {
     id: trip.id,
     invite_code: trip.inviteCode,
+    invite_expires_at: trip.inviteExpiresAt,
+    invite_revoked_at: trip.inviteRevokedAt || null,
+    invite_generation: trip.inviteGeneration,
     trip_json: trip,
     participants_json: state.participantsByTrip[trip.id] || [],
     items_json: state.itemsByTrip[trip.id] || [],
@@ -1041,18 +1146,65 @@ function rowFromState(state, tripId) {
   };
 }
 
-async function loadPersistedState(admin) {
-  const { data, error } = await admin.from(GROUP_TRIP_DOCUMENTS_TABLE).select("*");
+async function loadPersistedTrip(admin, column, value) {
+  const { data, error } = await admin
+    .from(GROUP_TRIP_DOCUMENTS_TABLE)
+    .select("*")
+    .eq(column, value)
+    .limit(1)
+    .maybeSingle();
   if (error) throw error;
-  return stateFromRows(data || []);
+  return data || null;
 }
 
-async function persistTripState(admin, store, tripId) {
-  const row = rowFromState(store.dumpState(), tripId);
+async function insertTripState(admin, store, tripId, ownerKey) {
+  const row = {
+    ...rowFromState(store.dumpState(), tripId),
+    version: 1,
+    owner_key: ownerKey,
+    status: "active",
+    expires_at: new Date(Date.now() + TRIP_RETENTION_MS).toISOString(),
+  };
   const { error } = await admin
     .from(GROUP_TRIP_DOCUMENTS_TABLE)
-    .upsert(row, { onConflict: "id" });
+    .insert(row);
   if (error) throw error;
+}
+
+async function hasCreateCapacity(admin, ownerKey) {
+  const { data, error } = await admin
+    .from(GROUP_TRIP_DOCUMENTS_TABLE)
+    .select("id")
+    .eq("owner_key", ownerKey)
+    .eq("status", "active")
+    .gt("expires_at", new Date().toISOString())
+    .limit(MAX_ACTIVE_TRIPS_PER_OWNER);
+  if (error) throw error;
+  return (data || []).length < MAX_ACTIVE_TRIPS_PER_OWNER;
+}
+
+async function purgeExpiredTrips(admin) {
+  const { error } = await admin
+    .from(GROUP_TRIP_DOCUMENTS_TABLE)
+    .delete()
+    .lt("expires_at", new Date().toISOString());
+  if (error) throw error;
+}
+
+async function persistTripState(admin, store, tripId, expectedVersion) {
+  const row = {
+    ...rowFromState(store.dumpState(), tripId),
+    version: expectedVersion + 1,
+  };
+  const { data, error } = await admin
+    .from(GROUP_TRIP_DOCUMENTS_TABLE)
+    .update(row)
+    .eq("id", tripId)
+    .eq("version", expectedVersion)
+    .select("id, version")
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
 }
 
 function storageFailure(error) {
@@ -1075,6 +1227,8 @@ function createUnavailableGroupTripStore(error) {
     voteDecision: failure,
     createExpense: failure,
     setLocationSharing: failure,
+    leaveTrip: failure,
+    rotateInvite: failure,
     snapshot: failure,
   };
 }
@@ -1082,59 +1236,107 @@ function createUnavailableGroupTripStore(error) {
 export function createSupabaseGroupTripStore({ admin }) {
   if (!admin) throw new Error("Supabase admin client is required");
 
-  async function executeMutation(methodName, input, tripIdFromResult) {
-    try {
-      const store = createInMemoryGroupTripStore(await loadPersistedState(admin));
-      const result = store[methodName](input);
-      if (!result.ok) return result;
+  async function executeMutation(methodName, input, tripIdFromResult, selector) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      try {
+        const row = await loadPersistedTrip(admin, selector.column, selector.value(input));
+        const store = createInMemoryGroupTripStore(stateFromRows(row ? [row] : []));
+        const result = store[methodName](input);
+        if (!result.ok) return result;
 
-      await persistTripState(admin, store, tripIdFromResult(result, input));
-      return result;
-    } catch (error) {
-      return storageFailure(error);
+        const tripId = tripIdFromResult(result, input);
+        const committed = await persistTripState(admin, store, tripId, Number(row?.version || 0));
+        if (committed) return result;
+      } catch (error) {
+        return storageFailure(error);
+      }
     }
+
+    return {
+      ok: false,
+      storageError: true,
+      retryable: true,
+      errors: ["Trip was updated concurrently. Please retry."],
+    };
   }
 
+  const byTripId = { column: "id", value: (input) => sanitizeString(input?.tripId, 80) };
+  const byInviteCode = {
+    column: "invite_code",
+    value: (input) => sanitizeString(String(input?.inviteCode ?? ""), 64),
+  };
+
   return {
-    createTrip(input) {
-      return executeMutation("createTrip", input, (result) => result.trip.id);
+    async createTrip(input) {
+      const ownerKey = sanitizeString(String(input?.ownerKey ?? ""), 160);
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const store = createInMemoryGroupTripStore();
+        const result = store.createTrip(input);
+        if (!result.ok) return result;
+        if (!ownerKey) return { ok: false, errors: ["Trip owner identity is required."] };
+        try {
+          await purgeExpiredTrips(admin);
+          if (!(await hasCreateCapacity(admin, ownerKey))) {
+            return {
+              ok: false,
+              errors: ["Trip Hub limit reached. Archive an older trip before creating another."],
+            };
+          }
+          await insertTripState(admin, store, result.trip.id, ownerKey);
+          return result;
+        } catch (error) {
+          if (error?.code === "23505") continue;
+          return storageFailure(error);
+        }
+      }
+      return storageFailure(new Error("Could not allocate a unique Trip Hub invite."));
     },
 
     joinTrip(input) {
-      return executeMutation("joinTrip", input, (result) => result.trip.id);
+      return executeMutation("joinTrip", input, (result) => result.trip.id, byInviteCode);
     },
 
     addItem(input) {
-      return executeMutation("addItem", input, (result) => result.item.tripId);
+      return executeMutation("addItem", input, (result) => result.item.tripId, byTripId);
     },
 
     updateItem(input) {
-      return executeMutation("updateItem", input, (result) => result.item.tripId);
+      return executeMutation("updateItem", input, (result) => result.item.tripId, byTripId);
     },
 
     importItemsFromText(input) {
-      return executeMutation("importItemsFromText", input, (result) => result.items[0].tripId);
+      return executeMutation("importItemsFromText", input, (result) => result.items[0].tripId, byTripId);
     },
 
     createDecision(input) {
-      return executeMutation("createDecision", input, (result) => result.decision.tripId);
+      return executeMutation("createDecision", input, (result) => result.decision.tripId, byTripId);
     },
 
     voteDecision(input) {
-      return executeMutation("voteDecision", input, (result) => result.decision.tripId);
+      return executeMutation("voteDecision", input, (result) => result.decision.tripId, byTripId);
     },
 
     createExpense(input) {
-      return executeMutation("createExpense", input, (result) => result.expense.tripId);
+      return executeMutation("createExpense", input, (result) => result.expense.tripId, byTripId);
     },
 
     setLocationSharing(input) {
-      return executeMutation("setLocationSharing", input, (result) => result.participant.tripId);
+      return executeMutation("setLocationSharing", input, (result) => result.participant.tripId, byTripId);
+    },
+
+    leaveTrip(input) {
+      return executeMutation("leaveTrip", input, (result) => result.participant.tripId, byTripId);
+    },
+
+    rotateInvite(input) {
+      return executeMutation("rotateInvite", input, (result) => result.trip.id, byTripId);
     },
 
     async snapshot(input) {
       try {
-        const store = createInMemoryGroupTripStore(await loadPersistedState(admin));
+        const tripId = sanitizeString(input?.tripId, 80);
+        const row = tripId ? await loadPersistedTrip(admin, "id", tripId) : null;
+        const store = createInMemoryGroupTripStore(stateFromRows(row ? [row] : []));
         return store.snapshot(input);
       } catch (error) {
         return storageFailure(error);

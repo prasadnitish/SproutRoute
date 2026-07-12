@@ -8,5 +8,10 @@
 	<array>
 		<string>group.com.sproutroute.app</string>
 	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:sproutroute.app</string>
+		<string>applinks:www.sproutroute.app</string>
+	</array>
 </dict>
 </plist>

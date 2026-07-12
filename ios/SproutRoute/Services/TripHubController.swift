@@ -14,6 +14,7 @@ protocol GroupTripServicing {
     func createGroupTripExpense(_ payload: GroupTripExpenseCreateRequest) async throws -> GroupTripExpenseResponse
     func groupTripSnapshot(tripId: String, participantId: String, participantAccessToken: String) async throws -> GroupTripSnapshotResponse
     func setGroupTripLocationSharing(_ payload: GroupTripLocationSharingRequest) async throws -> GroupTripLocationSharingResponse
+    func leaveGroupTrip(_ payload: GroupTripLocationSharingRequest) async throws -> GroupTripLeaveResponse
 }
 
 extension SproutAPIClient: GroupTripServicing {}
@@ -130,14 +131,12 @@ private struct TripHubSessionMetadata: Codable, Equatable, Hashable {
     var tripId: String
     var participantId: String
     var displayName: String
-    var inviteCode: String
     var tripTitle: String
 
     init(session: TripHubSession) {
         tripId = session.tripId
         participantId = session.participantId
         displayName = session.displayName
-        inviteCode = session.inviteCode
         tripTitle = session.tripTitle
     }
 
@@ -147,7 +146,7 @@ private struct TripHubSessionMetadata: Codable, Equatable, Hashable {
             participantId: participantId,
             participantAccessToken: accessToken,
             displayName: displayName,
-            inviteCode: inviteCode,
+            inviteCode: "",
             tripTitle: tripTitle
         )
     }
@@ -630,7 +629,7 @@ final class TripHubController {
 
         let expenseTitle = normalized(title)
         let currency = normalized(currency).uppercased()
-        let paidByParticipantId = normalized(paidByParticipantId)
+        let paidByParticipantId = session.participantId
         let splitParticipantIds = uniqueNormalized(splitParticipantIds)
 
         guard !expenseTitle.isEmpty else {
@@ -740,12 +739,30 @@ final class TripHubController {
         }
     }
 
-    func leaveTripHub() {
-        sessionStore.clearSession()
-        activeSession = nil
-        currentParticipant = nil
-        snapshot = nil
-        phase = .onboarding
+    func leaveTripHub() async {
+        guard let session = activeSession else {
+            phase = .onboarding
+            return
+        }
+
+        phase = .loading("Leaving Trip Hub")
+        do {
+            _ = try await service.leaveGroupTrip(
+                GroupTripLocationSharingRequest(
+                    tripId: session.tripId,
+                    participantId: session.participantId,
+                    participantAccessToken: session.participantAccessToken,
+                    isEnabled: false
+                )
+            )
+            sessionStore.clearSession()
+            activeSession = nil
+            currentParticipant = nil
+            snapshot = nil
+            phase = .onboarding
+        } catch {
+            phase = .failed("Trip Hub could not leave right now. Please try again.")
+        }
     }
 
     private func activate(response: GroupTripWorkspaceResponse) -> Bool {

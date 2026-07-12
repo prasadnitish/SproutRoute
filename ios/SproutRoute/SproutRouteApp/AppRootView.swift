@@ -652,7 +652,7 @@ struct TripHubView: View {
                             Label("Refresh", systemImage: "arrow.clockwise")
                         }
                         Button(role: .destructive) {
-                            controller.leaveTripHub()
+                            Task { await controller.leaveTripHub() }
                         } label: {
                             Label("Leave", systemImage: "rectangle.portrait.and.arrow.right")
                         }
@@ -1443,15 +1443,12 @@ struct TripHubExpenseEditor: View {
     @State private var title = ""
     @State private var amount = ""
     @State private var currency = "USD"
-    @State private var paidByParticipantId: String
     @State private var splitParticipantIds: Set<String>
     @State private var isSaving = false
 
     init(controller: TripHubController, snapshot: GroupTripSnapshotResponse) {
         self.controller = controller
         self.snapshot = snapshot
-        let payer = controller.currentParticipant?.id ?? snapshot.participants.first?.id ?? ""
-        _paidByParticipantId = State(initialValue: payer)
         _splitParticipantIds = State(initialValue: Set(snapshot.participants.map(\.id)))
     }
 
@@ -1468,11 +1465,7 @@ struct TripHubExpenseEditor: View {
                 }
 
                 Section("Paid by") {
-                    Picker("Payer", selection: $paidByParticipantId) {
-                        ForEach(snapshot.participants) { participant in
-                            Text(participant.displayName).tag(participant.id)
-                        }
-                    }
+                    Text(controller.currentParticipant?.displayName ?? "Current participant")
                 }
 
                 Section("Split") {
@@ -1507,6 +1500,10 @@ struct TripHubExpenseEditor: View {
             !currency.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
             !paidByParticipantId.isEmpty &&
             !splitParticipantIds.isEmpty
+    }
+
+    private var paidByParticipantId: String {
+        controller.activeSession?.participantId ?? ""
     }
 
     private func splitBinding(for participantId: String) -> Binding<Bool> {

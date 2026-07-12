@@ -10,6 +10,7 @@
  */
 
 import posthog from "posthog-js";
+import { buildTripErrorProperties, buildTripSearchProperties } from "./analyticsPayloads.js";
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
 const IS_PROD = import.meta.env.PROD;
@@ -51,10 +52,7 @@ export const analytics = {
   // ── Trip funnel events ────────────────────────────────────────────
   tripSearched(text, properties = {}) {
     if (!IS_PROD) return;
-    posthog.capture("trip_searched", {
-      search_text: text?.slice(0, 200),
-      ...properties,
-    });
+    posthog.capture("trip_searched", buildTripSearchProperties(text, properties));
   },
 
   tripParsed(parsed) {
@@ -98,12 +96,9 @@ export const analytics = {
     });
   },
 
-  tripError(error, destination) {
+  tripError(errorCode) {
     if (!IS_PROD) return;
-    posthog.capture("trip_error", {
-      error: error?.slice(0, 200),
-      destination,
-    });
+    posthog.capture("trip_error", buildTripErrorProperties(errorCode));
   },
 
   // ── Feature usage ─────────────────────────────────────────────────

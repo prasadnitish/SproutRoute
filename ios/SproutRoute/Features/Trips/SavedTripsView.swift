@@ -30,7 +30,9 @@ struct SavedTripsView: View {
                     }
                     .swipeActions {
                         Button(role: .destructive) {
-                            try? TripRepository(modelContext: modelContext).delete(trip)
+                            Task {
+                                try? await TripDeletionService(modelContext: modelContext).delete(trip)
+                            }
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }

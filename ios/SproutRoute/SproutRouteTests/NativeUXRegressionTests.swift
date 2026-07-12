@@ -63,14 +63,14 @@ final class NativeUXRegressionTests: XCTestCase {
     func testTripHubDeepLinkRoutesToOrganizerMode() {
         let url = SproutRouteDeepLink.tripHubURL(id: "trip_abc123")
 
-        XCTAssertEqual(url.absoluteString, "sproutroute://trip-hub/trip_abc123")
+        XCTAssertEqual(url.absoluteString, "https://sproutroute.app/trip-hub/trip_abc123/join")
         XCTAssertEqual(SproutRouteDeepLink.parse(url), .tripHub(id: "trip_abc123"))
     }
 
     func testTripHubInviteDeepLinkCarriesInviteCode() {
         let url = SproutRouteDeepLink.tripHubURL(id: "trip_abc123", inviteCode: "VEGAS1")
 
-        XCTAssertEqual(url.absoluteString, "sproutroute://trip-hub/trip_abc123?inviteCode=VEGAS1")
+        XCTAssertEqual(url.absoluteString, "https://sproutroute.app/trip-hub/trip_abc123/join?inviteCode=VEGAS1")
         XCTAssertEqual(SproutRouteDeepLink.parse(url), .tripHub(id: "trip_abc123", inviteCode: "VEGAS1"))
     }
 
@@ -278,7 +278,7 @@ final class NativeUXRegressionTests: XCTestCase {
         XCTAssertTrue(message.contains("Vegas 2026"))
         XCTAssertTrue(message.contains("Las Vegas, NV"))
         XCTAssertTrue(message.contains("VEGAS1"))
-        XCTAssertTrue(message.contains("sproutroute://trip-hub/trip_abc123"))
+        XCTAssertTrue(message.contains("https://sproutroute.app/trip-hub/trip_abc123/join"))
         XCTAssertTrue(message.contains("inviteCode=VEGAS1"))
         XCTAssertFalse(message.contains("gtp_owner_token"))
     }
@@ -368,6 +368,7 @@ final class NativeUXRegressionTests: XCTestCase {
         let rawData = try XCTUnwrap(defaults.data(forKey: "trip-hub-session"))
         let rawString = String(decoding: rawData, as: UTF8.self)
         XCTAssertFalse(rawString.contains("gtp_owner_token"))
+        XCTAssertFalse(rawString.contains("VEGAS1"))
         XCTAssertEqual(tokenStore.tokensByParticipantId["participant_1"], "gtp_owner_token")
         XCTAssertEqual(store.loadSession()?.participantAccessToken, "gtp_owner_token")
     }
@@ -398,6 +399,30 @@ final class NativeUXRegressionTests: XCTestCase {
         XCTAssertEqual(tokenStore.tokensByParticipantId["participant_legacy"], "gtp_legacy_token")
         let rewrittenData = try XCTUnwrap(defaults.data(forKey: "trip-hub-session"))
         XCTAssertFalse(String(decoding: rewrittenData, as: UTF8.self).contains("gtp_legacy_token"))
+        XCTAssertFalse(String(decoding: rewrittenData, as: UTF8.self).contains("LEGACY"))
+    }
+
+    @MainActor
+    func testLeavingTripHubRevokesServerSessionBeforeClearingLocalSession() async {
+        let service = StubGroupTripService()
+        let store = InMemoryTripHubSessionStore()
+        let controller = TripHubController(service: service, sessionStore: store)
+
+        await controller.createTrip(
+            title: "Vegas 2026",
+            destination: "Las Vegas, NV",
+            startDate: "2026-09-18",
+            endDate: "2026-09-21",
+            ownerName: "Nitish"
+        )
+        XCTAssertNotNil(store.savedSession)
+
+        await controller.leaveTripHub()
+
+        XCTAssertEqual(service.recordedCalls.last, "leave:trip_abc123:participant_1:gtp_owner_token")
+        XCTAssertNil(store.savedSession)
+        XCTAssertNil(controller.activeSession)
+        XCTAssertEqual(controller.phase, .onboarding)
     }
 
     @MainActor
@@ -1206,6 +1231,25 @@ private final class StubGroupTripService: GroupTripServicing {
                 type: payload.isEnabled ? "location_sharing_enabled" : "location_sharing_disabled",
                 actorParticipantId: payload.participantId,
                 summary: "Nitish updated location sharing",
+                createdAt: nil
+            )
+        )
+    }
+
+    func leaveGroupTrip(_ payload: GroupTripLocationSharingRequest) async throws -> GroupTripLeaveResponse {
+        recordedCalls.append("leave:\(payload.tripId):\(payload.participantId):\(payload.participantAccessToken)")
+        var participant = Self.owner
+        participant.locationSharingEnabled = false
+        participant.lastLocation = nil
+        return GroupTripLeaveResponse(
+            requestId: "req-leave",
+            participant: participant,
+            activity: GroupTripActivityEvent(
+                id: "activity_leave",
+                tripId: payload.tripId,
+                type: "participant_left",
+                actorParticipantId: payload.participantId,
+                summary: "Nitish left the trip",
                 createdAt: nil
             )
         )

@@ -104,4 +104,86 @@ final class SwiftDataPersistenceTests: XCTestCase {
         analyticsSettings.setEnabled(true)
         XCTAssertNotEqual(analyticsSettings.distinctId, originalIdentifier)
     }
+
+    func testDeleteAllClearsTripHubSpotlightAndWidgetTimelines() async throws {
+        let schema = Schema(SproutRouteSchema.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+        let sessionStore = DeletionTripHubSessionStore()
+        sessionStore.saveSession(TripHubSession(
+            tripId: "trip-delete",
+            participantId: "participant-1",
+            participantAccessToken: "gtp_sensitive",
+            displayName: "Nitish",
+            inviteCode: "sensitive-invite",
+            tripTitle: "Vegas"
+        ))
+        let spotlight = DeletionSpotlightSpy()
+        let widgets = DeletionWidgetTimelineSpy()
+
+        _ = try await LocalDataDeletionService(
+            modelContext: context,
+            tripHubSessionStore: sessionStore,
+            spotlight: spotlight,
+            widgetTimelines: widgets
+        ).deleteAllLocalData()
+
+        XCTAssertNil(sessionStore.loadSession())
+        let spotlightDeleteAllCount = await spotlight.deleteAllCount
+        XCTAssertEqual(spotlightDeleteAllCount, 1)
+        XCTAssertEqual(widgets.reloadCount, 1)
+    }
+
+    func testImportedProfilePersistsOnlyOneMinimizedProfile() throws {
+        let schema = Schema(SproutRouteSchema.models)
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+        let context = ModelContext(container)
+        let repository = TripRepository(modelContext: context)
+        let profile = UserTravelProfile(
+            id: nil,
+            userId: nil,
+            version: nil,
+            food: nil,
+            travelStyle: nil,
+            activities: nil,
+            personality: nil,
+            family: nil,
+            constraints: nil,
+            priorities: nil,
+            profileSummary: "Family traveler",
+            unknowns: [],
+            createdAt: nil,
+            updatedAt: nil
+        )
+        let response = ProfileNormalizeResponse(normalizedProfile: profile, providerHint: "chatgpt")
+
+        _ = try repository.saveImportedProfile(response, rawText: "sensitive-source-one")
+        _ = try repository.saveImportedProfile(response, rawText: "sensitive-source-two")
+
+        let stored = try context.fetch(FetchDescriptor<ImportedProfileModel>())
+        XCTAssertEqual(stored.count, 1)
+        XCTAssertEqual(stored.first?.rawText, "")
+        XCTAssertFalse(stored.first?.rawText.contains("sensitive-source") == true)
+    }
+}
+
+private final class DeletionTripHubSessionStore: TripHubSessionStoring {
+    private var session: TripHubSession?
+
+    func loadSession() -> TripHubSession? { session }
+    func saveSession(_ session: TripHubSession) { self.session = session }
+    func clearSession() { session = nil }
+}
+
+private actor DeletionSpotlightSpy: SpotlightDeleting {
+    private(set) var deleteAllCount = 0
+    func delete(id: String) async {}
+    func deleteAllTrips() async { deleteAllCount += 1 }
+}
+
+private final class DeletionWidgetTimelineSpy: WidgetTimelineReloading {
+    private(set) var reloadCount = 0
+    func reloadSproutRouteTimelines() { reloadCount += 1 }
 }

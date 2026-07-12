@@ -108,12 +108,15 @@ struct TripRepository {
         return try modelContext.fetch(descriptor).first
     }
 
-    func saveImportedProfile(_ response: ProfileNormalizeResponse, rawText: String) throws -> ImportedProfileModel {
+    func saveImportedProfile(_ response: ProfileNormalizeResponse, rawText _: String) throws -> ImportedProfileModel {
         let profileData = try JSONEncoder.sproutRoute.encode(response.normalizedProfile)
+        for existing in try modelContext.fetch(FetchDescriptor<ImportedProfileModel>()) {
+            modelContext.delete(existing)
+        }
         let model = ImportedProfileModel(
             providerHint: response.providerHint,
             summary: response.normalizedProfile.profileSummary,
-            rawText: rawText,
+            rawText: "",
             profileData: profileData
         )
         modelContext.insert(model)

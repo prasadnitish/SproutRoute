@@ -10,7 +10,7 @@ settings:
     DEVELOPMENT_TEAM: "YNCCXQ5TUR"
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "2.0"
-    CURRENT_PROJECT_VERSION: "5"
+    CURRENT_PROJECT_VERSION: "6"
     GENERATE_INFOPLIST_FILE: NO
     POSTHOG_API_KEY: ""
 packages: {}
@@ -35,6 +35,9 @@ targets:
         com.apple.developer.weatherkit: true
         com.apple.security.application-groups:
           - group.com.sproutroute.app
+        com.apple.developer.associated-domains:
+          - applinks:sproutroute.app
+          - applinks:www.sproutroute.app
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.sproutroute.app

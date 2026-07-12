@@ -217,6 +217,10 @@ actor SproutAPIClient {
         try await post("/api/v1/group-trips/location-sharing", body: payload)
     }
 
+    func leaveGroupTrip(_ payload: GroupTripLocationSharingRequest) async throws -> GroupTripLeaveResponse {
+        try await post("/api/v1/group-trips/leave", body: payload)
+    }
+
     func groupTripSnapshot(
         tripId: String,
         participantId: String,

@@ -778,6 +778,12 @@ struct GroupTripLocationSharingResponse: Codable, Hashable {
     var activity: GroupTripActivityEvent
 }
 
+struct GroupTripLeaveResponse: Codable, Hashable {
+    var requestId: String?
+    var participant: GroupTripParticipant
+    var activity: GroupTripActivityEvent
+}
+
 struct ApiErrorEnvelope: Codable, Error, LocalizedError, Hashable {
     var code: String?
     var message: String

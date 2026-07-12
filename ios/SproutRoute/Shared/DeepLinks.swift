@@ -9,6 +9,19 @@ enum SproutRouteDeepLink: Hashable {
     case settings
 
     static func parse(_ url: URL) -> SproutRouteDeepLink? {
+        if url.scheme == "https",
+           ["sproutroute.app", "www.sproutroute.app"].contains(url.host ?? "") {
+            let path = url.pathComponents.filter { $0 != "/" }
+            if path.count >= 2, path[0] == "trip-hub" {
+                let inviteCode = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?
+                    .first(where: { $0.name == "inviteCode" })?
+                    .value
+                return .tripHub(id: path[1], inviteCode: inviteCode)
+            }
+            return nil
+        }
+
         guard url.scheme == "sproutroute" else { return nil }
         let host = url.host ?? ""
         let path = url.pathComponents.filter { $0 != "/" }
@@ -52,9 +65,9 @@ enum SproutRouteDeepLink: Hashable {
 
     static func tripHubURL(id: String, inviteCode: String? = nil) -> URL {
         var components = URLComponents()
-        components.scheme = "sproutroute"
-        components.host = "trip-hub"
-        components.path = "/\(id)"
+        components.scheme = "https"
+        components.host = "sproutroute.app"
+        components.path = "/trip-hub/\(id)/join"
         if let inviteCode, !inviteCode.isEmpty {
             components.queryItems = [URLQueryItem(name: "inviteCode", value: inviteCode)]
         }

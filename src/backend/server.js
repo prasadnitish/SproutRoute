@@ -2,7 +2,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
@@ -41,6 +41,9 @@ import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
 // NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
 import { metrics } from "./services/metrics.js";
 import { parsePastedProfileJson } from "./utils/profileImportJson.js";
+import { bucketTextLength, parserLogContext } from "./services/privacyTelemetry.js";
+import { PHOTO_TIMEOUT_MS, readBoundedResponseBody } from "./services/photoProxy.js";
+import { saveTripFeedback } from "./services/feedbackStore.js";
 
 dotenv.config();
 
@@ -302,6 +305,7 @@ export function createApp(deps = {}) {
     getPetTravelGuidanceFn = getPetTravelGuidance,
     attractionMemoryService = createAttractionMemoryService(),
     groupTripStore = createGroupTripStore(),
+    getSupabaseAdminFn = getSupabaseAdmin,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -409,6 +413,37 @@ export function createApp(deps = {}) {
     },
   });
 
+  const groupTripCreateLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many Trip Hub creations. Please try again later." },
+  });
+
+  const groupTripJoinLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 12,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      const inviteCode = sanitizeString(String(req.body?.inviteCode ?? ""), 64);
+      const inviteDigest = crypto.createHash("sha256").update(inviteCode).digest("hex").slice(0, 16);
+      return `${ipKeyGenerator(req.ip)}:${inviteDigest}`;
+    },
+    message: { error: "Too many invite attempts. Please try again later." },
+  });
+
+  function groupTripOwnerKey(req) {
+    if (req.user?.id) return `user:${req.user.id}`;
+    const secret = process.env.TRIP_HUB_OWNER_HASH_KEY ||
+      process.env.SUPABASE_SERVICE_KEY ||
+      process.env.SUPABASE_SERVICE_ROLE_KEY ||
+      "sproutroute-development-owner-key";
+    const clientKey = `${ipKeyGenerator(req.ip || "unknown")}:${req.get?.("user-agent") || "unknown"}`;
+    return `guest:${crypto.createHmac("sha256", secret).update(clientKey).digest("base64url")}`;
+  }
+
   app.get("/api/health", (req, res) => {
     res.json({
       status: "ok",
@@ -417,7 +452,50 @@ export function createApp(deps = {}) {
     });
   });
 
-  // ─── Ops Dashboard (protected — requires OPS_SECRET query param or env match) ─
+  const OPS_SESSION_COOKIE = "sproutroute_ops_session";
+  const OPS_SESSION_TTL_MS = 15 * 60 * 1000;
+
+  function secureSecretMatches(provided, expected) {
+    const left = Buffer.from(String(provided || ""));
+    const right = Buffer.from(String(expected || ""));
+    return left.length === right.length && crypto.timingSafeEqual(left, right);
+  }
+
+  function createOpsSession(secret) {
+    const payload = Buffer.from(JSON.stringify({
+      expiresAt: Date.now() + OPS_SESSION_TTL_MS,
+      nonce: crypto.randomBytes(16).toString("base64url"),
+    })).toString("base64url");
+    const signature = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+    return `${payload}.${signature}`;
+  }
+
+  function readCookie(req, name) {
+    const cookies = String(req.headers?.cookie || "").split(";");
+    for (const cookie of cookies) {
+      const [key, ...parts] = cookie.trim().split("=");
+      if (key === name) return decodeURIComponent(parts.join("="));
+    }
+    return "";
+  }
+
+  function hasValidOpsSession(req, secret) {
+    const token = readCookie(req, OPS_SESSION_COOKIE);
+    const separator = token.lastIndexOf(".");
+    if (separator <= 0) return false;
+    const payload = token.slice(0, separator);
+    const signature = token.slice(separator + 1);
+    const expected = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
+    if (!secureSecretMatches(signature, expected)) return false;
+    try {
+      const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+      return Number.isFinite(decoded.expiresAt) && decoded.expiresAt > Date.now();
+    } catch {
+      return false;
+    }
+  }
+
+  // ─── Ops Dashboard (header for tooling, short-lived cookie for browsers) ─
   const opsGuard = (req, res, next) => {
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
@@ -425,7 +503,9 @@ export function createApp(deps = {}) {
     const bearerSecret = req.get("authorization")?.replace(/^Bearer\s+/i, "").trim();
     // Security: secret via headers only — never in query params (avoids log exposure)
     const providedSecret = headerSecret || bearerSecret;
-    if (providedSecret !== secret) return res.status(403).json({ error: "Forbidden" });
+    if (!secureSecretMatches(providedSecret, secret) && !hasValidOpsSession(req, secret)) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
     next();
   };
 
@@ -438,15 +518,30 @@ export function createApp(deps = {}) {
     }
   });
 
-  // /ops page: allow query param for initial browser navigation only
+  app.post("/ops/session", (req, res) => {
+    const secret = process.env.OPS_SECRET;
+    if (!secret) return res.status(503).send("Ops dashboard not configured");
+    if (!secureSecretMatches(req.body?.key, secret)) return res.status(403).send("Forbidden");
+    res.cookie(OPS_SESSION_COOKIE, createOpsSession(secret), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: OPS_SESSION_TTL_MS,
+      path: "/",
+    });
+    return res.redirect(303, "/ops");
+  });
+
   const opsPageGuard = (req, res, next) => {
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
-    if (req.query.key !== secret) return res.status(403).send("Forbidden");
+    if (req.query?.key) return res.status(400).send("Credentials are not accepted in URLs");
+    if (!hasValidOpsSession(req, secret)) return res.status(403).send("Forbidden");
     next();
   };
   app.get("/ops", opsPageGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");
+    res.setHeader("Referrer-Policy", "no-referrer");
     // Override CSP for admin dashboard — allows inline script (auth-gated, not user-facing)
     res.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-src https://us.posthog.com");
     res.send(OPS_DASHBOARD_HTML);
@@ -727,7 +822,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/safety/travel-tips — AI-generated travel safety for any destination
-  app.post("/api/safety/travel-tips", apiLimiter, async (req, res) => {
+  app.post("/api/safety/travel-tips", aiLimiter, async (req, res) => {
     try {
       const destination = sanitizeString(req.body?.destination || "", 120);
       // Sanitize childrenAges to prevent prompt injection (only allow numbers 0-18)
@@ -801,9 +896,12 @@ export function createApp(deps = {}) {
     return fallbackStatus;
   }
 
-  app.post("/api/v1/group-trips", apiLimiter, async (req, res) => {
+  app.post("/api/v1/group-trips", optionalAuth, groupTripCreateLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
-    const result = await groupTripStore.createTrip(req.body || {});
+    const result = await groupTripStore.createTrip({
+      ...(req.body || {}),
+      ownerKey: groupTripOwnerKey(req),
+    });
 
     if (!result.ok) {
       return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
@@ -812,7 +910,7 @@ export function createApp(deps = {}) {
     return res.status(201).json({ requestId, ...result });
   });
 
-  app.post("/api/v1/group-trips/join", apiLimiter, async (req, res) => {
+  app.post("/api/v1/group-trips/join", groupTripJoinLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const result = await groupTripStore.joinTrip(req.body || {});
 
@@ -948,15 +1046,42 @@ export function createApp(deps = {}) {
     return res.json({ requestId, ...result });
   });
 
+  app.post("/api/v1/group-trips/leave", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.leaveTrip(req.body || {});
+    if (!result.ok) {
+      return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
+    }
+    return res.json({ requestId, ...result });
+  });
+
+  app.post("/api/v1/group-trips/invite/rotate", apiLimiter, async (req, res) => {
+    const requestId = crypto.randomUUID();
+    const result = await groupTripStore.rotateInvite(req.body || {});
+    if (!result.ok) {
+      return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
+    }
+    return res.json({ requestId, ...result });
+  });
+
   app.get("/api/v1/group-trips/snapshot", apiLimiter, async (req, res) => {
     const requestId = crypto.randomUUID();
     const participantAccessToken =
       req.get?.("x-group-trip-participant-token") ||
       req.headers?.["x-group-trip-participant-token"] ||
       req.headers?.["X-Group-Trip-Participant-Token"];
+    if (req.query?.participantAccessToken || req.body?.participantAccessToken) {
+      return groupTripError(
+        res,
+        400,
+        requestId,
+        "Participant access tokens must be sent in X-Group-Trip-Participant-Token.",
+        ["Participant access tokens must be sent in X-Group-Trip-Participant-Token."],
+      );
+    }
     const result = await groupTripStore.snapshot({
-      ...(req.query || {}),
-      ...(req.body || {}),
+      tripId: req.query?.tripId,
+      participantId: req.query?.participantId,
       ...(participantAccessToken ? { participantAccessToken } : {}),
     });
 
@@ -1920,7 +2045,12 @@ export function createApp(deps = {}) {
       const sanitizedText = sanitizeDestination(String(text).trim());
       if (!sanitizedText) return res.status(422).json({ error: "text is required" });
 
-      log.info("parse-input:start", { reqId, textLen: sanitizedText.length, text: sanitizedText.slice(0, 100) });
+      log.info("parse-input:start", parserLogContext({
+        reqId,
+        text: sanitizedText,
+        detectedLat,
+        detectedLon,
+      }));
 
       let detectedRegion = null;
       // SECURITY: Validate lat/lon as numeric to prevent SSRF via URL parameter injection
@@ -1954,7 +2084,7 @@ export function createApp(deps = {}) {
       const parseMs = Date.now() - t0;
       log.info("parse-input:done", { reqId, ms: parseMs, destination: result?.destination });
       metrics.recordSearch({
-        text: sanitizedText.slice(0, 100),
+        textLengthBucket: bucketTextLength(sanitizedText.length),
         destination: result?.destination,
         vibe: result?.vibe,
         childCount: result?.childrenAges?.length || 0,
@@ -1997,13 +2127,20 @@ export function createApp(deps = {}) {
         return res.status(400).send("Invalid photo reference");
       }
       const photoUrl = `https://places.googleapis.com/v1/${ref}/media?maxWidthPx=800&key=${apiKey}`;
-      const photoRes = await fetch(photoUrl);
+      const photoRes = await fetch(photoUrl, {
+        signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS),
+        redirect: "error",
+      });
       if (!photoRes.ok) return res.status(photoRes.status).send("Photo not found");
       res.set("Content-Type", photoRes.headers.get("content-type") || "image/jpeg");
       res.set("Cache-Control", "public, max-age=86400");
-      const buffer = Buffer.from(await photoRes.arrayBuffer());
+      const buffer = await readBoundedResponseBody(photoRes);
       res.send(buffer);
     } catch (err) {
+      if (err?.statusCode === 413) return res.status(413).send("Photo response too large");
+      if (err?.name === "TimeoutError" || err?.name === "AbortError") {
+        return res.status(504).send("Photo provider timed out");
+      }
       log.error("photo proxy error", { error: err.message });
       res.status(500).send("Photo proxy error");
     }
@@ -2332,18 +2469,17 @@ export function createApp(deps = {}) {
         return res.status(422).json({ error: "tripRequestId is required" });
       }
 
-      const admin = getSupabaseAdmin();
+      const admin = getSupabaseAdminFn();
       await ensureUserRecord(admin, req.user);
-      const { error } = await admin
-        .from("trip_feedback")
-        .insert({
-          user_id: req.user.id,
-          trip_request_id: tripRequestId,
-          signal_type: signalType,
-          payload_json: payload || {},
-        });
-
-      if (error) throw error;
+      const result = await saveTripFeedback(admin, {
+        userId: req.user.id,
+        tripRequestId,
+        signalType,
+        payload,
+      });
+      if (!result.ok) {
+        return res.status(403).json({ error: "Trip request is not available for feedback" });
+      }
 
       log.info("feedback:saved", { userId: req.user.id?.slice(0, 8), signalType, tripRequestId });
       res.json({ saved: true });

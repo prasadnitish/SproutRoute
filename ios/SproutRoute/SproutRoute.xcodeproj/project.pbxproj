@@ -41,7 +41,6 @@
 		9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F6FFB65B5915A4A5B7292B /* TripRepository.swift */; };
 		9DEC11ABF4B0CA4CB6D90896 /* ProfileContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A279D9F9164F9BB491D6660E /* ProfileContracts.swift */; };
 		9FF8BE8A514DD2FEC4CA6D5D /* FoundationModelsRecapService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */; };
-		A2E7D8B6D1B74B41964F1885 /* TripHubController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D37A1E41B54C819C0E8942 /* TripHubController.swift */; };
 		A39475D8D3360EB982592DC9 /* TripActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE14467599D733AFA98C93CC /* TripActivityAttributes.swift */; };
 		A9ACCCD47DC1559656B06FAB /* SproutRouteWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 76E1F5A7AF1CA4BE9700AA54 /* SproutRouteWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AAFCD79FBC305E31F072E6D0 /* ProfileImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF6964AD61006C9723404751 /* ProfileImportView.swift */; };
@@ -51,8 +50,10 @@
 		B1BEEA052864C3070F25F5EA /* APIClientConfigurationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD9B2484B23A72612AD500B /* APIClientConfigurationTests.swift */; };
 		B80A05D25664BB91AFB1A0CA /* ItineraryPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64144CE5D773E331CC4A2FDC /* ItineraryPresentation.swift */; };
 		BA017A5F4CA3B649AE66AC8E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */; };
+		C468B8DA61FDDD72F9D7DB13 /* TripHubController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E26453E196A66ED11442F1 /* TripHubController.swift */; };
 		E1DF55682C10D09EA9A8DA4A /* AnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A52D876777A07A723954A14 /* AnalyticsTests.swift */; };
 		EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200A7D9807456872C47B14F8 /* SproutTheme.swift */; };
+		ECBFA10E61E7FEE372114E61 /* TripDeletionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3E3B22CA28801D58D3AA4B2 /* TripDeletionService.swift */; };
 		ECDE8AD1A90FBC61E9B44895 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0EA0683169A8DE2B3D56B8F /* SettingsView.swift */; };
 		EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98DD678EEBCE106556B89B3 /* TripPlanner.swift */; };
 		F4B27E6204FD5AFFFAC29C5F /* ProfileImportSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CC79E87A2FC88A1A1F5883 /* ProfileImportSanitizer.swift */; };
@@ -117,13 +118,14 @@
 		90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherKitAdapter.swift; sourceTree = "<group>"; };
 		90D5544B7BF69F1B0048EA91 /* SwiftDataPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataPersistenceTests.swift; sourceTree = "<group>"; };
 		939ECCCD140D5992225CC7E1 /* SavedTripsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedTripsView.swift; sourceTree = "<group>"; };
+		96E26453E196A66ED11442F1 /* TripHubController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripHubController.swift; sourceTree = "<group>"; };
 		98076617A97709811FFCFCAB /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		A279D9F9164F9BB491D6660E /* ProfileContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileContracts.swift; sourceTree = "<group>"; };
+		A3E3B22CA28801D58D3AA4B2 /* TripDeletionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDeletionService.swift; sourceTree = "<group>"; };
 		AB95C865F62EFEA101F1C28A /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		AF6964AD61006C9723404751 /* ProfileImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileImportView.swift; sourceTree = "<group>"; };
 		B6463F4E23AA4DA888503C8A /* FoundationModelsRecapService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsRecapService.swift; sourceTree = "<group>"; };
 		B6B2BEAEEABCD05F49E18279 /* NativeUXRegressionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeUXRegressionTests.swift; sourceTree = "<group>"; };
-		B8D37A1E41B54C819C0E8942 /* TripHubController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripHubController.swift; sourceTree = "<group>"; };
 		BE2D11116D8685C2A2E7550E /* SnapshotStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotStoreTests.swift; sourceTree = "<group>"; };
 		C50485BE3C65676955AE1BBC /* LiveActivityController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityController.swift; sourceTree = "<group>"; };
 		C5B2E91F5020862EA92C8760 /* SproutRouteIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SproutRouteIntents.swift; sourceTree = "<group>"; };
@@ -267,7 +269,8 @@
 				243F0ED570736B919BB4D9EB /* NotificationScheduler.swift */,
 				6B79C61E1AC9A82DF12272B1 /* SpotlightIndexer.swift */,
 				AB95C865F62EFEA101F1C28A /* SSEParser.swift */,
-				B8D37A1E41B54C819C0E8942 /* TripHubController.swift */,
+				A3E3B22CA28801D58D3AA4B2 /* TripDeletionService.swift */,
+				96E26453E196A66ED11442F1 /* TripHubController.swift */,
 				D98DD678EEBCE106556B89B3 /* TripPlanner.swift */,
 				90AAB1CA9D55EC444B58A784 /* WeatherKitAdapter.swift */,
 			);
@@ -503,7 +506,8 @@
 				EA7BFFED007585A1B1CE2711 /* SproutTheme.swift in Sources */,
 				FE30BE735E618CB2E2F079A2 /* SwiftDataModels.swift in Sources */,
 				828AC40A5DDA32B40402BB7D /* TripActivityAttributes.swift in Sources */,
-				A2E7D8B6D1B74B41964F1885 /* TripHubController.swift in Sources */,
+				ECBFA10E61E7FEE372114E61 /* TripDeletionService.swift in Sources */,
+				C468B8DA61FDDD72F9D7DB13 /* TripHubController.swift in Sources */,
 				ABF684099B67FCD2E7156FA8 /* TripMapView.swift in Sources */,
 				EDBCC4ABC1198965133A5A8B /* TripPlanner.swift in Sources */,
 				9C925E5E4ED14AC55199FD68 /* TripRepository.swift in Sources */,
@@ -665,7 +669,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = YNCCXQ5TUR;
 				ENABLE_NS_ASSERTIONS = NO;
@@ -727,7 +731,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_TEAM = YNCCXQ5TUR;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;

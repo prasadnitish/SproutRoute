@@ -40,6 +40,39 @@ const OPENAI_MODEL_ID = process.env.OPENAI_MODEL_ID || "gpt-5.4-nano";
 const DEEPSEEK_MODEL_ID = process.env.DEEPSEEK_MODEL_ID || "deepseek-chat";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
+const DEFAULT_AI_TIMEOUT_MS = 20_000;
+
+function positiveTimeout(value, fallback = DEFAULT_AI_TIMEOUT_MS) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function createAttemptDeadline(parentSignal, timeoutMs) {
+  const controller = new AbortController();
+  const deadlineError = new Error("AI provider deadline exceeded");
+  const timer = setTimeout(() => controller.abort(deadlineError), timeoutMs);
+  const abortFromParent = () => controller.abort(parentSignal.reason || new Error("AI request cancelled"));
+
+  if (parentSignal) {
+    if (parentSignal.aborted) abortFromParent();
+    else parentSignal.addEventListener("abort", abortFromParent, { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    async run(work) {
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const aborted = new Promise((_, reject) => {
+        controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true });
+      });
+      return Promise.race([work(), aborted]);
+    },
+    cleanup() {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener("abort", abortFromParent);
+    },
+  };
+}
 
 // Default provider is read at call time so env changes (and tests) work correctly
 function getDefaultProvider() {
@@ -95,7 +128,7 @@ function resolveModelId(provider, caller = "") {
  * Call Claude via Anthropic SDK.
  * Returns { responseText, stopReason }.
  */
-async function callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId }) {
+async function callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId, signal, timeoutMs }) {
   const systemParam = cacheSystemPrompt
     ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
     : system;
@@ -106,7 +139,7 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
     temperature,
     max_tokens: maxTokens,
     messages: [{ role: "user", content: user }],
-  });
+  }, { signal, timeout: timeoutMs });
 
   const responseText = (message.content || [])
     .filter((block) => block.type === "text")
@@ -134,7 +167,7 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
  * Uses responseMimeType: "application/json" for native JSON enforcement
  * when the system prompt requests JSON output.
  */
-async function callGemini(model, { system, user, maxTokens, temperature }) {
+async function callGemini(model, { system, user, maxTokens, temperature, signal, timeoutMs }) {
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: user }] }],
     systemInstruction: { parts: [{ text: system }] },
@@ -143,7 +176,7 @@ async function callGemini(model, { system, user, maxTokens, temperature }) {
       maxOutputTokens: maxTokens,
       responseMimeType: "application/json",
     },
-  });
+  }, { signal, timeout: timeoutMs });
 
   const response = result.response;
   const responseText = response.text();
@@ -157,7 +190,7 @@ async function callGemini(model, { system, user, maxTokens, temperature }) {
  * Uses native JSON mode + max_completion_tokens (not max_tokens).
  * Returns { responseText, stopReason }.
  */
-async function callOpenAI(client, { system, user, maxTokens, temperature, modelId }) {
+async function callOpenAI(client, { system, user, maxTokens, temperature, modelId, signal, timeoutMs }) {
   const completion = await client.chat.completions.create({
     model: modelId,
     temperature,
@@ -167,7 +200,7 @@ async function callOpenAI(client, { system, user, maxTokens, temperature, modelI
       { role: "system", content: system },
       { role: "user",   content: user   },
     ],
-  });
+  }, { signal, timeout: timeoutMs });
 
   const choice = completion.choices?.[0];
   const responseText = choice?.message?.content ?? "";
@@ -180,7 +213,7 @@ async function callOpenAI(client, { system, user, maxTokens, temperature, modelI
  * Call DeepSeek V3 via OpenAI-compatible API.
  * Returns { responseText, stopReason }.
  */
-async function callDeepSeek(client, { system, user, maxTokens, temperature }) {
+async function callDeepSeek(client, { system, user, maxTokens, temperature, signal, timeoutMs }) {
   const completion = await client.chat.completions.create({
     model: DEEPSEEK_MODEL_ID,
     temperature,
@@ -189,7 +222,7 @@ async function callDeepSeek(client, { system, user, maxTokens, temperature }) {
       { role: "system", content: system },
       { role: "user",   content: user   },
     ],
-  });
+  }, { signal, timeout: timeoutMs });
 
   const choice = completion.choices?.[0];
   const responseText = choice?.message?.content ?? "";
@@ -275,6 +308,8 @@ export async function callModel(prompt, deps = {}) {
   const caller = prompt.caller || "unknown";
   const modelId = prompt.model || modelIdForProvider(provider, caller);
   const t0 = Date.now();
+  const timeoutMs = positiveTimeout(prompt.timeoutMs || process.env.AI_PROVIDER_TIMEOUT_MS);
+  const deadlineAt = Date.now() + timeoutMs;
 
   // Determine fallback chain: gemini → anthropic → deepseek
   const fallbackProviders = [];
@@ -282,8 +317,25 @@ export async function callModel(prompt, deps = {}) {
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
 
+  async function callWithRemainingBudget(selectedProvider, params) {
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) throw new Error("AI provider deadline exceeded");
+    const deadline = createAttemptDeadline(prompt.signal, remainingMs);
+    try {
+      return await deadline.run(() => callProvider(selectedProvider, {
+        ...params,
+        signal: deadline.signal,
+        timeoutMs: remainingMs,
+      }, deps));
+    } finally {
+      deadline.cleanup();
+    }
+  }
+
   try {
-    const result = await callProvider(provider, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId }, deps);
+    const result = await callWithRemainingBudget(provider, {
+      system, user, maxTokens, temperature, cacheSystemPrompt, modelId,
+    });
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
     metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true });
@@ -298,7 +350,9 @@ export async function callModel(prompt, deps = {}) {
       try {
         const fbT0 = Date.now();
         const fallbackModelId = modelIdForProvider(fb, caller);
-        const result = await callProvider(fb, { system, user, maxTokens, temperature, cacheSystemPrompt: false, modelId: fallbackModelId }, deps);
+        const result = await callWithRemainingBudget(fb, {
+          system, user, maxTokens, temperature, cacheSystemPrompt: false, modelId: fallbackModelId,
+        });
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
         metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true });

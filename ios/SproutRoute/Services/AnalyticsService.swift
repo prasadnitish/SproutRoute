@@ -364,6 +364,7 @@ final class PostHogAnalyticsClient {
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(payload)
+            guard settings.isEnabled, !Task.isCancelled else { return }
             _ = try await session.data(for: request)
         } catch {
             return
@@ -372,6 +373,33 @@ final class PostHogAnalyticsClient {
 
     private func captureURL() -> URL {
         configuration.host.appending(path: "capture/")
+    }
+}
+
+private actor AnalyticsTaskQueue {
+    private var tasks: [UUID: Task<Void, Never>] = [:]
+
+    func enqueue(
+        event: AnalyticsEvent,
+        client: PostHogAnalyticsClient,
+        settings: AnalyticsSettings
+    ) {
+        guard settings.isEnabled else { return }
+        let id = UUID()
+        let task = Task { [weak self] in
+            await client.capture(event)
+            await self?.remove(id)
+        }
+        tasks[id] = task
+    }
+
+    func cancelAll() {
+        tasks.values.forEach { $0.cancel() }
+        tasks.removeAll()
+    }
+
+    private func remove(_ id: UUID) {
+        tasks[id] = nil
     }
 }
 
@@ -384,6 +412,7 @@ final class ProductAnalytics: AnalyticsTracking {
 
     private let settings: AnalyticsSettings
     private let client: PostHogAnalyticsClient
+    private let taskQueue = AnalyticsTaskQueue()
 
     init(
         settings: AnalyticsSettings = AnalyticsSettings(),
@@ -403,11 +432,13 @@ final class ProductAnalytics: AnalyticsTracking {
 
     func setEnabled(_ enabled: Bool) {
         settings.setEnabled(enabled)
+        if !enabled {
+            Task { await taskQueue.cancelAll() }
+        }
     }
 
     func track(_ event: AnalyticsEvent) {
-        Task {
-            await client.capture(event)
-        }
+        guard settings.isEnabled else { return }
+        Task { await taskQueue.enqueue(event: event, client: client, settings: settings) }
     }
 }
