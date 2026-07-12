@@ -43,6 +43,45 @@ export type {
 } from "./trip.js";
 
 export type {
+  // Collaborative Trip Hub
+  GroupTripStatus,
+  GroupTripParticipantRole,
+  GroupTripItemStatus,
+  GroupTripDecisionStatus,
+  GroupTripSuggestionSeverity,
+  GroupTripSuggestionStatus,
+  GroupTripCreateRequest,
+  GroupTripJoinRequest,
+  GroupTripAuthenticatedMutation,
+  GroupTripItemCreateRequest,
+  GroupTripItemUpdateRequest,
+  GroupTripItemsImportTextRequest,
+  GroupTripDecisionCreateRequest,
+  GroupTripDecisionVoteRequest,
+  GroupTripExpenseCreateRequest,
+  GroupTripLocationSharingRequest,
+  GroupTripSnapshotRequest,
+  GroupTripWorkspace,
+  GroupTripParticipantLocation,
+  GroupTripParticipant,
+  GroupTripItem,
+  GroupTripDecisionOption,
+  GroupTripDecisionVote,
+  GroupTripDecision,
+  GroupTripExpense,
+  GroupTripBalance,
+  GroupTripActivityEvent,
+  GroupTripAISuggestion,
+  GroupTripWorkspaceResponse,
+  GroupTripSnapshotResponse,
+  GroupTripItemResponse,
+  GroupTripItemsImportTextResponse,
+  GroupTripDecisionResponse,
+  GroupTripExpenseResponse,
+  GroupTripLocationSharingResponse,
+} from "./groupTrip.js";
+
+export type {
   // Pet travel
   PetType,
   Pet,

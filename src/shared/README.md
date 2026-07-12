@@ -9,6 +9,7 @@ src/shared/
 ├── types/
 │   ├── api.ts      ← ApiError, CapabilityPayload, V1RequestBase, error envelope
 │   ├── trip.ts     ← TripPlanRequest/Response, PackingList, CarSeatCheck, ChildProfile
+│   ├── groupTrip.ts ← Trip Hub workspace, participant, item, decision, expense contracts
 │   └── index.ts    ← Barrel export (import from here)
 └── README.md
 ```
@@ -22,7 +23,7 @@ import type { TripPlanRequest, ApiError } from '../../shared/types';
 
 **Mobile (Expo — Phase 3):**
 ```ts
-import type { TripPackingRequest, PackingList } from '../shared/types';
+import type { GroupTripCreateRequest, TripPackingRequest } from '../shared/types';
 ```
 
 ## Update process

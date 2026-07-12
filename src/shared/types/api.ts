@@ -20,6 +20,9 @@ export type ErrorCategory =
   | "weather"
   | "ai"
   | "safety"
+  | "dependency"
+  | "authentication"
+  | "not_found"
   | "rate_limit"
   | "server";
 
@@ -74,7 +77,7 @@ export interface V1RequestBase {
 export type WeatherProvider = "weathergov" | "openweathermap" | "weatherkit";
 
 /** Safety guidance mode */
-export type GuidanceMode = "us_state_law" | "country_general";
+export type GuidanceMode = "us_state_law" | "country_general" | "eu_baseline";
 
 /** iOS 26 native feature flags */
 export interface Ios26Features {
@@ -90,6 +93,7 @@ export interface FeatureFlags {
   customItems: boolean;
   darkMode: boolean;
   pwa: boolean;
+  internationalSupport?: boolean;
   /** iOS-specific native features — only present when client=ios */
   ios26Features?: Ios26Features;
 }

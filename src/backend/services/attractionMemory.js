@@ -534,7 +534,8 @@ async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
     .from("city_attractions")
     .select("*")
     .in("city_id", safeIds)
-    .neq("verification_status", "rejected")
+    .eq("verification_status", "verified")
+    .neq("source_type", "generated")
     .limit(limit);
 
   if (error) throw error;
@@ -544,7 +545,7 @@ async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
 function buildStoredAttraction(activity) {
   return {
     canonical_name: firstNonEmpty(activity.name, "Unknown attraction"),
-    short_summary: firstNonEmpty(activity.whatItIs, activity.description, activity.whyRecommended),
+    short_summary: firstNonEmpty(activity.whatItIs, activity.description),
     category: firstNonEmpty(activity.category, "general"),
     duration_bucket: mapDurationBucket(activity.duration),
     stroller_friendly: /stroller/i.test(`${activity.whyRecommended || ""} ${activity.whatItIs || ""}`),
@@ -554,8 +555,8 @@ function buildStoredAttraction(activity) {
     pet_friendly: Boolean(activity.petFriendly),
     confidence_score: 0.65,
     llm_notes: "Captured from live trip generation",
-    why_recommended: firstNonEmpty(activity.whyRecommended),
-    timing_tip: firstNonEmpty(activity.timingTip),
+    why_recommended: "",
+    timing_tip: "",
     verification_status: "unverified",
     source_type: "generated",
   };
@@ -576,7 +577,7 @@ function buildVerifiedPayload(activity, place) {
 async function fetchExistingAttractions(admin, cityId) {
   const { data, error } = await admin
     .from("city_attractions")
-    .select("id, canonical_name, google_place_id, times_seen, verification_status")
+    .select("id, canonical_name, google_place_id, times_seen, verification_status, source_type")
     .eq("city_id", cityId)
     .limit(100);
 
@@ -658,14 +659,23 @@ async function persistOneAttraction(admin, cityId, destination, activity, resolv
   const existing = findExistingAttraction(existingRows, stored);
 
   if (existing?.id) {
-    const { error: updateError } = await admin
-      .from("city_attractions")
-      .update({
+    const preservesTrustedContent =
+      existing.verification_status === "verified" && stored.verification_status !== "verified";
+    const update = preservesTrustedContent
+      ? {
+        times_seen: Number(existing.times_seen || 0) + 1,
+        last_seen_at: now,
+        updated_at: now,
+      }
+      : {
         ...stored,
         times_seen: Number(existing.times_seen || 0) + 1,
         last_seen_at: now,
         updated_at: now,
-      })
+      };
+    const { error: updateError } = await admin
+      .from("city_attractions")
+      .update(update)
       .eq("id", existing.id);
 
     if (updateError) throw updateError;

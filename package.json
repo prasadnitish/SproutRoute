@@ -11,7 +11,9 @@
     "start": "cd src/backend && npm start",
     "install:all": "npm install && cd src/frontend && npm install && cd ../backend && npm install",
     "test": "node --test tests/**/*.test.js",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "smoke:trip-hub": "node scripts/verify-trip-hub-production.mjs",
+    "smoke:trip-hub:mutating": "RUN_TRIP_HUB_MUTATING_SMOKE=1 node scripts/verify-trip-hub-production.mjs"
   },
   "keywords": [
     "ai",
