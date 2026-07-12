@@ -34,4 +34,22 @@ test.describe("MapTile", () => {
     await expect(page.getByText(/map/i).first()).toBeVisible();
     await expect(page.locator("body")).not.toContainText("TypeError");
   });
+
+  test("renders hostile destination text without executing map popup markup", async ({ page }) => {
+    const hostileDestination = `<img src=x onerror="window.__mapXss = true">Maui`;
+    await overrideSSE(page, {
+      body: buildSSEBody({
+        trip: { ...MOCK_TRIP_PLAN.trip, destination: hostileDestination },
+      }),
+    });
+
+    await page.goto("/");
+    await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
+    await page.getByRole("button", { name: /plan it/i }).click();
+    await page.locator(".leaflet-container").first().waitFor({ timeout: 15000 });
+
+    await expect(page.locator(".leaflet-popup-content img")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => Boolean((window as typeof window & { __mapXss?: boolean }).__mapXss)))
+      .toBe(false);
+  });
 });

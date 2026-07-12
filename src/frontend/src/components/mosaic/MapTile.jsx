@@ -32,9 +32,11 @@ export default function MapTile({ destination, lat, lon }) {
       maxZoom: 18,
     }).addTo(map);
 
+    const popupLabel = document.createElement("strong");
+    popupLabel.textContent = destination || "Destination";
     L.marker([lat, lon])
       .addTo(map)
-      .bindPopup(`<b>${destination || "Destination"}</b>`)
+      .bindPopup(popupLabel)
       .openPopup();
 
     mapInstanceRef.current = map;

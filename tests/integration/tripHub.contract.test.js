@@ -35,7 +35,14 @@ async function invokeRoute(app, method, path, body = {}, headers = {}) {
   }
 
   const handler = routeLayer.route.stack[routeLayer.route.stack.length - 1].handle;
-  const req = { method, path, body, headers, ip: "127.0.0.1" };
+  const req = {
+    method,
+    path,
+    body: method === "GET" ? {} : body,
+    query: method === "GET" ? body : {},
+    headers,
+    ip: "127.0.0.1",
+  };
   const res = createMockRes();
 
   await handler(req, res);
@@ -52,11 +59,14 @@ async function createVegasTrip(app) {
   });
 }
 
-function snapshotAuth(participant) {
-  return {
-    participantId: participant.id,
-    participantAccessToken: participant.accessToken,
-  };
+function invokeSnapshot(app, tripId, participant) {
+  return invokeRoute(
+    app,
+    "GET",
+    "/api/v1/group-trips/snapshot",
+    { tripId, participantId: participant.id },
+    { "x-group-trip-participant-token": participant.accessToken },
+  );
 }
 
 function actorAuth(participant) {
@@ -77,7 +87,7 @@ test("POST /api/v1/group-trips creates an owner trip workspace with invite code"
   assert.equal(res.body.trip.destination, "Las Vegas, NV");
   assert.equal(res.body.trip.startDate, "2026-09-18");
   assert.equal(res.body.trip.endDate, "2026-09-21");
-  assert.match(res.body.trip.inviteCode, /^[A-Z0-9]{6}$/);
+  assert.match(res.body.trip.inviteCode, /^[A-Za-z0-9_-]{22}$/);
   assert.equal(res.body.currentParticipant.role, "owner");
   assert.equal(res.body.currentParticipant.displayName, "Nitish");
   assert.match(res.body.currentParticipant.accessToken, /^gtp_[A-Za-z0-9_-]{32,}$/);
@@ -157,10 +167,7 @@ test("GET /api/v1/group-trips/snapshot returns the shared trip state", async () 
     displayName: "Priya",
   });
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.statusCode, 200);
   assert.equal(snapshot.body.trip.id, created.body.trip.id);
@@ -193,11 +200,13 @@ test("GET /api/v1/group-trips/snapshot rejects missing or invalid participant ac
   });
   assert.match(missingToken.body.message, /valid participant access token/i);
 
-  const wrongToken = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    participantId: created.body.currentParticipant.id,
-    participantAccessToken: "gtp_wrong",
-  });
+  const wrongToken = await invokeRoute(
+    app,
+    "GET",
+    "/api/v1/group-trips/snapshot",
+    { tripId: created.body.trip.id, participantId: created.body.currentParticipant.id },
+    { "x-group-trip-participant-token": "gtp_wrong" },
+  );
 
   assert.equal(wrongToken.statusCode, 403);
   assert.equal(wrongToken.body.code, "GROUP_TRIP_AUTH_ERROR");
@@ -223,6 +232,26 @@ test("GET /api/v1/group-trips/snapshot accepts participant access token header",
   assert.equal(snapshot.statusCode, 200);
   assert.equal(snapshot.body.trip.id, created.body.trip.id);
   assert.equal(snapshot.body.participants[0].accessToken, undefined);
+});
+
+test("GET /api/v1/group-trips/snapshot rejects participant tokens in the URL", async () => {
+  const app = createApp({ enableRequestLogging: false });
+  const created = await createVegasTrip(app);
+
+  const leaked = await invokeRoute(
+    app,
+    "GET",
+    "/api/v1/group-trips/snapshot",
+    {
+      tripId: created.body.trip.id,
+      participantId: created.body.currentParticipant.id,
+      participantAccessToken: created.body.currentParticipant.accessToken,
+    },
+    { "x-group-trip-participant-token": created.body.currentParticipant.accessToken },
+  );
+
+  assert.equal(leaked.statusCode, 400);
+  assert.match(leaked.body.message, /must be sent in/i);
 });
 
 test("POST /api/v1/group-trips/items adds editable logistics to the shared snapshot", async () => {
@@ -262,10 +291,7 @@ test("POST /api/v1/group-trips/items adds editable logistics to the shared snaps
   ]);
   assert.equal(itemRes.body.activity.summary, "Nitish added Arrive at LAS");
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.body.items.length, 1);
   assert.equal(snapshot.body.items[0].title, "Arrive at LAS");
@@ -323,10 +349,7 @@ test("POST /api/v1/group-trips/items/update edits itinerary items and participan
   assert.equal(updated.body.activity.type, "item_updated");
   assert.equal(updated.body.activity.actorParticipantId, joined.body.currentParticipant.id);
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.body.items.length, 1);
   assert.equal(snapshot.body.items[0].title, "Dinner reservation");
@@ -367,10 +390,7 @@ test("POST /api/v1/group-trips/items/import-text creates tagged items from paste
   assert.deepEqual(imported.body.items[1].assignedParticipantIds, [joined.body.currentParticipant.id]);
   assert.equal(imported.body.activity.type, "items_imported");
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.body.items.length, 3);
   assert.equal(snapshot.body.activity.at(-1).summary, "Nitish imported 3 itinerary items");
@@ -391,10 +411,7 @@ test("POST /api/v1/group-trips/items rejects forged participant mutations", asyn
   assert.equal(forged.statusCode, 403);
   assert.equal(forged.body.code, "GROUP_TRIP_AUTH_ERROR");
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.deepEqual(snapshot.body.items, []);
 });
@@ -434,10 +451,7 @@ test("POST /api/v1/group-trips/decisions creates a voteable decision and records
   assert.equal(voteRes.body.decision.votes[0].participantId, joined.body.currentParticipant.id);
   assert.equal(voteRes.body.decision.votes[0].optionId, decisionRes.body.decision.options[1].id);
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.body.decisions.length, 1);
   assert.equal(snapshot.body.decisions[0].votes.length, 1);
@@ -484,10 +498,7 @@ test("POST /api/v1/group-trips/expenses records shared costs and lightweight set
     },
   ]);
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.body.expenses.length, 1);
   assert.deepEqual(snapshot.body.balances, expenseRes.body.balances);
@@ -520,10 +531,7 @@ test("GET /api/v1/group-trips/snapshot surfaces AI schedule conflict suggestions
     locationName: "The Strip",
   });
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   const conflict = snapshot.body.aiSuggestions.find(
     (suggestion) => suggestion.type === "schedule_conflict",
@@ -561,10 +569,7 @@ test("POST /api/v1/group-trips/location-sharing toggles participant opt-in state
   assert.match(toggleRes.body.participant.lastLocation.updatedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(toggleRes.body.activity.type, "location_sharing_enabled");
 
-  const snapshot = await invokeRoute(app, "GET", "/api/v1/group-trips/snapshot", {
-    tripId: created.body.trip.id,
-    ...snapshotAuth(created.body.currentParticipant),
-  });
+  const snapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
 
   assert.equal(snapshot.body.participants[0].locationSharingEnabled, true);
   assert.equal(snapshot.body.participants[0].lastLocation.latitude, 36.1699);
@@ -600,6 +605,65 @@ test("POST /api/v1/group-trips/location-sharing rejects invalid coordinates", as
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.code, "GROUP_TRIP_VALIDATION_ERROR");
   assert.match(res.body.message, /Latitude must be between -90 and 90/);
+});
+
+test("POST /api/v1/group-trips/leave clears location and revokes the participant token", async () => {
+  const app = createApp({ enableRequestLogging: false });
+  const created = await createVegasTrip(app);
+  const joined = await invokeRoute(app, "POST", "/api/v1/group-trips/join", {
+    inviteCode: created.body.trip.inviteCode,
+    displayName: "Priya",
+  });
+  const participant = joined.body.currentParticipant;
+
+  await invokeRoute(app, "POST", "/api/v1/group-trips/location-sharing", {
+    tripId: created.body.trip.id,
+    participantId: participant.id,
+    participantAccessToken: participant.accessToken,
+    isEnabled: true,
+    latitude: 36.1699,
+    longitude: -115.1398,
+  });
+
+  const left = await invokeRoute(app, "POST", "/api/v1/group-trips/leave", {
+    tripId: created.body.trip.id,
+    participantId: participant.id,
+    participantAccessToken: participant.accessToken,
+  });
+  assert.equal(left.statusCode, 200);
+
+  const stale = await invokeSnapshot(app, created.body.trip.id, participant);
+  assert.equal(stale.statusCode, 403);
+
+  const ownerSnapshot = await invokeSnapshot(app, created.body.trip.id, created.body.currentParticipant);
+  const departed = ownerSnapshot.body.participants.find((entry) => entry.id === participant.id);
+  assert.equal(departed.locationSharingEnabled, false);
+  assert.equal(departed.lastLocation, null);
+});
+
+test("POST /api/v1/group-trips/invite/rotate invalidates the previous invite", async () => {
+  const app = createApp({ enableRequestLogging: false });
+  const created = await createVegasTrip(app);
+  const oldInviteCode = created.body.trip.inviteCode;
+
+  const rotated = await invokeRoute(app, "POST", "/api/v1/group-trips/invite/rotate", {
+    tripId: created.body.trip.id,
+    ...actorAuth(created.body.currentParticipant),
+  });
+  assert.equal(rotated.statusCode, 200);
+  assert.notEqual(rotated.body.trip.inviteCode, oldInviteCode);
+
+  const oldInvite = await invokeRoute(app, "POST", "/api/v1/group-trips/join", {
+    inviteCode: oldInviteCode,
+    displayName: "Priya",
+  });
+  assert.equal(oldInvite.statusCode, 404);
+
+  const newInvite = await invokeRoute(app, "POST", "/api/v1/group-trips/join", {
+    inviteCode: rotated.body.trip.inviteCode,
+    displayName: "Priya",
+  });
+  assert.equal(newInvite.statusCode, 200);
 });
 
 test("POST /api/v1/group-trips rejects invalid date ranges", async () => {
