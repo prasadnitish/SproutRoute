@@ -415,6 +415,12 @@ export async function parseInput(text, deps = {}) {
     stops = buildCountryTourStops(countryIntent);
   }
 
+  // Country routes can include valid stops while the model leaves destination
+  // null. Preserve the route and satisfy the shared planning API contract.
+  if (!destination && tripShape === "country_tour" && countryTour) {
+    destination = countryTour.country;
+  }
+
   return {
     destination,
     suggestedDestinations: tripShape === "country_tour" ? [] : suggestedDestinations,

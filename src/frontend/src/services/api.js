@@ -8,13 +8,11 @@ const configuredApiBaseUrl = (import.meta.env.VITE_API_URL || "")
   .trim()
   .replace(/\/+$/, "");
 
-const API_BASE_URL =
-  configuredApiBaseUrl || (import.meta.env.PROD ? "" : "http://localhost:3000");
-
-const API_CONFIG_ERROR =
-  import.meta.env.PROD && !configuredApiBaseUrl
-    ? "Configuration error: VITE_API_URL is not set. API requests are blocked in production."
-    : null;
+// Express serves the production SPA and API together. Relative URLs work on
+// both apex and www hosts and comply with the server's connect-src 'self' CSP.
+const API_BASE_URL = import.meta.env.PROD
+  ? ""
+  : configuredApiBaseUrl || "http://localhost:3000";
 
 // ── Human-readable status messages ──────────────────────────────────────────
 
@@ -100,13 +98,6 @@ async function parseSafeResponse(response) {
  * @returns {Promise<any>} Parsed JSON
  */
 async function fetchWithRetry(url, options = {}, config = {}) {
-  if (API_CONFIG_ERROR) {
-    throw Object.assign(new Error(API_CONFIG_ERROR), {
-      status: 0,
-      retryable: false,
-    });
-  }
-
   const {
     maxRetries = 2,
     retryableStatuses = [429, 502, 503, 504],
@@ -313,7 +304,6 @@ export const getNeighborhoodSafety = async (lat, lon, { signal, onRetry, onRateL
  * @returns {Promise<object>} Accumulated result { trip, weather, tripPlan, packingList, safetyGuidance }
  */
 export async function streamTripPlan(tripData, onEvent, signal) {
-  if (API_CONFIG_ERROR) throw new Error(API_CONFIG_ERROR);
 
   const url = `${API_BASE_URL}/api/v1/trip/stream`;
   const result = {
