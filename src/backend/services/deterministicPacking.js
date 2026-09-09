@@ -129,6 +129,8 @@ export async function generatePackingList(tripData, weatherForecast) {
   const activityText = (activities || []).join(" ").toLowerCase();
   const hasWaterPlans = /(beach|pool|swim|snorkel|water)/.test(activityText);
   const hasAdventurePlans = /(hike|trail|adventure|park|camp)/.test(activityText);
+  const needsWarmLayer = climateZone === "cold" || (weatherForecast?.forecast || []).some(day => Number.isFinite(day.low) && day.low < 50);
+  const hasChildren = children.length > 0;
   const hasToddler = children.some((child) => child.age < 4);
   const hasYoungKids = children.some((child) => child.age < 7);
   const isRainy = (weatherForecast?.forecast || []).some((day) => (day.precipitation || 0) >= 45);
@@ -155,10 +157,10 @@ export async function generatePackingList(tripData, weatherForecast) {
     searchQuery: makeSearchQuery("travel underwear socks", ["family"]),
   });
   addItem(store, "Clothing", {
-    name: climateZone === "cold" ? "Warm outer layer" : "Light layer for evenings",
+    name: needsWarmLayer ? "Warm outer layer" : "Light layer for evenings",
     quantity: "1",
-    reason: "Even warm-weather trips usually need one flexible extra layer",
-    searchQuery: makeSearchQuery(climateZone === "cold" ? "packable fleece jacket" : "light cardigan travel"),
+    reason: needsWarmLayer ? "Cool mornings and evenings call for a warm outer layer" : "A flexible extra layer helps on cooler evenings",
+    searchQuery: makeSearchQuery(needsWarmLayer ? "packable fleece jacket" : "light cardigan travel"),
   });
   if (hasWaterPlans || climateZone === "tropical") {
     addItem(store, "Clothing", {
@@ -198,7 +200,7 @@ export async function generatePackingList(tripData, weatherForecast) {
   addItem(store, "Toiletries", {
     name: "Wipes",
     quantity: hasToddler ? "2 packs" : "1 pack",
-    reason: "Useful for quick cleanups, snacks, and playground stops",
+    reason: hasChildren ? "Useful for quick cleanups, snacks, and playground stops" : "Useful for quick cleanups during meals and transit",
     searchQuery: makeSearchQuery("travel wipes", hasToddler ? ["kids"] : []),
   });
   addItem(store, "Toiletries", {
@@ -297,7 +299,7 @@ export async function generatePackingList(tripData, weatherForecast) {
   addItem(store, "Medications", {
     name: "Thermometer",
     quantity: "1",
-    reason: "Helpful if a child seems run-down mid-trip",
+    reason: "Useful for checking temperature if someone feels unwell",
     searchQuery: makeSearchQuery("travel thermometer"),
   });
 
@@ -327,10 +329,10 @@ export async function generatePackingList(tripData, weatherForecast) {
     searchQuery: makeSearchQuery("travel snacks", dietaryQualifier),
   });
   addItem(store, "Snacks", {
-    name: "Fruit pouches or easy fruit option",
+    name: hasYoungKids ? "Fruit pouches or easy fruit option" : "Easy-to-carry fruit",
     quantity: hasYoungKids ? "4-6" : "2-3",
-    reason: "Simple grab-and-go snack for stroller or car breaks",
-    searchQuery: makeSearchQuery("fruit pouch", hasYoungKids ? ["kids"] : dietaryQualifier),
+    reason: hasYoungKids ? "Simple grab-and-go snack for stroller or car breaks" : "A simple snack for sightseeing and transit breaks",
+    searchQuery: makeSearchQuery(hasYoungKids ? "fruit pouch" : "travel fruit snacks", hasYoungKids ? ["kids"] : dietaryQualifier),
   });
   addItem(store, "Snacks", {
     name: "Refillable snack container",
