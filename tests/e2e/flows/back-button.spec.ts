@@ -8,7 +8,7 @@ test.describe("Back button — preserves input text", () => {
 
   test("SproutRoute logo click from results returns to input with text preserved", async ({ page }) => {
     await goToResults(page);
-    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 })).toBeVisible();
 
     // Click the SproutRoute logo to go back (app's own back mechanism)
     await page.getByRole("button", { name: /SproutRoute/i }).click();
@@ -36,7 +36,7 @@ test.describe("Back button — preserves input text", () => {
 
   test("input screen shows previous text after full round-trip", async ({ page }) => {
     await goToResults(page);
-    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 })).toBeVisible();
 
     // Navigate back to input via the logo button
     await page.getByRole("button", { name: /SproutRoute/i }).click();

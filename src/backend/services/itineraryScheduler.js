@@ -307,7 +307,7 @@ function activityMatchesRouteStop(activity, routeStop) {
  * @param {string} dateStr - "2026-05-21"
  * @returns {object} scheduled day with timed activities
  */
-function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek = null) {
+function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek = null, earliestStart = 0) {
   // mealData can be: { name, cuisine, note } (new AI format) or a string (legacy)
   if (!mealData && !fallbackName) return null;
 
@@ -322,8 +322,8 @@ function buildMealCard(mealType, mealData, enrichedMap, fallbackName, dayOfWeek 
     dinner:    { start: 1080, end: 1170 },  // 6:00 - 7:30
   };
   const slot = timeSlots[mealType] || timeSlots.lunch;
-  let startTime = slot.start;
-  let endTime = slot.end;
+  let startTime = Math.max(slot.start, earliestStart);
+  let endTime = startTime + slot.end - slot.start;
   let warning = null;
   let openingHoursStr = null;
 
@@ -521,10 +521,10 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
 
     // ── Insert dinner when crossing 7 PM (1260 min) ──
     if (!dinnerInserted && startTime >= 1140) {
-      const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek);
+      const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek, currentTime + (previousTravelActivity ? 20 : 0));
       if (dinnerCard) {
         scheduled.push(dinnerCard);
-        startTime = 1170 + estimateTravelMinutes();
+        startTime = Math.max(startTime, parseAmPm(dinnerCard.scheduledEnd) + estimateTravelMinutes());
         dinnerInserted = true;
       }
     }
@@ -623,7 +623,7 @@ function scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivit
 
   // ── Guarantee dinner even if no activity triggered it ──
   if (!dinnerInserted) {
-    const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek);
+    const dinnerCard = buildMealCard("dinner", meals.dinner, enrichedMap, "Dinner", dayOfWeek, currentTime + (previousTravelActivity ? 20 : 0));
     if (dinnerCard) scheduled.push(dinnerCard);
   }
 

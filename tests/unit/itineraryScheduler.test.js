@@ -293,3 +293,11 @@ test("scheduleItinerary warns when one mapped day has excessive cross-town trave
     "scheduler should flag overly spread out mapped days",
   );
 });
+
+test('dinner never overlaps a late activity',()=>{
+ const acts=[1.5,1.5,2,2.5,1.75].map((hours,i)=>makeActivity(`late-${i}`,`Stop ${i}`,`${hours} hours`));
+ const result=scheduleItinerary({suggestedActivities:acts,dailyItinerary:[{day:'Day 1',activities:acts.map(a=>a.id),meals:{dinner:{name:'Dinner restaurant'}}}]},{},'2026-12-01');
+ const cards=result[0].scheduled.filter(a=>a.scheduledStart&&a.scheduledEnd);
+ const minutes=s=>{const [,h,m,period]=s.match(/(\d+):(\d+) (AM|PM)/);return (+h%12)*60+(period==='PM'?720:0)+ +m};
+ for(let i=1;i<cards.length;i++)assert.ok(minutes(cards[i].scheduledStart)>=minutes(cards[i-1].scheduledEnd),`${cards[i].name} overlaps prior stop`);
+});

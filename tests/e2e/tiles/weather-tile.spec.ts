@@ -46,7 +46,7 @@ test.describe("WeatherTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.getByText(/historical/i, { exact: false })).toBeVisible();
   });
 
@@ -60,7 +60,7 @@ test.describe("WeatherTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.locator("body")).not.toContainText("Error");
   });
 });

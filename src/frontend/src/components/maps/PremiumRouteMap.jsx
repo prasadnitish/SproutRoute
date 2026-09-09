@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../Icon.jsx";
 import {
   googleMapsEmbedUrl,
@@ -19,12 +19,12 @@ function MetricChip({ icon, label }) {
 function RouteLegend({ points }) {
   if (!points.length) return null;
   return (
-    <div className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] rounded-xl border border-white/70 bg-white/90 p-2.5 shadow-lg backdrop-blur">
+    <div className="max-w-full rounded-xl border border-white/70 bg-white/90 p-2.5 shadow-lg backdrop-blur">
       <div className="flex max-w-full gap-1.5 overflow-x-auto pb-0.5">
-        {points.slice(0, 8).map((point, index) => (
+        {points.map((point, index) => (
           <div
             key={point.id || `${point.name}-${index}`}
-            className="flex min-w-[92px] items-center gap-2 rounded-lg bg-gray-50/90 px-2 py-1.5"
+            className="flex w-[190px] flex-shrink-0 items-center gap-2 rounded-lg bg-gray-50/90 px-2 py-1.5"
           >
             <span className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${
               point.isMeal ? "bg-amber-500" : "bg-meadow-600"
@@ -32,7 +32,7 @@ function RouteLegend({ points }) {
               {index + 1}
             </span>
             <span className="min-w-0">
-              <span className="block truncate text-[12px] font-bold text-gray-900">{point.name}</span>
+              <span title={point.name} className="block truncate text-[12px] font-bold text-gray-900">{point.name}</span>
               {point.subtitle && (
                 <span className="block truncate text-[10px] text-gray-500">{point.subtitle}</span>
               )}
@@ -58,15 +58,15 @@ export default function PremiumRouteMap({
   const metrics = useMemo(() => routeMetrics(points, totalDays), [points, totalDays]);
   const src = useMemo(() => googleMapsEmbedUrl(points, fallbackCenter), [points, fallbackCenter]);
   const openUrl = useMemo(() => googleMapsOpenUrl(points, fallbackCenter), [points, fallbackCenter]);
-  const mappedPoints = points.filter((point) => point.lat != null && point.lon != null);
-  const visiblePoints = mappedPoints.length > 0 ? mappedPoints : points.slice(0, 8);
+  useEffect(() => setLoaded(false), [src]);
+  const visiblePoints = points;
 
   if (!src && points.length === 0) return null;
 
   const travelLabel = routeMeta?.totalTravelMinutes
-    ? `${Math.round(routeMeta.totalTravelMinutes)} min mapped travel`
+    ? `${Math.round(routeMeta.totalTravelMinutes)} min estimated travel`
     : metrics.longestMiles
-      ? `Longest hop ${metrics.longestMiles} mi`
+      ? `Longest straight-line hop ${metrics.longestMiles} mi`
       : "";
 
   return (
@@ -82,12 +82,14 @@ export default function PremiumRouteMap({
           <p className="mt-1 truncate font-display text-[18px] font-bold text-gray-950">{title}</p>
         </div>
         <div className="flex flex-wrap justify-end gap-1.5">
-          <MetricChip icon="pin" label={`${metrics.stopCount || points.length || 1} stop${(metrics.stopCount || points.length) === 1 ? "" : "s"}`} />
+          <MetricChip icon="pin" label={metrics.stopCount ? `${metrics.stopCount} stop${metrics.stopCount === 1 ? "" : "s"}` : "Waiting for stops"} />
           <MetricChip icon="clock" label={travelLabel} />
           <MetricChip icon="sparkle" label={metrics.paceLabel} />
         </div>
       </div>
 
+      <RouteLegend points={visiblePoints} />
+      <p className="px-4 pb-2 text-xs text-gray-600">{points.length >= 2 ? "Driving route in listed stop order. Check transport options in Google Maps." : "City overview. The daily route appears when stops are ready."}</p>
       <div className={`relative bg-gray-100 ${minHeight}`}>
         {src && !loaded && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-gradient-to-br from-meadow-50 via-white to-sky-light/40">
@@ -99,7 +101,7 @@ export default function PremiumRouteMap({
             title={`${title} Google map`}
             src={src}
             loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
+            referrerPolicy="strict-origin-when-cross-origin"
             onLoad={() => setLoaded(true)}
             className="absolute inset-0 h-full w-full border-0"
           />
@@ -108,7 +110,6 @@ export default function PremiumRouteMap({
             <p className="text-sm font-medium text-gray-500">Map appears once we have coordinates.</p>
           </div>
         )}
-        <RouteLegend points={visiblePoints} />
         <div className="absolute bottom-3 right-3 flex flex-col items-end gap-1.5">
           {metrics.backtrackingLabel && (
             <span className="rounded-full border border-white/70 bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-gray-700 shadow-sm backdrop-blur">

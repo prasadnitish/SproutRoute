@@ -24,7 +24,7 @@ test.describe("Destination Picker — vague input triggers 3 suggestions", () =>
     await page.getByText("Maui, Hawaii").click();
 
     // Results should load
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.getByText("Road to Hana").first()).toBeVisible();
   });
 });

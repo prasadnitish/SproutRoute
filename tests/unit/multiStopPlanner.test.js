@@ -49,7 +49,7 @@ test("planRouteStops geocodes and plans each stop independently", async () => {
   });
 
   assert.deepEqual(calls.filter(([kind]) => kind === "geocode").map(([, name]) => name), ["Amsterdam", "Berlin"]);
-  assert.deepEqual(events.map(([event]) => event), ["stop-weather", "stop-itinerary", "stop-weather", "stop-itinerary"]);
+  for (const stop of routePlan.stops) assert.deepEqual(events.filter(([,payload])=>payload.stop.id===stop.id).map(([event])=>event), ["stop-weather", "stop-itinerary"]);
   assert.equal(result.stopWeather.amsterdam.summary, "NL weather");
   assert.equal(result.stopItineraries.berlin.overview, "Plan for Berlin");
   assert.equal(result.tripPlan.dailyItinerary.length, 2);
@@ -212,5 +212,31 @@ test("planRouteStops passes route context into stop schedulers", async () => {
   assert.ok(schedulerOptions.length >= 2);
   assert.ok(schedulerOptions.every((options) => options.hasChildren === true));
   assert.ok(schedulerOptions.every((options) => options.routePlan?.stops?.length === 2));
-  assert.deepEqual(schedulerOptions.map((options) => options.routeStop.name), ["Tokyo", "Tokyo", "Kyoto", "Kyoto"]);
+  assert.deepEqual(schedulerOptions.map((options) => options.routeStop.name).sort(), ["Kyoto", "Kyoto", "Tokyo", "Tokyo"]);
+});
+
+test('route planning overlaps at most two stops and merges in route order',async()=>{
+ let active=0,peak=0;const started=[];let releaseFirst;
+ const gate=new Promise(resolve=>{releaseFirst=resolve});
+ const stops=['A','B','C'].map((name,i)=>({id:name,name,arrivalDate:`2026-12-0${i+1}`,dayStart:i+1,dayEnd:i+1}));
+ const result=await planRouteStops({routePlan:{stops},baseTrip:{},geocodeLocationFn:async()=>({lat:35,lon:139,countryCode:'JP'}),getWeatherForecastFn:async()=>({forecast:[]}),scheduleItineraryFn:()=>[],generateTripPlanChunkedFn:async(trip)=>{
+ active++;peak=Math.max(peak,active);started.push(trip.destination);
+ if(trip.destination==='A')await Promise.race([gate,new Promise((_,reject)=>setTimeout(()=>reject(new Error('stops remained serial')),100))]);
+ if(trip.destination==='B')releaseFirst();
+ active--;
+ return {suggestedActivities:[],dailyItinerary:[{activities:[]}],tips:[]};
+ }});
+ assert.equal(peak,2);
+ assert.deepEqual(result.tripPlan.dailyItinerary.map(d=>d.stopId),['A','B','C']);
+});
+test('streamed city chunks namespace shared activity IDs',async()=>{
+ const emitted=[];
+ await planRouteStops({routePlan:{stops:['Tokyo','Kyoto'].map((name,i)=>({id:name,name,arrivalDate:'2026-12-01',dayStart:i+1,dayEnd:i+1}))},baseTrip:{},geocodeLocationFn:async()=>({lat:35,lon:139}),getWeatherForecastFn:async()=>({forecast:[]}),scheduleItineraryFn:()=>[],onEvent:(type,payload)=>{if(type==='stop-itinerary')emitted.push(payload)},generateTripPlanChunkedFn:async(t,w,emit)=>{const p={suggestedActivities:[{id:'a1',name:t.destination}],dailyItinerary:[{activities:['a1']}],tips:[]};emit(p,{});return p}});
+ const ids=emitted.flatMap(e=>e.tripPlan.suggestedActivities.map(a=>a.id));assert.equal(new Set(ids).size,2);
+ for(const e of emitted)assert.equal(e.tripPlan.dailyItinerary[0].activities[0],e.tripPlan.suggestedActivities[0].id);
+});
+test('geocodes the city instead of an AI annotation in its route label',async()=>{
+ let query;
+ await planRouteStops({routePlan:{stops:[{id:'hakone',name:'Hakone (Hot Springs)',arrivalDate:'2026-12-01',dayStart:1,dayEnd:1}]},baseTrip:{},geocodeLocationFn:async q=>{query=q;return{lat:35,lon:139}},getWeatherForecastFn:async()=>({forecast:[]}),scheduleItineraryFn:()=>[],generateTripPlanChunkedFn:async()=>({suggestedActivities:[],dailyItinerary:[],tips:[]})});
+ assert.equal(query,'Hakone');
 });

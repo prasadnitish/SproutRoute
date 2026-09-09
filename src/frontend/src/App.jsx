@@ -130,6 +130,8 @@ export default function App() {
             parsedInput={trip.parsedInput}
             packingList={trip.packingList}
             packingError={trip.packingError}
+            error={trip.error}
+            onRetry={() => trip.confirmRouteTrip()}
             safetyData={trip.safetyData}
             petSafetyData={trip.petSafetyData}
             carSeatData={trip.carSeatData}
