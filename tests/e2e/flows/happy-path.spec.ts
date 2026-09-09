@@ -7,7 +7,7 @@ test.describe("Happy Path — full input → results journey", () => {
     await goToResults(page);
 
     // Hero tile
-    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 })).toBeVisible();
     // Weather tile — high temp
     await expect(page.getByText("76", { exact: false }).first()).toBeVisible();
     // Itinerary tile — first activity (use .first() because the name appears in both the card and the route panel)

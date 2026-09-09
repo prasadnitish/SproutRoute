@@ -9,7 +9,7 @@ test.describe("HeroTile", () => {
   });
 
   test("renders destination name", async ({ page }) => {
-    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 })).toBeVisible();
   });
 
   test("renders human-readable dates (not ISO)", async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe("HeroTile", () => {
     // The HeroTile renders "Apr 12 – Apr 19 · 7 days" in a <p> tag
     await expect(page.getByText(/Apr 12.*Apr 19/, { exact: false })).toBeVisible();
     // HeroTile itself must not render a raw ISO date — check inside the heading's parent section
-    const heroHeading = page.getByRole("heading", { name: /Maui, Hawaii/i });
+    const heroHeading = page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 });
     const heroSection = heroHeading.locator("..");
     await expect(heroSection.getByText("2026-04-12", { exact: true })).not.toBeVisible();
   });
@@ -28,7 +28,7 @@ test.describe("HeroTile", () => {
   });
 
   test("no international badge for US destination", async ({ page }) => {
-    // countryCode "US" renders "Domestic" chip, not "International"
+    // A destination alone does not establish whether travel is international.
     await expect(page.getByText(/international/i)).not.toBeVisible();
   });
 
@@ -47,13 +47,13 @@ test.describe("HeroTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Adults trip to Maui");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     // Scope to the HeroTile: the bottom summary line should not contain "kid"
-    const heroSection = page.getByRole("heading", { name: /Maui, Hawaii/i }).locator("../..");
+    const heroSection = page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).locator("../..");
     await expect(heroSection.getByText(/kid/i)).not.toBeVisible();
   });
 
-  test("shows international badge for non-US destination", async ({ page }) => {
+  test("does not assume the traveler lives in the US", async ({ page }) => {
     // Override parse-input to return Tokyo
     await page.route("**/api/v1/trip/parse-input", (r) =>
       r.fulfill({
@@ -79,8 +79,8 @@ test.describe("HeroTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Family trip to Tokyo");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Tokyo, Japan/i }).waitFor({ timeout: 15000 });
-    await expect(page.getByText(/international/i)).toBeVisible();
+    await page.getByRole("heading", { name: /Tokyo, Japan/i, level: 2 }).waitFor({ timeout: 15000 });
+    await expect(page.getByText(/international/i)).not.toBeVisible();
   });
 
   test("renders single kid display", async ({ page }) => {
@@ -98,7 +98,7 @@ test.describe("HeroTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Maui trip");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.getByText(/1 kid/i, { exact: false })).toBeVisible();
   });
 });
