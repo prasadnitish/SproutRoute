@@ -56,7 +56,7 @@ function addItem(store, categoryName, item) {
     name: item.name,
     quantity: item.quantity || "1",
     reason: item.reason || "",
-    searchQuery: item.searchQuery || makeSearchQuery(item.name),
+    searchQuery: categoryName === "Documents" || item.name === "Daily medications" ? null : item.searchQuery || makeSearchQuery(item.name),
   });
   store.set(categoryName, items);
 }
@@ -302,12 +302,12 @@ export async function generatePackingList(tripData, weatherForecast) {
   });
 
   addItem(store, "Entertainment", {
-    name: "Books and coloring kit",
+    name: children.length ? "Books and coloring kit" : "Book or e-reader",
     quantity: "1 set",
     reason: "Good for flights, restaurants, and quiet hotel time",
     searchQuery: makeSearchQuery("travel coloring kit", hasYoungKids ? ["kids"] : []),
   });
-  addItem(store, "Entertainment", {
+  if (children.length) addItem(store, "Entertainment", {
     name: "Favorite small toy",
     quantity: "1-2",
     reason: "Familiar items make transitions and downtime easier",
@@ -317,7 +317,7 @@ export async function generatePackingList(tripData, weatherForecast) {
     name: "Headphones or tablet entertainment",
     quantity: "1 set",
     reason: "Useful for long meals, transit, or rainy-hour breaks",
-    searchQuery: makeSearchQuery("kids travel headphones"),
+    searchQuery: makeSearchQuery(children.length ? "kids travel headphones" : "travel headphones"),
   });
 
   addItem(store, "Snacks", {

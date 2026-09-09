@@ -45,7 +45,7 @@ import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
 import { metrics } from "./services/metrics.js";
 import { parsePastedProfileJson } from "./utils/profileImportJson.js";
 import { bucketTextLength, parserLogContext } from "./services/privacyTelemetry.js";
-import { PHOTO_TIMEOUT_MS, readBoundedResponseBody } from "./services/photoProxy.js";
+import { fetchPlacePhoto, readBoundedResponseBody } from "./services/photoProxy.js";
 import { saveTripFeedback } from "./services/feedbackStore.js";
 
 dotenv.config();
@@ -581,6 +581,7 @@ export function createApp(deps = {}) {
   };
 
   app.get("/api/v1/ops/metrics", opsGuard, async (req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     try {
       const snapshot = await metrics.getSnapshot();
       res.json(snapshot);
@@ -589,7 +590,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/ops/session", (req, res) => {
+  app.post("/ops/session", apiLimiter, (req, res) => {
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).send("Ops dashboard not configured");
     if (!secureSecretMatches(req.body?.key, secret)) return res.status(403).send("Forbidden");
@@ -604,12 +605,15 @@ export function createApp(deps = {}) {
   });
 
   const opsPageGuard = (req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Referrer-Policy", "no-referrer");
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).json({ error: "Ops dashboard not configured" });
     if (req.query?.key) return res.status(400).send("Credentials are not accepted in URLs");
-    if (!hasValidOpsSession(req, secret)) return res.status(403).send("Forbidden");
+    if (!hasValidOpsSession(req, secret)) return res.set("Referrer-Policy", "same-origin").type("html").send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SproutRoute operations sign in</title><style>body{font:16px system-ui;background:#f8faf9;color:#163526;margin:0;padding:24px}main{max-width:420px;margin:12vh auto;background:white;border:1px solid #dbe5de;border-radius:16px;padding:28px}h1{font-size:24px}p{line-height:1.5;color:#475569}label{display:block;margin:20px 0 8px}input{box-sizing:border-box;width:100%;padding:12px;border:1px solid #94a3b8;border-radius:8px}button{margin-top:16px;padding:12px 24px;background:#166534;color:white;border:0;border-radius:8px;font:inherit;font-weight:600}</style><body><main><h1>SproutRoute operations</h1><p>Sign in with the existing Railway OPS_SECRET. Your key stays out of the URL.</p><form method="post" action="/ops/session"><label for="ops-key">Operations key</label><input id="ops-key" type="password" name="key" required autocomplete="current-password"><button type="submit">Sign in</button></form></main></body></html>`);
     next();
   };
+  app.get("/dashboard", (req, res) => res.redirect(302, "/ops"));
   app.get("/ops", opsPageGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -905,7 +909,8 @@ export function createApp(deps = {}) {
         return res.status(400).json({ error: "Destination is required." });
       }
 
-      const tips = await getTravelSafety(destination, childrenAges, countryCode);
+      const tripContext = Object.fromEntries(["startDate", "endDate"].map(key => [key, /^\d{4}-\d{2}-\d{2}$/.test(req.body?.[key] || "") ? req.body[key] : null]));
+      const tips = await getTravelSafety(destination, childrenAges, countryCode, { tripContext });
       return res.json(tips);
     } catch (error) {
       if (process.env.NODE_ENV !== "production") {
@@ -2369,11 +2374,7 @@ export function createApp(deps = {}) {
       if (!/^places\/[A-Za-z0-9_-]+\/photos\/[A-Za-z0-9_-]+$/.test(ref)) {
         return res.status(400).send("Invalid photo reference");
       }
-      const photoUrl = `https://places.googleapis.com/v1/${ref}/media?maxWidthPx=800&key=${apiKey}`;
-      const photoRes = await fetch(photoUrl, {
-        signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS),
-        redirect: "error",
-      });
+      const photoRes = await fetchPlacePhoto(ref, apiKey);
       if (!photoRes.ok) return res.status(photoRes.status).send("Photo not found");
       res.set("Content-Type", photoRes.headers.get("content-type") || "image/jpeg");
       res.set("Cache-Control", "public, max-age=86400");

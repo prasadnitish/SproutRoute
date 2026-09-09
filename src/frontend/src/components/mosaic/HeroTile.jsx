@@ -29,7 +29,7 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
   const tags = [];
   if (vibe) tags.push(vibe);
   if (childrenAges.length > 0) tags.push("Family");
-  tags.push(countryCode === "US" ? "Domestic" : "International");
+  // Destination country alone does not establish whether travel is domestic.
 
   const dateLine = [
     startDate && formatDate(startDate),

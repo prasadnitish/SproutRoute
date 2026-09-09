@@ -50,6 +50,7 @@ export async function enrichActivity(activityName, destination, category = "") {
       mapsUrl: place.googleMapsUri || null,
       latitude: place.location?.latitude || null,
       longitude: place.location?.longitude || null,
+      photoAttributions: (place.photos?.[0]?.authorAttributions || []).map(a => a.displayName).filter(Boolean),
       photos: (place.photos || []).slice(0, 5).map(p =>
         `/api/v1/places/photo?ref=${encodeURIComponent(p.name)}`
       ),

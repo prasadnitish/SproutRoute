@@ -58,7 +58,7 @@ export default function SafetyTile({ safetyData, carSeatData }) {
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">Emergency</span>
               <span className="text-xs font-bold text-gray-800">
-                {safetyData.emergencyNumber || "911"}
+                {safetyData.emergencyNumber || "Check local sources"}
               </span>
             </div>
             {safetyData.waterSafety && (

@@ -632,3 +632,10 @@ test("resolveModelId uses caller-specific Gemini override when set", () => {
   assert.strictEqual(__test.resolveModelId("gemini", "tripPlan"), "gemini-3-flash-preview");
   assert.strictEqual(__test.resolveModelId("gemini", "packingList"), "gemini-2.5-flash");
 });
+
+test('Gemini 3.8 uses low thinking without unsupported sampling settings', async()=>{
+ let sent;
+ await callModel({system:'JSON',user:'test',provider:'gemini',model:'gemini-3.8-flash'}, {geminiModel:{generateContent:async body=>{sent=body;return {response:{text:()=>'{"ok":true}',candidates:[{finishReason:'STOP'}]}}}}});
+ assert.equal(sent.generationConfig.temperature,undefined);
+ assert.equal(sent.generationConfig.thinkingConfig.thinkingLevel,'low');
+});

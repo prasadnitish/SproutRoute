@@ -30,3 +30,18 @@ export async function readBoundedResponseBody(response, maxBytes = MAX_PHOTO_BYT
   }
   return Buffer.concat(chunks, total);
 }
+
+/** Resolve Google's default redirect explicitly, retaining SSRF and size protections. */
+export async function fetchPlacePhoto(ref, apiKey, fetchFn = fetch) {
+  const signal = AbortSignal.timeout(PHOTO_TIMEOUT_MS);
+  const metadata = await fetchFn(`https://places.googleapis.com/v1/${ref}/media?maxWidthPx=800&skipHttpRedirect=true`, {
+    headers: { 'X-Goog-Api-Key': apiKey }, signal, redirect: 'error',
+  });
+  if (!metadata.ok) return metadata;
+  const { photoUri } = JSON.parse((await readBoundedResponseBody(metadata, 16000)).toString('utf8'));
+  const url = new URL(photoUri);
+  if (url.protocol !== 'https:' || !url.hostname.endsWith('.googleusercontent.com') || url.username || url.password || (url.port && url.port !== '443')) {
+    throw new Error('Untrusted photo destination');
+  }
+  return fetchFn(url.href, { signal, redirect: 'error' });
+}

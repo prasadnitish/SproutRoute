@@ -190,6 +190,8 @@ export default function ResultsScreen({
   parsedInput,
   packingList,
   packingError,
+  error,
+  onRetry,
   safetyData,
   petSafetyData,
   carSeatData,
@@ -204,7 +206,15 @@ export default function ResultsScreen({
   const [selectedActivity, setSelectedActivity] = useState(null);
   const [activeDayMap, setActiveDayMap] = useState({ activities: [], day: null, dayIndex: 0 });
 
-  const forecast = tripData?.weather?.forecast || tripData?.weather || [];
+  const forecast = useMemo(() => {
+    const direct = tripData?.weather?.forecast || tripData?.weather;
+    if (Array.isArray(direct) && direct.length) return direct;
+    return (tripData?.routePlan?.stops || []).flatMap(stop =>
+      (tripData?.stopWeather?.[stop.id]?.forecast || []).filter(day =>
+        (!day.date || !stop.arrivalDate || day.date >= stop.arrivalDate) &&
+        (!day.date || !stop.departureDate || day.date <= stop.departureDate))
+    );
+  }, [tripData?.weather, tripData?.routePlan, tripData?.stopWeather]);
   const routePlan = tripData?.routePlan || null;
   const stopWeather = tripData?.stopWeather || {};
   const rawItinerary =
@@ -273,8 +283,15 @@ export default function ResultsScreen({
 
   return (
     <div className="w-full max-w-7xl mx-auto">
-      <LoadingBanner progress={progress} steps={steps} />
+      {!error && <LoadingBanner progress={progress} steps={steps} />}
 
+      {error && <div role="alert" className="m-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+        <p>{error}</p>
+        <div className="mt-2 flex gap-4">
+          {onRetry && <button onClick={onRetry} className="font-semibold underline">Retry trip</button>}
+          <button onClick={onGoBack} className="font-semibold underline">Edit trip</button>
+        </div>
+      </div>}
       {/* Tab bar — three tabs, line icons, count badges (F4) */}
       <div
         className="flex gap-0 border-b border-gray-200 px-3 sm:px-4 sticky top-[57px] z-20 bg-[#f9fafb]/95 backdrop-blur-sm"
@@ -293,6 +310,22 @@ export default function ResultsScreen({
             parsedInput={parsedInput}
             onEdit={onGoBack}
           />
+
+          <section className="mt-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4" aria-label="Safety for your trip" aria-live="polite">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="font-semibold text-meadow-900">Safety for {destination || "your trip"}</h3>
+              <button onClick={() => setActiveTab("safety")} className="shrink-0 text-sm font-semibold text-meadow-800 underline">View all safety tips</button>
+            </div>
+            {safetyData && safetyData.source !== "fallback" ? (
+              <>
+                {safetyData.emergencyNumber && <p className="mt-2 text-sm text-gray-800">Emergency: {safetyData.emergencyNumber}</p>}
+                <ul className="mt-2 space-y-1 text-sm text-gray-800">
+                  {[...(safetyData.healthTips || []).slice(0, 1), ...(safetyData.localCustoms || []).slice(0, 1)].map((tip, i) => <li key={i}>{tip}</li>)}
+                </ul>
+                <p className="mt-2 text-xs text-gray-600">AI-generated guidance — verify locally</p>
+              </>
+            ) : <p className="mt-2 text-sm text-gray-700">{progress?.safety === "done" ? "Safety guidance is unavailable. Check local sources before travel." : "Gathering location-specific guidance…"}</p>}
+          </section>
 
           {routePlan && (
             <div className="mt-3 space-y-3">
@@ -330,11 +363,12 @@ export default function ResultsScreen({
             />
             <PremiumRouteMap
               eyebrow="Day map"
-              title={`Day ${(activeDayMap.dayIndex || 0) + 1} route`}
+              title={`Day ${activeDayMap.day?.routeDay || (activeDayMap.dayIndex || 0) + 1} route`}
               points={activeDayPoints}
               fallbackCenter={activeDayFallbackCenter}
               routeMeta={activeDayMap.day?.routeMeta || null}
-              minHeight="min-h-[380px]"
+              minHeight="min-h-[440px]"
+              className="lg:sticky lg:top-28"
             />
           </div>
 
@@ -392,7 +426,7 @@ export default function ResultsScreen({
               <div className="mx-auto w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 mb-3">
                 <Icon name="shield" size={18} />
               </div>
-              <p className="font-medium">Gathering safety info…</p>
+              <p className="font-medium">{progress?.safety === "done" ? "Safety guidance is unavailable. Try generating the trip again." : "Gathering safety info…"}</p>
             </div>
           )}
         </div>

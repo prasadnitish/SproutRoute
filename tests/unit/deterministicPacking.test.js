@@ -78,3 +78,9 @@ test("deterministic packing adds pet and rainy-weather gear when needed", async 
   assert.ok(gearCategory.items.some((item) => item.name === "Rain jacket"));
   assert.ok(gearCategory.items.some((item) => item.name === "Compact umbrella"));
 });
+
+test('adult packing avoids toys and shopping links for personal documents',async()=>{
+ const result=await generatePackingList({startDate:'2026-12-01',endDate:'2026-12-03',children:[],pets:[]},warmWeather);
+ assert.ok(result.categories.find(c=>c.name==='Documents').items.every(i=>i.searchQuery===null));
+ assert.ok(!result.categories.flatMap(c=>c.items).some(i=>i.name==='Favorite small toy'));
+});

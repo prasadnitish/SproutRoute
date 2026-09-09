@@ -12,6 +12,13 @@ test("ops dashboard exchanges its secret for an HttpOnly session without URL cre
   const origin = `http://127.0.0.1:${server.address().port}`;
 
   try {
+    const login = await fetch(`${origin}/ops`);
+    assert.equal(login.status, 200);
+    assert.match(await login.text(), /action="\/ops\/session"/);
+    assert.match(login.headers.get("cache-control"), /no-store/);
+    assert.equal(login.headers.get("referrer-policy"), "same-origin");
+    const denied = await fetch(`${origin}/api/v1/ops/metrics`);
+    assert.equal(denied.status, 403);
     const queryCredential = await fetch(`${origin}/ops?key=test-ops-secret`, { redirect: "manual" });
     assert.notEqual(queryCredential.status, 200);
 
