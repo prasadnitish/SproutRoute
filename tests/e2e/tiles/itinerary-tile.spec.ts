@@ -75,7 +75,7 @@ test.describe("ItineraryTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     // ItineraryTile renders "No itinerary data yet" when days is empty
     await expect(page.getByText(/no itinerary data/i, { exact: false })).toBeVisible();
   });

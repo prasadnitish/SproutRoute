@@ -10,7 +10,7 @@ test.describe("MapTile", () => {
 
   test("renders the premium day map", async ({ page }) => {
     await expect(page.getByRole("region", { name: /day map day 1 route/i })).toBeVisible();
-    await expect(page.getByText(/mapped travel/i)).toBeVisible();
+    await expect(page.getByText(/estimated travel/i)).toBeVisible();
     await expect(page.locator("iframe").first()).toBeVisible();
   });
 
@@ -32,7 +32,7 @@ test.describe("MapTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.locator("body")).not.toContainText("TypeError");
   });
 

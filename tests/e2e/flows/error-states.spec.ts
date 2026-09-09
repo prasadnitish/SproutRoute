@@ -49,7 +49,7 @@ test.describe("Error States", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.getByText(/no itinerary data/i, { exact: false })).toBeVisible();
   });
 
@@ -61,7 +61,7 @@ test.describe("Error States", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.locator("body")).not.toContainText("TypeError");
   });
 });
