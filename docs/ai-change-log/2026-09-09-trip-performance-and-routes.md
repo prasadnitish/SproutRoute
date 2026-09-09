@@ -36,7 +36,11 @@ Official documentation: https://ai.google.dev/gemini-api/docs/models/gemini-3.8-
 
 - Unit/integration coverage includes login/session security, metrics DB-error fallback, map names/order, bounded city concurrency, activity-ID collisions, generation error handling, early packing/safety, seasonal context, dinner overlap, shopping exclusions, photo destination validation, and rendered Plan content.
 - Local browser: 15-day Japan / four stops completed in 33.081s, first stop 13.933s; all 15 day tabs, named attractions, actual day-route geometry, packing, and safety rendered. This differs from the prior 8-day/3-stop run and is not a controlled production comparison.
-- Deployment/production smoke results are appended after verification.
+- Production release `bcb99057-6b25-4fab-bc32-94e272e3bb5e` succeeded. On September 9 at 07:20 UTC, an explicit December 1–8 Tokyo/Kyoto/Hakone trip for two adults completed in 24.984s with first stop in 12.191s. All eight day tabs rendered. Three Gemini 3.8 Flash calls averaged 12.647s with zero model errors. This is one smoke run, not a latency SLA.
+- Packing and safety were visible by the 10-second browser observation. Day 1 and day 8 maps showed distinct street routes with six and five named stops respectively. Hakone Open-Air Museum details loaded a photo, author name, rating, address, and website. Packing checkbox progress, adding a custom item, and retailer search links worked. The Plan safety shortcut opened the full guidance.
+- Production ops login returned 303 and a Secure/HttpOnly/SameSite=Strict cookie; authenticated dashboard and metrics returned 200. Historic errors remain visible; none were new to this trip.
+- Final packing review caught under-warm evening clothing and child-specific generic text on adults-only lists. A failing regression test preceded the fix: forecast lows below 50°F now recommend a warm outer layer; adult snack/cleanup/thermometer wording is neutral. 533 unit/integration tests and the frontend build passed.
+- Browser tests were updated to scope hero headings and Safety tab selectors, and expect named attractions when coordinates are absent. A final CI run verifies these assertions.
 
 ## Diagnostics and follow-up
 

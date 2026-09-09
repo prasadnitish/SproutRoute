@@ -16,7 +16,7 @@ test.describe("Happy Path — full input → results journey", () => {
     await expect(page.getByRole("region", { name: /day map day 1 route/i })).toBeVisible();
     await expect(page.locator("iframe").first()).toBeVisible();
     // Safety tab — emergency number
-    await page.getByRole("button", { name: /Safety/i }).click();
+    await page.getByRole("button", { name: /^Safety\b/i }).click();
     await expect(page.getByText("911")).toBeVisible();
   });
 });
