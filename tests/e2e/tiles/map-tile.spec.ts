@@ -54,3 +54,20 @@ test.describe("MapTile", () => {
       .toBe(false);
   });
 });
+
+test("eight-day itinerary and map fit a narrow screen without page overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockAllApis(page);
+  await overrideSSE(page, { body: buildSSEBody({
+    scheduledItinerary: Array.from({ length: 8 }, (_, index) => ({
+      ...MOCK_TRIP_PLAN.scheduledItinerary[0],
+      day: `Day ${index + 1}`,
+      date: `2026-04-${String(12 + index).padStart(2, "0")}`,
+      routeDay: index + 1,
+    })),
+  }) });
+  await goToResults(page);
+  await expect(page.getByRole("button", { name: /Sun, Apr 19/i })).toBeAttached();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.getByRole("region", { name: /day map day 1 route/i })).toBeVisible();
+});

@@ -305,7 +305,7 @@ export default function ItineraryTile({
   const dayLo = dayForecast?.low ?? dayForecast?.lowTemp;
 
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-4">
+    <section className="min-w-0 bg-white border border-gray-200 rounded-2xl p-4">
       {/* Label */}
       <div className="flex items-center justify-between mb-3">
         <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.15em] text-gray-500 inline-flex items-center gap-1.5">
