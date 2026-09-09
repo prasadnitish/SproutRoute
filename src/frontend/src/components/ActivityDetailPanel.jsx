@@ -55,6 +55,8 @@ export default function ActivityDetailPanel({ activity, placesData, isOpen, onCl
           </div>
         )}
 
+        {placesData?.photos?.length > 0 && placesData?.photoAttributions?.length > 0 && <p className="px-5 pt-2 text-xs text-gray-600">Photo: {placesData.photoAttributions.join(", ")}</p>}
+
         {/* Body */}
         <div className="p-5">
           {/* Category badge */}

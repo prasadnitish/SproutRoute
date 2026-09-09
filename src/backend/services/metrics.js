@@ -100,23 +100,22 @@ export const metrics = {
   recordRequest(data) {
     // Don't persist every request (too noisy) — only errors
     if (data.status >= 500) {
-      persistAsync({
-        event_type: "error",
-        latency_ms: data.ms,
-        error_message: `HTTP ${data.status} on ${data.path}`,
-        req_id: data.reqId,
+      this.recordError({
+        ms: data.ms,
+        error: `HTTP ${data.status} on ${data.path}`,
+        reqId: data.reqId,
       });
     }
   },
 
   // ── Dashboard data ──────────────────────────────────────────────────
-  async getSnapshot() {
+  async getSnapshot({ getAdmin = getSupabaseAdmin } = {}) {
     // Try Supabase for historical data; fall back to in-memory
     let dbTrips = [], dbSearches = [], dbAiCalls = [], dbErrors = [];
     let dbTimeRange = "in-memory only";
 
     try {
-      const admin = getSupabaseAdmin();
+      const admin = getAdmin();
 
       const [tripsRes, searchesRes, aiRes, errorsRes] = await Promise.all([
         admin.from("trip_metrics").select("*").eq("event_type", "trip").order("created_at", { ascending: false }).limit(200),
@@ -125,6 +124,7 @@ export const metrics = {
         admin.from("trip_metrics").select("*").eq("event_type", "error").order("created_at", { ascending: false }).limit(50),
       ]);
 
+      if ([tripsRes, searchesRes, aiRes, errorsRes].some(result => result.error)) throw new Error("Metrics store unavailable");
       dbTrips = tripsRes.data || [];
       dbSearches = searchesRes.data || [];
       dbAiCalls = aiRes.data || [];
@@ -136,14 +136,14 @@ export const metrics = {
       }
     } catch {
       // Fall back to in-memory
-      dbTrips = mem.trips.map(t => ({ ...t, created_at: t.ts, timing_json: t.timing }));
-      dbSearches = mem.searches.map(s => ({
+      dbTrips = [...mem.trips].reverse().map(t => ({ ...t, created_at: t.ts, timing_json: t.timing }));
+      dbSearches = [...mem.searches].reverse().map(s => ({
         ...s,
         created_at: s.ts,
         text_length_bucket: s.textLengthBucket,
       }));
-      dbAiCalls = mem.aiCalls.map(a => ({ ...a, created_at: a.ts, latency_ms: a.ms, output_chars: a.outChars }));
-      dbErrors = mem.errors.map(e => ({ ...e, created_at: e.ts, error_message: e.error }));
+      dbAiCalls = [...mem.aiCalls].reverse().map(a => ({ ...a, created_at: a.ts, latency_ms: a.ms, output_chars: a.outChars }));
+      dbErrors = [...mem.errors].reverse().map(e => ({ ...e, created_at: e.ts, error_message: e.error }));
       dbTimeRange = "in-memory (Supabase unavailable)";
     }
 
@@ -191,7 +191,7 @@ export const metrics = {
     // Segments
     const withKids = dbTrips.filter(t => (t.child_count || t.childCount || 0) > 0).length;
     const withPets = dbTrips.filter(t => (t.pet_count || t.petCount || 0) > 0).length;
-    const adultsOnly = dbTrips.length - withKids - withPets;
+    const adultsOnly = dbTrips.filter(t => !(t.child_count || t.childCount) && !(t.pet_count || t.petCount)).length;
 
     // Vibes
     const vibes = {};

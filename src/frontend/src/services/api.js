@@ -403,6 +403,9 @@ export async function streamTripPlan(tripData, onEvent, signal) {
                   }
                 }
               }
+              // City generation may complete out of order; keep day selection chronological.
+              result.tripPlan?.dailyItinerary?.sort((a, b) => (a.routeDay || 0) - (b.routeDay || 0));
+              result.scheduledItinerary?.sort((a, b) => (a.routeDay || 0) - (b.routeDay || 0));
               onEvent({ type: "stop-itinerary", data, accumulated: result });
             } else if (type === "destination") {
               result.trip = data;
@@ -471,9 +474,9 @@ export async function streamTripPlan(tripData, onEvent, signal) {
 
     return result;
   } catch (err) {
-    if (err.name === "AbortError") throw err;
+    if (err.name === "AbortError" || err.isStreamError || result.routePlan || result.tripPlan) throw err;
 
-    // Fallback to bundle API
+    // Fallback only for transport failure before an itinerary has started.
     console.warn("SSE stream failed, falling back to bundle:", err.message);
     // Check abort before fallback — prevents stale data overwriting new trip
     if (signal?.aborted) throw Object.assign(new Error("Aborted"), { name: "AbortError" });

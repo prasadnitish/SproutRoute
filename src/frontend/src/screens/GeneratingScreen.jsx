@@ -12,7 +12,7 @@ const STEP_LABELS = {
 };
 
 const WAIT_FACTS = [
-  "We cross-check opening hours against your travel dates.",
+  "Check venue hours and booking availability before you go.",
   "Packing list weights are tuned to the forecast high / low.",
   "For international trips we pull pet airline rules for every carrier.",
   "Car-seat law lookups use the state authority, not crowdsourced data.",

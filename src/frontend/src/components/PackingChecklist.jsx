@@ -323,7 +323,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                               </p>
                             )}
                           </div>
-                          {!isChecked && item.shopLinks?.length > 0 && (
+                          {!isChecked && category.name !== "Documents" && item.name !== "Daily medications" && item.shopLinks?.length > 0 && (
                             <button
                               onClick={(e) => {
                                 e.preventDefault();

@@ -36,14 +36,17 @@ function normalizeStopDays(stop, days = [], localDayOffset = 0) {
 }
 
 function normalizeStopTripPlan(stop, tripPlan, localDayOffset = 0) {
+  const prefix = `${stop.id}:`;
+  const localId = id => String(id).startsWith(prefix) ? String(id) : `${prefix}${id}`;
   return {
     ...(tripPlan || {}),
     suggestedActivities: (tripPlan?.suggestedActivities || []).map((activity) => ({
       ...activity,
+      id: localId(activity.id || activity.name),
       stopId: stop.id,
       stopName: stop.name,
     })),
-    dailyItinerary: normalizeStopDays(stop, tripPlan?.dailyItinerary || [], localDayOffset),
+    dailyItinerary: normalizeStopDays(stop, tripPlan?.dailyItinerary || [], localDayOffset).map(day => ({...day, activities: (day.activities || []).map(id => typeof id === "string" ? localId(id) : id)})),
   };
 }
 
@@ -112,13 +115,15 @@ export async function planRouteStops({
   const plannedStops = [];
   const enrichedStops = [];
 
-  for (const stop of routePlan.stops || []) {
-    if (shouldAbort()) break;
+  async function planStop(stop, index) {
+    if (shouldAbort()) return;
 
-    const coords = await geocodeLocationFn(stop.name);
+    // Parenthetical descriptions are presentation text, not part of the city name.
+    const cityQuery = stop.name.replace(/\s*\([^)]*\)/g, "").trim() || stop.name;
+    const coords = await geocodeLocationFn(cityQuery);
     const enrichedStop = {
       ...stop,
-      displayName: coords.displayName || stop.displayName || stop.name,
+      displayName: stop.displayName || stop.name,
       countryCode: coords.countryCode || stop.countryCode || null,
       regionCode: coords.regionCode || null,
       lat: coords.lat ?? null,
@@ -190,8 +195,22 @@ export async function planRouteStops({
     } catch {
       scheduledByStop[stop.id] = null;
     }
-    plannedStops.push({ stop: enrichedStop, tripPlan });
+    plannedStops[index] = { stop: enrichedStop, tripPlan };
   }
+
+  // Bound provider traffic; completion order never changes route/day order.
+  const stops = routePlan.stops || [];
+  let nextIndex = 0;
+  let failure = null;
+  async function worker() {
+    while (!failure && !shouldAbort() && nextIndex < stops.length) {
+      const index = nextIndex++;
+      try { await planStop(stops[index], index); }
+      catch (error) { failure = error; }
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(2, stops.length)}, worker));
+  if (failure) throw failure;
 
   const fullRoutePlan = {
     ...routePlan,
@@ -205,6 +224,6 @@ export async function planRouteStops({
     stopWeather,
     stopItineraries,
     scheduledByStop,
-    tripPlan: mergeStopPlans(plannedStops),
+    tripPlan: mergeStopPlans(plannedStops.filter(Boolean)),
   };
 }

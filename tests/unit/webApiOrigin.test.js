@@ -50,3 +50,20 @@ test("development API calls retain the configured backend URL", async () => {
     global.fetch = originalFetch;
   }
 });
+
+test('city chunks that complete out of order remain in route-day order',async()=>{
+ const original=global.fetch;
+ const chunk=(id,day)=>`event: stop-itinerary\ndata: ${JSON.stringify({stop:{id},tripPlan:{suggestedActivities:[{id:`${id}:a`,name:id}],dailyItinerary:[{routeDay:day,activities:[`${id}:a`]}]},scheduledItinerary:[{routeDay:day,scheduled:[]}]})}\n\n`;
+ global.fetch=async()=>new Response(chunk('Kyoto',4)+chunk('Tokyo',1)+'event: done\ndata: {}\n\n',{headers:{'content-type':'text/event-stream'}});
+ try{
+ const code=source.replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+ const result=await api.streamTripPlan({destination:'Japan'},()=>{});
+ assert.deepEqual(result.tripPlan.dailyItinerary.map(d=>d.routeDay),[1,4]);
+ assert.deepEqual(result.scheduledItinerary.map(d=>d.routeDay),[1,4]);
+ }finally{global.fetch=original;}
+});
+test('an explicit generation error does not silently repeat an expensive bundle request',async()=>{
+ const original=global.fetch;let calls=0;
+ global.fetch=async()=>{calls++;return new Response('event: error\ndata: {"message":"Stop location not found"}\n\n',{headers:{'content-type':'text/event-stream'}})};
+ try{const code=source.replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);await assert.rejects(api.streamTripPlan({destination:'Japan'},()=>{}),/Stop location not found/);assert.equal(calls,1);}finally{global.fetch=original;}
+});

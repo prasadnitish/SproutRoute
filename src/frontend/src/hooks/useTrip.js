@@ -247,6 +247,7 @@ export function useTrip() {
   }, [parsedInput, routePrefetch.attractionsByStopId]);
 
   async function generateTrip(parsed) {
+    setError(null);
     markStep("weather", "active");
 
     const pets = parsed.pets || [];
@@ -283,6 +284,15 @@ export function useTrip() {
 
     const signal = abortRef.current?.signal;
 
+    // Packing is independent of itinerary AI; start as soon as trip dates are known.
+    void fetchPackingInBackground(formData, signal);
+    let safetyStarted = false;
+    const startSafety = (result) => {
+      if (safetyStarted || signal?.aborted) return;
+      safetyStarted = true;
+      void fetchSafetyInBackground(parsed, result, signal);
+    };
+
     // Use SSE streaming for progressive rendering
     const streamResult = await streamTripPlan(formData, (event) => {
       if (signal?.aborted) return;
@@ -301,6 +311,7 @@ export function useTrip() {
           break;
 
         case "stop-weather":
+          startSafety({ trip: event.data.stop });
           markStep("weather", "active");
           setTripData(prev => ({
             ...prev,
@@ -331,6 +342,7 @@ export function useTrip() {
           break;
 
         case "destination":
+          startSafety({ trip: event.data });
           markStep("weather", "active");
           // Show results screen IMMEDIATELY with destination data
           setTripData(prev => ({
@@ -421,7 +433,7 @@ export function useTrip() {
 
     // Background safety fetches -- don't block results
     if (!signal?.aborted) {
-      fetchSafetyInBackground(parsed, streamResult, signal);
+      startSafety(streamResult);
 
       if (pets.length > 0) {
         fetchPetSafetyInBackground(pets, parsed, streamResult, signal);
@@ -432,10 +444,6 @@ export function useTrip() {
         fetchCarSeatInBackground(childAges, streamResult, signal);
       }
 
-      // If packing wasn't included in stream, fetch separately
-      if (!streamResult.packingList) {
-        fetchPackingInBackground(formData, signal);
-      }
     }
   }
 
@@ -461,7 +469,9 @@ export function useTrip() {
       const safetyResult = await getTravelSafety({
         destination: parsed.destination,
         childrenAges: parsed.childrenAges,
-        countryCode: tripResult?.trip?.countryCode || "",
+        countryCode: tripResult?.trip?.countryCode || tripResult?.routePlan?.stops?.[0]?.countryCode || parsed.countryCode || "",
+        startDate: parsed.startDate,
+        endDate: parsed.endDate,
       }, { signal });
       if (signal?.aborted) return;
       setSafetyData(safetyResult);

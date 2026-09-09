@@ -29,6 +29,9 @@ jobs:
       - name: Install backend dependencies
         run: cd src/backend && npm ci
 
+      - name: Install frontend dependencies
+        run: cd src/frontend && npm ci
+
       - name: Run backend tests
         run: npm test
         env:
@@ -37,9 +40,6 @@ jobs:
           AI_PROVIDER: mock
 
       # ── Frontend ───────────────────────────────────────────────────
-      - name: Install frontend dependencies
-        run: cd src/frontend && npm ci
-
       - name: Frontend type check + lint
         run: cd src/frontend && npm run lint --if-present
 

@@ -167,12 +167,12 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
  * Uses responseMimeType: "application/json" for native JSON enforcement
  * when the system prompt requests JSON output.
  */
-async function callGemini(model, { system, user, maxTokens, temperature, signal, timeoutMs }) {
+async function callGemini(model, { system, user, maxTokens, temperature, modelId, signal, timeoutMs }) {
   const result = await model.generateContent({
     contents: [{ role: "user", parts: [{ text: user }] }],
     systemInstruction: { parts: [{ text: system }] },
     generationConfig: {
-      temperature,
+      ...(modelId?.startsWith("gemini-3") ? { thinkingConfig: { thinkingLevel: "low" } } : { temperature }),
       maxOutputTokens: maxTokens,
       responseMimeType: "application/json",
     },
