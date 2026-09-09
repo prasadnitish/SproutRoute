@@ -344,7 +344,7 @@ export default function ResultsScreen({
           )}
 
           {/* Itinerary with weather folded into the day header (F4) */}
-          <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] lg:items-start">
+          <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)] lg:items-start">
             <ItineraryTile
               dailyItinerary={dailyItinerary}
               scheduledItinerary={scheduledItinerary}
