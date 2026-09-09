@@ -112,3 +112,12 @@ export interface CapabilityPayload {
   /** Only present when client=ios */
   ios26Features?: Ios26Features;
 }
+
+/** POST /api/safety/travel-tips; dates are optional for older clients. */
+export interface TravelSafetyRequest {
+  destination: string;
+  childrenAges?: number[];
+  countryCode?: string;
+  startDate?: string;
+  endDate?: string;
+}

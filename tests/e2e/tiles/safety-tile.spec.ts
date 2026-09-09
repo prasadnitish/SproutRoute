@@ -5,7 +5,7 @@ test.describe("SafetyTile", () => {
   test.beforeEach(async ({ page }) => {
     await mockAllApis(page);
     await goToResults(page);
-    await page.getByRole("button", { name: /Safety/i }).click();
+    await page.getByRole("button", { name: /^Safety\b/i }).click();
   });
 
   test("renders advisory level", async ({ page }) => {
@@ -36,7 +36,7 @@ test.describe("SafetyTile", () => {
     await page.goto("/");
     await page.locator("textarea").fill("Beach vacation in Maui with kids age 4 and 8");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
     await expect(page.locator("body")).not.toContainText("TypeError");
   });
 });

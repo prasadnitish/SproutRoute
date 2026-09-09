@@ -94,6 +94,20 @@ describe("parseInput", () => {
     assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto", "Osaka", "Hakone"]);
   });
 
+  it("uses the country as destination when a complete country route omits destination", async () => {
+    const result = await parseInput("japan trip for 2 in winter", {
+      callAI: async () => JSON.stringify({
+        destination: null,
+        adults: 2,
+        tripShape: "country_tour",
+        stops: [{ name: "Tokyo" }, { name: "Kyoto" }],
+        countryTour: { country: "Japan", countryCode: "JP" },
+      }),
+    });
+    assert.equal(result.destination, "Japan");
+    assert.deepEqual(result.stops.map((stop) => stop.name), ["Tokyo", "Kyoto"]);
+  });
+
   it("includes detectedRegion when provided", async () => {
     const result = await parseInput("beach vacation in Maui with two kids age 4 and 8", {
       callAI: mockAI,

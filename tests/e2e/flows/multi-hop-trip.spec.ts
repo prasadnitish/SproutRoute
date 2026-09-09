@@ -136,7 +136,7 @@ test("multi-hop trip shows route review before streaming route-aware results", a
   await expect(page.getByText("Berlin").first()).toBeVisible();
 });
 
-test("route results day map falls back to the active route stop when activities lack coordinates", async ({ page }) => {
+test("route results day map locates the named attraction in its route city without coordinates", async ({ page }) => {
   const routePlanWithCoords = {
     ...routePlan,
     stops: routePlan.stops.map((stop) => ({ ...stop })),
@@ -243,8 +243,7 @@ test("route results day map falls back to the active route stop when activities 
   const dayMapIframe = page.getByRole("region", { name: /day map day 1 route/i }).locator("iframe");
   await expect(dayMapIframe).toBeVisible();
   const src = await dayMapIframe.getAttribute("src");
-  expect(src).toContain("52.37");
-  expect(src).toContain("4.9");
+  expect(new URL(src!).searchParams.get("q")).toBe("Amsterdam Museum, Amsterdam");
 });
 
 test("route review prefetches city ideas and sends reordered stops on continue", async ({ page }) => {

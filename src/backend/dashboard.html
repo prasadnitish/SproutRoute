@@ -77,7 +77,10 @@ tr:hover td{background:#fafffe}
 async function load() {
   try {
     const r = await fetch("/api/v1/ops/metrics", { credentials: "same-origin" });
-    if (!r.ok) { document.getElementById("loading").textContent = "Access denied (HTTP " + r.status + ")."; return; }
+    if (!r.ok) {
+      if (r.status === 403) { window.location.assign("/ops"); return; }
+      throw new Error("Metrics unavailable (HTTP " + r.status + ")");
+    }
     const d = await r.json();
     document.getElementById("loading").style.display = "none";
     const app = document.getElementById("app");
@@ -86,7 +89,8 @@ async function load() {
     while (app.firstChild) app.removeChild(app.firstChild);
     render(app, d);
   } catch (e) {
-    document.getElementById("loading").textContent = "Error: " + e.message;
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("loading").textContent = "Refresh failed: " + e.message + ". Last successful data may be shown below.";
   }
 }
 
@@ -101,13 +105,11 @@ function render(root, d) {
   // ── Summary Cards ──
   const cards = section(root, "Overview");
   const cg = el("div", "", "cards");
-  addCard(cg, "Trips Generated", s.tripsGenerated, "24h total");
-  addCard(cg, "Last Hour", s.tripsLastHour, "trips");
-  addCard(cg, "API Calls", s.totalApiCalls, "24h");
-  addCard(cg, "AI Calls", s.totalAiCalls, "24h");
-  addCard(cg, "Errors", s.totalErrors, s.errorRate + "% rate", s.totalErrors > 0 ? "err" : "");
-  addCard(cg, "Est. Cost", "$" + s.estTotalCost, "24h AI spend");
-  addCard(cg, "Est. Cost", "$" + (s.estTotalCost || 0), "all time");
+  addCard(cg, "Trips in sample", s.tripsTotal, "latest 200 maximum");
+  addCard(cg, "Last 24 hours", s.trips24h, "within trip sample");
+  addCard(cg, "Last Hour", s.tripsLastHour, "within trip sample");
+  addCard(cg, "AI Calls", s.totalAiCalls, "latest 500 maximum");
+  addCard(cg, "Errors", s.totalErrors, "latest 50 maximum", s.totalErrors > 0 ? "err" : "");
   cards.appendChild(cg);
 
   // Data source indicator
@@ -181,13 +183,12 @@ function render(root, d) {
   const mSec = el("div");
   mSec.appendChild(el("div", "Model Usage", "section-title"));
   const mt = document.createElement("table");
-  mt.appendChild(mkRow(true, ["Model", "Calls", "Avg", "Errors", "Out Tokens", "Cost"]));
+  mt.appendChild(mkRow(true, ["Model", "Calls", "Avg", "Errors"]));
   const mtb = document.createElement("tbody");
   for (const [k, v] of Object.entries(d.modelUsage || {})) {
     mtb.appendChild(mkRow(false, [
       k, v.calls, fmtMs(v.avgLatency),
-      v.errors > 0 ? badgeHTML(v.errors, "r") : "0",
-      fmtK(v.estOutputTokens), "$" + (v.estCost || 0).toFixed(4)
+      v.errors > 0 ? badgeHTML(v.errors, "r") : "0"
     ]));
   }
   mt.appendChild(mtb);
@@ -227,7 +228,7 @@ function render(root, d) {
   // ── Recent Searches ──
   const sSec = section(root, "Recent Searches");
   const st = document.createElement("table");
-  st.appendChild(mkRow(true, ["When", "Search Text", "Destination", "Vibe", "Kids", "Pets", "Parse Time"]));
+  st.appendChild(mkRow(true, ["When", "Prompt Size", "Destination", "Vibe", "Kids", "Pets", "Parse Time"]));
   const stb = document.createElement("tbody");
   for (const s of (d.recentSearches || [])) {
     stb.appendChild(mkRow(false, [
@@ -242,10 +243,10 @@ function render(root, d) {
   if ((d.recentErrors || []).length > 0) {
     const eSec = section(root, "Recent Errors");
     const et = document.createElement("table");
-    et.appendChild(mkRow(true, ["When", "Path", "Error"]));
+    et.appendChild(mkRow(true, ["When", "Request ID", "Error"]));
     const etb = document.createElement("tbody");
     for (const e of (d.recentErrors || [])) {
-      etb.appendChild(mkRow(false, [ago(e.ts), e.path || "", String(e.error || "").slice(0, 120)], [false, false, true]));
+      etb.appendChild(mkRow(false, [ago(e.ts), e.reqId || "", String(e.error || "").slice(0, 120)], [false, false, true]));
     }
     et.appendChild(etb);
     eSec.appendChild(et);

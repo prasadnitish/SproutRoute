@@ -4,11 +4,13 @@
 
 import { callModel } from "../utils/aiClient.js";
 
-const SAFETY_PROMPT = (destination, childrenAges, countryCode) => `You are a travel safety advisor for families with young children.
+const SAFETY_PROMPT = (destination, childrenAges, countryCode, tripContext = {}) => `You are a travel safety advisor.
 
 Destination: ${destination}
 Country code: ${countryCode || "unknown"}
-Children ages: ${childrenAges?.length ? childrenAges.join(", ") : "none specified"}
+Travelers: ${childrenAges?.length ? `Children ages ${childrenAges.join(", ")}` : "Adults-only trip"}
+Travel dates: ${tripContext.startDate || "not specified"} to ${tripContext.endDate || "not specified"}
+Tailor seasonal tips to these dates and the destination hemisphere. Do not give summer tips for a winter trip. Do not add child-specific tips to adults-only trips.
 
 Return ONLY valid JSON with these fields:
 {
@@ -38,13 +40,13 @@ export async function getTravelSafety(destination, childrenAges, countryCode, de
   });
 
   try {
-    const raw = await callAI(SAFETY_PROMPT(destination, childrenAges, countryCode));
+    const raw = await callAI(SAFETY_PROMPT(destination, childrenAges, countryCode, deps.tripContext));
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
 
     return {
-      advisoryLevel: parsed.advisoryLevel || "low",
-      emergencyNumber: parsed.emergencyNumber || "911",
+      advisoryLevel: ["low", "medium", "high"].includes(parsed.advisoryLevel) ? parsed.advisoryLevel : null,
+      emergencyNumber: typeof parsed.emergencyNumber === "string" ? parsed.emergencyNumber : null,
       healthTips: parsed.healthTips || [],
       familyTips: parsed.familyTips || [],
       localCustoms: parsed.localCustoms || [],

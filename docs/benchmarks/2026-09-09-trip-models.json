@@ -1,0 +1,312 @@
+{
+  "at": "2026-09-09T06:50:22.335Z",
+  "notes": "One sample per case; no fallback; max tokens 16384; low thinking for Gemini; structural quality only, not venue verification",
+  "results": [
+    {
+      "model": "gemini-3.5-flash-lite",
+      "city": "Tokyo",
+      "days": 3,
+      "children": 0,
+      "ms": 8057,
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 1420,
+        "candidatesTokenCount": 2457,
+        "totalTokenCount": 3877,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1420
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "validJSON": true,
+      "actualDays": 3,
+      "activities": 12,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 3,
+      "sampleNames": [
+        "Asakusa and Senso-ji Temple Walking Tour",
+        "Tokyo Skytree Observation Deck",
+        "Sumida River Cruise",
+        "Akihabara Electric Town Exploration"
+      ]
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "city": "Tokyo",
+      "days": 3,
+      "children": 0,
+      "ms": 10950,
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 1420,
+        "candidatesTokenCount": 3148,
+        "totalTokenCount": 4568,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1420
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "validJSON": true,
+      "actualDays": 3,
+      "activities": 14,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 3,
+      "sampleNames": [
+        "Meiji Jingu Shrine & Forest Stroll",
+        "Harajuku & Omotesando Architecture Walk",
+        "Shibuya Crossing & Shibuya Sky Observation Deck",
+        "Shinjuku Gyoen National Garden"
+      ]
+    },
+    {
+      "model": "gpt-5.4-nano",
+      "city": "Tokyo",
+      "days": 3,
+      "children": 0,
+      "ms": 23611,
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 1328,
+        "completion_tokens": 4045,
+        "total_tokens": 5373,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "validJSON": true,
+      "actualDays": 3,
+      "activities": 20,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 3,
+      "sampleNames": [
+        "Hamarikyu Gardens & Tea House",
+        "Ginza Evening-Style Walk (Chuo-dori to Yurakucho)",
+        "teamLab Planets TOKYO (Toyosu)",
+        "Asakusa & Senso-ji Temple Morning Visit"
+      ]
+    },
+    {
+      "model": "gemini-3.5-flash-lite",
+      "city": "Kyoto",
+      "days": 3,
+      "children": 2,
+      "ms": 7330,
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 1413,
+        "candidatesTokenCount": 2218,
+        "totalTokenCount": 3631,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1413
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "validJSON": true,
+      "actualDays": 3,
+      "activities": 10,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 3,
+      "sampleNames": [
+        "Fushimi Inari Shrine Hike",
+        "Kyoto Station & Skyway",
+        "Nijo Castle Historic Tour",
+        "Nishiki Market Food Walk"
+      ]
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "city": "Kyoto",
+      "days": 3,
+      "children": 2,
+      "ms": 12592,
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 1413,
+        "candidatesTokenCount": 3654,
+        "totalTokenCount": 5067,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1413
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "validJSON": true,
+      "actualDays": 3,
+      "activities": 15,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 3,
+      "sampleNames": [
+        "Fushimi Inari Taisha Torii Path",
+        "Kyoto Railway Museum",
+        "Umekoji Park Play Area",
+        "Kyoto Aquarium"
+      ]
+    },
+    {
+      "model": "gpt-5.4-nano",
+      "city": "Kyoto",
+      "days": 3,
+      "children": 2,
+      "ms": 19761,
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 1322,
+        "completion_tokens": 3067,
+        "total_tokens": 4389,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "validJSON": true,
+      "actualDays": 3,
+      "activities": 14,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 1,
+      "mealDays": 3,
+      "sampleNames": [
+        "Kyoto Downtown Walking Tour (Nishiki Market → Ponto-chō → Kamo River → Gion Streets → Yasaka Shrine)",
+        "Nishiki Market Food Stroll",
+        "Kyoto Aquarium (Kyoto Gyoen area)",
+        "Fushimi Inari Taisha (Senbon Torii Gates)"
+      ]
+    },
+    {
+      "model": "gemini-3.5-flash-lite",
+      "city": "Tokyo",
+      "days": 6,
+      "children": 0,
+      "ms": 13579,
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 1456,
+        "candidatesTokenCount": 4457,
+        "totalTokenCount": 5913,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1456
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "validJSON": true,
+      "actualDays": 6,
+      "activities": 22,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 6,
+      "sampleNames": [
+        "Asakusa & Senso-ji Temple",
+        "Tokyo Skytree",
+        "Sumida River Cruise",
+        "Hamarikyu Gardens"
+      ]
+    },
+    {
+      "model": "gemini-3.8-flash",
+      "city": "Tokyo",
+      "days": 6,
+      "children": 0,
+      "ms": 18061,
+      "finishReason": "STOP",
+      "usage": {
+        "promptTokenCount": 1456,
+        "candidatesTokenCount": 5531,
+        "totalTokenCount": 6987,
+        "promptTokensDetails": [
+          {
+            "modality": "TEXT",
+            "tokenCount": 1456
+          }
+        ],
+        "serviceTier": "standard"
+      },
+      "validJSON": true,
+      "actualDays": 6,
+      "activities": 25,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 6,
+      "sampleNames": [
+        "Stroll Shinjuku Gyoen National Garden",
+        "Visit Meiji Jingu Shrine",
+        "Explore Omotesando Architecture & Boutiques",
+        "Shibuya Sky & Scramble Crossing"
+      ]
+    },
+    {
+      "model": "gpt-5.4-nano",
+      "city": "Tokyo",
+      "days": 6,
+      "children": 0,
+      "ms": 38809,
+      "finishReason": "stop",
+      "usage": {
+        "prompt_tokens": 1352,
+        "completion_tokens": 6155,
+        "total_tokens": 7507,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "audio_tokens": 0
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "audio_tokens": 0,
+          "accepted_prediction_tokens": 0,
+          "rejected_prediction_tokens": 0
+        }
+      },
+      "validJSON": true,
+      "actualDays": 6,
+      "activities": 31,
+      "complete": true,
+      "uniqueIds": true,
+      "repeatedActivityRefs": 0,
+      "mealDays": 6,
+      "sampleNames": [
+        "Hamarikyu Gardens",
+        "Tsukiji Outer Market Food Walk",
+        "Ginza & Hibiya Evening-Style Walk (Chuo Line area)",
+        "Asakusa & Senso-ji Temple Morning Visit"
+      ]
+    }
+  ]
+}

@@ -198,10 +198,10 @@ function ActivityCard({ activity, onTap, hasPets, onOpenSafety }) {
 function TripTips({ tips }) {
   if (!tips || tips.length === 0) return null;
   return (
-    <div className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
-      <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.15em] text-amber-800 mb-2 inline-flex items-center gap-1.5">
-        <Icon name="sparkle" size={12} /> Trip tips
-      </p>
+    <details className="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-amber-900">
+        Trip tips ({tips.length})
+      </summary>
       <ul className="space-y-1.5">
         {tips.map((tip, i) => (
           <li key={i} className="flex gap-2 text-[13px] text-gray-800 leading-snug">
@@ -212,7 +212,7 @@ function TripTips({ tips }) {
           </li>
         ))}
       </ul>
-    </div>
+    </details>
   );
 }
 
@@ -305,7 +305,7 @@ export default function ItineraryTile({
   const dayLo = dayForecast?.low ?? dayForecast?.lowTemp;
 
   return (
-    <section className="bg-white border border-gray-200 rounded-2xl p-4">
+    <section className="min-w-0 bg-white border border-gray-200 rounded-2xl p-4">
       {/* Label */}
       <div className="flex items-center justify-between mb-3">
         <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.15em] text-gray-500 inline-flex items-center gap-1.5">
@@ -313,7 +313,7 @@ export default function ItineraryTile({
         </p>
         {isScheduled && (
           <span className="text-[11px] font-mono font-semibold uppercase tracking-wider bg-meadow-50 text-meadow-700 rounded-full px-2 py-0.5 inline-flex items-center gap-1">
-            <Icon name="check" size={10} /> Verified hours
+            <Icon name="clock" size={10} /> Suggested times
           </span>
         )}
       </div>

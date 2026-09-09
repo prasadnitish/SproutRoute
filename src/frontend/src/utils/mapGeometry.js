@@ -51,6 +51,7 @@ function normalizeKey(value) {
 }
 
 function finiteNumber(value) {
+  if (value == null || value === "") return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 }
@@ -59,12 +60,12 @@ export function coordinatesFor(value) {
   if (!value || typeof value !== "object") return null;
   const directLat = finiteNumber(value.lat ?? value.latitude);
   const directLon = finiteNumber(value.lon ?? value.lng ?? value.longitude);
-  if (directLat != null && directLon != null) return { lat: directLat, lon: directLon };
+  if (directLat != null && directLon != null && Math.abs(directLat) <= 90 && Math.abs(directLon) <= 180) return { lat: directLat, lon: directLon };
 
   const enriched = value.enriched || {};
   const enrichedLat = finiteNumber(enriched.lat ?? enriched.latitude);
   const enrichedLon = finiteNumber(enriched.lon ?? enriched.lng ?? enriched.longitude);
-  if (enrichedLat != null && enrichedLon != null) return { lat: enrichedLat, lon: enrichedLon };
+  if (enrichedLat != null && enrichedLon != null && Math.abs(enrichedLat) <= 90 && Math.abs(enrichedLon) <= 180) return { lat: enrichedLat, lon: enrichedLon };
 
   const known = KNOWN_CITY_COORDS[normalizeKey(value.name || value.displayName || value.title)];
   return known || null;
@@ -76,6 +77,7 @@ export function toMapPoint(value, index = 0) {
   return {
     id: value?.id || `${normalizeKey(name).replace(/\s+/g, "-") || "point"}-${index}`,
     name,
+    stopName: value?.stopName || "",
     label: String(index + 1),
     subtitle: value?.nights ? `${value.nights} night${value.nights === 1 ? "" : "s"}` : value?.scheduledStart || "",
     category: value?.category || "",
@@ -130,7 +132,7 @@ export function routeMetrics(points = [], totalDays = null) {
       : daysPerStop >= 2
         ? "Balanced pace"
         : "Ambitious pace";
-  const backtrackingLabel = backtrackingRatio > 1.8
+  const backtrackingLabel = mapped.length < 2 || mapped.length !== points.length ? null : backtrackingRatio > 1.8
     ? "High backtracking"
     : backtrackingRatio > 1.35
       ? "Some backtracking"
@@ -146,32 +148,29 @@ export function routeMetrics(points = [], totalDays = null) {
   };
 }
 
-function coord(point) {
-  return `${point.lat},${point.lon}`;
+function mapQuery(point, fallbackCenter) {
+  if (point.lat != null && point.lon != null) return `${point.lat},${point.lon}`;
+  const city = point.stopName || fallbackCenter?.name;
+  return point.name ? [point.name, city].filter(Boolean).join(", ") : null;
 }
 
 export function googleMapsEmbedUrl(points = [], fallbackCenter = null) {
-  const mapped = points.filter((point) => point.lat != null && point.lon != null).slice(0, 10);
-  if (mapped.length >= 2) {
-    const [origin, ...rest] = mapped;
-    const daddr = rest.map(coord).join("+to:");
-    return `https://maps.google.com/maps?saddr=${coord(origin)}&daddr=${daddr}&output=embed`;
+  const queries = points.map(p => mapQuery(p, fallbackCenter)).filter(Boolean);
+  if (queries.length >= 2) {
+    const params = new URLSearchParams({saddr: queries[0], daddr: queries.slice(1).join(" to:"), output: "embed"});
+    return `https://maps.google.com/maps?${params}`;
   }
-  const center = mapped[0] || fallbackCenter;
-  if (center?.lat != null && center?.lon != null) {
-    return `https://maps.google.com/maps?q=${center.lat},${center.lon}&z=11&output=embed`;
-  }
-  return null;
+  const query = queries[0] || (fallbackCenter && mapQuery(fallbackCenter));
+  return query ? `https://maps.google.com/maps?${new URLSearchParams({q:query,z:"11",output:"embed"})}` : null;
 }
 
 export function googleMapsOpenUrl(points = [], fallbackCenter = null) {
-  const mapped = points.filter((point) => point.lat != null && point.lon != null).slice(0, 10);
-  if (mapped.length >= 2) {
-    return `https://www.google.com/maps/dir/${mapped.map(coord).join("/")}`;
+  const queries = points.map(p => mapQuery(p, fallbackCenter)).filter(Boolean);
+  if (queries.length >= 2) {
+    const params = new URLSearchParams({api:"1",origin:queries[0],destination:queries.at(-1)});
+    if (queries.length > 2) params.set("waypoints",queries.slice(1,-1).join("|"));
+    return `https://www.google.com/maps/dir/?${params}`;
   }
-  const center = mapped[0] || fallbackCenter;
-  if (center?.lat != null && center?.lon != null) {
-    return `https://www.google.com/maps/search/?api=1&query=${center.lat},${center.lon}`;
-  }
-  return "https://www.google.com/maps";
+  const query = queries[0] || (fallbackCenter && mapQuery(fallbackCenter));
+  return query ? `https://www.google.com/maps/search/?${new URLSearchParams({api:"1",query})}` : "https://www.google.com/maps";
 }

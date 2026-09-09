@@ -24,7 +24,7 @@ test.describe("Food Preferences — dietary input flows through to meal cards", 
     await page.goto("/");
     await page.locator("textarea").fill("vegan family trip to Maui");
     await page.getByRole("button", { name: /plan it/i }).click();
-    await page.getByRole("heading", { name: /Maui, Hawaii/i }).waitFor({ timeout: 15000 });
+    await page.getByRole("heading", { name: /Maui, Hawaii/i, level: 2 }).waitFor({ timeout: 15000 });
 
     // Meal cards should show vegan restaurant and cuisine labels
     await expect(page.getByText("Alive & Well").first()).toBeVisible();
