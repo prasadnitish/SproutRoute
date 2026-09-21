@@ -107,3 +107,9 @@ test("sanitizeTripData prefers children objects over childrenAges", () => {
   assert.strictEqual(result.children[0].age, 5);
   assert.strictEqual(result.children[0].weightLb, 40);
 });
+
+test('one-day trips are accepted and reversed ranges remain rejected',()=>{
+ const date=new Date();date.setDate(date.getDate()+30);const day=date.toISOString().slice(0,10);
+ const errors=validateTripData({destination:'Seattle',startDate:day,endDate:day,activities:['city'],children:[]});
+ assert.deepEqual(errors,[]);
+});

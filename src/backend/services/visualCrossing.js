@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // Visual Crossing adapter for international weather forecasts.
 // Returns the same { summary, forecast[] } shape as weather.js for seamless integration.
 // Provides 15-day forecasts with real precipitation probability and hourly data.
@@ -20,7 +21,7 @@ async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), VC_TIMEOUT_MS);
   try {
-    return await fetch(url, { ...options, signal: controller.signal });
+    return await tracedFetch(url, { ...options, signal: controller.signal });
   } catch (error) {
     if (error.name === "AbortError") {
       throw new Error("Visual Crossing service timed out. Please try again.");

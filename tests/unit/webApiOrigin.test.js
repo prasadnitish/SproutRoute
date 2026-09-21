@@ -20,7 +20,7 @@ test("production API calls stay on the page origin despite a stale build hostnam
   };
   try {
     for (const configured of ["https://www.sproutroute.app", ""]) {
-      const code = source.replaceAll("import.meta.env", JSON.stringify({ PROD: true, VITE_API_URL: configured }));
+      const code = source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL("../../src/frontend/src/services/journeyTrace.js", import.meta.url).href)).replaceAll("import.meta.env", JSON.stringify({ PROD: true, VITE_API_URL: configured }));
       const api = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
       await api.parseInput({ text: "japan trip for 2 in winter" });
       await api.streamTripPlan({ destination: "Japan" }, () => {});
@@ -42,7 +42,7 @@ test("development API calls retain the configured backend URL", async () => {
     return new Response('{"status":"ok"}');
   };
   try {
-    const code = source.replaceAll("import.meta.env", JSON.stringify({ PROD: false, VITE_API_URL: "http://localhost:4000/" }));
+    const code = source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL("../../src/frontend/src/services/journeyTrace.js", import.meta.url).href)).replaceAll("import.meta.env", JSON.stringify({ PROD: false, VITE_API_URL: "http://localhost:4000/" }));
     const api = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
     await api.checkHealth();
     assert.equal(requestedUrl, "http://localhost:4000/api/health");
@@ -56,7 +56,7 @@ test('city chunks that complete out of order remain in route-day order',async()=
  const chunk=(id,day)=>`event: stop-itinerary\ndata: ${JSON.stringify({stop:{id},tripPlan:{suggestedActivities:[{id:`${id}:a`,name:id}],dailyItinerary:[{routeDay:day,activities:[`${id}:a`]}]},scheduledItinerary:[{routeDay:day,scheduled:[]}]})}\n\n`;
  global.fetch=async()=>new Response(chunk('Kyoto',4)+chunk('Tokyo',1)+'event: done\ndata: {}\n\n',{headers:{'content-type':'text/event-stream'}});
  try{
- const code=source.replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+ const code=source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL('../../src/frontend/src/services/journeyTrace.js',import.meta.url).href)).replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
  const result=await api.streamTripPlan({destination:'Japan'},()=>{});
  assert.deepEqual(result.tripPlan.dailyItinerary.map(d=>d.routeDay),[1,4]);
  assert.deepEqual(result.scheduledItinerary.map(d=>d.routeDay),[1,4]);
@@ -65,5 +65,5 @@ test('city chunks that complete out of order remain in route-day order',async()=
 test('an explicit generation error does not silently repeat an expensive bundle request',async()=>{
  const original=global.fetch;let calls=0;
  global.fetch=async()=>{calls++;return new Response('event: error\ndata: {"message":"Stop location not found"}\n\n',{headers:{'content-type':'text/event-stream'}})};
- try{const code=source.replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);await assert.rejects(api.streamTripPlan({destination:'Japan'},()=>{}),/Stop location not found/);assert.equal(calls,1);}finally{global.fetch=original;}
+ try{const code=source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL('../../src/frontend/src/services/journeyTrace.js',import.meta.url).href)).replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);await assert.rejects(api.streamTripPlan({destination:'Japan'},()=>{}),/Stop location not found/);assert.equal(calls,1);}finally{global.fetch=original;}
 });

@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>SproutRoute · Trace evidence</title>
+  <style>
+    :root {
+      font-family: system-ui;
+      color: #16382d;
+      background: #f3f6f2;
+      color-scheme: light;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+    }
+    header,
+    main {
+      max-width: 1250px;
+      margin: auto;
+      padding: 28px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #d5dfd7;
+    }
+    h1 {
+      font-size: 30px;
+      letter-spacing: -1px;
+      margin: 6px 0;
+    }
+    p {
+      line-height: 1.55;
+    }
+    small,
+    .muted {
+      color: #536a5d;
+    }
+    button,
+    select,
+    input {
+      font: inherit;
+    }
+    button,
+    select,
+    .upload {
+      padding: 10px 14px;
+      background: white;
+      border: 1px solid #b5c8bb;
+      border-radius: 8px;
+      color: inherit;
+    }
+    button {
+      cursor: pointer;
+    }
+    button:focus-visible,
+    select:focus-visible {
+      outline: 3px solid #237d57;
+      outline-offset: 2px;
+    }
+    .tools {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .label {
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .notice {
+      background: #e5ede5;
+      border-left: 3px solid #397656;
+      padding: 12px 16px;
+      border-radius: 4px;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 24px 0;
+    }
+    .card {
+      background: white;
+      border: 1px solid #d7e1da;
+      padding: 20px;
+      border-radius: 12px;
+    }
+    .card b {
+      display: block;
+      font-size: 28px;
+      margin-top: 9px;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #d7e1da;
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 18px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(180px, 270px) 1fr 100px;
+      align-items: center;
+      gap: 14px;
+      border-top: 1px solid #e8eee9;
+      padding: 13px 0;
+      font-size: 13px;
+    }
+    .track {
+      height: 18px;
+      background: #f0f4f0;
+      border-radius: 4px;
+      position: relative;
+    }
+    .bar {
+      position: absolute;
+      height: 100%;
+      background: #4b9471;
+      min-width: 3px;
+      border-radius: 3px;
+    }
+    .error {
+      background: #ba5353;
+    }
+    .status {
+      color: #903d3d;
+    }
+    .meta {
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+    }
+    .details {
+      font-size: 11px;
+      color: #61756a;
+      margin-top: 4px;
+    }
+    .end {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    h2 {
+      font-size: 18px;
+    }
+    #notice {
+      min-height: 24px;
+    }
+    footer {
+      font-size: 12px;
+      color: #536a5d;
+      margin-top: 20px;
+    }
+    @media (max-width: 700px) {
+      header {
+        display: block;
+      }
+      .cards {
+        grid-template-columns: 1fr 1fr;
+      }
+      .row {
+        grid-template-columns: 130px 1fr 70px;
+        gap: 7px;
+      }
+      main,
+      header {
+        padding: 18px;
+      }
+    }
+  </style>
+  <header>
+    <div>
+      <span class="label">SproutRoute / Runtime evidence</span>
+      <h1>One request. Every measured step.</h1>
+      <small>Recorded execution spans · no generated performance data</small>
+    </div>
+    <div class="tools">
+      <button id="refresh">Refresh</button
+      ><button id="export">Export trace</button>
+    </div>
+  </header>
+  <main>
+    <p class="notice">
+      Timing uses a monotonic clock. Parallel steps overlap. Token counts come
+      from providers where available; cost remains unknown until a versioned
+      rate table is applied.
+    </p>
+    <div class="tools">
+      <label
+        >Request
+        <select id="runs" aria-label="Select request"></select></label
+      ><label class="upload"
+        >Import local trace
+        <input
+          id="file"
+          type="file"
+          accept=".json"
+          aria-label="Import trace JSON"
+      /></label>
+    </div>
+    <p id="notice" role="status" aria-live="polite">Loading runtime traces…</p>
+    <div class="cards">
+      <div class="card">
+        <span class="label">Elapsed</span><b id="elapsed">—</b>
+      </div>
+      <div class="card">
+        <span class="label">Spans</span><b id="count">—</b>
+      </div>
+      <div class="card">
+        <span class="label">Failed steps</span><b id="failures">—</b>
+      </div>
+      <div class="card"><span class="label">Cost</span><b>Unknown</b></div>
+    </div>
+    <section class="panel">
+      <h2 id="heading">Request trace</h2>
+      <p id="meta" class="meta"></p>
+      <div id="waterfall"></div>
+    </section>
+    <section class="panel">
+      <h2>Evidence coverage</h2>
+      <p id="coverage"></p>
+      <p class="muted">
+        These are instrumented spans, not hidden model reasoning. Request-level
+        traces can share a journey ID. Browser rendering, uninstrumented SDK
+        internals and background work outside the request context are not
+        inferred.
+      </p>
+    </section>
+    <footer>
+      Private operations surface. Export only synthetic demonstration requests
+      for portfolio use. Process-local history is cleared on restart; download
+      evidence before restarting.
+    </footer>
+  </main>
+  <script>
+    let traces = [],
+      selected,
+      archive = null;
+    const $ = (id) => document.getElementById(id);
+    const text = (id, value) => ($(id).textContent = value);
+    function render() {
+      selected = traces[Number($("runs").value) || 0];
+      if (!selected) return;
+      text(
+        "notice",
+        `${traces.length} requests available. Selected source: ${selected.meta.source || "unspecified"}.`,
+      );
+      const t = selected,
+        m = t.meta,
+        total = Math.max(1, ...t.spans.map((s) => s.end_ms ?? s.start_ms));
+      text("heading", t.spans[0]?.label || "Trace");
+      text(
+        "meta",
+        `${m.environment || "unknown"} · ${m.service || m.service_id || "unknown"} · Build ${m.build || "unknown"}\n${m.started_at || "unknown"} · Run ${m.run_id} · Journey ${m.journey_id || "not attached"}`,
+      );
+      text("elapsed", (total / 1000).toFixed(2) + " s");
+      text("count", t.spans.length);
+      text("failures", t.spans.filter((s) => s.status === "error").length);
+      text(
+        "coverage",
+        `${m.complete ? "All recorded spans closed." : "Incomplete or completeness not supplied."} Dropped spans: ${m.dropped_spans ?? "unknown"}. Pending: ${m.pending_spans ?? "unknown"}. ${m.retention || "Imported file; retention not specified."} ${archive?.enabled ? "Archive writes: " + archive.persisted + "; dropped: " + archive.dropped + "; status: " + (archive.error || "healthy") + "." : ""}`,
+      );
+      $("waterfall").replaceChildren();
+      for (const s of t.spans) {
+        const row = document.createElement("div");
+        row.className = "row";
+        const name = document.createElement("div");
+        name.textContent = s.label;
+        const detail = document.createElement("div");
+        detail.className = "details";
+        detail.textContent = [
+          s.status,
+          s.detail?.model_id,
+          s.detail?.http_status,
+          s.detail?.input_tokens != null
+            ? `${s.detail.input_tokens} input / ${s.detail.output_tokens ?? "?"} output tokens`
+            : null,
+          s.detail?.error_code,
+        ]
+          .filter((x) => x != null)
+          .join(" · ");
+        name.append(detail);
+        const track = document.createElement("div");
+        track.className = "track";
+        const bar = document.createElement("div");
+        bar.className = "bar" + (s.status === "error" ? " error" : "");
+        bar.style.left = Math.min(100, (100 * s.start_ms) / total) + "%";
+        bar.style.width =
+          Math.max(0, (100 * ((s.end_ms ?? s.start_ms) - s.start_ms)) / total) +
+          "%";
+        track.append(bar);
+        const end = document.createElement("div");
+        end.className = "end";
+        end.textContent =
+          s.end_ms == null
+            ? "running"
+            : Math.round(s.end_ms - s.start_ms) + " ms";
+        row.append(name, track, end);
+        $("waterfall").append(row);
+      }
+    }
+    function load(data) {
+      archive = data.archive || null;
+      const candidates = Array.isArray(data.traces) ? data.traces : [data];
+      if (
+        candidates.length > 200 ||
+        candidates.some(
+          (t) =>
+            !t?.meta?.run_id ||
+            !Array.isArray(t.spans) ||
+            t.spans.length > 1000 ||
+            t.spans.some(
+              (s) =>
+                typeof s.label !== "string" ||
+                !Number.isFinite(s.start_ms) ||
+                s.start_ms < 0 ||
+                (s.end_ms != null &&
+                  (!Number.isFinite(s.end_ms) || s.end_ms < s.start_ms)),
+            ),
+        )
+      )
+        throw Error("Invalid trace schema");
+      traces = candidates.slice().reverse();
+      $("runs").replaceChildren();
+      traces.forEach((t, i) => {
+        const o = document.createElement("option");
+        o.value = i;
+        o.textContent = `${t.meta.started_at} · ${t.spans[0]?.label || t.meta.run_id}`;
+        $("runs").append(o);
+      });
+      text(
+        "notice",
+        traces.length
+          ? `${traces.length} requests available. Source: ${traces[0].meta.source || "unspecified"}.`
+          : "No traces yet. Run a synthetic request, then refresh.",
+      );
+      render();
+    }
+    $("runs").onchange = render;
+    $("refresh").onclick = async () => {
+      try {
+        const r = await fetch("/api/v1/ops/traces", { cache: "no-store" });
+        if (!r.ok) throw Error("Sign in through /ops to load private traces.");
+        load(await r.json());
+      } catch (e) {
+        text("notice", e.message);
+      }
+    };
+    $("file").onchange = async (e) => {
+      try {
+        const f = e.target.files[0];
+        if (!f) return;
+        if (f.size > 5000000) throw Error("File exceeds 5 MB");
+        load(JSON.parse(await f.text()));
+        text(
+          "notice",
+          "Imported evidence file — environment and build shown below.",
+        );
+      } catch (e) {
+        text("notice", e.message);
+      }
+    };
+    $("export").onclick = () => {
+      if (!selected) return;
+      const a = document.createElement("a"),
+        url = URL.createObjectURL(
+          new Blob([JSON.stringify(selected, null, 2)], {
+            type: "application/json",
+          }),
+        );
+      a.href = url;
+      a.download = "trace-" + selected.meta.run_id + ".json";
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    };
+    $("refresh").click();
+  </script>
+</html>

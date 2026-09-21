@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // OpenWeatherMap adapter for international weather forecasts.
 // Returns the same { summary, forecast[] } shape as weather.js for seamless integration.
 // Uses the free-tier 5-day/3-hour forecast API, aggregating intervals into daily forecasts.
@@ -26,7 +27,7 @@ async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), OWM_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
+    const response = await tracedFetch(url, {
       ...options,
       signal: controller.signal,
     });
