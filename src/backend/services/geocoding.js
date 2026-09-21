@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // Geocoding + destination-intent resolver:
 // - Converts user text into concrete coordinates worldwide (Nominatim).
 // - Expands fuzzy intents ("2 hours from X") into nearby destination suggestions (Overpass).
@@ -50,7 +51,7 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
+    const response = await tracedFetch(url, {
       ...options,
       signal: controller.signal,
     });

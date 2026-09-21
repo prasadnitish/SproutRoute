@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 export const MAX_PHOTO_BYTES = 1_500_000;
 export const PHOTO_TIMEOUT_MS = 5_000;
 
@@ -32,7 +33,7 @@ export async function readBoundedResponseBody(response, maxBytes = MAX_PHOTO_BYT
 }
 
 /** Resolve Google's default redirect explicitly, retaining SSRF and size protections. */
-export async function fetchPlacePhoto(ref, apiKey, fetchFn = fetch) {
+export async function fetchPlacePhoto(ref, apiKey, fetchFn = tracedFetch) {
   const signal = AbortSignal.timeout(PHOTO_TIMEOUT_MS);
   const metadata = await fetchFn(`https://places.googleapis.com/v1/${ref}/media?maxWidthPx=800&skipHttpRedirect=true`, {
     headers: { 'X-Goog-Api-Key': apiKey }, signal, redirect: 'error',

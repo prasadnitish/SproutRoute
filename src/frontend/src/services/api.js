@@ -1,3 +1,4 @@
+import {journeyHeaders,markJourney,exportJourney} from './journeyTrace.js';
 // Frontend API client — Phase 2 reliability upgrade
 // Fixes:
 //   #2: response.json() crash on non-JSON 502 HTML bodies → parseSafeResponse
@@ -121,7 +122,7 @@ async function fetchWithRetry(url, options = {}, config = {}) {
     externalSignal?.addEventListener("abort", onExternalAbort);
 
     try {
-      const response = await fetch(url, { ...options, signal: controller.signal });
+      const response = await fetch(url, { ...options, headers:{...options.headers,...journeyHeaders(options.signal)}, signal: controller.signal });
       clearTimeout(timeoutId);
       externalSignal?.removeEventListener("abort", onExternalAbort);
       return await parseSafeResponse(response);
@@ -321,7 +322,7 @@ export async function streamTripPlan(tripData, onEvent, signal) {
   try {
     const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+      headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...journeyHeaders(signal) },
       body: JSON.stringify(tripData),
       signal,
     });
@@ -353,6 +354,8 @@ export async function streamTripPlan(tripData, onEvent, signal) {
             // Use the SSE event field, falling back to type inside JSON
             const type = currentEventType || data.type || data.event;
             currentEventType = ""; // reset for next event
+            if (['destination','weather','itinerary-chunk','done','error'].includes(type)) markJourney(signal, 'stream_'+type);
+            if (type==='done'||type==='error') sendJourneyEvidence(signal);
 
             if (type === "route") {
               result.routePlan = data.routePlan || data;
@@ -492,4 +495,9 @@ export async function streamTripPlan(tripData, onEvent, signal) {
     onEvent({ type: "done", data: result });
     return result;
   }
+}
+
+export function sendJourneyEvidence(signal) {
+ const evidence=exportJourney(signal);if(!evidence)return;
+ fetch(`${API_BASE_URL}/api/v1/telemetry/journey`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(evidence),keepalive:true}).catch(()=>{});
 }
