@@ -1,3 +1,4 @@
+import { tracing, traceArchive, tracedFetch } from './services/tracing.js';
 // Backend entry point: Express server that orchestrates location, weather, and AI calls.
 import express from "express";
 import cors from "cors";
@@ -17,8 +18,8 @@ import { inclusiveDayCount } from "./utils/dateCalc.js";
 import { getCarSeatGuidance } from "./services/safetyRules.js";
 import { getTravelAdvisory } from "./services/travelAdvisory.js";
 import { getNeighborhoodSafety } from "./services/neighborhoodSafety.js";
-import { parseInput } from "./services/parseInput.js";
-import { getTravelSafety } from "./services/travelSafety.js";
+import { parseInput as raw_parseInput } from "./services/parseInput.js";
+import { getTravelSafety as raw_getTravelSafety } from "./services/travelSafety.js";
 import { getPetTravelGuidance } from "./services/petSafety.js";
 import { enrichActivity } from "./services/placesEnrich.js";
 import { scheduleItinerary, batchEnrich } from "./services/itineraryScheduler.js";
@@ -47,6 +48,10 @@ import { parsePastedProfileJson } from "./utils/profileImportJson.js";
 import { bucketTextLength, parserLogContext } from "./services/privacyTelemetry.js";
 import { fetchPlacePhoto, readBoundedResponseBody } from "./services/photoProxy.js";
 import { saveTripFeedback } from "./services/feedbackStore.js";
+
+const parseInput = tracing.wrap('tool.parseInput', raw_parseInput);
+
+const getTravelSafety = tracing.wrap('tool.getTravelSafety', raw_getTravelSafety);
 
 dotenv.config();
 
@@ -359,26 +364,41 @@ function sanitizePrefetchedAttractionsByStopId(raw, allowedStopIds = []) {
 export function createApp(deps = {}) {
   // App factory enables dependency injection for fast, isolated integration tests.
   const {
-    geocodeLocationFn = geocodeLocation,
-    resolveDestinationQueryFn = resolveDestinationQuery,
-    getWeatherForecastFn = getWeatherForecast,
-    generatePackingListFn = generatePackingList,
-    generateTripPlanFn = generateTripPlan,
-    generateTripPlanChunkedFn = generateTripPlanChunked,
-    allocateRouteFn = allocateRoute,
-    planRouteStopsFn = planRouteStops,
-    getCarSeatGuidanceFn = getCarSeatGuidance,
-    getTravelAdvisoryFn = getTravelAdvisory,
-    getNeighborhoodSafetyFn = getNeighborhoodSafety,
-    enrichActivityFn = enrichActivity,
-    getPetTravelGuidanceFn = getPetTravelGuidance,
+    geocodeLocationFn: raw_geocodeLocationFn = geocodeLocation,
+    resolveDestinationQueryFn: raw_resolveDestinationQueryFn = resolveDestinationQuery,
+    getWeatherForecastFn: raw_getWeatherForecastFn = getWeatherForecast,
+    generatePackingListFn: raw_generatePackingListFn = generatePackingList,
+    generateTripPlanFn: raw_generateTripPlanFn = generateTripPlan,
+    generateTripPlanChunkedFn: raw_generateTripPlanChunkedFn = generateTripPlanChunked,
+    allocateRouteFn: raw_allocateRouteFn = allocateRoute,
+    planRouteStopsFn: raw_planRouteStopsFn = planRouteStops,
+    getCarSeatGuidanceFn: raw_getCarSeatGuidanceFn = getCarSeatGuidance,
+    getTravelAdvisoryFn: raw_getTravelAdvisoryFn = getTravelAdvisory,
+    getNeighborhoodSafetyFn: raw_getNeighborhoodSafetyFn = getNeighborhoodSafety,
+    enrichActivityFn: raw_enrichActivityFn = enrichActivity,
+    getPetTravelGuidanceFn: raw_getPetTravelGuidanceFn = getPetTravelGuidance,
     attractionMemoryService = createAttractionMemoryService(),
     groupTripStore = createGroupTripStore(),
     getSupabaseAdminFn = getSupabaseAdmin,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
+  const geocodeLocationFn = tracing.wrap('tool.geocodeLocation', raw_geocodeLocationFn);
+  const resolveDestinationQueryFn = tracing.wrap('tool.resolveDestinationQuery', raw_resolveDestinationQueryFn);
+  const getWeatherForecastFn = tracing.wrap('tool.getWeatherForecast', raw_getWeatherForecastFn);
+  const generatePackingListFn = tracing.wrap('tool.generatePackingList', raw_generatePackingListFn);
+  const generateTripPlanFn = tracing.wrap('tool.generateTripPlan', raw_generateTripPlanFn);
+  const generateTripPlanChunkedFn = tracing.wrap('tool.generateTripPlanChunked', raw_generateTripPlanChunkedFn);
+  const allocateRouteFn = tracing.wrap('tool.allocateRoute', raw_allocateRouteFn);
+  const planRouteStopsFn = tracing.wrap('tool.planRouteStops', raw_planRouteStopsFn);
+  const getCarSeatGuidanceFn = tracing.wrap('tool.getCarSeatGuidance', raw_getCarSeatGuidanceFn);
+  const getTravelAdvisoryFn = tracing.wrap('tool.getTravelAdvisory', raw_getTravelAdvisoryFn);
+  const getNeighborhoodSafetyFn = tracing.wrap('tool.getNeighborhoodSafety', raw_getNeighborhoodSafetyFn);
+  const enrichActivityFn = tracing.wrap('tool.enrichActivity', raw_enrichActivityFn);
+  const getPetTravelGuidanceFn = tracing.wrap('tool.getPetTravelGuidance', raw_getPetTravelGuidanceFn);
+
   const app = express();
+  if (process.env.TRACING_ENABLED !== "false") app.use(tracing.middleware);
 
   // Railway (and most PaaS) sit behind a load balancer that sets X-Forwarded-For.
   // Without trust proxy, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
@@ -580,6 +600,13 @@ export function createApp(deps = {}) {
     next();
   };
 
+  app.post('/api/v1/telemetry/journey', apiLimiter, (req,res)=> {
+    try {if(process.env.TRACING_ENABLED !== 'false') tracing.recordClient(req.body);res.sendStatus(204);}
+    catch {res.status(400).json({error:'Invalid milestone evidence'});}
+  });
+
+  app.get("/api/v1/ops/traces", opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health() }));
+
   app.get("/api/v1/ops/metrics", opsGuard, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     try {
@@ -614,6 +641,7 @@ export function createApp(deps = {}) {
     next();
   };
   app.get("/dashboard", (req, res) => res.redirect(302, "/ops"));
+  app.get("/ops/traces", opsPageGuard, (req, res) => res.set("Cache-Control", "no-store").sendFile(path.join(__dashboardDir, "trace-dashboard.html")));
   app.get("/ops", opsPageGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -1612,6 +1640,7 @@ export function createApp(deps = {}) {
     };
 
     const send = (event, data) => {
+      if (event === "error") res.traceError?.();
       if (isClientClosed()) return false;
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       return true;
@@ -1856,6 +1885,7 @@ export function createApp(deps = {}) {
         if (err.name === "AbortError" || isClientClosed()) {
           return res.end();
         }
+        res.traceError?.();
         log.error("stream:itinerary-fail", { reqId, error: err.message });
         send("error", { message: "Failed to generate itinerary. Please try again." });
         return res.end();
@@ -1891,6 +1921,7 @@ export function createApp(deps = {}) {
         return;
       }
       timing.total = Date.now() - streamStart;
+      res.traceError?.();
       log.error("stream:error", { reqId, error: error.message, timing });
       try {
         if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
@@ -2314,7 +2345,7 @@ export function createApp(deps = {}) {
             lon: parsedLon.toFixed(6),
             format: "json",
           });
-          const geoRes = await fetch(
+          const geoRes = await tracedFetch(
             `https://nominatim.openstreetmap.org/reverse?${params}`,
             { headers: { "User-Agent": "SproutRoute/1.0" } }
           );
@@ -2398,7 +2429,7 @@ export function createApp(deps = {}) {
       if (!/^[\d.:a-fA-F]+$/.test(ip)) {
         return res.json({ lat: null, lon: null, region: null });
       }
-      const geoRes = await fetch(
+      const geoRes = await tracedFetch(
         `https://ipapi.co/${encodeURIComponent(ip)}/json/`,
         { headers: { "User-Agent": "SproutRoute/1.0" }, signal: AbortSignal.timeout(3000) }
       );

@@ -1,3 +1,4 @@
+import {beginJourney,markJourney} from '../services/journeyTrace.js';
 import { useState, useCallback, useRef, useEffect } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
 import { addRecentTrip } from "../utils/recentTrips.js";
@@ -158,6 +159,8 @@ export function useTrip() {
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
     abortRef.current._startTime = Date.now();
+    const journeySignal = abortRef.current.signal;
+    beginJourney(journeySignal);
 
     setTripInput(text);
     analytics.tripSearched(text, { hasProfile: !!savedProfile });
@@ -189,6 +192,7 @@ export function useTrip() {
       };
       setParsedInput(parsedWithContext);
       analytics.tripParsed(parsedWithContext);
+      markJourney(journeySignal,'parsed');
       markStep("resolve", "done");
 
       // If no destination, show destination picker or error

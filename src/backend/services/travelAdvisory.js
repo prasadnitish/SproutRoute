@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // US State Department Travel Advisories client.
 // Fetches from cadataapi.state.gov, caches the full list (TTL 24h), returns per-country advisory.
 // Graceful: returns null if API is down — never blocks trip planning.
@@ -117,7 +118,7 @@ async function fetchAdvisoryList() {
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(STATE_DEPT_API_URL, {
+    const response = await tracedFetch(STATE_DEPT_API_URL, {
       headers: {
         "User-Agent": "SproutRoute/1.0",
         Accept: "application/json",

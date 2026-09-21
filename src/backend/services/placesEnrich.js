@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // src/backend/services/placesEnrich.js
 import { PlacesCache } from "../utils/placesCache.js";
 
@@ -22,7 +23,7 @@ export async function enrichActivity(activityName, destination, category = "") {
       ? `${activityName} ${category} in ${destination}`
       : `${activityName} in ${destination}`;
 
-    const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    const res = await tracedFetch("https://places.googleapis.com/v1/places:searchText", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

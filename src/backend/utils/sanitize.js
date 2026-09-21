@@ -142,7 +142,7 @@ export function validateTripData(data, options = {}) {
     errors.push("Invalid date format");
   }
 
-  if (start >= end) {
+  if (start > end) {
     errors.push("End date must be after start date");
   }
 

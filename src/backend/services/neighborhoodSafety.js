@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // Amadeus Safe Place API client (powered by GeoSure).
 // Returns neighborhood-level safety scores across 7 categories.
 // Graceful: returns null if API is down or quota exhausted — never blocks trip planning.
@@ -71,7 +72,7 @@ async function getAmadeusToken() {
   }
 
   try {
-    const response = await fetch(
+    const response = await tracedFetch(
       AMADEUS_BASE_URL + "/v1/security/oauth2/token",
       {
         method: "POST",
@@ -156,7 +157,7 @@ export async function getNeighborhoodSafety(lat, lon) {
       + "&longitude=" + roundedLon
       + "&radius=1";
 
-    const response = await fetch(url, {
+    const response = await tracedFetch(url, {
       headers: {
         Authorization: "Bearer " + token,
       },

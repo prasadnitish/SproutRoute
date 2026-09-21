@@ -1,3 +1,4 @@
+import { tracing } from '../services/tracing.js';
 /**
  * aiClient.js — Unified AI model client abstraction
  *
@@ -157,7 +158,7 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
     }
   }
 
-  return { responseText, stopReason: message.stop_reason || null };
+  return { responseText, stopReason: message.stop_reason || null, usage: {input_tokens:message.usage?.input_tokens, output_tokens:message.usage?.output_tokens, usage_source:'provider'} };
 }
 
 /**
@@ -182,7 +183,7 @@ async function callGemini(model, { system, user, maxTokens, temperature, modelId
   const responseText = response.text();
   const stopReason = response.candidates?.[0]?.finishReason || null;
 
-  return { responseText, stopReason };
+  return { responseText, stopReason, usage: {input_tokens:response.usageMetadata?.promptTokenCount, output_tokens:response.usageMetadata?.candidatesTokenCount, usage_source:'provider'} };
 }
 
 /**
@@ -206,7 +207,7 @@ async function callOpenAI(client, { system, user, maxTokens, temperature, modelI
   const responseText = choice?.message?.content ?? "";
   const stopReason = choice?.finish_reason ?? null;
 
-  return { responseText, stopReason };
+  return { responseText, stopReason, usage: {input_tokens:completion.usage?.prompt_tokens, output_tokens:completion.usage?.completion_tokens, usage_source:'provider'} };
 }
 
 /**
@@ -228,7 +229,7 @@ async function callDeepSeek(client, { system, user, maxTokens, temperature, sign
   const responseText = choice?.message?.content ?? "";
   const stopReason = choice?.finish_reason ?? null;
 
-  return { responseText, stopReason };
+  return { responseText, stopReason, usage: {input_tokens:completion.usage?.prompt_tokens, output_tokens:completion.usage?.completion_tokens, usage_source:'provider'} };
 }
 
 // ── Client factory helpers ────────────────────────────────────────────────────
@@ -322,11 +323,11 @@ export async function callModel(prompt, deps = {}) {
     if (remainingMs <= 0) throw new Error("AI provider deadline exceeded");
     const deadline = createAttemptDeadline(prompt.signal, remainingMs);
     try {
-      return await deadline.run(() => callProvider(selectedProvider, {
+      return await tracing.span('ai.attempt', {provider:selectedProvider, model_id:params.modelId}, () => deadline.run(() => callProvider(selectedProvider, {
         ...params,
         signal: deadline.signal,
         timeoutMs: remainingMs,
-      }, deps));
+      }, deps)));
     } finally {
       deadline.cleanup();
     }

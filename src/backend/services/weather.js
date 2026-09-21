@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.js';
 // Weather service adapter:
 // - Routes weather requests by country: US → Weather.gov, other → OpenWeatherMap.
 // - Normalizes Weather.gov's day/night periods into simple daily data for UI + AI.
@@ -15,7 +16,7 @@ async function fetchWithTimeout(url, options) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), WEATHER_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
+    const response = await tracedFetch(url, {
       ...options,
       signal: controller.signal,
     });
