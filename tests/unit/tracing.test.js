@@ -2,6 +2,28 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createTracer } from "../../src/backend/services/tracing.js";
 
+test("browser and server traces use the same deployed environment and build", async (t) => {
+  const keys = ["TRACE_ENVIRONMENT", "TRACE_BUILD", "NODE_ENV", "RAILWAY_GIT_COMMIT_SHA"];
+  const saved = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+  t.after(() => {
+    for (const key of keys) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+  delete process.env.TRACE_ENVIRONMENT;
+  delete process.env.TRACE_BUILD;
+  process.env.NODE_ENV = "production";
+  process.env.RAILWAY_GIT_COMMIT_SHA = "deployed-sha";
+  const tracer = createTracer();
+  await tracer.run("request", {}, () => {});
+  tracer.recordClient({ journey_id: "a".repeat(32), events: [{ name: "parsed", ms: 1 }] });
+  for (const trace of tracer.snapshot()) {
+    assert.equal(trace.meta.environment, "production");
+    assert.equal(trace.meta.build, "deployed-sha");
+  }
+});
+
 test("isolates concurrent contexts, preserves nesting, strips unsafe metadata", async () => {
   const tracer = createTracer({ limit: 5 });
   const run = () =>

@@ -228,8 +228,8 @@ export function createTracer({
         journey_id: body.journey_id,
         tenant_id: "local",
         service: "sproutroute-browser",
-        environment: process.env.TRACE_ENVIRONMENT || "development",
-        build: process.env.TRACE_BUILD || "unversioned",
+        environment: process.env.TRACE_ENVIRONMENT || process.env.NODE_ENV || "development",
+        build: process.env.TRACE_BUILD || process.env.RAILWAY_GIT_COMMIT_SHA || "unversioned",
         started_at: new Date().toISOString(),
         timestamp_semantics:
           "server receipt; span offsets are client monotonic",
