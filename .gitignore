@@ -41,7 +41,6 @@ test-results/
 # Git worktrees
 .worktrees/
 .claude/worktrees/
-nitishprasad-website/.claude/worktrees/
 
 # Dev tool files (not for public repo)
 docs/CLAUDE.md
@@ -56,3 +55,12 @@ AUDIT_FIXES_IMPLEMENTED.md
 # Mobile app (separate git repo — managed independently)
 sproutroute-mobile/
 AuthKey_*.p8
+
+# Separate repos that live beside this one locally (never commit here)
+mathquest-kids/
+nitishprasad-website/
+
+# Local agent tooling and session scratch
+.agents/
+.superpowers/
+skills-lock.json
