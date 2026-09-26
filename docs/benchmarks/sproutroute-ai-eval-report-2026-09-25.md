@@ -62,7 +62,7 @@ The experiment also exposed a configuration prerequisite: the pre-release OpenAI
 
 ### Static reliability findings, not incident measurements
 
-Code inspection shows why the follow-up must run the whole system. The AI client gives primary and fallback attempts one shared deadline, so a slow primary can leave no time for backup. Its provider fallback is entered on a request error; structurally invalid output is handled later by the itinerary retry/repair path and does not itself invoke a different provider. The itinerary path can also return a “best-effort” repetitive plan after a quality retry. These are test hypotheses and improvement targets, not measured production failure rates. Likewise, the Las Vegas picker condition needs a deterministic UI guard regardless of model selection.
+Inspection of the pre-release code showed why the follow-up needed to run the whole system. The AI client gave primary and fallback attempts one shared deadline, so a slow primary could leave no time for backup. Provider fallback was entered on a request error; structurally invalid output was handled later by the itinerary retry/repair path and did not itself invoke a different provider. The itinerary path could also return a “best-effort” repetitive plan after a quality retry. These findings were test hypotheses, not measured production failure rates. PR #26 addresses them with reserved fallback time, validation-triggered recovery, rejection of unresolved repetition, and a deterministic Las Vegas picker guard. The recovery pilot below tests those changes.
 
 ## OpenRouter: market scan, candidates, and routing experiments
 
