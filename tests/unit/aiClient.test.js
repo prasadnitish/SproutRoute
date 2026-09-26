@@ -604,6 +604,38 @@ test("callModel falls back to anthropic when gemini fails", async () => {
   else delete process.env.ANTHROPIC_API_KEY;
 });
 
+test("callModel uses OpenAI first when Gemini has no credits", async () => {
+  const originalOpenAIKey = process.env.OPENAI_API_KEY;
+  const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  let anthropicCalled = false;
+
+  try {
+    const result = await callModel(
+      { system: "Return JSON", user: "Plan a trip", provider: "gemini", caller: "tripPlan" },
+      {
+        geminiModel: { generateContent: async () => { throw new Error("402 Payment Required"); } },
+        openaiClient: { chat: { completions: { create: async () => ({
+          choices: [{ message: { content: '{"overview":"OpenAI plan"}' }, finish_reason: "stop" }],
+        }) } } },
+        anthropicClient: { messages: { create: async () => {
+          anthropicCalled = true;
+          throw new Error("Anthropic should not be called");
+        } } },
+      },
+    );
+
+    assert.equal(result.responseText, '{"overview":"OpenAI plan"}');
+    assert.equal(anthropicCalled, false);
+  } finally {
+    if (originalOpenAIKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalOpenAIKey;
+    if (originalAnthropicKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+    else process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+  }
+});
+
 // ── resolveProvider and modelIdForProvider ───────────────────────────────────
 
 test("resolveProvider returns per-task override when set", () => {

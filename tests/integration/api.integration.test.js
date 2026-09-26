@@ -280,6 +280,35 @@ test("POST /api/generate uses the deterministic packing generator by default", a
 //   RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, RateLimit-Policy
 // These tests verify the rate limiter is wired to the right routes.
 
+test("AI routes allow 50 requests per hour from one IP", async () => {
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  const app = createApp({ enableRequestLogging: false });
+  const server = await listen(app);
+
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/v1/trip/parse-input`;
+    const request = () => fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "" }),
+    });
+
+    for (let i = 0; i < 50; i++) {
+      const response = await request();
+      assert.equal(response.status, 422, `request ${i + 1} should reach validation`);
+      await response.body?.cancel();
+    }
+
+    const limited = await request();
+    assert.equal(limited.status, 429);
+    const body = await limited.json();
+    assert.equal(body.retryAfter, "1 hour");
+    assert.ok(body.rateLimitReset - Math.floor(Date.now() / 1000) >= 3500);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test("GET /api/health does NOT have rate limiter applied", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const app = createApp({ enableRequestLogging: false });
@@ -344,7 +373,7 @@ test("POST /api/trip-plan has rate limiter middleware", async () => {
   );
 });
 
-test("POST /api/generate has rate limiter middleware", async () => {
+test("deterministic packing uses the lightweight API limiter", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
   const app = createApp({ enableRequestLogging: false });
 
@@ -362,6 +391,8 @@ test("POST /api/generate has rate limiter middleware", async () => {
     2,
     "/api/generate should have rate limiter + handler",
   );
+  const lightRoute = routeStack.find((layer) => layer.route?.path === "/api/resolve-destination");
+  assert.equal(routeLayer.route.stack[0].handle, lightRoute.route.stack[0].handle);
 });
 
 test("429 handler response body contains retryAfter and error message", async () => {

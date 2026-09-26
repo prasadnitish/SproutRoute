@@ -67,3 +67,45 @@ test('an explicit generation error does not silently repeat an expensive bundle 
  global.fetch=async()=>{calls++;return new Response('event: error\ndata: {"message":"Stop location not found"}\n\n',{headers:{'content-type':'text/event-stream'}})};
  try{const code=source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL('../../src/frontend/src/services/journeyTrace.js',import.meta.url).href)).replaceAll('import.meta.env',JSON.stringify({PROD:true}));const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);await assert.rejects(api.streamTripPlan({destination:'Japan'},()=>{}),/Stop location not found/);assert.equal(calls,1);}finally{global.fetch=original;}
 });
+
+test("a rate-limited parse request is shown without retrying", async () => {
+  const originalFetch = global.fetch;
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return new Response(JSON.stringify({ error: "Too many AI requests. Please try again in 1 hour." }), {
+      status: 429,
+      headers: { "content-type": "application/json", "RateLimit-Reset": "3600" },
+    });
+  };
+
+  try {
+    const code = source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL("../../src/frontend/src/services/journeyTrace.js", import.meta.url).href)).replaceAll("import.meta.env", JSON.stringify({ PROD: true }));
+    const api = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+    await assert.rejects(api.parseInput({ text: "Seattle weekend" }), /Too many AI requests/);
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("a rate-limited stream does not start a bundle request", async () => {
+  const originalFetch = global.fetch;
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return new Response(JSON.stringify({ error: "Too many AI requests. Please try again in 1 hour." }), {
+      status: 429,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    const code = source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL("../../src/frontend/src/services/journeyTrace.js", import.meta.url).href)).replaceAll("import.meta.env", JSON.stringify({ PROD: true }));
+    const api = await import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`);
+    await assert.rejects(api.streamTripPlan({ destination: "Seattle" }, () => {}), /Too many AI requests/);
+    assert.equal(calls, 1);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
