@@ -2,7 +2,7 @@ import {journeyHeaders,markJourney,exportJourney} from './journeyTrace.js';
 // Frontend API client — Phase 2 reliability upgrade
 // Fixes:
 //   #2: response.json() crash on non-JSON 502 HTML bodies → parseSafeResponse
-//   #3: no retry on transient failures → fetchWithRetry with exponential backoff
+//   #3: retry transient failures → fetchWithRetry with exponential backoff
 //   #4: no rate-limit awareness → RateLimit-Reset header read + rateLimitReset on errors
 
 const configuredApiBaseUrl = (import.meta.env.VITE_API_URL || "")
@@ -28,7 +28,7 @@ export const HTTP_STATUS_MESSAGES = {
   504: "Server timed out. Please try again.",
 };
 
-const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
 
 // ── parseSafeResponse ────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ async function parseSafeResponse(response) {
 async function fetchWithRetry(url, options = {}, config = {}) {
   const {
     maxRetries = 2,
-    retryableStatuses = [429, 502, 503, 504],
+    retryableStatuses = [502, 503, 504],
     timeoutMs = 30000,
     onRetry, // optional: (attempt, err) => void — for "Retrying..." UI
     onRateLimitInfo, // optional: (resetTimestamp) => void — for rate limit countdown UI
@@ -327,9 +327,7 @@ export async function streamTripPlan(tripData, onEvent, signal) {
       signal,
     });
 
-    if (!response.ok) {
-      throw new Error(`Stream failed with status ${response.status}`);
-    }
+    if (!response.ok) await parseSafeResponse(response);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -477,7 +475,7 @@ export async function streamTripPlan(tripData, onEvent, signal) {
 
     return result;
   } catch (err) {
-    if (err.name === "AbortError" || err.isStreamError || result.routePlan || result.tripPlan) throw err;
+    if (err.name === "AbortError" || err.status === 429 || err.isStreamError || result.routePlan || result.tripPlan) throw err;
 
     // Fallback only for transport failure before an itinerary has started.
     console.warn("SSE stream failed, falling back to bundle:", err.message);

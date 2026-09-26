@@ -365,8 +365,8 @@ All tables have RLS (Row Level Security) enabled.
 
 - Backend sanitization: all string fields through `sanitizeString`
 - Prompt injection protection via `inputSafety.js`
-- Rate limiting: 10 AI-intensive requests per 15 minutes per IP; 60 lightweight API requests per 15 minutes per IP
-- Request body size limit: 10 KB cap
+- Rate limiting: 50 AI-intensive requests per hour per IP; 60 lightweight API requests per 15 minutes per IP
+- Request body size limit: 64 KB cap
 
 ### AI Prompt Security
 

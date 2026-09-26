@@ -120,10 +120,21 @@ export async function geocodeLocation(locationString) {
 
     let data = await response.json();
 
+    // AI may append a trip description to an otherwise valid place name.
+    const placeOnly = locationString.replace(/\s+\([^()]*\)\s*$/, "").trim();
+    if ((!data || data.length === 0) && placeOnly && placeOnly !== locationString.trim()) {
+      const retryResponse = await fetchWithTimeout(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(placeOnly)}&format=json&addressdetails=1&limit=1`,
+        { headers: { "User-Agent": "SproutRoute/1.0" } },
+        NOMINATIM_TIMEOUT_MS,
+      );
+      if (retryResponse.ok) data = await retryResponse.json();
+    }
+
     // If no results, try progressively broader queries by dropping leading parts.
     // "Ko Olina, Oahu, Hawaii" → "Oahu, Hawaii" → "Hawaii"
     if ((!data || data.length === 0) && locationString.includes(",")) {
-      const parts = locationString.split(",").map((s) => s.trim());
+      const parts = placeOnly.split(",").map((s) => s.trim());
       for (let i = 1; i < parts.length; i++) {
         const broader = parts.slice(i).join(", ");
         const broaderEncoded = encodeURIComponent(broader);

@@ -31,6 +31,28 @@ test("geocodeLocation caches repeated lookups", async () => {
   assert.equal(calls, 1);
 });
 
+test("geocodeLocation retries without a trailing trip description", async () => {
+  const queries = [];
+  global.fetch = async (url) => {
+    const query = new URL(url).searchParams.get("q");
+    queries.push(query);
+    return new Response(
+      JSON.stringify(query === "Portland, Oregon" ? [{
+        lat: "45.5152", lon: "-122.6784", display_name: "Portland, Oregon",
+      }] : []),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+
+  const result = await geocodeLocation("Portland, Oregon (Columbia River Gorge day trips)");
+
+  assert.equal(result.displayName, "Portland, Oregon");
+  assert.deepEqual(queries, [
+    "Portland, Oregon (Columbia River Gorge day trips)",
+    "Portland, Oregon",
+  ]);
+});
+
 test("resolveDestinationQuery falls back to direct mode when nearby lookup fails", async () => {
   global.fetch = async (url) => {
     if (String(url).includes("nominatim.openstreetmap.org")) {

@@ -468,18 +468,18 @@ export function createApp(deps = {}) {
     next();
   });
 
-  // AI-intensive limiter: stricter — these routes cost real money (Anthropic/DeepSeek calls)
+  // AI-intensive routes share a per-IP budget across parsing and generation.
   const aiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,  // 10 AI calls per 15 minutes per IP (~2-3 complete trip plans)
-    message: { error: "Too many AI requests, please try again in 15 minutes." },
+    windowMs: 60 * 60 * 1000,
+    max: 50,
+    message: { error: "Too many AI requests, please try again in 1 hour." },
     standardHeaders: true,
     legacyHeaders: false,
     handler: (req, res) => {
-      const resetAt = Math.ceil(Date.now() / 1000) + 15 * 60;
+      const resetAt = Math.ceil((req.rateLimit?.resetTime?.getTime() ?? Date.now() + 60 * 60 * 1000) / 1000);
       res.status(429).json({
-        error: "Too many AI requests. Please try again in 15 minutes.",
-        retryAfter: "15 minutes",
+        error: "Too many AI requests. Please try again in 1 hour.",
+        retryAfter: "1 hour",
         rateLimitReset: resetAt,
       });
     },
@@ -785,7 +785,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/api/generate", aiLimiter, async (req, res) => {
+  app.post("/api/generate", apiLimiter, async (req, res) => {
     // Generates packing list; requires selected activities for concrete output.
     try {
       const sanitizedData = sanitizeTripData(req.body);

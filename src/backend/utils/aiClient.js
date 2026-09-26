@@ -312,8 +312,9 @@ export async function callModel(prompt, deps = {}) {
   const timeoutMs = positiveTimeout(prompt.timeoutMs || process.env.AI_PROVIDER_TIMEOUT_MS);
   const deadlineAt = Date.now() + timeoutMs;
 
-  // Determine fallback chain: gemini → anthropic → deepseek
+  // Prefer the already-configured OpenAI path when Gemini is unavailable.
   const fallbackProviders = [];
+  if (provider === "gemini" && process.env.OPENAI_API_KEY) fallbackProviders.push("openai");
   if (provider === "openai" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
