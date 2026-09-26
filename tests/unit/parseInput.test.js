@@ -4,6 +4,14 @@ import assert from "node:assert/strict";
 import { parseInput } from "../../src/backend/services/parseInput.js";
 
 describe("parseInput", () => {
+  it("discards stale alternatives when Las Vegas is already resolved", async () => {
+    const result = await parseInput("trip to Las Vegas", { callAI: async () => JSON.stringify({
+      destination: "Las Vegas, Nevada",
+      suggestedDestinations: [{ name: "San Diego, CA", description: "Beach", emoji: "🌴" }],
+    }) });
+    assert.equal(result.destination, "Las Vegas, Nevada");
+    assert.deepEqual(result.suggestedDestinations, []);
+  });
   const mockAI = async (prompt) => {
     if (prompt.includes("beach vacation")) {
       return JSON.stringify({

@@ -61,6 +61,14 @@ const mockWeather = {
 
 function createCapturingMock() {
   const captured = { calls: [] };
+  // Prompt tests need a complete fixture now that the production boundary rejects missing days.
+  const completeFixture = (userText) => {
+    const days = Number(userText.match(/RETURN EXACTLY (\d+) DAY OBJECTS/)?.[1] || 1);
+    const plan = JSON.parse(VALID_TRIP_PLAN_JSON);
+    plan.suggestedActivities = Array.from({ length: days * 4 }, (_, index) => ({ ...plan.suggestedActivities[0], id: `act-${index}`, name: `Test Activity ${index}` }));
+    plan.dailyItinerary = Array.from({ length: days }, (_, index) => ({ day: `Day ${index + 1}`, activities: [0, 1, 2, 3].map(n => `act-${index * 4 + n}`), meals: "Dinner", notes: "" }));
+    return JSON.stringify(plan);
+  };
   // Gemini-style mock (tripPlanAI now defaults to provider: "gemini")
   const mockGeminiModel = {
     generateContent: async (params) => {
@@ -77,7 +85,7 @@ function createCapturingMock() {
       });
       return {
         response: {
-          text: () => VALID_TRIP_PLAN_JSON,
+          text: () => completeFixture(userText),
           candidates: [{ finishReason: "STOP" }],
         },
       };
@@ -97,7 +105,7 @@ function createCapturingMock() {
           user: userText,
         });
         return {
-          content: [{ type: "text", text: VALID_TRIP_PLAN_JSON }],
+          content: [{ type: "text", text: completeFixture(userText) }],
           stop_reason: "end_turn",
         };
       },
@@ -112,7 +120,7 @@ function createCapturingMock() {
           const userText = params.messages?.find(m => m.role === "user")?.content || "";
           captured.calls.push({ system: systemText, user: userText, ...params });
           return {
-            choices: [{ message: { content: VALID_TRIP_PLAN_JSON }, finish_reason: "stop" }],
+            choices: [{ message: { content: completeFixture(userText) }, finish_reason: "stop" }],
           };
         },
       },
@@ -549,7 +557,7 @@ test("generateTripPlan normalizes simplified activity and meal shapes without re
     {
       destination: "San Diego, CA",
       startDate: "2026-06-01",
-      endDate: "2026-06-03",
+      endDate: "2026-06-01",
       activities: ["relaxing"],
       children: [{ age: 2 }],
     },
@@ -736,7 +744,7 @@ test("generateTripPlan retries when the raw itinerary repeats the same activitie
   assert.deepEqual(result.dailyItinerary[1].activities, ["b5", "b6", "b7", "b8"]);
 });
 
-test("generateTripPlan returns the best-effort retry when duplicates remain after the quality retry", async () => {
+test("generateTripPlan rejects repeated plans after generation and repair are exhausted", async () => {
   delete process.env.AI_PROVIDER;
 
   const repetitivePlan = JSON.stringify({
@@ -762,7 +770,7 @@ test("generateTripPlan returns the best-effort retry when duplicates remain afte
     return repetitivePlan;
   };
 
-  const result = await generateTripPlan(
+  await assert.rejects(generateTripPlan(
     {
       destination: "Hawaii, USA",
       startDate: "2026-05-21",
@@ -783,7 +791,7 @@ test("generateTripPlan returns the best-effort retry when duplicates remain afte
       anthropicClient: {
         messages: {
           create: async () => {
-            throw new Error("repair should not run for a valid but repetitive retry");
+            return { content: [{ type: "text", text: repetitivePlan }], stop_reason: "end_turn" };
           },
         },
       },
@@ -797,11 +805,9 @@ test("generateTripPlan returns the best-effort retry when duplicates remain afte
         },
       },
     },
-  );
+  ), /repeats activities/);
 
   assert.equal(callCount, 2, "A repetitive plan should still stop after the quality retry");
-  assert.deepEqual(result.dailyItinerary[0].activities, ["a1", "a2", "a3", "a4"]);
-  assert.deepEqual(result.dailyItinerary[1].activities, ["a1", "a2", "a5", "a6"]);
 });
 
 test("generateTripPlan repairs repeated daily activities with unused generated activities before retrying", async () => {

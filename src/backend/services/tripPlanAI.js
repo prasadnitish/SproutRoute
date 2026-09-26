@@ -5,8 +5,6 @@ import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import { buildCachedAttractionsSummary } from "./attractionMemory.js";
 import {
-  MAX_RETRIES,
-  requestWithRetry,
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
 import { inclusiveDayCount } from "../utils/dateCalc.js";
@@ -393,6 +391,9 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
   const minimumActivitiesPerDay = Math.max(0, options.minimumActivitiesPerDay || 0);
 
   clonedPlan.dailyItinerary.forEach((day, dayIndex) => {
+    const reservedNames = new Set(clonedPlan.dailyItinerary.slice(dayIndex + 1)
+      .flatMap(later => later.activities || [])
+      .map(id => normalizeActivityKey(activityMap.get(String(id))?.name)).filter(Boolean));
     const originalDayActivities = (day.activities || [])
       .map((activityId) => activityMap.get(String(activityId)))
       .filter(Boolean);
@@ -427,6 +428,7 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
       let bestCandidate = null;
       let bestScore = Number.NEGATIVE_INFINITY;
       for (const candidate of replacementPool) {
+        if (reservedNames.has(normalizeActivityKey(candidate.name))) continue;
         const candidateScore = scoreReplacementCandidate(candidate, currentActivity, {
           usedIds,
           seenNames,
@@ -482,6 +484,7 @@ function repairTripPlanDuplicates(tripPlan, cachedAttractions = [], options = {}
       let bestScore = Number.NEGATIVE_INFINITY;
 
       for (const candidate of replacementPool) {
+        if (reservedNames.has(normalizeActivityKey(candidate.name))) continue;
         const candidateScore = scoreReplacementCandidate(candidate, null, {
           usedIds,
           seenNames,
@@ -547,15 +550,13 @@ function assertTripPlanQuality(tripPlan) {
 
 function getTripPlanMaxTokens(startDate, endDate, { compact = false } = {}) {
   const days = inclusiveDayCount(startDate, endDate);
-  const base = compact ? 2000 : 3000;
-  const perDay = compact ? 400 : 600;
-  return Math.min(MAX_TOKENS, Math.max(3000, base + days * perDay));
+  return Math.min(MAX_TOKENS, Math.max(12000, days * 2200));
 }
 
-async function requestTripPlan({ system, user, maxTokens }, deps, { cache = false } = {}) {
+async function requestTripPlan({ system, user, maxTokens, timeoutMs, signal, validateResponse }, deps, { cache = false } = {}) {
   // Shared model-call wrapper — delegates to aiClient for provider-agnostic model calls.
   // cache=true enables Anthropic prompt caching on the system message (first attempt only).
-  return callModel({ system, user, maxTokens, temperature: 0, caller: "tripPlan", provider: process.env.AI_PROVIDER_TRIP_PLAN || "openai", cacheSystemPrompt: cache }, deps);
+  return callModel({ system, user, maxTokens, timeoutMs, signal, validateResponse, temperature: 0, caller: "tripPlan", provider: process.env.AI_PROVIDER_TRIP_PLAN || "openai", cacheSystemPrompt: cache }, deps);
 }
 
 function buildRepairPrompt(brokenText) {
@@ -600,10 +601,10 @@ Rules:
   };
 }
 
-async function repairTripPlanJson(brokenText, deps) {
+async function repairTripPlanJson(brokenText, deps, options = {}) {
   // Last-resort recovery path — uses the same aiClient abstraction.
   const { system, user } = buildRepairPrompt(brokenText);
-  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, caller: "tripPlan:repair" }, deps);
+  return callModel({ system, user, maxTokens: MAX_TOKENS, temperature: 0, caller: "tripPlan:repair", ...options }, deps);
 }
 
 function buildQualityRetryPrompt(basePrompt, qualityError) {
@@ -629,157 +630,71 @@ Regenerate the full trip plan as strict JSON. Every day must be distinct and no 
 }
 
 export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
-  // Resilient generation path: normal prompt → compact retry → repair fallback.
-  // deps: passed through to callModel for dependency injection in tests.
   const {
-    destination: rawDestination,
-    startDate,
-    endDate,
-    activities: rawActivities,
-    children,
-    tripType = null,
-    countryCode = "US",
-    foodPreferences = null,
-    pets = [],
-    plannerSummary = "",
-    cachedAttractions = [],
-    routeStop = null,
-    routePlan = null,
+    destination: rawDestination, startDate, endDate, activities: rawActivities,
+    children = [], tripType = null, countryCode = "US", foodPreferences = null,
+    pets = [], plannerSummary = "", cachedAttractions = [], routeStop = null, routePlan = null,
   } = tripData;
   const expectedDays = inclusiveDayCount(startDate, endDate);
   const maxActivities = Math.max(expectedDays * 6, 10);
-
-  // Sanitize user-supplied fields before interpolating into AI prompts
   const destination = sanitizeDestination(rawDestination);
   const activities = sanitizeActivities(rawActivities);
+  const options = { tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan };
+  const primaryPrompt = buildTripPlanPrompt(destination, startDate, endDate, activities, children, weatherForecast, options);
+  const configuredTimeout = Number(process.env.AI_TRIP_TIMEOUT_MS);
+  const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.min(configuredTimeout, 180_000) : 150_000;
+  const deadlineAt = Date.now() + timeoutMs;
+  let lastError;
+  let repairSource = "";
+  let validatedPlan;
 
-  const primaryPrompt = buildTripPlanPrompt(
-    destination,
-    startDate,
-    endDate,
-      activities,
-      children,
-      weatherForecast,
-      { compact: false, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan },
-    );
-  const primaryMaxTokens = getTripPlanMaxTokens(startDate, endDate, { compact: false });
-
-  try {
-    const firstAttempt = await requestWithRetry(
-      () => requestTripPlan({ ...primaryPrompt, maxTokens: primaryMaxTokens }, deps, { cache: true }),
-      MAX_RETRIES,
-    );
-
-    // Reject responses that look like successful prompt injection attempts
-    if (!isAiResponseSafe(firstAttempt.responseText)) {
-      throw new Error("AI response failed safety check. Please try again.");
+  const validateResponse = (text) => {
+    repairSource = text;
+    if (!isAiResponseSafe(text)) throw new Error("AI response failed safety check");
+    let parsed;
+    try { parsed = parseTripPlanResponse(text, { expectedDays, maxActivities }); }
+    catch { throw new Error("Trip plan returned invalid JSON or schema"); }
+    const ids = new Set(parsed.suggestedActivities.map(activity => activity.id));
+    if (parsed.dailyItinerary.length !== expectedDays ||
+        parsed.dailyItinerary.some(day => !day.activities.length || day.activities.some(id => !ids.has(id)))) {
+      throw new Error("Trip plan has missing days or invalid activity references");
     }
+    validatedPlan = assertTripPlanQuality(repairTripPlanDuplicates(parsed, cachedAttractions, {
+      hasPets: pets.length > 0, expectedDays,
+      minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
+    }));
+  };
 
+  // Provider recovery runs inside validation. One compact regeneration and one
+  // repair remain available, but all work shares a single user-facing deadline.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (deps.signal?.aborted || deps.shouldAbort?.()) throw Object.assign(new Error("Trip generation cancelled"), { name: "AbortError" });
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) break;
+    const prompt = attempt === 0 ? primaryPrompt : lastError?.code === "TRIP_PLAN_REPEATS"
+      ? buildQualityRetryPrompt(primaryPrompt, lastError)
+      : buildTripPlanPrompt(destination, startDate, endDate, activities, children, weatherForecast, { ...options, compact: true });
     try {
-      const firstParsed = parseTripPlanResponse(firstAttempt.responseText, { expectedDays, maxActivities });
-      const repairedFirstPlan = repairTripPlanDuplicates(firstParsed, cachedAttractions, {
-        hasPets: pets.length > 0,
-        expectedDays,
-        minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
-      });
-      return assertTripPlanQuality(repairedFirstPlan);
-    } catch (firstParseError) {
-      const isQualityFailure = firstParseError.code === "TRIP_PLAN_REPEATS";
-      log.warn(
-        isQualityFailure
-          ? "Trip-plan quality failed (attempt 1), retrying with stronger anti-repeat guidance"
-          : "Trip-plan parse failed (attempt 1), retrying compact",
-        { error: firstParseError.message },
-      );
-
-      const retryPrompt = isQualityFailure
-        ? buildQualityRetryPrompt(primaryPrompt, firstParseError)
-        : buildTripPlanPrompt(
-          destination,
-          startDate,
-          endDate,
-          activities,
-          children,
-          weatherForecast,
-          { compact: true, tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan },
-        );
-      const retryMaxTokens = isQualityFailure
-        ? primaryMaxTokens
-        : getTripPlanMaxTokens(startDate, endDate, { compact: true });
-
-      const secondAttempt = await requestWithRetry(
-        () => requestTripPlan({ ...retryPrompt, maxTokens: retryMaxTokens }, deps),
-        MAX_RETRIES,
-      );
-
-      try {
-        const secondParsed = parseTripPlanResponse(secondAttempt.responseText, { expectedDays, maxActivities });
-        const repairedSecondPlan = repairTripPlanDuplicates(secondParsed, cachedAttractions, {
-          hasPets: pets.length > 0,
-          expectedDays,
-          minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
-        });
-        try {
-          return assertTripPlanQuality(repairedSecondPlan);
-        } catch (secondQualityError) {
-          if (secondQualityError.code === "TRIP_PLAN_REPEATS") {
-            log.warn("Trip-plan quality still repetitive after retry; returning best-effort plan", {
-              error: secondQualityError.message,
-            });
-            return repairedSecondPlan;
-          }
-          throw secondQualityError;
-        }
-      } catch (secondParseError) {
-        if (secondParseError.code === "TRIP_PLAN_REPEATS") {
-          throw secondParseError;
-        }
-
-        log.warn("Trip-plan parse failed (attempt 2), trying repair", { error: secondParseError.message });
-
-        const repairSource = secondAttempt.responseText || firstAttempt.responseText;
-        const repairAttempt = await repairTripPlanJson(repairSource, deps);
-
-        try {
-          const repaired = parseTripPlanResponse(repairAttempt.responseText, { expectedDays, maxActivities });
-          const repairedPlan = repairTripPlanDuplicates(repaired, cachedAttractions, {
-            hasPets: pets.length > 0,
-            expectedDays,
-            minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
-          });
-          try {
-            return assertTripPlanQuality(repairedPlan);
-          } catch (repairQualityError) {
-            if (repairQualityError.code === "TRIP_PLAN_REPEATS") {
-              log.warn("Trip-plan quality still repetitive after repair; returning best-effort plan", {
-                error: repairQualityError.message,
-              });
-              return repairedPlan;
-            }
-            throw repairQualityError;
-          }
-        } catch (repairParseError) {
-          log.error("Trip-plan parse failed after all 3 attempts", {
-            error: repairParseError.message,
-            stopReasons: {
-              first: firstAttempt.stopReason || "unknown",
-              second: secondAttempt.stopReason || "unknown",
-              repair: repairAttempt.stopReason || "unknown",
-            },
-          });
-          throw new Error(
-            "AI returned invalid trip-plan JSON after retry and repair. Please try again.",
-          );
-        }
-      }
+      await requestTripPlan({ ...prompt, maxTokens: getTripPlanMaxTokens(startDate, endDate),
+        timeoutMs: Math.max(1, Math.floor(remainingMs * 0.8)), signal: deps.signal, validateResponse,
+      }, deps, { cache: attempt === 0 });
+      return validatedPlan;
+    } catch (error) {
+      lastError = error;
+      if (deps.signal?.aborted || deps.shouldAbort?.()) throw Object.assign(error, { name: "AbortError" });
+      log.warn("Trip generation attempt exhausted its provider chain", { attempt: attempt + 1, error: error.message });
     }
-  } catch (error) {
-    log.error("AI service error (trip plan)", { error: error.message });
-    if (error.message.includes("invalid trip-plan JSON")) {
-      throw error;
-    }
-    throw new Error("Failed to generate trip plan: " + error.message);
   }
+
+  const remainingMs = deadlineAt - Date.now();
+  if (repairSource && remainingMs > 0) {
+    try {
+      await repairTripPlanJson(repairSource, deps, { timeoutMs: remainingMs, signal: deps.signal, validateResponse });
+      return validatedPlan;
+    } catch (error) { lastError = error; }
+  }
+  if (deps.signal?.aborted || deps.shouldAbort?.()) throw Object.assign(lastError || new Error("Trip generation cancelled"), { name: "AbortError" });
+  throw new Error("Failed to generate a complete trip plan: " + (lastError?.message || "generation deadline exceeded"));
 }
 
 // ── Chunked generation for trips > 7 days ───────────────────────────────────
@@ -966,8 +881,8 @@ export function buildTripPlanPrompt(
 
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
-1. Suggest 4-6 activities total.
-2. Keep dailyItinerary to max 5 day objects.
+1. Suggest at least ${expectedDays * 4} activities total, with distinct activities for every day.
+2. Keep dailyItinerary to exactly ${expectedDays} day objects.
 3. Keep each activity description <= 80 characters.
 4. Keep tips to max 4 items.`
     : `**Output Rules:**

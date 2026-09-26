@@ -79,7 +79,7 @@ export default function GeneratingScreen({
   const factIndex = useMemo(() => Math.floor(Math.random() * WAIT_FACTS.length), []);
 
   // Destination picker takes over
-  if (parsedInput?.suggestedDestinations?.length > 0) {
+  if (!parsedInput?.destination && parsedInput?.suggestedDestinations?.length > 0) {
     return (
       <div className="max-w-md mx-auto px-4 py-12">
         <DestinationPicker

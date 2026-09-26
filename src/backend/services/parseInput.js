@@ -423,7 +423,7 @@ export async function parseInput(text, deps = {}) {
 
   return {
     destination,
-    suggestedDestinations: tripShape === "country_tour" ? [] : suggestedDestinations,
+    suggestedDestinations: destination || tripShape === "country_tour" ? [] : suggestedDestinations,
     startDate,
     endDate,
     adults: parsed.adults || 2,
