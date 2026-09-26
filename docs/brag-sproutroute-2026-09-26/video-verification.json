@@ -1,0 +1,41 @@
+{
+  "verifiedAt": "2026-09-26T08:40:02.553Z",
+  "probe": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "width": 1920,
+        "height": 1080,
+        "r_frame_rate": "30/1",
+        "nb_frames": "1800"
+      },
+      {
+        "codec_name": "aac",
+        "r_frame_rate": "0/0",
+        "nb_frames": "2814"
+      }
+    ],
+    "format": {
+      "duration": "60.000000",
+      "size": "10476110"
+    }
+  },
+  "sha256": "a61e327e755edca163b81d6c5fac80cfb85e9d25988039b87607c6a5203bfaa2",
+  "playback": {
+    "duration": 60,
+    "currentTime": 1.14812,
+    "paused": false,
+    "error": null
+  },
+  "browserErrors": [],
+  "mobileOverflow": false,
+  "syntheticDemo": true,
+  "source": "actual React UI replaying saved synthetic generation",
+  "limitations": [
+    "No human venue/legality validation",
+    "Edited screenshot sequence, not real-time generation footage",
+    "No claim of production failure probability"
+  ]
+}

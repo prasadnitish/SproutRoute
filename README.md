@@ -2,6 +2,12 @@
 
 SproutRoute is a family trip planner built as a full-stack web product, with active mobile work in the same repository. It combines itinerary generation, weather-aware planning, packing support, and family travel safety features into one user flow.
 
+[![Watch the SproutRoute 60-second product demo](docs/brag-sproutroute-2026-09-26/brag.jpg)](docs/brag-sproutroute-2026-09-26/brag.mp4)
+
+[Try the app](https://sproutroute.app) · [Demo source and portfolio screens](docs/brag-sproutroute-2026-09-26/README.md) · [AI eval report](docs/benchmarks/sproutroute-ai-eval-report-2026-09-25.md)
+
+The film uses real UI with a fictional trip. The eval report separates synthetic structure/recovery checks from the venue and safety facts that still need independent review.
+
 ## Primary References
 
 - `docs/WEB_CODE_GRAPH.md` for the current web-app code path and ownership map
@@ -37,9 +43,11 @@ SproutRoute is a family trip planner built as a full-stack web product, with act
 ## Run Locally
 
 ```bash
-npm install
+npm run install:all
 npm run dev
 ```
+
+Use Node.js 20 or newer. Copy the backend `.env.example` to a local `.env` and supply your own provider keys before generating trips. Keep keys server-side; never put them in `VITE_` variables or commit them. Watching the saved demo and running the mocked tests requires no paid API key. See [the recovery configuration](docs/benchmarks/2026-09-26-recovery-release.md) for the tested model split.
 
 Useful commands:
 

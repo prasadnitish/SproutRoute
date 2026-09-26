@@ -1,0 +1,62 @@
+{
+  "synthetic": true,
+  "startedAt": "2026-09-26T08:33:40.925Z",
+  "requests": [
+    {
+      "path": "/api/v1/geo/detect",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/trip/parse-input",
+      "status": 200
+    },
+    {
+      "path": "/api/generate",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/trip/stream",
+      "status": 200
+    },
+    {
+      "path": "/api/safety/travel-tips",
+      "status": 200
+    },
+    {
+      "path": "/api/v1/telemetry/journey",
+      "status": 204
+    },
+    {
+      "path": "/api/safety/car-seat-check",
+      "status": 200
+    }
+  ],
+  "errors": [],
+  "parse": {
+    "destination": "Las Vegas, Nevada, USA",
+    "suggestions": 0,
+    "ms": 3794
+  },
+  "firstResultMs": 3979,
+  "itineraryMs": 13335,
+  "sse": [
+    {
+      "event": "destination",
+      "days": 0
+    },
+    {
+      "event": "weather",
+      "days": 0
+    },
+    {
+      "event": "itinerary-chunk",
+      "days": 2
+    },
+    {
+      "event": "done",
+      "days": 0
+    }
+  ],
+  "pageText": "Plan\nPack\n26\nSafety\n7\n\nYOUR TRIP\n\nLas Vegas, Nevada, USA\n\nOct 10 – Oct 11 · 2 days\n\n2 adults · 1 kid, age 6\n\nCITY\nFAMILY\nEdit\nSafety for Las Vegas, Nevada, USA\nView all safety tips\n\nEmergency: 911\n\nStay hydrated in the dry desert climate; Las Vegas has very low humidity in October.\nThe Strip and downtown casinos are adult-oriented; many venues have age restrictions after certain hours.\n\nAI-generated guidance — verify locally\n\nITINERARY\n\nSUGGESTED TIMES\nSat, Oct 10\nSun, Oct 11\nTrip tips (5)\nSat, Oct 10\n91°/68°\nSunny\n\nFocused on Downtown and cultural preservation areas with educational gardens and interactive museums.\n\n9:00 AM\n11:00 AM\n\nSprings Preserve Botanical Gardens & Trails\n\nParks\n\nExplore 180 acres of botanical gardens, interactive desert exhibits, and train rides.\n\nWhy this fits: Fulfills the garden preference with shaded walking trails and child-friendly outdoor displays.\n\n2H\n11:20 AM\n1:50 PM\n\nNevada State Museum\n\nMuseums\n\nDiscover prehistoric fossils, mammoth bones, and Nevada's mining history.\n\nWhy this fits: Engaging dinosaur and fossil exhibits that captivate 6-year-olds while staying indoors.\n\n2.5H\n2:10 PM\n4:40 PM\n\nDISCOVERY Children's Museum\n\nMuseums\n\nThree floors of hands-on science, water play, and a giant indoor climbing tower.\n\nWhy this fits: Perfect for a 6-year-old to explore creative play indoors during peak afternoon warmth.\n\n2.5H\n6:00 PM\n7:30 PM\nDINNER\n\nCarson Kitchen\n\nAMERICAN COMFORT\n\nCelebrated local downtown gem known for innovative comfort food with great kid-friendly flatbreads and courtyard seating.\n\n↑ Tap any activity for details\n\nDAY MAP\n\nDay 1 route\n\n4 stops\n40 min estimated travel\nFlexible pace\n1\nSprings Preserve Botanical Gardens & Trails\n9:00 AM\n2\nNevada State Museum\n11:20 AM\n3\nDISCOVERY Children's Museum\n2:10 PM\n4\nCarson Kitchen\n6:00 PM\n\nDriving route in listed stop order. Check transport options in Google Maps.\n\nOpen map\n\n🌤 WEATHER\n\n91°\n☀\nSunny\n\nSat\n\nOct 10\n\n☀\n\n91°\n\n68°\n\nSun\n\nOct 11\n\n☀\n\n86°\n\n63°\n\nDid this feel right?\n\nYour signal tunes the next plan we build for you.\n\nMore like this\nLess like this",
+  "pass": true
+}

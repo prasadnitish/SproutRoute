@@ -42,6 +42,10 @@ This pilot excludes geocoding, weather retrieval, browser/SSE delivery and venue
 
 Local release gate: 568 unit/integration tests passed; 74 mocked browser tests passed; production frontend build passed. Existing npm audit advisories remain (backend 8, frontend 7); this release does not upgrade unrelated dependencies.
 
+PR #26 merged as `b743fc030daa6ec43c64096f739ff0d2dce37956`. GitHub's backend/build and E2E checks passed. Railway deployment `d7e6f9a7-4c25-443f-b4d5-17a0ed536aa0` reported SUCCESS, and a configuration readback confirmed Gemini 3.8 Flash primary and GPT-6 Luna itinerary fallback with no OpenRouter production key.
+
+A [real production browser check](../brag-sproutroute-2026-09-26/evidence/production-browser.json), using a fictional Las Vegas family, resolved the destination in 3.8 seconds with zero suggestions, displayed the first result in 4.0 seconds, and showed an itinerary in 13.3 seconds. The SSE stream contained both requested days and a final `done` event, with no error event or browser exception. All seven observed app API responses were successful. This is one synthetic browser run, not a latency percentile or a measured production failure rate.
+
 Rollback code through the release PR's revert. Restore `OPENAI_MODEL_ID_TRIP_PLAN` to its previous value (unset if absent) to restore the previous fallback model. Keep provider credentials intact. Do not roll back the already-shipped 50/hour application rate limit as part of a model rollback.
 
 Follow-up before stronger public claims: human-score ten diverse full app traces, verify venue/source evidence, evaluate pet and dietary suitability, and measure end-to-end completion and cost including failed attempts and non-model APIs. The model screens are evidence for this bounded routing choice, not a model-quality leaderboard.
