@@ -22,6 +22,9 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4173",
     screenshot: "only-on-failure",
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : {},
   },
   webServer: {
     command: "cd src/frontend && VITE_API_URL=http://localhost:4173 npm run build && npm run preview -- --port 4173",

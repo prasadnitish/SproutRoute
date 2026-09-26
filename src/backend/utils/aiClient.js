@@ -194,7 +194,7 @@ async function callGemini(model, { system, user, maxTokens, temperature, modelId
 async function callOpenAI(client, { system, user, maxTokens, temperature, modelId, signal, timeoutMs }) {
   const completion = await client.chat.completions.create({
     model: modelId,
-    temperature,
+    ...(modelId.startsWith("gpt-6-") ? { reasoning_effort: "low" } : { temperature }),
     max_completion_tokens: maxTokens,
     response_format: { type: "json_object" },
     messages: [
@@ -235,7 +235,7 @@ async function callDeepSeek(client, { system, user, maxTokens, temperature, sign
 // ── Client factory helpers ────────────────────────────────────────────────────
 
 function makeAnthropicClient() {
-  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, maxRetries: 0 });
 }
 
 /** @type {GoogleGenerativeAI|null} */
@@ -252,7 +252,7 @@ function makeGeminiModel(modelId) {
 
 async function makeOpenAIClient() {
   const { default: OpenAI } = await import("openai");
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 0 });
 }
 
 async function makeDeepSeekClient() {
@@ -260,6 +260,7 @@ async function makeDeepSeekClient() {
   return new OpenAI({
     apiKey: process.env.DEEPSEEK_API_KEY,
     baseURL: "https://api.deepseek.com",
+    maxRetries: 0,
   });
 }
 
@@ -319,16 +320,28 @@ export async function callModel(prompt, deps = {}) {
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
 
-  async function callWithRemainingBudget(selectedProvider, params) {
+  async function callWithRemainingBudget(selectedProvider, params, attemptsRemaining) {
     const remainingMs = deadlineAt - Date.now();
     if (remainingMs <= 0) throw new Error("AI provider deadline exceeded");
-    const deadline = createAttemptDeadline(prompt.signal, remainingMs);
+    // Reserve an equal share for every remaining provider; a hung primary must
+    // never consume the entire request deadline. Fast failures release their time.
+    const attemptMs = Math.max(1, Math.floor(remainingMs / attemptsRemaining));
+    const deadline = createAttemptDeadline(prompt.signal, attemptMs);
     try {
-      return await tracing.span('ai.attempt', {provider:selectedProvider, model_id:params.modelId}, () => deadline.run(() => callProvider(selectedProvider, {
-        ...params,
-        signal: deadline.signal,
-        timeoutMs: remainingMs,
-      }, deps)));
+      const result = await tracing.span('ai.attempt', {provider:selectedProvider, model_id:params.modelId}, () => deadline.run(async () => {
+        const response = await callProvider(selectedProvider, {
+          ...params,
+          signal: deadline.signal,
+          timeoutMs: attemptMs,
+        }, deps);
+        if (!response.responseText?.trim()) throw new Error("AI returned empty output");
+        if (["length", "max_tokens", "MAX_TOKENS"].includes(response.stopReason)) {
+          throw new Error("AI response exceeded its output limit");
+        }
+        await prompt.validateResponse?.(response.responseText);
+        return response;
+      }));
+      return { ...result, provider: selectedProvider, model: params.modelId };
     } finally {
       deadline.cleanup();
     }
@@ -337,29 +350,32 @@ export async function callModel(prompt, deps = {}) {
   try {
     const result = await callWithRemainingBudget(provider, {
       system, user, maxTokens, temperature, cacheSystemPrompt, modelId,
-    });
+    }, fallbackProviders.length + 1);
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
     metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true });
     return result;
   } catch (error) {
+    if (prompt.signal?.aborted) throw prompt.signal.reason || error;
     const ms = Date.now() - t0;
     log.warn(`AI call failed (${provider})`, { caller, error: error.message, ms });
     metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: 0, success: false });
 
     // Try fallbacks in order
-    for (const fb of fallbackProviders) {
+    for (const [index, fb] of fallbackProviders.entries()) {
+      const fbT0 = Date.now();
+      const fallbackModelId = modelIdForProvider(fb, caller);
       try {
-        const fbT0 = Date.now();
-        const fallbackModelId = modelIdForProvider(fb, caller);
         const result = await callWithRemainingBudget(fb, {
           system, user, maxTokens, temperature, cacheSystemPrompt: false, modelId: fallbackModelId,
-        });
+        }, fallbackProviders.length - index);
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
         metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true });
         return result;
       } catch (fbError) {
+        if (prompt.signal?.aborted) throw prompt.signal.reason || fbError;
+        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: Date.now() - fbT0, outChars: 0, success: false });
         log.warn(`Fallback ${fb} also failed`, { caller, error: fbError.message });
       }
     }

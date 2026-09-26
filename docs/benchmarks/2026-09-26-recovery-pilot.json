@@ -1,0 +1,2389 @@
+{
+  "synthetic": true,
+  "at": "2026-09-26T08:08:23.856Z",
+  "scope": "production generation code with synthetic weather; no geocoding, browser, or venue verification",
+  "rows": [
+    {
+      "case": "vegas-family",
+      "injectedFailure": null,
+      "ms": 9423,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 9421,
+          "outChars": 9328,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "A vibrant 2-day family adventure in Las Vegas focusing on kid-friendly interactive museums, scenic desert nature, and lush gardens. Perfect for a 6-year-old traveler, this trip avoids casino floors in favor of hands-on discovery and beautiful outdoor walks in pleasant autumn weather.",
+        "suggestedActivities": [
+          {
+            "id": "springs-preserve",
+            "name": "Springs Preserve Exploration",
+            "category": "parks",
+            "description": "Explore 180 acres of botanical gardens, walking trails, interactive natural history exhibits, and a butterfly habitat.",
+            "whatItIs": "A non-profit cultural institution and nature preserve chronicling the history and ecology of the Las Vegas Valley.",
+            "whyRecommended": "It offers sprawling outdoor botanical gardens paired with gentle, shaded walking trails perfectly suited for a 6-year-old.",
+            "timingTip": "Arrive at 9:00 AM right when gates open to enjoy the cooler morning air outdoors.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "nv-state-museum",
+            "name": "Nevada State Museum at Springs Preserve",
+            "category": "museums",
+            "description": "Step indoors to view life-sized mammoth skeletons, prehistoric fossils, and engaging regional history exhibits.",
+            "whatItIs": "A state-run natural history and cultural museum located directly inside the Springs Preserve grounds.",
+            "whyRecommended": "Young kids love the giant Ichthyosaur and mammoth fossil displays, making science come alive.",
+            "timingTip": "Visit directly after your garden walk before leaving the Springs Preserve campus.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "discovery-childrens-museum",
+            "name": "DISCOVERY Children's Museum",
+            "category": "museums",
+            "description": "Three floors of hands-on interactive science, art, and water play centered around a 70-foot climbing tower.",
+            "whatItIs": "Las Vegas's premier interactive educational children's museum located in Symphony Park.",
+            "whyRecommended": "Tailor-made for early elementary children with safe climbing structures, water play, and creative makerspaces.",
+            "timingTip": "Book timed-entry tickets online in advance to guarantee fast entry after lunch.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "symphony-park-walk",
+            "name": "Symphony Park Public Art Stroll",
+            "category": "parks",
+            "description": "A quiet, pedestrianized green park featuring open lawns, whimsical sculptures, and colourful architecture.",
+            "whatItIs": "A manicured civic green space located right outside the children's museum and The Smith Center.",
+            "whyRecommended": "Allows kids to run around in an open, traffic-free outdoor green space to burn off energy.",
+            "timingTip": "Great for a relaxing 45-minute afternoon wander before the evening.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "bellagio-conservatory",
+            "name": "Bellagio Conservatory & Botanical Gardens",
+            "category": "parks",
+            "description": "Marvel at an elaborate 14,000-square-foot indoor garden display crafted with tens of thousands of fresh flowers.",
+            "whatItIs": "A world-renowned glass atrium housing rotating theatrical floral arrangements and botanical sculptures.",
+            "whyRecommended": "The fall harvest display is visually spectacular and completely free, captivating both kids and adults.",
+            "timingTip": "Visit around 5:00 PM as subtle evening illumination starts turning on.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "ethel-m-cactus-garden",
+            "name": "Ethel M Botanical Cactus Garden & Chocolate Factory",
+            "category": "parks",
+            "description": "Wander through Nevada's largest cactus garden with over 300 desert species, followed by a viewing of chocolate making.",
+            "whatItIs": "A four-acre desert botanical garden and artisanal chocolate viewing facility in Henderson.",
+            "whyRecommended": "Combines a safe, paved desert garden walk with a sweet peek into real candy-making lines.",
+            "timingTip": "Best visited at 9:00 AM for mild morning temperatures along the outdoor desert paths.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "las-vegas-natural-history",
+            "name": "Las Vegas Natural History Museum",
+            "category": "museums",
+            "description": "Explore dinosaur exhibits, live desert animals, marine life tanks, and an interactive Young Scientist Center.",
+            "whatItIs": "A Smithsonian Affiliate museum offering hands-on biological and paleontological learning.",
+            "whyRecommended": "Features an animatronic T-Rex and live shark feeding tank that thoroughly delight 6-year-olds.",
+            "timingTip": "Arrive mid-morning when the interactive lab rooms are fully open and staffed.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "strip-landmarks-walking-tour",
+            "name": "South Strip Family Walking Tour",
+            "category": "city",
+            "description": "A guided self-paced family walk exploring the Flamingo Wildlife Habitat, LINQ Promenade, and Bellagio Fountains.",
+            "whatItIs": "A walking circuit encompassing 4 iconic landmarks: live flamingos, giant observation wheel plazas, and dancing fountains.",
+            "whyRecommended": "Hits multiple major Las Vegas sights in one easy, pedestrian-friendly afternoon loop.",
+            "timingTip": "Start at 1:00 PM at the shaded Flamingo outdoor animal habitat.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "shark-reef-aquarium",
+            "name": "Shark Reef Aquarium at Mandalay Bay",
+            "category": "wildlife",
+            "description": "Walk through an acrylic underwater tunnel surrounded by sharks, sea turtles, rays, and rare sawfish.",
+            "whatItIs": "An AZA-accredited marine sanctuary housing more than 2,000 aquatic animals.",
+            "whyRecommended": "Immersive and fully indoor, providing an up-close perspective of majestic sea creatures for young kids.",
+            "timingTip": "Book entry for 3:30 PM to avoid the larger midday tour groups.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "bellagio-fountains",
+            "name": "Bellagio Fountains Water Show",
+            "category": "water",
+            "description": "Watch a choreographed water, music, and light show blasting water hundreds of feet into the air.",
+            "whatItIs": "A massive 8-acre artificial lake featuring synchronized automated fountain performances.",
+            "whyRecommended": "A thrilling, free spectacle that runs every 15-30 minutes and mesmerizes kids of all ages.",
+            "timingTip": "Catch the 5:30 PM show just before heading out to dinner.",
+            "duration": "45 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-10)",
+            "activities": [
+              "springs-preserve",
+              "nv-state-museum",
+              "discovery-childrens-museum",
+              "symphony-park-walk",
+              "bellagio-conservatory"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Carson Kitchen",
+                "cuisine": "American Comfort",
+                "note": "A celebrated local Downtown restaurant featuring inventive, gourmet comfort foods and a family-welcoming rooftop patio."
+              }
+            },
+            "notes": "Focused on cultural discovery and hands-on museum play in Downtown Las Vegas and Symphony Park."
+          },
+          {
+            "day": "Day 2 (2026-10-11)",
+            "activities": [
+              "ethel-m-cactus-garden",
+              "las-vegas-natural-history",
+              "strip-landmarks-walking-tour",
+              "shark-reef-aquarium",
+              "bellagio-fountains"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Mon Ami Gabi",
+                "cuisine": "French Bistro",
+                "note": "Famous Strip institution offering delicious steak frites and an outdoor patio with front-row views of the Bellagio fountains."
+              }
+            },
+            "notes": "Focused on desert flora, aquatic wildlife, and iconic Strip landmarks, ending promptly before evening."
+          }
+        ],
+        "tips": [
+          "Purchase Springs Preserve and DISCOVERY Children's Museum tickets online ahead of time to skip weekend ticket lines.",
+          "Springs Preserve admission includes access to the Nevada State Museum, providing two full attractions for a single ticket price.",
+          "The Bellagio Conservatory and Bellagio Fountains are completely free year-round, making them top value stops.",
+          "Keep children hydrated with refillable water bottles; desert air is arid even during mild autumn weather.",
+          "Use rideshare services or park in resort garages rather than walking long Strip distances with a 6-year-old."
+        ]
+      }
+    },
+    {
+      "case": "san-diego-dog",
+      "injectedFailure": null,
+      "ms": 10424,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 10424,
+          "outChars": 9495,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "A sunny, relaxing 2-day family trip to San Diego curated for parents, a 4-year-old, and their 20-lb pup, Max. Focus on gentle coastal strolls, lush botanical gardens, and world-famous off-leash dog beaches and parks.",
+        "suggestedActivities": [
+          {
+            "id": "coronado-dog-beach",
+            "name": "Coronado Dog Beach Stroll",
+            "category": "beach",
+            "description": "An expansive off-leash sandy beach offering panoramic views of Point Loma and the Pacific Ocean.",
+            "whatItIs": "One of San Diego's premier off-leash dog beaches located at the northern tip of Coronado Island.",
+            "whyRecommended": "Gives Max a chance to burn morning energy while the 4-year-old can play in the soft sand and shallow waves.",
+            "timingTip": "Arrive around 9:00 AM for easy parking along Ocean Boulevard.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "coronado-landmarks-tour",
+            "name": "Coronado Island Walking Tour",
+            "category": "city",
+            "description": "A self-guided walking tour exploring historic landmark Hotel del Coronado, Orange Avenue shops, and Rotary Park.",
+            "whatItIs": "A walkable city loop showcasing historic island architecture, gardens, and seaside promenades.",
+            "whyRecommended": "Covers 4-5 island landmarks in one go, stroller-friendly and welcoming to leashed dogs.",
+            "timingTip": "Best late morning before midday crowds.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "tidelands-park",
+            "name": "Coronado Tidelands Park Playground",
+            "category": "parks",
+            "description": "A spacious bayfront park with quiet play structures and scenic views across to downtown San Diego.",
+            "whatItIs": "The largest park on Coronado Island featuring playgrounds, picnic lawns, and a quiet shoreline.",
+            "whyRecommended": "Provides toddler-safe climbing equipment and shaded grass where Max can rest on leash.",
+            "timingTip": "Visit early afternoon for calm bay breezes.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "camp-run-a-mutt",
+            "name": "Camp Run-A-Mutt Downtown Care & Pet Supply Stop",
+            "category": "city",
+            "description": "Check out popular cageless dog daycare options and pick up local pet supplies nearby.",
+            "whatItIs": "A trusted premier indoor/outdoor dog daycare facility and pet care provider in central San Diego.",
+            "whyRecommended": "Essential pet boarding resource if parents wish to visit indoor museums, plus handy for emergency supplies.",
+            "timingTip": "Drop by mid-afternoon to register or pick up extra travel treats.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "waterfront-park",
+            "name": "San Diego Waterfront Park & Fountains",
+            "category": "parks",
+            "description": "An interactive civic park with splash fountains, expansive green lawns, and harbor vistas.",
+            "whatItIs": "A modern 12-acre park located right on the Embarcadero along San Diego Bay.",
+            "whyRecommended": "Features shallow water splash zones that toddlers love, and leashed dogs are permitted on paved walkways.",
+            "timingTip": "Great late afternoon stop around 5:00 PM when the sun starts softening.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "fiesta-island-dog-park",
+            "name": "Fiesta Island Off-Leash Dog Park",
+            "category": "parks",
+            "description": "A massive peninsula in Mission Bay where dogs can run freely off-leash through sand dunes and calm bay water.",
+            "whatItIs": "San Diego's largest off-leash dog park surrounded by calm, wave-free tidal water.",
+            "whyRecommended": "The calm water is safe for small kids to dip their toes while Max enjoys boundless off-leash running.",
+            "timingTip": "Start at 9:00 AM before the sand heats up.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "balboa-park-cultural-tour",
+            "name": "Balboa Park Gardens & Plaza Walking Tour",
+            "category": "parks",
+            "description": "Stroll through the Spanish-Renaissance architecture of El Prado, the Botanical Building, Plaza de Panama, and the Rose Garden.",
+            "whatItIs": "A comprehensive landmark walking tour covering San Diego's premier cultural park without entering ticketed indoor venues.",
+            "whyRecommended": "Allows the family to see 5 iconic historic landmarks together outdoors where leashed dogs are welcome.",
+            "timingTip": "Arrive late morning around 11:15 AM to wander shaded arcades.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "nate-point-dog-park",
+            "name": "Nate's Point Off-Leash Dog Park",
+            "category": "parks",
+            "description": "A fully-fenced 5-acre off-leash dog park situated under mature eucalyptus trees in Balboa Park.",
+            "whatItIs": "San Diego's historic and centrally located dedicated off-leash dog haven.",
+            "whyRecommended": "Fenced-in security gives peace of mind with a 20-lb pup, plus plenty of shade for the family to unwind.",
+            "timingTip": "Ideal for a mid-day romp after exploring the Balboa Park plazas.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "pepper-grove-playground",
+            "name": "Pepper Grove Children's Playground",
+            "category": "parks",
+            "description": "A well-equipped children's park with separate zones tailored for toddlers and older kids.",
+            "whatItIs": "Balboa Park's main children's recreation playground with tot swings, slides, and grassy perimeters.",
+            "whyRecommended": "Pet-restricted inside the fenced play zone (note: pet warning applies), but picnic tables on the grass border allow parents to tag-team watching Max and the toddler.",
+            "timingTip": "Best at 3:15 PM when after-school crowds have not yet peaked.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": false
+          },
+          {
+            "id": "seaport-village-stroll",
+            "name": "Seaport Village Harbor Walk",
+            "category": "shopping",
+            "description": "Quaint waterfront complex with cobblestone pathways, seaside street performers, and harbor breezes.",
+            "whatItIs": "A 14-acre harborside shopping and dining destination along San Diego Bay.",
+            "whyRecommended": "Leashed-dog friendly open air stroll with easy stroller access and harbor boat viewing for the 4-year-old.",
+            "timingTip": "Visit at 5:00 PM as the sun begins to set over the marina.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-12)",
+            "activities": [
+              "coronado-dog-beach",
+              "coronado-landmarks-tour",
+              "tidelands-park",
+              "camp-run-a-mutt",
+              "waterfront-park"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "The Patio on Lamont",
+                "cuisine": "Californian Bistro",
+                "note": "A beloved, locally-owned Pacific Beach staple with a stunning heated, pet-friendly outdoor garden patio offering dog biscuits and craft dishes."
+              }
+            },
+            "notes": "Day 1 explores Coronado Island and the San Diego Downtown Embarcadero waterfront."
+          },
+          {
+            "day": "Day 2 (2026-10-13)",
+            "activities": [
+              "fiesta-island-dog-park",
+              "balboa-park-cultural-tour",
+              "nate-point-dog-park",
+              "pepper-grove-playground",
+              "seaport-village-stroll"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Station Tavern",
+                "cuisine": "Gourmet Burgers & Local Fare",
+                "note": "Famous neighborhood South Park spot featuring an enclosed backyard with a wooden play-structure train for toddlers and a welcoming dog-friendly outdoor area."
+              }
+            },
+            "notes": "Day 2 highlights Mission Bay nature, historic Balboa Park architecture, and harbor views."
+          }
+        ],
+        "tips": [
+          "Book accommodations with pet fee transparency in advance; many San Diego boutique hotels waive pet deposits during fall shoulder seasons.",
+          "Money-Saving Hack: Balboa Park's outdoor botanical architecture, plazas, and dog parks are 100% free to access, requiring no paid museum tickets.",
+          "Pet Safety Warning: Never leave pets inside parked vehicles; San Diego law strictly enforces animal safety in warm coastal vehicles.",
+          "Off-Leash Dog Rules: Always leash your dog before entering and immediately after exiting Coronado Dog Beach and Fiesta Island designated zones.",
+          "Toddler Playground Etiquette: Fenced children's play areas (such as Pepper Grove) restrict pets; tag-team supervising the 4-year-old while one adult relaxes with Max on adjacent lawns."
+        ]
+      }
+    },
+    {
+      "case": "tokyo-five-day",
+      "injectedFailure": null,
+      "ms": 21084,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 21084,
+          "outChars": 20317,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "A vibrant 5-day family exploration through Tokyo's world-class museums, scenic parks, and kid-approved cultural spots, tailored with vegetarian dining options for an 8-year-old traveler. Enjoy autumn greenery, interactive science, immersive digital art, and historic traditions.",
+        "suggestedActivities": [
+          {
+            "id": "ueno-park-stroll",
+            "name": "Ueno Park Walk & Shinobazu Pond",
+            "category": "parks",
+            "description": "Wander through historic Ueno Park and visit the scenic lotus pond and Bentendo temple.",
+            "whatItIs": "A sprawling public park known for cultural institutions, historic shrines, and pond views.",
+            "whyRecommended": "Wide paved pathways allow kids to unwind outdoors after international travel.",
+            "timingTip": "Best enjoyed early morning around 9:00 AM before museum crowds swell.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "nat-sci-museum",
+            "name": "National Museum of Nature and Science",
+            "category": "museums",
+            "description": "Explore massive dinosaur skeletons and interactive science experiments.",
+            "whatItIs": "Japan's premier natural history and technology museum located inside Ueno Park.",
+            "whyRecommended": "The huge dinosaur halls and hands-on physics exhibits are thrilling for an 8-year-old.",
+            "timingTip": "Book tickets in advance to skip general admission lines.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "ameyoko-market",
+            "name": "Ameyoko Shopping Street Exploration",
+            "category": "shopping",
+            "description": "Browse the bustling open-air market street filled with sweets, snacks, and souvenirs.",
+            "whatItIs": "A lively postwar market street tucked directly under the elevated Yamanote railway line.",
+            "whyRecommended": "Engaging sensory experience where kids can watch candy vendors and toy shops.",
+            "timingTip": "Mid-day around 1:00 PM when all food and snack stalls are in full swing.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "tokyo-national-museum",
+            "name": "Tokyo National Museum & Japanese Garden",
+            "category": "museums",
+            "description": "View samurai armor, ancient pottery, and stroll the serene back garden.",
+            "whatItIs": "The oldest and largest art museum in Japan featuring classical Japanese antiquities.",
+            "whyRecommended": "Real samurai katana and suits of armor capture children's historical curiosity.",
+            "timingTip": "Visit at 3:00 PM for calm viewing hours in the Honkan main gallery.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "asakusa-sensoji",
+            "name": "Senso-ji Temple & Nakamise-dori",
+            "category": "city",
+            "description": "Explore Tokyo's oldest Buddhist temple and shop for traditional trinkets.",
+            "whatItIs": "A landmark ancient Buddhist temple featuring the iconic red Kaminarimon Thunder Gate.",
+            "whyRecommended": "Colorful temple architecture and festival atmosphere engage young visitors.",
+            "timingTip": "Visit near 5:00 PM when crowds thin and evening lanterns illuminate.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "teamlab-planets",
+            "name": "teamLab Planets TOKYO",
+            "category": "museums",
+            "description": "Walk barefoot through glowing water rooms, crystal universes, and floating gardens.",
+            "whatItIs": "An internationally acclaimed immersive digital art museum in Toyosu.",
+            "whyRecommended": "Interactive wading pools and mirrored light rooms offer pure wonder for kids.",
+            "timingTip": "Book the first morning slot at 9:00 AM to avoid lines.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "miraikan-museum",
+            "name": "Miraikan - National Museum of Emerging Science",
+            "category": "museums",
+            "description": "Interact with humanoid robots and marvel at the massive hanging Geo-Cosmos Earth globe.",
+            "whatItIs": "Japan's leading museum dedicated to robotics, space exploration, and future technology.",
+            "whyRecommended": "Robot demonstrations (like ASIMO's successors) are mesmerizing for elementary school kids.",
+            "timingTip": "Arrive at 11:30 AM to catch the scheduled robotics presentations.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "odaiba-marine-park",
+            "name": "Odaiba Marine Park & Statue of Liberty",
+            "category": "parks",
+            "description": "Walk along the waterfront beach with panoramic views of Rainbow Bridge.",
+            "whatItIs": "A scenic coastal park on Tokyo Bay featuring a replica Statue of Liberty.",
+            "whyRecommended": "Great open space for running around with spectacular Tokyo Bay photo opportunities.",
+            "timingTip": "Ideal at 2:00 PM for breezy seaside views.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "unicorn-gundam-statue",
+            "name": "Life-Sized Unicorn Gundam Statue",
+            "category": "city",
+            "description": "Watch a colossal 65-foot mechanical robot transform with motorized parts and lights.",
+            "whatItIs": "A full-scale robotic statue outside DiverCity Tokyo Plaza that shifts between modes.",
+            "whyRecommended": "An awe-inspiring spectacle that feels straight out of science fiction for kids.",
+            "timingTip": "Watch the transformation show at 3:30 PM or 5:00 PM.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "toyosu-gururi-park",
+            "name": "Toyosu Gururi Park Seaside Walk",
+            "category": "parks",
+            "description": "Stroll the modern paved coastal promenade overlooking the Toyosu canal and skyline.",
+            "whatItIs": "A wide waterfront park encircling the Toyosu Pier with grassy lawns and play areas.",
+            "whyRecommended": "A calm, car-free environment where kids can watch cargo ships and water buses.",
+            "timingTip": "Visit at 5:00 PM to catch sunset reflections on Tokyo Bay.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "meiji-jingu-shrine",
+            "name": "Meiji Jingu Shrine & Forest Walk",
+            "category": "parks",
+            "description": "Wander through a peaceful sacred evergreen forest leading to a grand Shinto shrine.",
+            "whatItIs": "Tokyo's most revered Shinto shrine, surrounded by 170 acres of tranquil woodland.",
+            "whyRecommended": "The towering cedar trees and massive torii gates offer a peaceful nature retreat.",
+            "timingTip": "Start at 9:00 AM while the forest paths are misty and serene.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "yoyogi-park",
+            "name": "Yoyogi Park Family Stroll",
+            "category": "parks",
+            "description": "Enjoy wide lawns, pond fountains, and autumn foliage in Tokyo's central recreation park.",
+            "whatItIs": "One of Tokyo's largest public green spaces, popular for sports, street performers, and picnics.",
+            "whyRecommended": "Expansive lawns offer plenty of space for an 8-year-old to run freely.",
+            "timingTip": "Late morning around 11:15 AM before lunchtime.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "takeshita-street",
+            "name": "Harajuku Takeshita Street Walk",
+            "category": "shopping",
+            "description": "Experience Tokyo's colorful youth culture street lined with quirky shops and novelty snacks.",
+            "whatItIs": "A bustling 400-meter pedestrian shopping street celebrated for creative pop-culture fashion.",
+            "whyRecommended": "Fun, whimsical storefronts with rainbow treats and character goods delight kids.",
+            "timingTip": "Visit at 1:00 PM to explore without the extreme peak weekend crowds.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shibuya-scramble-crossing",
+            "name": "Shibuya Scramble & Hachiko Statue",
+            "category": "city",
+            "description": "Cross the world-famous pedestrian intersection and meet the bronze loyal dog statue.",
+            "whatItIs": "The busiest pedestrian intersection on Earth, right outside Shibuya Station.",
+            "whyRecommended": "Kids love the thrilling rush of thousands crossing together and the heartwarming Hachiko story.",
+            "timingTip": "Experience the pedestrian surge around 3:00 PM.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shibuya-sky-deck",
+            "name": "SHIBUYA SKY Observation Deck",
+            "category": "city",
+            "description": "Look out over Tokyo from a 360-degree open-air rooftop observation deck.",
+            "whatItIs": "A modern 229-meter rooftop observation platform atop Shibuya Scramble Square.",
+            "whyRecommended": "Clear glass sky edges and comfortable hammocks give kids a bird's-eye view of Tokyo.",
+            "timingTip": "Book tickets well in advance for 5:00 PM to catch late afternoon daylight.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "shinjuku-gyoen",
+            "name": "Shinjuku Gyoen National Garden",
+            "category": "parks",
+            "description": "Explore Japanese traditional landscape ponds, English lawns, and a greenhouse.",
+            "whatItIs": "A grand 144-acre former imperial garden blending Japanese, English, and French landscaping.",
+            "whyRecommended": "Pristine nature trails and koi ponds provide a peaceful oasis right in central Tokyo.",
+            "timingTip": "Arrive at 9:00 AM right at park gates opening for quiet strolls.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "tokyo-toy-museum",
+            "name": "Tokyo Toy Museum",
+            "category": "museums",
+            "description": "Play with thousands of handmade wooden toys, board games, and traditional puzzles.",
+            "whatItIs": "A creative play museum housed inside a charming repurposed 1930s elementary school building.",
+            "whyRecommended": "Custom-designed for children to touch and play with every single display.",
+            "timingTip": "11:30 AM is ideal for an unhurried family play session.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "fire-museum-shinjuku",
+            "name": "Tokyo Fire Museum (Yotsuya)",
+            "category": "museums",
+            "description": "Sit inside real vintage fire engines and an actual rescue helicopter on the roof.",
+            "whatItIs": "A free interactive museum documenting the history of firefighting in Edo and Tokyo.",
+            "whyRecommended": "Kids can climb into vehicle cockpits and wear firefighter gear in interactive exhibits.",
+            "timingTip": "Visit at 2:00 PM when crowds are minimal; admission is free.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "tokyo-metropolitan-bldg",
+            "name": "Tokyo Metropolitan Government Observatory",
+            "category": "city",
+            "description": "Ride high-speed elevators up 45 floors for panoramic views of Tokyo and Mount Fuji.",
+            "whatItIs": "Kenzo Tange's iconic twin-tower civic headquarters featuring free public observation decks.",
+            "whyRecommended": "Sweeping views across Kanto Plain; great low-stress alternative to expensive towers.",
+            "timingTip": "Visit around 4:00 PM for clear afternoon views toward Mount Fuji.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shinjuku-chuo-park",
+            "name": "Shinjuku Chuo Park Playground",
+            "category": "parks",
+            "description": "Let kids play on climbing structures, slides, and obstacle paths next to skyscrapers.",
+            "whatItIs": "A peaceful urban park directly behind the Tokyo Metropolitan Government Towers.",
+            "whyRecommended": "Features the 'Chibikko Hiroba' playground specifically designed for elementary kids.",
+            "timingTip": "Perfect at 5:45 PM for an active wind-down before dinner.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "imperial-palace-gardens",
+            "name": "Imperial Palace East Gardens",
+            "category": "parks",
+            "description": "Walk among the historic stone foundation ruins of Edo Castle and Japanese gardens.",
+            "whatItIs": "The public grounds of the former Edo Castle residence of the Tokugawa Shogunate.",
+            "whyRecommended": "Massive stone castle walls and open lawns make history tangible for an 8-year-old.",
+            "timingTip": "Enter at Otemon Gate at 9:00 AM (note: closed Mondays and Fridays).",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "science-museum-tokyo",
+            "name": "Kitanomaru Science Museum",
+            "category": "museums",
+            "description": "Experiment with giant optical illusions, gears, electricity, and bubble tubes.",
+            "whatItIs": "An expansive 5-floor hands-on science and technology center in Kitanomaru Park.",
+            "whyRecommended": "Packed with interactive physical contraptions where kids learn through direct play.",
+            "timingTip": "11:30 AM arrival gives ample time to explore all themed interactive rooms.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "hibiya-park",
+            "name": "Hibiya Park & Fountain Plaza",
+            "category": "parks",
+            "description": "Relax beside grand European-style fountains, flower beds, and shaded park benches.",
+            "whatItIs": "Japan's first Western-style modern park, established in 1903 near Ginza.",
+            "whyRecommended": "Peaceful shaded greenery to recharge energy after a busy museum morning.",
+            "timingTip": "Visit at 2:00 PM for relaxing post-lunch strolls.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "police-museum-ginza",
+            "name": "Police Museum (Keisatsu Hakubutsukan)",
+            "category": "museums",
+            "description": "Try on child-sized police uniforms and sit on real police motorcycles and helicopters.",
+            "whatItIs": "A 6-floor modern interactive museum showcasing Tokyo Metropolitan Police Department.",
+            "whyRecommended": "Kids can dress up, ride patrol motorbikes, and test crime-solving skills for free.",
+            "timingTip": "3:45 PM is great for avoiding school group field trips.",
+            "duration": "1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "ginza-six-rooftop",
+            "name": "Ginza Six Rooftop Garden",
+            "category": "parks",
+            "description": "Explore a lush green rooftop sanctuary 56 meters above Ginza's premier shopping avenue.",
+            "whatItIs": "A 4,000-square-meter landscaped public rooftop park atop Ginza Six luxury complex.",
+            "whyRecommended": "Safe enclosed green deck with shallow water features and panoramic city vistas.",
+            "timingTip": "5:30 PM offers golden hour lighting across Ginza's architecture.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-20)",
+            "activities": [
+              "ueno-park-stroll",
+              "nat-sci-museum",
+              "ameyoko-market",
+              "tokyo-national-museum",
+              "asakusa-sensoji"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "T's Tantan (Ueno Station)",
+                "cuisine": "Vegetarian Ramen",
+                "note": "A beloved Tokyo establishment famous for 100% plant-based ramen made with rich sesame-peanut broth and soy meat that kids adore."
+              }
+            },
+            "notes": "Gentle first day exploring Ueno's top museums and historic Asakusa, keeping walking pace manageable after travel."
+          },
+          {
+            "day": "Day 2 (2026-10-21)",
+            "activities": [
+              "teamlab-planets",
+              "miraikan-museum",
+              "odaiba-marine-park",
+              "unicorn-gundam-statue",
+              "toyosu-gururi-park"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Ain Soph. Soar (Ikebukuro)",
+                "cuisine": "Vegan Japanese Comfort Food",
+                "note": "Renowned for their fluffy vegan heavenly pancakes, savory veggie burgers, and child-welcoming atmosphere."
+              }
+            },
+            "notes": "High-tech exploration around Tokyo Bay and Odaiba, featuring digital art, future robotics, and coastal park strolls."
+          },
+          {
+            "day": "Day 3 (2026-10-22)",
+            "activities": [
+              "meiji-jingu-shrine",
+              "yoyogi-park",
+              "takeshita-street",
+              "shibuya-scramble-crossing",
+              "shibuya-sky-deck"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Saido (Meguro)",
+                "cuisine": "Plant-Based Japanese Yakitori & Katsu",
+                "note": "Ranked among the top vegan restaurants in the world, creating stunning vegetarian versions of Japanese comfort dishes like unagi and katsu curry."
+              }
+            },
+            "notes": "Covers western Tokyo's signature culture: forested shrines, lush parks, trendy Harajuku, and panoramic skyline vistas."
+          },
+          {
+            "day": "Day 4 (2026-10-23)",
+            "activities": [
+              "shinjuku-gyoen",
+              "tokyo-toy-museum",
+              "fire-museum-shinjuku",
+              "tokyo-metropolitan-bldg",
+              "shinjuku-chuo-park"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Vege Herb Saga (Ueno/Okachimachi)",
+                "cuisine": "Vegetarian Indian & Dosa",
+                "note": "Strictly 100% vegetarian restaurant certified pure veg, renowned for crisp dosas and mild kid-friendly paneer dishes."
+              }
+            },
+            "notes": "Tailored for the 8-year-old with toy and fire engine museums paired with Shinjuku's grand botanical gardens."
+          },
+          {
+            "day": "Day 5 (2026-10-24)",
+            "activities": [
+              "imperial-palace-gardens",
+              "science-museum-tokyo",
+              "hibiya-park",
+              "police-museum-ginza",
+              "ginza-six-rooftop"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Brown Rice by Neal's Yard Remedies (Omotesando)",
+                "cuisine": "Traditional Japanese Vegan Shojin-Ryori",
+                "note": "Celebrated organic restaurant crafting traditional seasonal Japanese set meals (teishoku) with seasonal vegetables, tofu, and miso."
+              }
+            },
+            "notes": "Historic castle ramparts, hands-on science interactive galleries, and elevated Ginza garden views to complete the journey."
+          }
+        ],
+        "tips": [
+          "Pre-book teamLab Planets and SHIBUYA SKY online 4-8 weeks in advance, as tickets sell out quickly.",
+          "Pick up a Welcome Suica or Pasmo Passport IC card at Haneda/Narita airport for seamless, tap-and-go subway and bus travel for the whole family.",
+          "Currency tip: 100 Japanese Yen (JPY) is roughly $0.65-$0.70 USD. Carry cash as many historic shrines and market food stalls do not accept international credit cards.",
+          "Emergency contact numbers in Japan: dial 110 for Police and 119 for Fire or Medical Emergencies.",
+          "Download the 'HappyCow' app to easily discover vegetarian and vegan restaurants nearby, and carry a bilingual dietary card stating 'Watashi wa saishoku shugisha desu' (I am vegetarian)."
+        ]
+      }
+    },
+    {
+      "case": "vegas-family",
+      "injectedFailure": "429",
+      "ms": 17192,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 17191,
+          "outChars": 8074,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "Explore the Las Vegas Strip’s famous sights and family-friendly attractions on day one, then spend day two among gardens, hands-on exhibits, and downtown discoveries. October’s typically mild weather suits outdoor stops, with indoor museums available if conditions change.",
+        "suggestedActivities": [
+          {
+            "id": "strip-landmarks-walk",
+            "name": "Las Vegas Strip Landmark Walking Tour",
+            "category": "city",
+            "description": "Walk a short, planned section of the Strip and see the Bellagio fountains, Paris Las Vegas, Caesars Palace, and The LINQ Promenade.",
+            "whatItIs": "A self-guided walk linking four recognizable Strip landmarks; choose a manageable section and use indoor walkways where convenient.",
+            "whyRecommended": "It gives the family a lively overview of Las Vegas without committing a six-year-old to a long tour.",
+            "timingTip": "Start around 9 AM, before the sidewalks get busier and warmer.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "bellagio-conservatory",
+            "name": "Bellagio Conservatory & Botanical Gardens",
+            "category": "parks",
+            "description": "See the free seasonal floral display inside Bellagio’s conservatory.",
+            "whatItIs": "An indoor botanical display whose elaborate plant arrangements change with the seasons.",
+            "whyRecommended": "It directly matches the family’s interest in gardens and is an easy, weather-proof stop.",
+            "timingTip": "Visit in the morning for a calmer look; check the current seasonal display before going.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "flamingo-wildlife-habitat",
+            "name": "Flamingo Wildlife Habitat",
+            "category": "wildlife",
+            "description": "Stroll the Flamingo’s free garden habitat and look for birds, fish, and turtles.",
+            "whatItIs": "A landscaped outdoor habitat at the Flamingo Las Vegas, with resident wildlife and shaded paths.",
+            "whyRecommended": "It offers a relaxed outdoor nature break right on the Strip that works well for a young child.",
+            "timingTip": "Go before midday and bring water; check the property’s current access information.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "high-roller",
+            "name": "High Roller Observation Wheel",
+            "category": "city",
+            "description": "Take a roughly 30-minute ride in an enclosed cabin for wide views over Las Vegas.",
+            "whatItIs": "A large observation wheel at the LINQ Promenade with climate-controlled cabins.",
+            "whyRecommended": "The ride adds a memorable view without requiring much walking from your six-year-old.",
+            "timingTip": "Book a daytime time slot and verify operating hours for your date.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "springs-preserve",
+            "name": "Springs Preserve",
+            "category": "parks",
+            "description": "Explore desert gardens, walking paths, and indoor exhibits about the region’s environment and history.",
+            "whatItIs": "A 180-acre cultural and nature attraction with botanical gardens, trails, and museum spaces.",
+            "whyRecommended": "It combines the family’s garden interest with indoor options if the weather turns.",
+            "timingTip": "Arrive near opening and check the attraction calendar and hours before visiting.",
+            "duration": "3-4 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "discovery-childrens-museum",
+            "name": "DISCOVERY Children’s Museum",
+            "category": "museums",
+            "description": "Let your child explore hands-on exhibits and imaginative play areas.",
+            "whatItIs": "A three-story children’s museum focused on interactive learning through play.",
+            "whyRecommended": "Its hands-on exhibits are a strong fit for a six-year-old and provide a comfortable indoor break.",
+            "timingTip": "Check Sunday hours and reserve admission ahead if timed tickets are offered.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "natural-history-museum",
+            "name": "Las Vegas Natural History Museum",
+            "category": "museums",
+            "description": "Visit exhibits covering dinosaurs, wildlife, and ancient civilizations.",
+            "whatItIs": "A local museum with natural-history galleries and displays for a range of ages.",
+            "whyRecommended": "The dinosaur and animal exhibits make it an engaging indoor stop for a young visitor.",
+            "timingTip": "Check Sunday opening hours and allow time for the galleries your child likes most.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "container-park",
+            "name": "Downtown Container Park",
+            "category": "shopping",
+            "description": "Explore the open-air downtown marketplace, browse small shops, and take a break in its family area.",
+            "whatItIs": "A shopping and dining destination built from repurposed shipping containers, with outdoor gathering spaces.",
+            "whyRecommended": "It offers a casual change of pace after museums and a place for the family to wander together.",
+            "timingTip": "Visit in the afternoon and check current family-area access and business hours.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-10)",
+            "activities": [
+              "strip-landmarks-walk",
+              "bellagio-conservatory",
+              "flamingo-wildlife-habitat",
+              "high-roller"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Mon Ami Gabi",
+                "cuisine": "French",
+                "note": "A well-known French bistro at Paris Las Vegas, with a lively Strip setting and a menu that offers family-friendly choices."
+              }
+            },
+            "notes": "Start at 9 AM and leave time for breaks between Strip stops. Keep the walk short for a six-year-old and plan dinner around 6:30-7 PM."
+          },
+          {
+            "day": "Day 2 (2026-10-11)",
+            "activities": [
+              "springs-preserve",
+              "discovery-childrens-museum",
+              "natural-history-museum",
+              "container-park"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Esther’s Kitchen",
+                "cuisine": "Italian",
+                "note": "A popular independent Arts District restaurant known for handmade pasta and seasonal cooking; book ahead and confirm its Sunday service."
+              }
+            },
+            "notes": "Springs Preserve and the museums are separate visits, so choose a few highlights at each and allow for travel time. Confirm Sunday hours and dinner availability before setting out."
+          }
+        ],
+        "tips": [
+          "Reserve High Roller tickets and popular dinner tables in advance; check each attraction’s official site for current hours, ticket rules, and closures.",
+          "Compare attraction bundles such as Go City Las Vegas with individual admission prices before buying; confirm that the included venues fit your two-day plan.",
+          "Look for free stops such as the Bellagio Conservatory and Flamingo Wildlife Habitat to balance paid attractions.",
+          "Use rideshare or the Deuce bus for longer Strip and downtown transfers; walking distances between resorts can be much longer than they appear.",
+          "October is often mild, but bring water, sunscreen, hats, and comfortable shoes for outdoor paths and Strip walks."
+        ]
+      }
+    },
+    {
+      "case": "san-diego-dog",
+      "injectedFailure": "429",
+      "ms": 23758,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 23758,
+          "outChars": 9968,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "Enjoy two gentle-paced San Diego days focused on waterfront sights, parks, and dog-friendly outdoor time, with indoor museum and aquarium options for your 4-year-old. October is often pleasant, but check the forecast and confirm pet policies, daycare availability, and restaurant patios before you go.",
+        "suggestedActivities": [
+          {
+            "id": "downtown-waterfront-walk",
+            "name": "Downtown and Waterfront Walking Tour",
+            "category": "city",
+            "description": "Take an easy, stroller-friendly route past the USS Midway waterfront, Tuna Harbor, the Embarcadero, and Waterfront Park.",
+            "whatItIs": "A self-guided walk linking four downtown waterfront landmarks, with open views and places to pause.",
+            "whyRecommended": "It gives the family a compact introduction to the city and suits a young child's shorter walking pace.",
+            "timingTip": "Start around 9 AM before the waterfront gets busier; bring water and sun protection.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "uss-midway-museum",
+            "name": "USS Midway Museum",
+            "category": "museums",
+            "description": "Explore aircraft and exhibits aboard the historic aircraft carrier at Navy Pier.",
+            "whatItIs": "A maritime and aviation museum on a retired U.S. Navy aircraft carrier.",
+            "whyRecommended": "The aircraft and large ship can be exciting for a 4-year-old, though some ladders and narrow passages may be challenging.",
+            "timingTip": "Arrive near opening and check the current hours and accessibility details before visiting.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": false
+          },
+          {
+            "id": "nates-point-dog-park",
+            "name": "Nate's Point Dog Park",
+            "category": "parks",
+            "description": "Let your small dog stretch its legs in this fenced, off-leash Balboa Park area.",
+            "whatItIs": "A designated off-leash dog park near Balboa Park's west side.",
+            "whyRecommended": "It offers a safe exercise break for the dog during a downtown-focused day.",
+            "timingTip": "Go earlier in the day, bring water, and check posted rules and conditions.",
+            "duration": "30-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "grape-street-dog-park",
+            "name": "Grape Street Dog Park",
+            "category": "parks",
+            "description": "Visit this spacious, fenced off-leash area for a second dog exercise stop.",
+            "whatItIs": "A city-designated dog park in South Park with separate areas for different dog sizes when available.",
+            "whyRecommended": "A change of setting and room to play helps balance sightseeing with the dog's exercise needs.",
+            "timingTip": "Check the city's current park rules and surface conditions before heading over.",
+            "duration": "30-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "little-italy-stroll",
+            "name": "Little Italy Neighborhood Stroll",
+            "category": "shopping",
+            "description": "Browse the neighborhood's storefronts and piazza, stopping for a relaxed family break.",
+            "whatItIs": "A walk through a lively downtown district known for restaurants, shops, and its public piazza.",
+            "whyRecommended": "The compact streets make it easy to explore without committing a young child to a long outing.",
+            "timingTip": "Visit in the late afternoon and keep the dog leashed on public sidewalks.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "ocean-beach-dog-beach",
+            "name": "Ocean Beach Dog Beach",
+            "category": "beach",
+            "description": "Give your dog off-leash beach time at San Diego's designated dog beach; keep the child close near the water.",
+            "whatItIs": "A stretch of Ocean Beach where dogs are permitted off leash under local rules.",
+            "whyRecommended": "It combines the family's beach interest with a proper exercise opportunity for the dog.",
+            "timingTip": "Check tide, surf, and posted rules; bring towels, fresh water, and sun protection.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "dusty-rhodes-dog-park",
+            "name": "Dusty Rhodes Dog Park",
+            "category": "parks",
+            "description": "Use this fenced Ocean Beach off-leash park for a lower-key play break.",
+            "whatItIs": "A neighborhood dog park with designated off-leash space.",
+            "whyRecommended": "It is a convenient alternative or add-on if beach conditions are too rough for play.",
+            "timingTip": "Check posted hours and park conditions; bring a leash for the walk to and from the fenced area.",
+            "duration": "30-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": true
+          },
+          {
+            "id": "mission-bay-park",
+            "name": "Mission Bay Park Shoreline",
+            "category": "parks",
+            "description": "Enjoy a relaxed, leashed walk beside the bay and let your child take a playground or picnic break.",
+            "whatItIs": "A large waterfront recreation area with paths, lawns, and family-use facilities.",
+            "whyRecommended": "Flat paths and open space work well for a preschooler and provide a calmer contrast to the beach.",
+            "timingTip": "Go in the morning or late afternoon and bring shade, snacks, and water.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          },
+          {
+            "id": "birch-aquarium",
+            "name": "Birch Aquarium at Scripps",
+            "category": "wildlife",
+            "description": "See local marine life and interactive exhibits at this La Jolla aquarium.",
+            "whatItIs": "The public aquarium of Scripps Institution of Oceanography, featuring Pacific marine habitats and ocean science exhibits.",
+            "whyRecommended": "Its compact indoor exhibits are a good weather-flexible activity for a 4-year-old.",
+            "timingTip": "Check timed-entry availability and current hours; allow extra time for parking.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false,
+            "petFriendly": false
+          },
+          {
+            "id": "liberty-station-stroll",
+            "name": "Liberty Station Arts District",
+            "category": "city",
+            "description": "Explore the former naval training center's public spaces, art, and family-friendly walkways.",
+            "whatItIs": "A redeveloped historic district with arts venues, open spaces, and food halls.",
+            "whyRecommended": "It offers an easy, flexible stop where the family can stretch, browse, and adjust plans to the weather.",
+            "timingTip": "Check venue hours individually; many spaces are outdoors, so bring layers and sun protection.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true,
+            "petFriendly": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-12)",
+            "activities": [
+              "downtown-waterfront-walk",
+              "uss-midway-museum",
+              "nates-point-dog-park",
+              "grape-street-dog-park",
+              "little-italy-stroll"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "The Crack Shack - Little Italy",
+                "cuisine": "California-style fried chicken and eggs",
+                "note": "A popular local spot with a casual outdoor patio; confirm current dog-patio arrangements when booking."
+              }
+            },
+            "notes": "Keep the walking tour flexible and take breaks. Dogs are not allowed aboard the USS Midway; arrange advance daycare or boarding, such as Dogtopia of San Diego, and confirm location, hours, vaccinations, and availability. Never leave the dog in a vehicle."
+          },
+          {
+            "day": "Day 2 (2026-10-13)",
+            "activities": [
+              "ocean-beach-dog-beach",
+              "dusty-rhodes-dog-park",
+              "mission-bay-park",
+              "birch-aquarium",
+              "liberty-station-stroll"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Mitch's Seafood",
+                "cuisine": "San Diego seafood",
+                "note": "A beloved local seafood restaurant by the working waterfront; request outdoor seating and confirm its current pet policy."
+              }
+            },
+            "notes": "This coastal day has several outdoor options and an indoor aquarium backup. Pets are not allowed inside Birch Aquarium; use a pre-booked daycare or boarding option such as Dogtopia of San Diego, confirming the location and availability in advance. Never leave the dog in a vehicle."
+          }
+        ],
+        "tips": [
+          "Reserve USS Midway tickets and Birch Aquarium entry ahead of time, and verify their current hours and entry requirements.",
+          "Call daycare or boarding well in advance; ask about small-dog arrangements, vaccination records, trial requirements, and pickup times.",
+          "Confirm restaurant patio pet policies directly before dinner, since outdoor seating and rules can change.",
+          "San Diego's weather can feel sunny even when mild: pack sunscreen, hats, a light layer, drinking water, and beach towels.",
+          "Use a properly fitted leash outside designated off-leash areas, carry waste bags, and follow posted dog-beach and park rules."
+        ]
+      }
+    },
+    {
+      "case": "tokyo-five-day",
+      "injectedFailure": "429",
+      "ms": 52924,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 52925,
+          "outChars": 21344,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "Explore Tokyo by distinct neighborhoods, balancing gardens and outdoor walks with hands-on museums and indoor rainy-day options for an 8-year-old. The itinerary prioritizes parks, museums, and vegetarian-friendly dining, with each day focused on a different part of the city.",
+        "suggestedActivities": [
+          {
+            "id": "marunouchi-walk",
+            "name": "Marunouchi and Tokyo Station Walking Tour",
+            "category": "city",
+            "description": "Take a relaxed walk past Tokyo Station’s red-brick facade, the Marunouchi office district, and the nearby Imperial Palace moat.",
+            "whatItIs": "A self-guided route linking several central Tokyo landmarks and plazas.",
+            "whyRecommended": "It’s an easy introduction to the city with plenty of places to pause with a child.",
+            "timingTip": "Start around 9 AM, before the business district gets busier.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "east-gardens",
+            "name": "Imperial Palace East Gardens",
+            "category": "parks",
+            "description": "Explore broad lawns, historic stone walls, and garden paths on the former grounds of Edo Castle.",
+            "whatItIs": "A public garden within the Imperial Palace grounds, with remnants of the castle complex.",
+            "whyRecommended": "Open space and history make a gentle outdoor outing after the journey into central Tokyo.",
+            "timingTip": "Check the official calendar before visiting; the gardens close on some weekdays and holidays.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "station-gallery",
+            "name": "Tokyo Station Gallery",
+            "category": "museums",
+            "description": "See changing art and design exhibitions inside the historic station building.",
+            "whatItIs": "A small museum with rotating exhibitions and preserved brick architecture.",
+            "whyRecommended": "It’s a convenient indoor stop if the weather turns or little legs need a break.",
+            "timingTip": "Check the current exhibition and opening hours before setting out.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "kitte-garden",
+            "name": "KITTE Marunouchi Rooftop Garden",
+            "category": "parks",
+            "description": "Take a free break on the rooftop terrace for views over Tokyo Station and its trains.",
+            "whatItIs": "A public rooftop garden atop the KITTE shopping complex.",
+            "whyRecommended": "Train spotting and an easy outdoor pause are a good fit for an elementary-age traveler.",
+            "timingTip": "Visit in daylight for the clearest station views.",
+            "duration": "30-45 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "hibiya-park",
+            "name": "Hibiya Park",
+            "category": "parks",
+            "description": "Wander the paths, fountains, and lawns in one of central Tokyo’s historic public parks.",
+            "whatItIs": "A large city park between the Imperial Palace area and Ginza.",
+            "whyRecommended": "It provides a relaxed outdoor change of pace amid the city sights.",
+            "timingTip": "Go in mid-afternoon and bring a light layer for a rest on the lawns.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "ueno-zoo",
+            "name": "Ueno Zoo",
+            "category": "wildlife",
+            "description": "See animals from around the world at Japan’s oldest zoo.",
+            "whatItIs": "A large zoo in Ueno Park, with two main areas connected by a monorail replacement shuttle or a walk.",
+            "whyRecommended": "A lively, child-friendly centerpiece for a day in Ueno.",
+            "timingTip": "Arrive near opening and check the zoo’s current animal and facility notices.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "tokyo-national-museum",
+            "name": "Tokyo National Museum",
+            "category": "museums",
+            "description": "Discover Japanese art, samurai armor, ceramics, and historical objects in spacious galleries.",
+            "whatItIs": "Japan’s oldest national museum, located within Ueno Park.",
+            "whyRecommended": "Choose a few engaging galleries rather than trying to see everything with a child.",
+            "timingTip": "Check for closure days and family-friendly programs before visiting.",
+            "duration": "2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "ueno-park",
+            "name": "Ueno Park Walk",
+            "category": "parks",
+            "description": "Follow the broad park paths past ponds, shrines, and cultural institutions.",
+            "whatItIs": "A major public park that is home to several museums and Ueno Zoo.",
+            "whyRecommended": "It offers room to unwind between indoor exhibits and other busy stops.",
+            "timingTip": "Allow a flexible hour for a snack and a relaxed stroll.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "national-science-museum",
+            "name": "National Museum of Nature and Science",
+            "category": "museums",
+            "description": "Explore science, natural history, dinosaurs, and interactive displays in Ueno.",
+            "whatItIs": "A large national museum with nature and science galleries, including exhibits designed to engage younger visitors.",
+            "whyRecommended": "Dinosaurs and hands-on learning make this a strong indoor option for an 8-year-old.",
+            "timingTip": "Pick a few sections in advance; the museum is large and can fill a half-day.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "meiji-shrine",
+            "name": "Meiji Jingu Shrine",
+            "category": "city",
+            "description": "Walk beneath the forest canopy to the shrine and learn about a Shinto place of worship.",
+            "whatItIs": "A major shrine set in a wooded precinct near Harajuku.",
+            "whyRecommended": "The quiet forest path offers a nature-filled contrast to nearby busy streets.",
+            "timingTip": "Visit in the morning and keep voices low in the shrine precinct.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "yoyogi-park",
+            "name": "Yoyogi Park",
+            "category": "parks",
+            "description": "Enjoy a casual walk or outdoor break in the broad lawns and tree-lined paths.",
+            "whatItIs": "A large public park next to Meiji Jingu and Harajuku.",
+            "whyRecommended": "It gives the family space to slow down after sightseeing.",
+            "timingTip": "Bring a snack and check the weather before planning a longer outdoor stop.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "harajuku-walk",
+            "name": "Harajuku and Omotesando Stroll",
+            "category": "city",
+            "description": "See colorful Takeshita Street, then continue to the calmer architecture and shops of Omotesando.",
+            "whatItIs": "A walk through two neighboring districts known for youth culture, fashion, and distinctive buildings.",
+            "whyRecommended": "The contrast between lively Harajuku and elegant Omotesando keeps the walk varied.",
+            "timingTip": "Visit Takeshita Street earlier in the day to avoid the biggest crowds.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "tokyo-toy-museum",
+            "name": "Tokyo Toy Museum",
+            "category": "museums",
+            "description": "Play with hands-on toys and explore creative play spaces in a converted school building.",
+            "whatItIs": "An interactive toy museum with play areas and exhibits for children and families.",
+            "whyRecommended": "It’s a welcome, child-centered indoor stop after a morning of walking.",
+            "timingTip": "Check reservation requirements and session details before visiting.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shinjuku-gyoen",
+            "name": "Shinjuku Gyoen National Garden",
+            "category": "parks",
+            "description": "Walk through spacious lawns and landscaped gardens with Japanese, English, and French influences.",
+            "whatItIs": "A large garden and national park in central Shinjuku.",
+            "whyRecommended": "Its varied scenery makes a restorative outdoor visit for adults and children alike.",
+            "timingTip": "Check the official calendar for closing days; gardens close in the late afternoon.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "metro-gov-view",
+            "name": "Tokyo Metropolitan Government Building Observatory",
+            "category": "city",
+            "description": "Take the elevator to a free observation floor for panoramic city views.",
+            "whatItIs": "Public observation decks in the Tokyo Metropolitan Government Building in west Shinjuku.",
+            "whyRecommended": "It’s an easy, budget-friendly viewpoint and a good weather backup.",
+            "timingTip": "Check which observatory is open and visit on a clear afternoon for the best visibility.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "tokyo-fire-museum",
+            "name": "Tokyo Fire Museum",
+            "category": "museums",
+            "description": "See historic firefighting equipment and learn about emergency response through exhibits.",
+            "whatItIs": "A free museum in Yotsuya with fire engines, uniforms, and educational displays.",
+            "whyRecommended": "Vehicles and practical exhibits can make a history stop engaging for an 8-year-old.",
+            "timingTip": "Verify opening hours and any exhibit access restrictions before going.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shinjuku-park",
+            "name": "Shinjuku Central Park",
+            "category": "parks",
+            "description": "Take a final outdoor break among lawns, paths, and fountains near the skyscraper district.",
+            "whatItIs": "A public park beside the Tokyo Metropolitan Government Building.",
+            "whyRecommended": "It’s a low-key place to decompress after the observatory and museum visits.",
+            "timingTip": "Use this as a flexible stop; shorten it if the family is tired.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "sensoji",
+            "name": "Senso-ji Temple and Nakamise Street",
+            "category": "city",
+            "description": "Walk through the Kaminarimon gate, browse Nakamise’s traditional stalls, and visit Tokyo’s best-known Buddhist temple.",
+            "whatItIs": "A historic temple complex in Asakusa, approached by a lively shopping street.",
+            "whyRecommended": "It combines cultural discovery, colorful sights, and an easy browse for families.",
+            "timingTip": "Arrive in the morning before the busiest visitor crowds.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "sumida-park",
+            "name": "Sumida Park",
+            "category": "parks",
+            "description": "Stroll the riverside paths and enjoy views across the Sumida River toward Tokyo Skytree.",
+            "whatItIs": "A public riverside park stretching along both sides of the Sumida River.",
+            "whyRecommended": "It adds fresh air and space to a culture-focused Asakusa day.",
+            "timingTip": "Choose a clear day for the best skyline views.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "hokusai-museum",
+            "name": "Sumida Hokusai Museum",
+            "category": "museums",
+            "description": "Learn about ukiyo-e artist Katsushika Hokusai through prints and changing exhibitions.",
+            "whatItIs": "A museum devoted to the life and work of the Edo-period artist born in Sumida.",
+            "whyRecommended": "The visual art and local history provide an indoor cultural stop without requiring a full day.",
+            "timingTip": "Check the current exhibition and closing days in advance.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "skytree",
+            "name": "Tokyo Skytree Tembo Deck",
+            "category": "city",
+            "description": "Ride up to the observation deck for sweeping views across Tokyo.",
+            "whatItIs": "A high-rise observation attraction at Tokyo Skytree Town.",
+            "whyRecommended": "The views make the city’s scale easy to appreciate, and the complex has indoor options nearby.",
+            "timingTip": "Reserve a timed entry and aim for a clear afternoon.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "sumida-aquarium",
+            "name": "Sumida Aquarium",
+            "category": "water",
+            "description": "Visit the indoor aquarium’s tanks and penguin area inside Tokyo Skytree Town.",
+            "whatItIs": "A modern aquarium featuring aquatic life from Tokyo Bay and beyond.",
+            "whyRecommended": "It’s an engaging indoor activity and a useful rainy-weather alternative in the same complex as Skytree.",
+            "timingTip": "Check feeding schedules and current admission details before your visit.",
+            "duration": "1.5-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "teamlab-planets",
+            "name": "teamLab Planets TOKYO",
+            "category": "museums",
+            "description": "Move through immersive digital art installations, including areas where visitors walk through water.",
+            "whatItIs": "A ticketed, interactive digital-art museum in Toyosu.",
+            "whyRecommended": "The sensory, participatory exhibits are a memorable fit for a curious school-age child.",
+            "timingTip": "Book a timed ticket ahead; review the venue’s clothing and accessibility guidance.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "miraikan",
+            "name": "Miraikan – The National Museum of Emerging Science and Innovation",
+            "category": "museums",
+            "description": "Explore exhibits on robots, space, the environment, and future technology.",
+            "whatItIs": "A science museum on Odaiba with interactive displays and demonstrations.",
+            "whyRecommended": "Its hands-on approach makes science approachable for an 8-year-old.",
+            "timingTip": "Check the day’s demonstrations and reserve any timed activities where offered.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "odaiba-seaside",
+            "name": "Odaiba Seaside Park",
+            "category": "parks",
+            "description": "Walk the waterfront promenade and take in views of Rainbow Bridge and Tokyo Bay.",
+            "whatItIs": "A public waterfront park on Odaiba with a small sandy beach area.",
+            "whyRecommended": "It balances the day’s indoor museums with open air and bay views.",
+            "timingTip": "Bring a light jacket; the waterfront can feel breezy even in mild weather.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "divercity-gundam",
+            "name": "DiverCity Tokyo Plaza and Unicorn Gundam",
+            "category": "shopping",
+            "description": "See the large Unicorn Gundam statue outside the mall, then browse shops and indoor attractions.",
+            "whatItIs": "A shopping and entertainment complex in Odaiba with a prominent Gundam statue.",
+            "whyRecommended": "The giant robot is a fun photo stop, with indoor browsing available if it rains.",
+            "timingTip": "Check the statue’s current display schedule and mall hours.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "toyosu-senkyaku",
+            "name": "Toyosu Senkyaku Banrai",
+            "category": "shopping",
+            "description": "Browse a market-style complex inspired by old Edo streets and sample Japanese snacks.",
+            "whatItIs": "A food and retail complex beside Toyosu Market.",
+            "whyRecommended": "It offers a lively local-food atmosphere and a flexible stop before dinner.",
+            "timingTip": "Check individual shop hours and ask vendors about ingredients if eating vegetarian.",
+            "duration": "1-1.5 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-20)",
+            "activities": [
+              "marunouchi-walk",
+              "east-gardens",
+              "station-gallery",
+              "kitte-garden",
+              "hibiya-park"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "T's TANTAN Tokyo Station",
+                "cuisine": "Vegan Japanese ramen",
+                "note": "A well-known plant-based ramen restaurant inside Tokyo Station, ideal for a vegetarian-friendly first evening."
+              }
+            },
+            "notes": "Central Tokyo day. If arriving from far away, keep the first walk gentle, take breaks, and allow time to adjust to Japan Standard Time (JST, UTC+9)."
+          },
+          {
+            "day": "Day 2 (2026-10-21)",
+            "activities": [
+              "ueno-zoo",
+              "ueno-park",
+              "tokyo-national-museum",
+              "national-science-museum"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Ain Soph. Ginza",
+                "cuisine": "Vegan Japanese and Western",
+                "note": "A popular Tokyo vegan restaurant with a varied menu; confirm current dinner hours and reserve if possible."
+              }
+            },
+            "notes": "Focus on Ueno’s zoo and museums. Pick either museum for a longer visit if the child needs a slower afternoon."
+          },
+          {
+            "day": "Day 3 (2026-10-22)",
+            "activities": [
+              "meiji-shrine",
+              "yoyogi-park",
+              "harajuku-walk",
+              "tokyo-toy-museum",
+              "shinjuku-gyoen"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Ain Soph. Journey Shinjuku",
+                "cuisine": "Vegan",
+                "note": "A Tokyo vegan restaurant with plant-based versions of familiar dishes; check current hours and book ahead."
+              }
+            },
+            "notes": "A green-space and west-central Tokyo day. The Toy Museum and garden are in different areas, so allow transit time and drop a stop if the pace feels rushed."
+          },
+          {
+            "day": "Day 4 (2026-10-23)",
+            "activities": [
+              "sensoji",
+              "sumida-park",
+              "hokusai-museum",
+              "skytree",
+              "sumida-aquarium"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Komaki Shokudo Kamakura Fushikian",
+                "cuisine": "Japanese shojin-inspired vegetarian",
+                "note": "A Tokyo restaurant known for Buddhist-influenced plant-based cooking; verify current location, hours, and dinner availability before planning around it."
+              }
+            },
+            "notes": "Asakusa and Sumida culture day. Skytree and the aquarium are close together; choose the aquarium as the indoor alternative if visibility is poor."
+          },
+          {
+            "day": "Day 5 (2026-10-24)",
+            "activities": [
+              "teamlab-planets",
+              "miraikan",
+              "odaiba-seaside",
+              "divercity-gundam",
+              "toyosu-senkyaku"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Vegan Ramen UZU Tokyo",
+                "cuisine": "Vegan Japanese ramen",
+                "note": "A distinctive plant-based ramen experience associated with immersive art; confirm the Tokyo location’s current hours and booking requirements."
+              }
+            },
+            "notes": "Toyosu and Odaiba waterfront day. Book teamLab in advance and leave generous time for travel between Toyosu and Odaiba."
+          }
+        ],
+        "tips": [
+          "Check Japan’s entry and visa requirements for each traveler’s passport well before departure; the official Visit Japan Web service can help prepare immigration and customs procedures.",
+          "Japan uses the yen (¥); as a rough guide, ¥1,000 is about US$7, though exchange rates change. Carry some cash for small purchases and check whether each attraction accepts cards.",
+          "Reserve timed entry for teamLab Planets and Tokyo Skytree, and check museum closure days and operating hours on official websites before setting out.",
+          "Use an IC transit card such as Suica or PASMO for trains and buses. Tap in and out, follow platform signs, and avoid blocking doors during busy commuter periods.",
+          "Save money with free stops such as the Tokyo Metropolitan Government Building observatory, public parks, and many shrine grounds; compare attraction bundles only if you plan to visit enough included sights."
+        ]
+      }
+    },
+    {
+      "case": "vegas-family",
+      "injectedFailure": "503",
+      "ms": 18205,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 18205,
+          "outChars": 8323,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "Spend two family-friendly days exploring Las Vegas, balancing the Strip’s famous sights with hands-on museums and outdoor gardens. The plan suits a 6-year-old, with indoor options alongside outdoor stops for mild October weather.",
+        "suggestedActivities": [
+          {
+            "id": "strip-landmarks-walk",
+            "name": "Las Vegas Strip Landmark Walking Tour",
+            "category": "city",
+            "description": "Take a family-paced walk past Caesars Palace, the LINQ Promenade, the Venetian, and the Flamingo’s outdoor wildlife habitat.",
+            "whatItIs": "A self-guided route through several well-known resort and entertainment landmarks along the Strip.",
+            "whyRecommended": "It gives the family an easy introduction to Las Vegas with varied sights and plenty of chances to pause.",
+            "timingTip": "Start around 9 AM, before the Strip gets busier; check resort access and habitat hours in advance.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "bellagio-conservatory",
+            "name": "Bellagio Conservatory & Botanical Gardens",
+            "category": "parks",
+            "description": "Explore the Bellagio’s free indoor garden display, featuring seasonal plants and elaborate arrangements.",
+            "whatItIs": "A public conservatory inside Bellagio with botanical displays that change throughout the year.",
+            "whyRecommended": "The colorful displays make gardening engaging for children, and the indoor setting is a useful weather backup.",
+            "timingTip": "Visit in the morning for a calmer experience; check the current seasonal display dates.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shark-reef-aquarium",
+            "name": "Shark Reef Aquarium",
+            "category": "wildlife",
+            "description": "See sharks, rays, sea turtles, and other marine animals in themed aquarium exhibits at Mandalay Bay.",
+            "whatItIs": "A public aquarium with underwater viewing areas and exhibits focused on aquatic habitats.",
+            "whyRecommended": "It offers an engaging indoor activity for a 6-year-old and a break from walking outdoors.",
+            "timingTip": "Go near opening time and buy timed admission online if available.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "pinball-hall-of-fame",
+            "name": "Pinball Hall of Fame",
+            "category": "sports",
+            "description": "Try a wide range of pinball and classic arcade machines in this hands-on museum.",
+            "whatItIs": "A nonprofit museum and arcade displaying playable pinball machines and other games.",
+            "whyRecommended": "It gives the child a playful, interactive stop and works well as an indoor option.",
+            "timingTip": "Bring small bills or change for games and check the current opening hours before going.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "springs-preserve",
+            "name": "Springs Preserve",
+            "category": "parks",
+            "description": "Explore desert botanical gardens, walking trails, and exhibits about the region’s natural and cultural history.",
+            "whatItIs": "A large outdoor and indoor cultural attraction with gardens, trails, and museum exhibits.",
+            "whyRecommended": "It combines the family’s interests in gardens and museums in one varied outing.",
+            "timingTip": "Arrive near opening and check the calendar and admission details for the specific areas you plan to visit.",
+            "duration": "3-4 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "discovery-childrens-museum",
+            "name": "DISCOVERY Children's Museum",
+            "category": "museums",
+            "description": "Let children learn through interactive exhibits covering topics such as science, art, and imaginative play.",
+            "whatItIs": "A hands-on children’s museum in downtown Las Vegas with exhibits designed for young visitors.",
+            "whyRecommended": "Its interactive activities are well suited to a 6-year-old and provide an indoor change of pace.",
+            "timingTip": "Check session hours and admission details before visiting, and allow time for hands-on exhibits.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "neon-museum",
+            "name": "The Neon Museum",
+            "category": "museums",
+            "description": "See historic Las Vegas signs in the outdoor Neon Boneyard and learn about the city’s visual history.",
+            "whatItIs": "A museum preserving and displaying vintage Las Vegas signs, with guided tour options.",
+            "whyRecommended": "The unusual signs make local history visually engaging for both adults and children.",
+            "timingTip": "Reserve a daytime tour suitable for your family and check the museum’s current schedule.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "container-park",
+            "name": "Downtown Container Park",
+            "category": "shopping",
+            "description": "Browse an open-air downtown complex made from repurposed shipping containers, with shops and places to pause.",
+            "whatItIs": "A downtown Las Vegas retail and entertainment district with outdoor common areas.",
+            "whyRecommended": "It provides a relaxed final stop after museum visits, with room to stroll and explore.",
+            "timingTip": "Visit in the afternoon and check current hours and family-oriented features before you go.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-10)",
+            "activities": [
+              "strip-landmarks-walk",
+              "bellagio-conservatory",
+              "shark-reef-aquarium",
+              "pinball-hall-of-fame"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Lotus of Siam",
+                "cuisine": "Thai",
+                "note": "A celebrated Las Vegas restaurant known for its Northern Thai cooking; ask staff for child-friendly options and spice levels."
+              }
+            },
+            "notes": "Start the Strip walk at 9 AM, then take breaks between indoor attractions. Keep the walking route flexible and finish activities by early evening."
+          },
+          {
+            "day": "Day 2 (2026-10-11)",
+            "activities": [
+              "springs-preserve",
+              "discovery-childrens-museum",
+              "neon-museum",
+              "container-park"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Esther's Kitchen",
+                "cuisine": "Italian",
+                "note": "A locally acclaimed Arts District restaurant serving seasonal Italian dishes; reserve ahead and confirm family seating."
+              }
+            },
+            "notes": "Begin at Springs Preserve around 9 AM, then head downtown for museum visits. Check Sunday hours and allow travel time between stops."
+          }
+        ],
+        "tips": [
+          "Reserve museum and aquarium admission in advance where possible, and verify October 10–11 hours, tour availability, and any timed-entry requirements.",
+          "Check whether a Las Vegas attraction pass or bundled admission saves money for the specific places you plan to visit; compare its price with individual tickets before buying.",
+          "Springs Preserve and the Neon Museum have outdoor areas, so bring water, sunscreen, hats, and comfortable walking shoes even in mild October weather.",
+          "Keep a light layer handy for air-conditioned indoor attractions, and use the indoor aquarium or children’s museum as weather-friendly alternatives if conditions change.",
+          "Las Vegas distances can be longer than they look: use the monorail or rideshare for suitable Strip journeys, and allow extra time for walking through large resorts."
+        ]
+      }
+    },
+    {
+      "case": "vegas-family",
+      "injectedFailure": "invalid-json",
+      "ms": 100315,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 60002,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "anthropic-fallback",
+          "model": "claude-haiku-4-5-20251001",
+          "ms": 25442,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 14871,
+          "outChars": 6667,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "Explore Las Vegas through family-friendly gardens, hands-on museums, and a little Strip sightseeing. Mild October weather is ideal for outdoor stops; keep indoor museum visits as a comfortable backup if conditions change.",
+        "suggestedActivities": [
+          {
+            "id": "bellagio-conservatory",
+            "name": "Bellagio Conservatory & Botanical Gardens",
+            "category": "parks",
+            "description": "Walk among elaborate seasonal floral displays inside the Bellagio.",
+            "whatItIs": "A free indoor conservatory featuring changing horticultural installations.",
+            "whyRecommended": "Colorful, easy to enjoy with a six-year-old, and weather-proof.",
+            "timingTip": "Go in the morning before the Strip gets busy.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "neon-museum",
+            "name": "The Neon Museum",
+            "category": "museums",
+            "description": "See historic Las Vegas signs in the outdoor Neon Boneyard.",
+            "whatItIs": "A museum preserving and interpreting iconic Las Vegas signs.",
+            "whyRecommended": "A distinctly local cultural stop with visually memorable exhibits.",
+            "timingTip": "Reserve a daytime tour suitable for your child's age.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "discovery-childrens-museum",
+            "name": "DISCOVERY Children's Museum",
+            "category": "museums",
+            "description": "Explore hands-on exhibits made for curious young visitors.",
+            "whatItIs": "A multi-level interactive museum focused on science, art, and learning.",
+            "whyRecommended": "Its play-based exhibits are especially suited to age six.",
+            "timingTip": "Arrive near opening and allow time for hands-on play.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "springs-preserve",
+            "name": "Springs Preserve",
+            "category": "parks",
+            "description": "Discover desert gardens, trails, and indoor natural-history exhibits.",
+            "whatItIs": "A cultural and environmental campus with museums, botanical gardens, and trails.",
+            "whyRecommended": "It combines outdoor gardens with engaging indoor options for families.",
+            "timingTip": "Start early to enjoy the trails in cooler temperatures.",
+            "duration": "3-4 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "shark-reef-aquarium",
+            "name": "Shark Reef Aquarium",
+            "category": "wildlife",
+            "description": "View sharks, rays, and other marine life at Mandalay Bay.",
+            "whatItIs": "An indoor aquarium with themed habitats and marine animals.",
+            "whyRecommended": "A convenient, climate-controlled attraction that holds young children’s attention.",
+            "timingTip": "Visit earlier in the day for a calmer experience.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "strip-walking-tour",
+            "name": "Las Vegas Strip Walking Tour",
+            "category": "city",
+            "description": "Stroll a short stretch past landmark resorts and fountains.",
+            "whatItIs": "A self-guided walk linking the Bellagio, Paris Las Vegas, and nearby landmarks.",
+            "whyRecommended": "It gives the family a taste of the Strip without committing to a long tour.",
+            "timingTip": "Walk in daylight and take breaks; distances can feel long for children.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "bellagio-fountains",
+            "name": "Fountains of Bellagio",
+            "category": "water",
+            "description": "Watch the famous choreographed fountains from the lakeside promenade.",
+            "whatItIs": "A free outdoor water-and-music show in front of the Bellagio.",
+            "whyRecommended": "A memorable, no-ticket spectacle that works well for families.",
+            "timingTip": "Check the current show schedule and choose a daytime performance.",
+            "duration": "15-30 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "springs-preserve-gardens",
+            "name": "Springs Preserve Botanical Gardens",
+            "category": "parks",
+            "description": "See desert-adapted plants along landscaped garden paths.",
+            "whatItIs": "Outdoor botanical displays showcasing plants suited to the Mojave region.",
+            "whyRecommended": "It matches the family’s interest in gardens and offers space to explore.",
+            "timingTip": "Visit in the morning and bring water and sun protection.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-10)",
+            "activities": [
+              "bellagio-conservatory",
+              "strip-walking-tour",
+              "bellagio-fountains",
+              "shark-reef-aquarium"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Battista's Hole in the Wall",
+                "cuisine": "Italian-American",
+                "note": "A long-running, locally famous Las Vegas restaurant with a distinctive old-Vegas atmosphere; check current hours and family suitability when booking."
+              }
+            },
+            "notes": "Keep the Strip walk short and take indoor breaks. Fit the aquarium in during the afternoon; finish activities by 7 PM."
+          },
+          {
+            "day": "Day 2 (2026-10-11)",
+            "activities": [
+              "springs-preserve",
+              "springs-preserve-gardens",
+              "discovery-childrens-museum",
+              "neon-museum"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Peppermill Restaurant and Fireside Lounge",
+                "cuisine": "American",
+                "note": "A locally iconic Las Vegas dining landmark with a memorable, colorful interior; confirm current hours and menu before going."
+              }
+            },
+            "notes": "Springs Preserve and its gardens share a campus, so group them together. Check attraction hours and tour availability; choose indoor exhibits if weather turns."
+          }
+        ],
+        "tips": [
+          "Reserve timed admission where offered, especially for the Neon Museum, and confirm October operating hours before finalizing plans.",
+          "Start outdoor visits around 9 AM; October is milder, but bring water, hats, and sunscreen for desert sun.",
+          "Use rideshare or a car for attractions away from the Strip; hotel-to-hotel distances on the Strip are often longer than they look.",
+          "Check child admission rules and look for online or bundled tickets; the Bellagio Conservatory and fountain shows are free."
+        ]
+      }
+    },
+    {
+      "case": "vegas-family",
+      "injectedFailure": "empty",
+      "ms": 17344,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 1,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 17343,
+          "outChars": 7934,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "A two-day Las Vegas family trip balances the Strip’s famous sights and playful attractions with gardens and hands-on museums. Activities are suited to a six-year-old, with indoor options alongside outdoor exploring in mild weather.",
+        "suggestedActivities": [
+          {
+            "id": "strip-landmarks-tour",
+            "name": "Las Vegas Strip Walking Tour",
+            "category": "city",
+            "description": "Take a family-paced walk past the Bellagio fountains, Paris Las Vegas, Flamingo, and the Venetian.",
+            "whatItIs": "A self-guided route connecting several recognizable Strip landmarks and hotel exteriors.",
+            "whyRecommended": "It introduces the city through memorable sights, with plenty to look at for a six-year-old.",
+            "timingTip": "Start around 9 AM to avoid the warmest part of the day and heavier crowds.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "high-roller",
+            "name": "High Roller Observation Wheel",
+            "category": "city",
+            "description": "Ride a spacious observation cabin for elevated views of the Strip.",
+            "whatItIs": "A large observation wheel at The LINQ Promenade with enclosed cabins.",
+            "whyRecommended": "The ride is an easy, low-effort way for kids to see the city from above.",
+            "timingTip": "Book a daytime time slot online and check operating hours before you go.",
+            "duration": "1 hour",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "pinball-hall",
+            "name": "Pinball Hall of Fame",
+            "category": "sports",
+            "description": "Explore a large collection of playable pinball and arcade machines.",
+            "whatItIs": "A nonprofit museum and arcade featuring vintage and newer games.",
+            "whyRecommended": "It offers a fun indoor break where a six-year-old can try age-appropriate games with an adult.",
+            "timingTip": "Bring small bills or a payment card for games, and check current hours before visiting.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "shark-reef",
+            "name": "Shark Reef Aquarium",
+            "category": "wildlife",
+            "description": "See sharks, rays, sea turtles, and other aquatic animals in indoor exhibits.",
+            "whatItIs": "An aquarium at Mandalay Bay with themed habitats and underwater viewing areas.",
+            "whyRecommended": "It is an engaging, weather-proof attraction for a child interested in animals.",
+            "timingTip": "Visit earlier in the day for a calmer experience; confirm ticket availability and hours.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "springs-preserve",
+            "name": "Springs Preserve Gardens and Trails",
+            "category": "parks",
+            "description": "Wander desert gardens and outdoor paths at this nature and history complex.",
+            "whatItIs": "A 180-acre cultural institution with botanical gardens, trails, and indoor exhibits.",
+            "whyRecommended": "The gardens offer a refreshing contrast to the Strip and suit a family interested in outdoor spaces.",
+            "timingTip": "Go in the morning, wear sun protection, and check which garden areas are open.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "nevada-state-museum",
+            "name": "Nevada State Museum at Springs Preserve",
+            "category": "museums",
+            "description": "Discover Nevada’s natural and human history through indoor exhibits.",
+            "whatItIs": "A state museum covering regional geology, wildlife, and cultural history.",
+            "whyRecommended": "It adds an interactive indoor option to the gardens-focused day, useful if the weather changes.",
+            "timingTip": "Check admission and hours in advance; allow time for exhibits that interest your child.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "discovery-museum",
+            "name": "DISCOVERY Children's Museum",
+            "category": "museums",
+            "description": "Let your child explore hands-on exhibits focused on science, art, and play.",
+            "whatItIs": "A multi-level children's museum in downtown Las Vegas with interactive learning spaces.",
+            "whyRecommended": "Its playful, hands-on exhibits are especially well suited to a six-year-old.",
+            "timingTip": "Check the museum calendar and timed-entry details before setting out.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "neon-museum",
+            "name": "The Neon Museum",
+            "category": "museums",
+            "description": "See historic Las Vegas signs in the outdoor Neon Boneyard.",
+            "whatItIs": "A museum preserving and interpreting vintage neon signs from the city’s history.",
+            "whyRecommended": "Its colorful signs make local history visually engaging for kids and adults.",
+            "timingTip": "Reserve a daytime guided tour; check age guidance and tour availability when booking.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-10)",
+            "activities": [
+              "strip-landmarks-tour",
+              "high-roller",
+              "pinball-hall",
+              "shark-reef"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Esther's Kitchen",
+                "cuisine": "Italian",
+                "note": "A locally celebrated Arts District restaurant known for handmade pasta; reserve ahead and ask about family-friendly seating."
+              }
+            },
+            "notes": "Begin around 9 AM with the Strip walk, then schedule the remaining stops through the afternoon and finish by 7 PM. The Pinball Hall of Fame and aquarium provide indoor breaks; allow extra travel time between attractions."
+          },
+          {
+            "day": "Day 2 (2026-10-11)",
+            "activities": [
+              "springs-preserve",
+              "nevada-state-museum",
+              "discovery-museum",
+              "neon-museum"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Lotus of Siam",
+                "cuisine": "Northern Thai",
+                "note": "A locally famous, award-winning Thai restaurant with an extensive menu; book ahead and ask about spice levels for a child."
+              }
+            },
+            "notes": "Start at Springs Preserve in the morning, then visit its museum before heading downtown for the children's museum and a reserved daytime Neon Museum tour. Check both museums' Sunday schedules and allow time for transfers; finish activities by 7 PM."
+          }
+        ],
+        "tips": [
+          "Reserve timed-entry attractions and dinner tables ahead, especially High Roller, the Neon Museum, and popular local restaurants; reconfirm hours closer to October 2026.",
+          "Plan outdoor stops for the morning, bring water, hats, and sunscreen, and pack a light layer for indoor air-conditioning.",
+          "Las Vegas distances can be deceptive: use rideshare or transit between far-apart stops, and avoid trying to walk the full Strip with a young child.",
+          "Compare attraction bundles and current ticket promotions before purchasing; there is no need to buy a pass unless its included attractions match your plans.",
+          "Check for current discounts, child admission rules, and free-entry policies directly with each museum rather than assuming a free day or combo ticket is available."
+        ]
+      }
+    },
+    {
+      "case": "vegas-family",
+      "injectedFailure": "truncated",
+      "ms": 16818,
+      "attempts": [
+        {
+          "caller": "tripPlan",
+          "provider": "gemini",
+          "model": "gemini-3.8-flash",
+          "ms": 0,
+          "outChars": 0,
+          "success": false
+        },
+        {
+          "caller": "tripPlan",
+          "provider": "openai-fallback",
+          "model": "gpt-6-luna",
+          "ms": 16818,
+          "outChars": 8178,
+          "success": true
+        }
+      ],
+      "pass": true,
+      "issues": [],
+      "plan": {
+        "overview": "Explore Las Vegas through its famous Strip sights, family-friendly wildlife and indoor attractions, with a second day focused on museums and gardens. The plan mixes outdoor time with indoor options and keeps activities suitable for a 6-year-old.",
+        "suggestedActivities": [
+          {
+            "id": "bellagio-conservatory",
+            "name": "Bellagio Conservatory & Botanical Gardens",
+            "category": "parks",
+            "description": "Wander through the Bellagio's elaborate, seasonally changing indoor garden displays.",
+            "whatItIs": "A free, large-scale floral and botanical exhibition inside the Bellagio Hotel.",
+            "whyRecommended": "It fits the garden interest, is easy to visit with a child, and provides a weather-proof start to the trip.",
+            "timingTip": "Go in the morning before the Strip gets busier.",
+            "duration": "45-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "strip-landmarks-walk",
+            "name": "Las Vegas Strip Landmark Walking Tour",
+            "category": "city",
+            "description": "Walk a short, family-paced section past the Bellagio fountains, Paris Las Vegas, the Flamingo, and The Venetian.",
+            "whatItIs": "A self-guided stroll connecting several well-known Strip landmarks and hotel exteriors.",
+            "whyRecommended": "It gives the family a broad first look at Las Vegas without committing to a long tour.",
+            "timingTip": "Start late morning, take breaks indoors, and check fountain show times before setting out.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "flamingo-habitat",
+            "name": "Flamingo Wildlife Habitat",
+            "category": "wildlife",
+            "description": "See flamingos, waterfowl, turtles, and fish in a landscaped outdoor habitat.",
+            "whatItIs": "A free garden and wildlife area at the Flamingo Las Vegas resort.",
+            "whyRecommended": "The animals and greenery make a relaxing, child-friendly break from the busy Strip.",
+            "timingTip": "Visit early afternoon and allow time for a quiet, unhurried loop.",
+            "duration": "30-45 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "high-roller",
+            "name": "High Roller Observation Wheel",
+            "category": "city",
+            "description": "Take a slow ride in an enclosed observation cabin for broad views over Las Vegas.",
+            "whatItIs": "A 550-foot observation wheel at The LINQ Promenade.",
+            "whyRecommended": "The ride offers an exciting skyline view with a comfortable seat and no strenuous walking.",
+            "timingTip": "Choose a clear afternoon slot and check operating hours and ticket availability ahead.",
+            "duration": "30-60 minutes",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "springs-preserve",
+            "name": "Springs Preserve",
+            "category": "museums",
+            "description": "Explore desert gardens, wildlife exhibits, and interactive displays about the region.",
+            "whatItIs": "A 180-acre cultural and natural history attraction with museums, trails, and botanical gardens.",
+            "whyRecommended": "It combines the family's garden and museum interests in one place, with engaging options for a young child.",
+            "timingTip": "Arrive near opening and check the day's hours and exhibit schedule.",
+            "duration": "3-4 hours",
+            "kidFriendly": true,
+            "weatherDependent": true
+          },
+          {
+            "id": "discovery-childrens-museum",
+            "name": "DISCOVERY Children's Museum",
+            "category": "museums",
+            "description": "Let children learn through hands-on exhibits, creative play, and interactive activities.",
+            "whatItIs": "A downtown children's museum with three floors of interactive exhibits.",
+            "whyRecommended": "Its play-based exhibits are well suited to a 6-year-old and provide an indoor alternative if weather changes.",
+            "timingTip": "Check admission times and special programming; allow time for breaks between exhibit areas.",
+            "duration": "2-3 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "natural-history-museum",
+            "name": "Las Vegas Natural History Museum",
+            "category": "museums",
+            "description": "See displays featuring dinosaurs, wildlife, and ancient civilizations.",
+            "whatItIs": "A downtown museum with natural history and wildlife galleries.",
+            "whyRecommended": "The animal and dinosaur exhibits offer an engaging change of pace for a young museum-goer.",
+            "timingTip": "Check current hours before visiting and go after the morning crowds.",
+            "duration": "1-2 hours",
+            "kidFriendly": true,
+            "weatherDependent": false
+          },
+          {
+            "id": "ethel-m-cactus-garden",
+            "name": "Ethel M Chocolates Cactus Garden",
+            "category": "parks",
+            "description": "Stroll among desert plants and cacti beside the Ethel M chocolate factory.",
+            "whatItIs": "A free, landscaped cactus garden in Henderson, adjoining the Ethel M Chocolates visitor area.",
+            "whyRecommended": "It offers a distinct desert-garden experience and a gentle outdoor outing for the family.",
+            "timingTip": "Visit during daylight and confirm garden access and factory hours before driving over.",
+            "duration": "45-75 minutes",
+            "kidFriendly": true,
+            "weatherDependent": true
+          }
+        ],
+        "dailyItinerary": [
+          {
+            "day": "Day 1 (2026-10-10)",
+            "activities": [
+              "bellagio-conservatory",
+              "strip-landmarks-walk",
+              "flamingo-habitat",
+              "high-roller"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Esther's Kitchen",
+                "cuisine": "Italian",
+                "note": "A highly regarded, locally rooted Arts District restaurant known for handmade pasta; reserve ahead and confirm its current service hours."
+              }
+            },
+            "notes": "Begin around 9 AM and keep the Strip walk flexible with indoor rest stops. Finish scheduled activities by late afternoon so there is time to reach dinner comfortably."
+          },
+          {
+            "day": "Day 2 (2026-10-11)",
+            "activities": [
+              "springs-preserve",
+              "discovery-childrens-museum",
+              "natural-history-museum",
+              "ethel-m-cactus-garden"
+            ],
+            "meals": {
+              "breakfast": "",
+              "lunch": "",
+              "dinner": {
+                "name": "Lotus of Siam",
+                "cuisine": "Northern Thai",
+                "note": "A celebrated Las Vegas independent restaurant famous for regional Thai dishes; book ahead and ask about milder options for a child."
+              }
+            },
+            "notes": "Springs Preserve is the main morning outing; check attraction hours and travel times before combining the downtown museums. Visit the Henderson cactus garden in the afternoon and leave ample time for the drive back."
+          }
+        ],
+        "tips": [
+          "Reserve High Roller tickets and popular dinners ahead; verify hours, admission rules, and operating status directly with each venue shortly before the trip.",
+          "Use rideshare or a rental car for the spread-out attractions; Las Vegas distances can look short on a map but be tiring on foot with a child.",
+          "The Strip landmark walk is a single self-guided route covering the Bellagio fountains, Paris Las Vegas, the Flamingo, and The Venetian; take indoor breaks and check fountain schedules.",
+          "Compare attraction bundles or current combo offers before buying separate tickets. Do not assume a city pass covers a venue; confirm included attractions and dates.",
+          "The Bellagio Conservatory, Flamingo habitat, and Ethel M garden are free to visit, making them useful budget-friendly stops."
+        ]
+      }
+    }
+  ]
+}
