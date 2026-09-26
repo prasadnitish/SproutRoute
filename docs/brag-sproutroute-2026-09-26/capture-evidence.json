@@ -1,0 +1,26 @@
+{
+  "synthetic": true,
+  "ui": "unmodified React application",
+  "source": "2026-09-26-recovery-pilot.json rows[0]",
+  "weather": "illustrative fixture, not a forecast",
+  "venues": "model suggestions, not verified",
+  "timing": "edited, not live model latency",
+  "files": [
+    "desktop-input.png",
+    "desktop-prompt.png",
+    "desktop-plan.png",
+    "desktop-weather.png",
+    "desktop-pack.png",
+    "desktop-packed.png",
+    "desktop-safety.png",
+    "desktop-itinerary.png",
+    "mobile-input.png",
+    "mobile-prompt.png",
+    "mobile-plan.png",
+    "mobile-weather.png",
+    "mobile-pack.png",
+    "mobile-packed.png",
+    "mobile-safety.png",
+    "mobile-itinerary.png"
+  ]
+}

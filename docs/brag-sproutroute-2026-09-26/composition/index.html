@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920,height=1080">
+    <title>SproutRoute — Little adventures</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: Space;
+        src: url("assets/space-grotesk.ttf");
+      }
+      @font-face {
+        font-family: Inter;
+        src: url("assets/inter.ttf");
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f5f7ef;
+        color: #15372b;
+        font-family: Inter, sans-serif;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      .clip {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+      .scene {
+        position: absolute;
+        inset: 0;
+        padding: 84px 100px;
+        background: #f5f7ef;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: Space, sans-serif;
+        font-weight: 700;
+        letter-spacing: -0.055em;
+      }
+      h1 {
+        font-size: 154px;
+        line-height: 1.18;
+      }
+      h2 {
+        font-size: 98px;
+        line-height: 1.06;
+      }
+      p {
+        font-size: 31px;
+        line-height: 1.5;
+      }
+      .eyebrow {
+        font-size: 23px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        margin-bottom: 26px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        font:
+          700 34px Space,
+          sans-serif;
+        letter-spacing: -1px;
+      }
+      .brand img {
+        width: 57px;
+        height: 57px;
+      }
+      .green {
+        color: #15803d;
+      }
+      .yellow {
+        color: #ffca28;
+      }
+      .dark {
+        background: #15372b;
+        color: #f5f7ef;
+      }
+      .yellow-bg {
+        background: #ffca28;
+      }
+      .line {
+        display: block;
+      }
+      .small {
+        font-size: 23px;
+        line-height: 1.4;
+      }
+      .caption {
+        position: absolute;
+        left: 100px;
+        bottom: 42px;
+        font-size: 22px;
+        color: #3b5548;
+      }
+      .dark .caption {
+        color: #dce6dc;
+      }
+      .screen {
+        position: absolute;
+        border: 10px solid #fff;
+        border-radius: 28px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 24px 70px #15372b24;
+      }
+      .screen img {
+        display: block;
+        width: 100%;
+      }
+      .browser-bar {
+        height: 36px;
+        background: #fff;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-left: 18px;
+      }
+      .browser-bar i {
+        width: 8px;
+        height: 8px;
+        background: #bcc8bf;
+        border-radius: 50%;
+      }
+      .phone {
+        position: absolute;
+        border: 12px solid #15372b;
+        border-radius: 48px;
+        background: #fff;
+        overflow: hidden;
+        box-shadow: 0 22px 50px #0c231c38;
+      }
+      .phone img {
+        display: block;
+        width: 100%;
+      }
+      .route-line {
+        height: 5px;
+        background: currentColor;
+        transform-origin: left center;
+      }
+      .sun {
+        position: absolute;
+        border-radius: 50%;
+        background: #ffca28;
+        width: 400px;
+        height: 400px;
+      }
+      .label {
+        position: absolute;
+        padding: 18px 26px;
+        border-radius: 18px;
+        background: #ffca28;
+        color: #15372b;
+        font:
+          700 30px Space,
+          sans-serif;
+        box-shadow: 0 12px 30px #15372b1a;
+      }
+      .cursor {
+        position: absolute;
+        width: 95px;
+        height: 110px;
+        z-index: 4;
+      }
+      #s1 h1 {
+        position: absolute;
+        left: 100px;
+        top: 280px;
+        z-index: 2;
+      }
+      #s1 .phone {
+        width: 355px;
+        right: 145px;
+        top: 147px;
+      }
+      #s1 .sun {
+        right: 290px;
+        top: 130px;
+      }
+      #s1 .strap {
+        position: absolute;
+        left: 105px;
+        bottom: 130px;
+        font-size: 30px;
+      }
+      #s2 h2 {
+        position: absolute;
+        top: 255px;
+        left: 100px;
+        width: 530px;
+      }
+      #s2 .screen {
+        width: 1160px;
+        left: 660px;
+        top: 150px;
+      }
+      #s2 .sub {
+        position: absolute;
+        top: 620px;
+        left: 100px;
+        width: 460px;
+      }
+      #s3 h2 {
+        font-size: 82px;
+        margin-top: 20px;
+      }
+      #s3 .screen {
+        top: 260px;
+        left: 160px;
+        width: 1600px;
+        height: 650px;
+      }
+      #s3 .crop {
+        height: 595px;
+        overflow: hidden;
+        position: relative;
+      }
+      #s3 .crop img {
+        width: 2200px;
+        max-width: none;
+        margin-left: -310px;
+        margin-top: -485px;
+      }
+      #s3 .after {
+        position: absolute;
+        inset: 0;
+      }
+      #s3 .cursor {
+        left: 1332px;
+        top: 695px;
+      }
+      #s3 .label {
+        left: 200px;
+        bottom: 145px;
+      }
+      #s4 h2 {
+        font-size: 82px;
+      }
+      #s4 .screen {
+        left: 610px;
+        top: 145px;
+        width: 1210px;
+        height: 810px;
+      }
+      #s4 .screen img {
+        width: 1450px;
+        max-width: none;
+        margin-left: -180px;
+      }
+      #s4 .note {
+        position: absolute;
+        left: 100px;
+        top: 460px;
+        width: 420px;
+      }
+      #s4 .note p {
+        margin-top: 26px;
+      }
+      #s4 .label {
+        left: 1140px;
+        bottom: 155px;
+      }
+      #s5 h2 {
+        font-size: 95px;
+        width: 700px;
+        margin-top: 95px;
+      }
+      #s5 .screen {
+        width: 1010px;
+        left: 800px;
+        top: 155px;
+        height: 790px;
+      }
+      #s5 .screen img {
+        width: 1380px;
+        max-width: none;
+        margin-left: -185px;
+        margin-top: -40px;
+      }
+      #s5 .after {
+        position: absolute;
+        inset: 0;
+      }
+      #s5 .sub {
+        position: absolute;
+        left: 105px;
+        top: 610px;
+        width: 550px;
+      }
+      #s5 .check {
+        font:
+          700 84px Space,
+          sans-serif;
+        position: absolute;
+        left: 105px;
+        bottom: 160px;
+      }
+      #s6 h2 {
+        width: 620px;
+        margin-top: 100px;
+      }
+      #s6 .screen {
+        width: 1070px;
+        left: 780px;
+        top: 165px;
+        height: 370px;
+      }
+      #s6 .screen img {
+        width: 1460px;
+        max-width: none;
+        margin-left: -195px;
+        margin-top: -40px;
+      }
+      #s6 .sub {
+        position: absolute;
+        left: 105px;
+        top: 620px;
+        width: 550px;
+      }
+      #s6 .weather-shot { position:absolute; left:780px; top:590px; width:470px; border:10px solid white; border-radius:24px; overflow:hidden; box-shadow:0 20px 55px #15372B20; }
+      #s6 .weather-shot img { display:block; width:100%; }
+      #s6 .weather-note { position:absolute; left:1310px; top:640px; width:480px; font-size:34px; }
+      #s7 h2 {
+        width: 780px;
+        position: absolute;
+        left: 100px;
+        top: 240px;
+      }
+      #s7 .phone {
+        width: 340px;
+        top: 155px;
+        height: 744px;
+      }
+      #s7 .p1 {
+        left: 1020px;
+      }
+      #s7 .p2 {
+        left: 1410px;
+      }
+      #s7 .sub {
+        position: absolute;
+        top: 680px;
+        left: 105px;
+        width: 620px;
+      }
+      #s8 h2 {
+        font-size: 87px;
+        width: 1700px;
+      }
+      #s8 .stats {
+        display: flex;
+        gap: 36px;
+        position: absolute;
+        top: 395px;
+        left: 100px;
+        right: 100px;
+      }
+      .stat {
+        flex: 1;
+        border-top: 2px solid #658577;
+        padding-top: 24px;
+      }
+      .stat b {
+        display: block;
+        font:
+          700 126px Space,
+          sans-serif;
+        letter-spacing: -0.07em;
+        color: #ffca28;
+      }
+      .stat p {
+        font-size: 29px;
+        max-width: 420px;
+      }
+      .proof {
+        position: absolute;
+        left: 100px;
+        bottom: 150px;
+        display: flex;
+        align-items: center;
+        gap: 25px;
+        font-size: 29px;
+      }
+      .proof span {
+        padding: 15px 25px;
+        border: 1px solid #779b87;
+        border-radius: 20px;
+      }
+      #s9 .brand {
+        font-size: 55px;
+      }
+      #s9 .brand img {
+        width: 86px;
+        height: 86px;
+      }
+      #s9 h2 {
+        font-size: 135px;
+        position: absolute;
+        left: 100px;
+        top: 285px;
+        width: 1420px;
+      }
+      #s9 .cta {
+        position: absolute;
+        left: 105px;
+        bottom: 145px;
+        font-size: 36px;
+        border-bottom: 3px solid #15372b;
+        padding-bottom: 10px;
+      }
+      #s9 .sun {
+        right: 120px;
+        top: 370px;
+        width: 240px;
+        height: 240px;
+        background: #15372b;
+      }
+      #s9 .sun img {
+        width: 125px;
+        margin: 58px;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-tnp1" id="root" data-composition-id="sproutroute" data-start="0" data-duration="60" data-width="1920" data-height="1080">
+      <section data-hf-id="hf-g8i2" id="hook-scene" class="clip" data-start="0" data-duration="4" data-track-index="0">
+        <div data-hf-id="hf-yihu" class="scene" id="s1">
+          <div data-hf-id="hf-mwvj" class="brand">
+            <img data-hf-id="hf-t3bd" src="assets/logo.svg" alt="">SproutRoute
+          </div>
+          <div data-hf-id="hf-64ru" class="sun"></div>
+          <h1 data-hf-id="hf-m3fm">
+            <span data-hf-id="hf-wubb" class="line">Big trips.</span><span data-hf-id="hf-7yl9" class="line green">Little people.</span>
+          </h1>
+          <div data-hf-id="hf-kda4" class="phone">
+            <img data-hf-id="hf-srz5" src="assets/mobile-plan.png" alt="SproutRoute Las Vegas demo trip">
+          </div>
+          <p data-hf-id="hf-wmdf" class="strap">A family trip planner with room for real life.</p>
+        </div>
+      </section>
+      <section data-hf-id="hf-w3tr" id="meet-scene" class="clip" data-start="4" data-duration="5" data-track-index="0">
+        <div data-hf-id="hf-9olh" class="scene dark" id="s2">
+          <p data-hf-id="hf-bmln" class="eyebrow">A little less planning</p>
+          <h2 data-hf-id="hf-wa1c">Meet<br data-hf-id="hf-x5px"><span data-hf-id="hf-3ne5" class="yellow">SproutRoute.</span></h2>
+          <p data-hf-id="hf-e6kb" class="sub">Start with a place.<br data-hf-id="hf-rsrt">Bring your people.</p>
+          <div data-hf-id="hf-cdmk" class="screen">
+            <div data-hf-id="hf-80ig" class="browser-bar"><i data-hf-id="hf-wt6k"></i><i data-hf-id="hf-zeb8"></i><i data-hf-id="hf-y7e5"></i></div>
+            <img data-hf-id="hf-vs25" src="assets/desktop-input.png" alt="Real trip input screen">
+          </div>
+          <p data-hf-id="hf-2ib4" class="caption">Actual product UI · Synthetic demo trip</p>
+        </div>
+      </section>
+      <section data-hf-id="hf-urf2" id="input-scene" class="clip" data-start="9" data-duration="8" data-track-index="0">
+        <div data-hf-id="hf-tsq0" class="scene" id="s3">
+          <p data-hf-id="hf-mkod" class="eyebrow">01 / Say the trip</p>
+          <h2 data-hf-id="hf-jvcu">“Las Vegas. With our 6-year-old.”</h2>
+          <div data-hf-id="hf-0hv8" class="screen">
+            <div data-hf-id="hf-30mo" class="browser-bar"><i data-hf-id="hf-ylp6"></i><i data-hf-id="hf-0l8b"></i><i data-hf-id="hf-0zjc"></i></div>
+            <div data-hf-id="hf-5c93" class="crop" data-layout-allow-overflow="">
+              <img data-hf-id="hf-byzc" src="assets/desktop-input.png" alt="Empty trip input">
+              <div data-hf-id="hf-jlri" class="after">
+                <img data-hf-id="hf-7hz5" src="assets/desktop-prompt.png" alt="Family trip request entered">
+              </div>
+            </div>
+          </div>
+          <svg data-hf-id="hf-epqh" class="cursor" viewBox="0 0 80 90">
+            <path data-hf-id="hf-hxm6" d="M12 8L14 72L31 54L43 81L56 75L44 48L68 47Z" fill="#15372B" stroke="white" stroke-width="4" />
+          </svg>
+          <div data-hf-id="hf-s4lb" class="label">Your destination. Kept.</div>
+          <p data-hf-id="hf-7uf2" class="caption">
+            Demo trip · Edited for pace, not a latency recording
+          </p>
+        </div>
+      </section>
+      <section data-hf-id="hf-nlc9" id="itinerary-scene" class="clip" data-start="17" data-duration="9" data-track-index="0">
+        <div data-hf-id="hf-pulz" class="scene" id="s4">
+          <p data-hf-id="hf-fg7b" class="eyebrow">02 / Find your rhythm</p>
+          <h2 data-hf-id="hf-5ao7">A day<br data-hf-id="hf-szow">with a<br data-hf-id="hf-sldv"><span data-hf-id="hf-4v37" class="green">shape.</span></h2>
+          <div data-hf-id="hf-gjvw" class="note">
+            <div data-hf-id="hf-m3n2" class="route-line"></div>
+            <p data-hf-id="hf-j9hs">Museums, gardens,<br data-hf-id="hf-qluq">and time to wander.</p>
+            <p data-hf-id="hf-ak8r" class="small">Suggested times.<br data-hf-id="hf-q7jp">You make the final call.</p>
+          </div>
+          <div data-hf-id="hf-zay5" class="screen">
+            <div data-hf-id="hf-1tpl" class="browser-bar"><i data-hf-id="hf-zsm9"></i><i data-hf-id="hf-06xa"></i><i data-hf-id="hf-26gf"></i></div>
+            <img data-hf-id="hf-o0se" src="assets/desktop-itinerary.png" alt="Real itinerary screen with scheduled activities">
+          </div>
+          <div data-hf-id="hf-nhoa" class="label">Saturday, sorted.</div>
+          <p data-hf-id="hf-w56e" class="caption">
+            AI suggestions · Check venue details before you go
+          </p>
+        </div>
+      </section>
+      <section data-hf-id="hf-tzh6" id="packing-scene" class="clip" data-start="26" data-duration="8" data-track-index="0">
+        <div data-hf-id="hf-opi6" class="scene yellow-bg" id="s5">
+          <p data-hf-id="hf-hv57" class="eyebrow">03 / Pack the little things</p>
+          <h2 data-hf-id="hf-smif">Tiny travelers.<br data-hf-id="hf-regs">Many things.</h2>
+          <p data-hf-id="hf-yzz6" class="sub">
+            A weather-aware checklist.<br data-hf-id="hf-r05r">Check it. Pack it. Go.
+          </p>
+          <div data-hf-id="hf-zp96" class="screen">
+            <img data-hf-id="hf-s7xy" src="assets/desktop-pack.png" alt="Packing checklist">
+            <div data-hf-id="hf-4642" class="after">
+              <img data-hf-id="hf-m24u" src="assets/desktop-packed.png" alt="Items checked in the packing checklist">
+            </div>
+          </div>
+          <div data-hf-id="hf-6mwh" class="check">✓ &#160; ✓ &#160; ✓</div>
+          <p data-hf-id="hf-5l6i" class="caption">
+            Actual checklist interaction · Illustrative weather
+          </p>
+        </div>
+      </section>
+      <section data-hf-id="hf-p2kv" id="details-scene" class="clip" data-start="34" data-duration="7" data-track-index="0">
+        <div data-hf-id="hf-hydx" class="scene" id="s6">
+          <div class="weather-shot"><img src="assets/mobile-weather.png" alt="Actual weather tile with illustrative forecast"></div>
+          <p class="weather-note">Check the forecast.<br>Bring a backup layer.</p>
+          <p data-hf-id="hf-nocw" class="eyebrow">04 / Bring the details</p>
+          <h2 data-hf-id="hf-88ea">A little<br data-hf-id="hf-p0mm"><span data-hf-id="hf-lzw9" class="green">heads-up.</span></h2>
+          <p data-hf-id="hf-6le0" class="sub">
+            Weather and travel guidance,<br data-hf-id="hf-ombl">alongside the plan.
+          </p>
+          <div data-hf-id="hf-1osb" class="screen">
+            <div data-hf-id="hf-280m" class="browser-bar"><i data-hf-id="hf-2krg"></i><i data-hf-id="hf-oz7w"></i><i data-hf-id="hf-okwv"></i></div>
+            <img data-hf-id="hf-rfzy" src="assets/desktop-safety.png" alt="Travel safety guidance screen">
+          </div>
+          <p data-hf-id="hf-ffrl" class="caption">
+            Illustrative guidance · Verify current local requirements
+          </p>
+        </div>
+      </section>
+      <section data-hf-id="hf-kjh7" id="mobile-scene" class="clip" data-start="41" data-duration="7" data-track-index="0">
+        <div data-hf-id="hf-lixk" class="scene dark" id="s7">
+          <p data-hf-id="hf-3nef" class="eyebrow">05 / Out the door</p>
+          <h2 data-hf-id="hf-nb7s">Small screen.<br data-hf-id="hf-qsyj"><span data-hf-id="hf-cqux" class="yellow">Big adventure.</span></h2>
+          <p data-hf-id="hf-efdk" class="sub">
+            Your plan and packing list,<br data-hf-id="hf-r79k">ready in the mobile browser.
+          </p>
+          <div data-hf-id="hf-bzlh" class="phone p1">
+            <img data-hf-id="hf-jj4o" src="assets/mobile-itinerary.png" alt="Mobile itinerary">
+          </div>
+          <div data-hf-id="hf-fxpi" class="phone p2">
+            <img data-hf-id="hf-uv9x" src="assets/mobile-packed.png" alt="Mobile packing checklist">
+          </div>
+          <p data-hf-id="hf-668f" class="caption">Responsive web app · Actual mobile UI capture</p>
+        </div>
+      </section>
+      <section data-hf-id="hf-u4id" id="evidence-scene" class="clip" data-start="48" data-duration="7" data-track-index="0">
+        <div data-hf-id="hf-q57z" class="scene dark" id="s8">
+          <p data-hf-id="hf-he4d" class="eyebrow">Behind the experience</p>
+          <h2 data-hf-id="hf-abah">
+            Test the model.<br data-hf-id="hf-q0ch"><span data-hf-id="hf-9jui" class="yellow">Then test the recovery.</span>
+          </h2>
+          <div data-hf-id="hf-rhep" class="stats">
+            <div data-hf-id="hf-xa0m" class="stat">
+              <b data-hf-id="hf-jk6v">11</b>
+              <p data-hf-id="hf-3u2k">models in the broader screen</p>
+            </div>
+            <div data-hf-id="hf-tx7e" class="stat">
+              <b data-hf-id="hf-sc0y">3</b>
+              <p data-hf-id="hf-aph7">finalists in the tuned trip test</p>
+            </div>
+            <div data-hf-id="hf-ubif" class="stat">
+              <b data-hf-id="hf-9lo0">10/10</b>
+              <p data-hf-id="hf-h2f7">synthetic recovery runs passed structural checks</p>
+            </div>
+          </div>
+          <div data-hf-id="hf-0nwy" class="proof">
+            <span data-hf-id="hf-0bg0">Gemini primary</span><b data-hf-id="hf-qmvp">→</b><span data-hf-id="hf-1ooy">Luna recovery</span><b data-hf-id="hf-jeyx">→</b><span data-hf-id="hf-0lxs">Validated itinerary</span>
+          </div>
+          <p data-hf-id="hf-eicm" class="caption">
+            Small synthetic pilot · Not a production reliability or
+            venue-accuracy claim · Sep 2026
+          </p>
+        </div>
+      </section>
+      <section data-hf-id="hf-55ad" id="outro-scene" class="clip" data-start="55" data-duration="5" data-track-index="0">
+        <div data-hf-id="hf-uype" class="scene yellow-bg" id="s9">
+          <div data-hf-id="hf-fp5b" class="brand">
+            <img data-hf-id="hf-ihod" src="assets/logo.svg" alt="">SproutRoute
+          </div>
+          <h2 data-hf-id="hf-o9u8">Go make a<br data-hf-id="hf-qeni">little adventure.</h2>
+          <div data-hf-id="hf-54ku" class="sun"><img data-hf-id="hf-jolg" src="assets/logo.svg" alt=""></div>
+          <p data-hf-id="hf-i0bv" class="cta">sproutroute.app &#160; ↗</p>
+          <p data-hf-id="hf-om5g" class="caption">
+            Explore the code + evals: github.com/prasadnitish/SproutRoute
+          </p>
+        </div>
+      </section>
+      <audio data-hf-id="hf-pyrf" id="original-score" src="assets/score.m4a" data-start="0" data-duration="60" data-track-index="10" data-volume="0.85"></audio>
+    </div>
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const enter = (id, t) => {
+        tl.fromTo(
+          id + " .eyebrow",
+          { y: 22, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" },
+          t + 0.08,
+        );
+        tl.fromTo(
+          id + " h2",
+          { y: 65, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.55, ease: "power3.out" },
+          t + 0.1,
+        );
+      };
+      tl.fromTo(
+        "#s1 .line",
+        { y: 100, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.2, duration: 0.65, ease: "power4.out" },
+        0.1,
+      );
+      tl.fromTo(
+        "#s1 .phone",
+        { y: 220, rotation: 9, opacity: 0 },
+        { y: 0, rotation: -5, opacity: 1, duration: 0.8, ease: "power3.out" },
+        0.45,
+      );
+      tl.fromTo(
+        "#s1 .sun",
+        { scale: 0.2 },
+        { scale: 1, duration: 0.8, ease: "back.out(1.3)" },
+        0.25,
+      );
+      tl.fromTo(
+        "#s1 .strap",
+        { y: 25, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.45 },
+        1.3,
+      );
+      enter("#s2", 4);
+      tl.fromTo(
+        "#s2 .screen",
+        { y: 110, rotationY: -15, scale: 0.92, opacity: 0 },
+        {
+          y: 0,
+          rotationY: 0,
+          scale: 1,
+          opacity: 1,
+          duration: 0.9,
+          ease: "power3.out",
+        },
+        4.2,
+      );
+      tl.to("#s2 .screen", { y: -18, duration: 3.3, ease: "none" }, 5.2);
+      enter("#s3", 9);
+      tl.fromTo(
+        "#s3 .screen",
+        { y: 90, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.55 },
+        9.25,
+      );
+      tl.fromTo(
+        "#s3 .after",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.18 },
+        10.7,
+      );
+      tl.fromTo(
+        "#s3 .cursor",
+        { x: 300, y: 300, opacity: 0 },
+        { x: 0, y: 0, opacity: 1, duration: 0.85, ease: "power3.out" },
+        13.4,
+      );
+      tl.to("#s3 .cursor", { scale: 0.84, duration: 0.1 }, 14.25).to(
+        "#s3 .cursor",
+        { scale: 1, duration: 0.22 },
+        14.35,
+      );
+      tl.fromTo(
+        "#s3 .label",
+        { scale: 0.8, y: 20, opacity: 0 },
+        { scale: 1, y: 0, opacity: 1, duration: 0.45, ease: "back.out(1.4)" },
+        14.5,
+      );
+      enter("#s4", 17);
+      tl.fromTo(
+        "#s4 .screen",
+        { x: 140, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.7, ease: "power3.out" },
+        17.15,
+      );
+      tl.to(
+        "#s4 .screen img",
+        { y: -160, duration: 5, ease: "power1.inOut" },
+        19,
+      );
+      tl.fromTo(
+        "#s4 .label",
+        { y: 30, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.45 },
+        20.2,
+      );
+      tl.fromTo(
+        "#s4 .route-line",
+        { scaleX: 0 },
+        { scaleX: 1, duration: 0.7 },
+        18,
+      );
+      enter("#s5", 26);
+      tl.fromTo(
+        "#s5 .screen",
+        { y: 100, rotation: 3, opacity: 0 },
+        { y: 0, rotation: 0, opacity: 1, duration: 0.65 },
+        26.2,
+      );
+      tl.fromTo(
+        "#s5 .after",
+        { opacity: 0 },
+        { opacity: 1, duration: 0.2 },
+        29.3,
+      );
+      tl.fromTo(
+        "#s5 .check",
+        { scale: 0.8, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(1.7)" },
+        29.4,
+      );
+      tl.to("#s5 .screen", { y: -25, duration: 3 }, 30.5);
+      enter("#s6", 34);
+      tl.fromTo(
+        "#s6 .screen",
+        { x: 200, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.7 },
+        34.2,
+      );
+      tl.to("#s6 .screen img", { y: -70, duration: 4 }, 36);
+      enter("#s7", 41);
+      tl.fromTo(
+        "#s7 .p1",
+        { y: 220, rotation: -7, opacity: 0 },
+        { y: 0, rotation: -3, opacity: 1, duration: 0.8, ease: "power3.out" },
+        41.2,
+      );
+      tl.fromTo(
+        "#s7 .p2",
+        { y: 270, rotation: 8, opacity: 0 },
+        { y: 0, rotation: 3, opacity: 1, duration: 0.8, ease: "power3.out" },
+        41.5,
+      );
+      tl.to("#s7 .p1", { y: -18, duration: 4.7, ease: "none" }, 42.2);
+      tl.to("#s7 .p2", { y: 18, duration: 4.4, ease: "none" }, 42.5);
+      enter("#s8", 48);
+      tl.fromTo(
+        "#s8 .stat",
+        { y: 45, opacity: 0 },
+        { y: 0, opacity: 1, stagger: 0.22, duration: 0.55 },
+        48.6,
+      );
+      tl.fromTo(
+        "#s8 .proof",
+        { y: 25, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.55 },
+        50.7,
+      );
+      tl.fromTo(
+        "#s9 h2",
+        { y: 100, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.65, ease: "power3.out" },
+        55.2,
+      );
+      tl.fromTo(
+        "#s9 .sun",
+        { scale: 0.3, rotation: -25 },
+        { scale: 1, rotation: 0, duration: 0.65, ease: "back.out(1.3)" },
+        55.4,
+      );
+      tl.fromTo(
+        "#s9 .cta",
+        { y: 22, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.45 },
+        56.2,
+      );
+      window.__timelines["sproutroute"] = tl;
+    </script>
+  </body>
+</html>

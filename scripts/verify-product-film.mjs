@@ -1,0 +1,27 @@
+// Verify the rendered deliverable, not just its source timeline.
+import { execFileSync } from 'node:child_process';
+import { readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { chromium } from '@playwright/test';
+const dir=new URL('../docs/brag-sproutroute-2026-09-26/',import.meta.url);
+const file=new URL('brag.mp4',dir);
+const probe=JSON.parse(execFileSync('ffprobe',['-v','error','-show_entries','format=duration,size:stream=codec_name,width,height,r_frame_rate,nb_frames','-of','json',file.pathname],{encoding:'utf8'}));
+const video=probe.streams.find(s=>s.codec_name==='h264');
+if(Number(probe.format.duration)!==60||video?.width!==1920||video?.height!==1080||video?.nb_frames!=='1800'||!probe.streams.some(s=>s.codec_name==='aac'))throw new Error('Video format/duration gate failed');
+const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||undefined});
+const page=await browser.newPage({viewport:{width:1440,height:1100}});
+const errors=[];page.on('pageerror',e=>errors.push(e.message));
+await page.goto('http://127.0.0.1:8088/docs/brag-sproutroute-2026-09-26/preview.html');
+await page.locator('video').evaluate(v=>v.play());
+await page.waitForTimeout(1200);
+const playback=await page.locator('video').evaluate(v=>({duration:v.duration,currentTime:v.currentTime,paused:v.paused,error:v.error?.message||null}));
+await page.locator('video').evaluate(v=>v.pause());
+await page.screenshot({path:new URL('evidence/preview-desktop.png',dir).pathname});
+await page.setViewportSize({width:390,height:844});
+await page.screenshot({path:new URL('evidence/preview-mobile.png',dir).pathname});
+const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);
+await browser.close();
+if(playback.currentTime<=0||playback.error||errors.length||overflow)throw new Error('Preview/playback gate failed');
+const result={verifiedAt:new Date().toISOString(),probe,sha256:createHash('sha256').update(await readFile(file)).digest('hex'),playback,browserErrors:errors,mobileOverflow:overflow,syntheticDemo:true,source:'actual React UI replaying saved synthetic generation',limitations:['No human venue/legality validation','Edited screenshot sequence, not real-time generation footage','No claim of production failure probability']};
+await writeFile(new URL('video-verification.json',dir),JSON.stringify(result,null,2));
+console.log(JSON.stringify(result));
