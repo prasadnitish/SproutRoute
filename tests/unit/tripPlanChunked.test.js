@@ -1,87 +1,35 @@
 /**
- * tripPlanChunked.test.js — TDD Red for chunked trip plan generation
- *
- * Tests that long trips (8-21 days) are split into 7-day chunks,
- * generated independently, and merged into a single tripPlan.
- *
- * NOTE: All date ranges use INCLUSIVE day counting.
- * May 1–7 = 7 days (fits in 1 chunk), May 1–8 = 8 days (2 chunks).
+ * Inclusive date coverage, progressive batches, activity IDs, and cancellation.
+ * Three-day batches bound the work before the first attractions become visible.
  */
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computeChunks, generateTripPlanChunked, mergeTripPlanChunks } from "../../src/backend/services/tripPlanAI.js";
+import { computeChunks, generateTripPlanChunked, mergeTripPlanChunks, buildTripPlanPrompt } from "../../src/backend/services/tripPlanAI.js";
 
-// ── computeChunks — splits date range into 7-day chunks ────────────────────
-
-test("computeChunks: 7-day trip → 1 chunk", () => {
-  // May 1-7 inclusive = 7 days
-  const chunks = computeChunks("2026-05-01", "2026-05-07");
-  assert.strictEqual(chunks.length, 1);
-  assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[0].endDate, "2026-05-07");
-  assert.strictEqual(chunks[0].chunkIndex, 0);
-  assert.strictEqual(chunks[0].totalChunks, 1);
-});
-
-test("computeChunks: 5-day trip → 1 chunk", () => {
-  // May 1-5 inclusive = 5 days
-  const chunks = computeChunks("2026-05-01", "2026-05-05");
-  assert.strictEqual(chunks.length, 1);
-  assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[0].endDate, "2026-05-05");
-});
-
-test("computeChunks: 2-day weekend trip → 1 chunk", () => {
-  // Apr 18-19 inclusive = 2 days (the original bug scenario)
-  const chunks = computeChunks("2026-04-18", "2026-04-19");
-  assert.strictEqual(chunks.length, 1);
-  assert.strictEqual(chunks[0].startDate, "2026-04-18");
-  assert.strictEqual(chunks[0].endDate, "2026-04-19");
-});
-
-test("computeChunks: same-day trip → 1 chunk", () => {
-  const chunks = computeChunks("2026-04-18", "2026-04-18");
-  assert.strictEqual(chunks.length, 1);
-  assert.strictEqual(chunks[0].startDate, "2026-04-18");
-  assert.strictEqual(chunks[0].endDate, "2026-04-18");
-});
-
-test("computeChunks: 12-day trip → 2 chunks (7 + 5)", () => {
-  // May 1-12 inclusive = 12 days
-  const chunks = computeChunks("2026-05-01", "2026-05-12");
-  assert.strictEqual(chunks.length, 2);
-  assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[0].dayOffset, 0);
-  assert.strictEqual(chunks[1].endDate, "2026-05-12");
-  assert.strictEqual(chunks[1].dayOffset, 7);
-});
-
-test("computeChunks: 14-day trip → 2 chunks (7 + 7)", () => {
-  // May 1-14 inclusive = 14 days
-  const chunks = computeChunks("2026-05-01", "2026-05-14");
-  assert.strictEqual(chunks.length, 2);
-  assert.strictEqual(chunks[0].startDate, "2026-05-01");
-  assert.strictEqual(chunks[1].endDate, "2026-05-14");
-  assert.strictEqual(chunks[1].totalChunks, 2);
-});
-
-test("computeChunks: 15-day trip → 2 chunks", () => {
-  // May 1-15 inclusive = 15 days → chunks at 7-day boundaries: May 1-8, May 8-15
-  const chunks = computeChunks("2026-05-01", "2026-05-15");
-  assert.strictEqual(chunks.length, 2);
-  assert.strictEqual(chunks[0].endDate, "2026-05-08");
-  assert.strictEqual(chunks[1].startDate, "2026-05-08");
-  assert.strictEqual(chunks[1].endDate, "2026-05-15");
-});
-
-test("computeChunks: 21-day trip → 3 chunks", () => {
-  // May 1-21 inclusive = 21 days
-  const chunks = computeChunks("2026-05-01", "2026-05-21");
-  assert.strictEqual(chunks.length, 3);
-  assert.strictEqual(chunks[2].dayOffset, 14);
-  assert.strictEqual(chunks[2].endDate, "2026-05-21");
-});
+// Small inclusive batches keep the first itinerary inside a provider attempt.
+for (const days of [1, 2, 3, 4, 7, 8, 12, 14, 15, 21]) {
+  test(`computeChunks covers ${days} dates exactly once in batches of at most 3`, () => {
+    const end = `2026-05-${String(days).padStart(2, "0")}`;
+    const chunks = computeChunks("2026-05-01", end);
+    assert.equal(chunks.length, Math.ceil(days / 3));
+    const dates = [];
+    for (const [index, chunk] of chunks.entries()) {
+      assert.equal(chunk.chunkIndex, index);
+      assert.equal(chunk.totalChunks, chunks.length);
+      assert.equal(chunk.dayOffset, dates.length);
+      const count = (Date.parse(chunk.endDate) - Date.parse(chunk.startDate)) / 86400000 + 1;
+      assert.ok(count <= 3);
+      for (let i = 0; i < count; i++) {
+        dates.push(new Date(Date.parse(chunk.startDate) + i * 86400000).toISOString().slice(0, 10));
+      }
+    }
+    assert.equal(dates.length, days);
+    assert.equal(new Set(dates).size, days);
+    assert.equal(dates[0], "2026-05-01");
+    assert.equal(dates.at(-1), end);
+  });
+}
 
 // ── mergeTripPlanChunks — combines chunk results into single tripPlan ───────
 
@@ -214,4 +162,40 @@ test("generateTripPlanChunked stops before the next chunk after cancellation", a
   assert.strictEqual(merged.name, "AbortError");
   assert.strictEqual(callCount, 1, "Chunk generation must stop before the second chunk");
   assert.deepStrictEqual(chunkOffsets, [0], "Only the first chunk should be emitted");
+});
+
+test("Florida eight-day generation emits first three dates before requesting the next batch", async () => {
+  const calls = []; const emitted = [];
+  const result = await generateTripPlanChunked(
+    {destination:"Florida, USA", startDate:"2026-12-20", endDate:"2026-12-27"},
+    {forecast:[]},
+    (plan, meta) => emitted.push({plan, meta}),
+    {generateTripPlanFn: async (input) => {
+      assert.equal(emitted.length, calls.length, "previous batch is visible before the next model call");
+      calls.push(input);
+      const days = (Date.parse(input.endDate)-Date.parse(input.startDate))/86400000+1;
+      const plan = makeChunkResult(days, 0);
+      plan.suggestedActivities.forEach(a => {a.name = input.startDate + a.name});
+      // A continuation can keep global labels rather than restarting at Day 1.
+      if (calls.length === 2) plan.dailyItinerary.forEach((day,i)=>{day.day=`Day ${i+4}`});
+      return plan;
+    }},
+  );
+  assert.deepEqual(calls.map(c=>[c.startDate,c.endDate]), [
+    ["2026-12-20","2026-12-22"],["2026-12-23","2026-12-25"],["2026-12-26","2026-12-27"],
+  ]);
+  assert.equal(result.dailyItinerary.length,8);
+  assert.equal(result.suggestedActivities.length,8,"local activity IDs must not discard later attractions");
+  const ids=result.suggestedActivities.map(a=>a.id);
+  assert.equal(new Set(ids).size,8);
+  for (let i=0;i<8;i++) {
+    assert.match(result.dailyItinerary[i].day,new RegExp(`^Day ${i+1}\\b`));
+    assert.equal(result.dailyItinerary[i].activities[0],ids[i]);
+  }
+  assert.match(calls[1]._continuationContext,/2026-12-20Activity 1/);
+});
+
+test("later batches include previously planned attractions in the actual model prompt",()=>{
+  const prompt=buildTripPlanPrompt("Florida","2026-12-23","2026-12-25",[],[],{summary:"Mild",forecast:[]},{continuationContext:"Activities already suggested: Magic Kingdom. Avoid repeats."});
+  assert.match(prompt.user,/Activities already suggested: Magic Kingdom/);
 });

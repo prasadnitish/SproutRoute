@@ -491,6 +491,10 @@ function parseSSEEventTypes(written) {
 
 test("POST /api/v1/trip/stream stops emitting when the client disconnects", async () => {
   let reqRef;
+  let resRef;
+  let requestCloseAborted;
+  let responseCloseAborted;
+  let providerSignalAborted;
   const app = createCustomApp({
     generateTripPlanChunkedFn: async (_tripPayload, _weather, onChunk, deps) => {
       onChunk(
@@ -503,7 +507,10 @@ test("POST /api/v1/trip/stream stops emitting when the client disconnects", asyn
         { chunk: 1, totalChunks: 2, dayOffset: 0 },
       );
       reqRef.emit("close");
-      assert.strictEqual(deps.shouldAbort(), true, "disconnect must propagate into chunk generator");
+      requestCloseAborted = Boolean(deps.shouldAbort());
+      resRef.emit("close");
+      responseCloseAborted = deps.shouldAbort();
+      providerSignalAborted = deps.signal?.aborted;
       const err = new Error("aborted");
       err.name = "AbortError";
       throw err;
@@ -534,13 +541,31 @@ test("POST /api/v1/trip/stream stops emitting when the client disconnects", asyn
     ip: "127.0.0.1",
   });
   reqRef = req;
+  resRef = res;
 
   await handler(req, res);
 
+  assert.strictEqual(requestCloseAborted, false, "normal request-body completion is not a disconnect");
+  assert.strictEqual(responseCloseAborted, true, "disconnect must propagate into chunk generator");
+  assert.strictEqual(providerSignalAborted, true, "disconnect cancels the active provider call");
   const eventTypes = parseSSEEventTypes(state.written);
   assert.ok(eventTypes.includes("destination"));
   assert.ok(eventTypes.includes("weather"));
   assert.ok(eventTypes.includes("itinerary-chunk"));
   assert.ok(!eventTypes.includes("error"), "disconnects should not emit an SSE error event");
   assert.ok(state.ended, "stream response should be closed after disconnect");
+});
+
+test("trip stream sends keepalive comments during slow generation and clears the timer", async (t) => {
+  t.mock.timers.enable({apis:["setInterval"]});
+  const app=createCustomApp({generateTripPlanChunkedFn:async()=>{
+    t.mock.timers.tick(15000);
+    throw new Error("provider timed out");
+  }});
+  const state=await invokeSSERoute(app,{destination:"Seattle, WA",...futureRange(30,2),activities:["parks"],children:[]});
+  assert.ok(state.written.some(chunk=>chunk.startsWith(": keepalive")));
+  assert.ok(parseSSEEventTypes(state.written).includes("error"));
+  const count=state.written.length;
+  t.mock.timers.tick(30000);
+  assert.equal(state.written.length,count,"completed requests must release their keepalive timer");
 });

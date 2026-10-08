@@ -10,7 +10,7 @@ import {
 import { inclusiveDayCount } from "../utils/dateCalc.js";
 
 const MAX_TOKENS = 16384;
-const CHUNK_SIZE_DAYS = 7;
+const CHUNK_SIZE_DAYS = 3;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 const MAX_QUALITY_ISSUES_IN_PROMPT = 8;
 const MIN_FAMILY_ACTIVITIES_PER_DAY = 4;
@@ -633,13 +633,13 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   const {
     destination: rawDestination, startDate, endDate, activities: rawActivities,
     children = [], tripType = null, countryCode = "US", foodPreferences = null,
-    pets = [], plannerSummary = "", cachedAttractions = [], routeStop = null, routePlan = null,
+    pets = [], plannerSummary = "", cachedAttractions = [], routeStop = null, routePlan = null, _continuationContext = "",
   } = tripData;
   const expectedDays = inclusiveDayCount(startDate, endDate);
   const maxActivities = Math.max(expectedDays * 6, 10);
   const destination = sanitizeDestination(rawDestination);
   const activities = sanitizeActivities(rawActivities);
-  const options = { tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan };
+  const options = { tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan, continuationContext: _continuationContext };
   const primaryPrompt = buildTripPlanPrompt(destination, startDate, endDate, activities, children, weatherForecast, options);
   const configuredTimeout = Number(process.env.AI_TRIP_TIMEOUT_MS);
   const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? Math.min(configuredTimeout, 180_000) : 150_000;
@@ -697,10 +697,10 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   throw new Error("Failed to generate a complete trip plan: " + (lastError?.message || "generation deadline exceeded"));
 }
 
-// ── Chunked generation for trips > 7 days ───────────────────────────────────
+// ── Progressive itinerary batches ───────────────────────────────────────────
 
 /**
- * Split a date range into 7-day chunks.
+ * Split an inclusive date range into small batches for progressive results.
  * @param {string} startDate — YYYY-MM-DD
  * @param {string} endDate — YYYY-MM-DD
  * @returns {Array<{startDate, endDate, dayOffset, chunkIndex, totalChunks}>}
@@ -718,9 +718,9 @@ export function computeChunks(startDate, endDate) {
   let cursor = new Date(start);
   let offset = 0;
 
-  while (cursor < end) {
+  while (cursor <= end) {
     const chunkEnd = new Date(cursor);
-    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + CHUNK_SIZE_DAYS);
+    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + CHUNK_SIZE_DAYS - 1);
     const actualEnd = chunkEnd > end ? end : chunkEnd;
 
     chunks.push({
@@ -733,6 +733,7 @@ export function computeChunks(startDate, endDate) {
 
     offset += CHUNK_SIZE_DAYS;
     cursor = new Date(actualEnd);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
   // Fill totalChunks
@@ -780,7 +781,7 @@ export function mergeTripPlanChunks(chunkResults) {
 }
 
 /**
- * Generate a trip plan in chunks for trips > 7 days.
+ * Generate a trip plan in batches of at most three days.
  * Returns results one chunk at a time via the onChunk callback.
  *
  * @param {object} tripData — full trip data
@@ -821,10 +822,32 @@ export async function generateTripPlanChunked(tripData, weather, onChunk, deps =
     if (chunk.chunkIndex > 0 && chunkResults.length > 0) {
       const prevDays = chunkResults.flatMap(r => r.dailyItinerary || []);
       const prevActivities = chunkResults.flatMap(r => (r.suggestedActivities || []).map(a => a.name));
-      chunkData._continuationContext = `This is days ${chunk.dayOffset + 1}-${chunk.dayOffset + 7} of a ${chunks[0].totalChunks * CHUNK_SIZE_DAYS}-day trip. Previous days already planned: ${prevDays.map(d => d.day).join(", ")}. Activities already suggested: ${prevActivities.slice(0, 10).join(", ")}. Avoid repeating the same activities. Continue with new experiences.`;
+      const chunkDays = inclusiveDayCount(chunk.startDate, chunk.endDate);
+      chunkData._continuationContext = `This is days ${chunk.dayOffset + 1}-${chunk.dayOffset + chunkDays} of a ${inclusiveDayCount(tripData.startDate, tripData.endDate)}-day trip. Previous days already planned: ${prevDays.map(d => d.day).join(", ")}. Activities already suggested: ${prevActivities.join(", ")}. Avoid repeating the same activities. Continue with new experiences.`;
     }
 
-    const result = await generateTripPlanFn(chunkData, weather, deps);
+    const generated = await generateTripPlanFn(chunkData, weather, deps);
+    // Every model call starts its IDs and day labels locally. Namespace them
+    // before streaming or merging so later days keep their own attractions.
+    const idMap = new Map((generated.suggestedActivities || []).map(activity => [activity.id, `chunk-${chunk.chunkIndex + 1}:${activity.id}`]));
+    const dayNumbers = new Map((generated.dailyItinerary || []).map((day, index) => [
+      String(day.day).match(/^Day\s+(\d+)/i)?.[1], index + chunk.dayOffset + 1,
+    ]));
+    // Continuations may already use global day numbers. Date order, rather
+    // than the model's chosen numbering, determines the final day label.
+    const globalDay = label => String(label).replace(/^Day\s+(\d+)/i, (original, day) =>
+      dayNumbers.has(day) ? `Day ${dayNumbers.get(day)}` : original);
+    const result = {
+      ...generated,
+      suggestedActivities: (generated.suggestedActivities || []).map(activity => ({
+        ...activity, id: idMap.get(activity.id),
+        ...(Array.isArray(activity.bestDays) ? { bestDays: activity.bestDays.map(globalDay) } : {}),
+      })),
+      dailyItinerary: (generated.dailyItinerary || []).map((day, index) => ({
+        ...day, day: String(day.day).replace(/^Day\s+\d+/i, `Day ${index + chunk.dayOffset + 1}`),
+        activities: day.activities.map(id => idMap.get(id) || id),
+      })),
+    };
     throwIfAborted();
     chunkResults.push(result);
 
@@ -859,6 +882,7 @@ export function buildTripPlanPrompt(
     cachedAttractions = [],
     routeStop = null,
     routePlan = null,
+    continuationContext = "",
   } = options;
 
   const isCruise = tripType === "cruise";
@@ -1070,6 +1094,7 @@ ${Array.isArray(cachedAttractions) && cachedAttractions.length > 0 ? `
 - Verified attraction candidates already provided in the system shortlist: ${cachedAttractions.length}` : ""}
 
 **Weather Forecast:**
+${continuationContext ? `Previous itinerary context: ${continuationContext}\n` : ""}
 ${weatherForecast.summary}
 
 ${weatherForecast.forecast

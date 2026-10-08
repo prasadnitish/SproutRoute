@@ -108,6 +108,7 @@ export async function planRouteStops({
   scheduleItineraryFn = scheduleItinerary,
   onEvent = () => {},
   shouldAbort = () => false,
+  signal,
 }) {
   const stopWeather = {};
   const stopItineraries = {};
@@ -162,7 +163,9 @@ export async function planRouteStops({
         if (shouldAbort()) return;
         let scheduledItinerary = null;
         try {
-          scheduledItinerary = scheduleItineraryFn(chunkResult, {}, stop.arrivalDate, {
+          const batchStart = new Date(`${stop.arrivalDate}T12:00:00Z`);
+          batchStart.setUTCDate(batchStart.getUTCDate() + (meta?.dayOffset || 0));
+          scheduledItinerary = scheduleItineraryFn(chunkResult, {}, batchStart.toISOString().slice(0, 10), {
             hasChildren: (baseTrip?.children || []).length > 0,
             routePlan,
             routeStop: enrichedStop,
@@ -179,7 +182,7 @@ export async function planRouteStops({
           dayOffset: (stop.dayStart || 1) - 1 + localDayOffset,
         });
       },
-      { shouldAbort },
+      { shouldAbort, signal },
     );
 
     stopItineraries[stop.id] = tripPlan;

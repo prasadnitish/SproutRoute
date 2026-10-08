@@ -109,3 +109,25 @@ test("a rate-limited stream does not start a bundle request", async () => {
     global.fetch = originalFetch;
   }
 });
+
+for (const brokenTransport of [true, false]) {
+  test(`a stream interrupted after destination does not regenerate via bundle (read error: ${brokenTransport})`, async () => {
+    const original = global.fetch; let calls = 0;
+    global.fetch = async () => {
+      calls++;
+      if (calls > 1) return new Response('{"tripPlan":{}}');
+      let reads = 0;
+      return {ok:true, body:{getReader:()=>({read:async()=> {
+        if (reads++ === 0) return {done:false,value:new TextEncoder().encode('event: destination\ndata: {"destination":"Florida"}\n\n')};
+        if (brokenTransport) throw new Error("Connection interrupted");
+        return {done:true};
+      }})}};
+    };
+    try {
+      const code=source.replaceAll("'./journeyTrace.js'", JSON.stringify(new URL('../../src/frontend/src/services/journeyTrace.js',import.meta.url).href)).replaceAll('import.meta.env',JSON.stringify({PROD:true}));
+      const api=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+      await assert.rejects(api.streamTripPlan({destination:'Florida'},()=>{}),/interrupted|completed/i);
+      assert.equal(calls,1);
+    } finally {global.fetch=original;}
+  });
+}
