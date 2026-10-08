@@ -7,7 +7,7 @@ function formatDate(dateStr) {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-export default function HeroTile({ tripData, parsedInput, onEdit }) {
+export default function HeroTile({ tripData, parsedInput, onEdit, hideTravelers = false }) {
   const destination =
     tripData?.parsed?.destination || parsedInput?.destination || "Your Trip";
   const startDate = tripData?.parsed?.startDate || parsedInput?.startDate;
@@ -61,10 +61,10 @@ export default function HeroTile({ tripData, parsedInput, onEdit }) {
               {dateLine}
             </p>
           )}
-          <p className="text-[13px] text-gray-600 mt-0.5 inline-flex items-center gap-1.5">
+          {!hideTravelers && <p className="text-[13px] text-gray-600 mt-0.5 inline-flex items-center gap-1.5">
             <Icon name="kids" size={12} className="text-gray-400" />
             {peopleLine}
-          </p>
+          </p>}
         </div>
 
         <div className="flex items-start gap-2 flex-wrap">

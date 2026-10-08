@@ -13,7 +13,8 @@ import posthog from "posthog-js";
 import { buildTripErrorProperties, buildTripSearchProperties } from "./analyticsPayloads.js";
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
-const IS_PROD = import.meta.env.PROD;
+// Shared URLs contain an access token in the fragment. Never send them to analytics.
+const IS_PROD = import.meta.env.PROD && !/^\/s\/?$/.test(window.location.pathname);
 
 // Initialize PostHog (only in production to avoid dev noise)
 let initialized = false;

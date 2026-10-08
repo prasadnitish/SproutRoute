@@ -146,3 +146,4 @@ export type {
   AttractionPrecomputeRun,
   AttractionVerificationCache,
 } from "./attraction.js";
+export type { PublicTripMeta, SharedTripSnapshot, TripShareCreateRequest, TripShareCreateResponse, TripShareViewResponse, TripShareRevokeHeaders } from './sharing.js';

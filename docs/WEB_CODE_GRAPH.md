@@ -293,3 +293,7 @@ If you only remember one chain, remember this:
 `main.jsx -> App.jsx -> useTrip.submitTrip() -> /api/v1/trip/parse-input -> optional RouteReviewPanel -> /api/v1/trip/stream -> ResultsScreen -> RouteTimelineTile / ItineraryTile / SafetyTile / PackingChecklist / ActivityDetailPanel`
 
 That is the web app’s primary spine.
+
+## Shared itinerary links
+
+`ShareTripDialog` projects public result fields through `src/shared/shareSnapshot.js`, then posts to `/api/v1/trip/shares`. `tripShareStore` repeats the projection and saves a seven-day snapshot in the protected `trip_shares` table. `/s#<token>` mounts `SharedTripScreen` directly, loads the saved snapshot via the shares API, and renders `ResultsScreen` in read-only mode without `useTrip` or generation requests. See `docs/SHARED_TRIP_LINKS.md` for privacy boundaries, expiry, revocation and API contracts.
