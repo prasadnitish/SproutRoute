@@ -36,7 +36,7 @@ test('clipboard denial leaves a selectable summary and actionable feedback', asy
   await page.getByRole('button', { name: 'Share trip summary' }).click();
   await page.getByRole('button', { name: 'Copy summary', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText("Couldn't copy automatically. Select the summary below and copy it manually.");
-  await expect(page.getByLabel('Trip summary')).toBeFocused();
+  await expect(page.getByLabel('Trip summary', { exact: true })).toBeFocused();
 });
 
 test('native Share receives itinerary text and confirms completion', async ({ page }) => {

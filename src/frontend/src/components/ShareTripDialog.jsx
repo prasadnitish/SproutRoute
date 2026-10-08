@@ -56,6 +56,7 @@ export default function ShareTripDialog({ isOpen, onClose, tripData }) {
       aria-describedby="share-trip-description"
       className="w-[calc(100%_-_2rem)] max-w-lg max-h-[90vh] rounded-2xl bg-white p-5 sm:p-6 shadow-xl backdrop:bg-black/40"
     >
+      {isOpen && <>
       <div className="flex items-center justify-between gap-3">
         <h2 id="share-trip-title" className="text-lg font-bold text-gray-900">Share your trip</h2>
         <button type="button" onClick={onClose} autoFocus aria-label="Close sharing" className="rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 focus-visible:outline-meadow-600">Close</button>
@@ -68,6 +69,7 @@ export default function ShareTripDialog({ isOpen, onClose, tripData }) {
         <button type="button" disabled={busy} onClick={copySummary} className="rounded-lg bg-meadow-600 px-4 py-2 font-semibold text-white hover:bg-meadow-700 disabled:opacity-50 focus-visible:outline-meadow-600">Copy summary</button>
         {typeof navigator.share === 'function' && <button type="button" disabled={busy} onClick={shareSummary} className="rounded-lg border border-gray-300 px-4 py-2 font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 focus-visible:outline-meadow-600">Share via…</button>}
       </div>
+      </>}
     </dialog>
   );
 }
