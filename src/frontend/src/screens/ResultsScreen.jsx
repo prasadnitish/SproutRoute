@@ -201,6 +201,7 @@ export default function ResultsScreen({
   onRetryPacking,
   progress,
   steps,
+  readOnly = false,
 }) {
   const [activeTab, setActiveTab] = useState("plan");
   const [selectedActivity, setSelectedActivity] = useState(null);
@@ -297,8 +298,8 @@ export default function ResultsScreen({
         className="flex gap-0 border-b border-gray-200 px-3 sm:px-4 sticky top-[57px] z-20 bg-[#f9fafb]/95 backdrop-blur-sm"
       >
         <TabButton id="plan" activeTab={activeTab} setActiveTab={setActiveTab} icon="calendar" label="Plan" />
-        <TabButton id="pack" activeTab={activeTab} setActiveTab={setActiveTab} icon="bag" label="Pack" count={packCount} />
-        <TabButton id="safety" activeTab={activeTab} setActiveTab={setActiveTab} icon="shield" label="Safety" count={safetyCount} />
+        {!readOnly && <TabButton id="pack" activeTab={activeTab} setActiveTab={setActiveTab} icon="bag" label="Pack" count={packCount} />}
+        {!readOnly && <TabButton id="safety" activeTab={activeTab} setActiveTab={setActiveTab} icon="shield" label="Safety" count={safetyCount} />}
       </div>
 
       {/* Plan tab */}
@@ -308,10 +309,11 @@ export default function ResultsScreen({
           <HeroTile
             tripData={tripData}
             parsedInput={parsedInput}
-            onEdit={onGoBack}
+            onEdit={readOnly ? undefined : onGoBack}
+            hideTravelers={readOnly}
           />
 
-          <section className="mt-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4" aria-label="Safety for your trip" aria-live="polite">
+          {!readOnly && <section className="mt-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4" aria-label="Safety for your trip" aria-live="polite">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold text-meadow-900">Safety for {destination || "your trip"}</h3>
               <button onClick={() => setActiveTab("safety")} className="shrink-0 text-sm font-semibold text-meadow-800 underline">View all safety tips</button>
@@ -325,7 +327,7 @@ export default function ResultsScreen({
                 <p className="mt-2 text-xs text-gray-600">AI-generated guidance — verify locally</p>
               </>
             ) : <p className="mt-2 text-sm text-gray-700">{progress?.safety === "done" ? "Safety guidance is unavailable. Check local sources before travel." : "Gathering location-specific guidance…"}</p>}
-          </section>
+          </section>}
 
           {routePlan && (
             <div className="mt-3 space-y-3">
@@ -338,7 +340,7 @@ export default function ResultsScreen({
               <RouteTimelineTile
                 routePlan={routePlan}
                 stopWeather={stopWeather}
-                receivedStopCount={Object.keys(tripData?.stopItineraries || {}).length}
+                receivedStopCount={readOnly ? routePlan.stops.length : Object.keys(tripData?.stopItineraries || {}).length}
               />
             </div>
           )}
@@ -381,7 +383,7 @@ export default function ResultsScreen({
           </div>
 
           {/* Feedback — bottom of Plan (F5) */}
-          <FeedbackRow />
+          {!readOnly && <FeedbackRow />}
         </div>
       )}
 

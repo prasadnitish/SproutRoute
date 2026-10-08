@@ -7,6 +7,7 @@ import GeneratingScreen from "./screens/GeneratingScreen.jsx";
 import ResultsScreen from "./screens/ResultsScreen.jsx";
 import ProfileImportModal from "./components/ProfileImportModal.jsx";
 import ShareTripDialog from "./components/ShareTripDialog.jsx";
+import SharedTripScreen from "./screens/SharedTripScreen.jsx";
 import { Icon } from "./components/Icon.jsx";
 
 function loadSavedProfile() {
@@ -19,6 +20,10 @@ function loadSavedProfile() {
 }
 
 export default function App() {
+  return window.location.pathname === '/s' || window.location.pathname === '/s/' ? <SharedTripScreen /> : <PlannerApp />;
+}
+
+function PlannerApp() {
   const geolocation = useGeolocation();
   const trip = useTrip();
   const { enrichedData, enrich } = usePlacesEnrich();
@@ -146,7 +151,7 @@ export default function App() {
         onClose={() => setShowImport(false)}
         onSaved={(profile) => setSavedProfile(profile)}
       />
-      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} />}
+      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
     </div>
   );
 }

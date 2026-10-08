@@ -38,6 +38,7 @@ const RETRYABLE_STATUSES = new Set([502, 503, 504]);
  */
 async function parseSafeResponse(response) {
   if (response.ok) {
+    if (response.status === 204) return null;
     try {
       return await response.json();
     } catch {
@@ -166,6 +167,24 @@ async function fetchWithRetry(url, options = {}, config = {}) {
 }
 
 // ── Public API functions ─────────────────────────────────────────────────────
+
+export const createTripShare = tripData => fetchWithRetry(
+  `${API_BASE_URL}/api/v1/trip/shares`,
+  { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tripData }) },
+  { maxRetries: 0, timeoutMs: 10000 },
+);
+
+export const getTripShare = (token, { signal } = {}) => fetchWithRetry(
+  `${API_BASE_URL}/api/v1/trip/shares/view`,
+  { headers: { 'x-trip-share-token': token }, cache: 'no-store', signal },
+  { maxRetries: 0, timeoutMs: 10000 },
+);
+
+export const revokeTripShare = (token, ownerToken) => fetchWithRetry(
+  `${API_BASE_URL}/api/v1/trip/shares`,
+  { method: 'DELETE', headers: { 'x-trip-share-token': token, 'x-trip-share-owner-token': ownerToken } },
+  { maxRetries: 0, timeoutMs: 10000 },
+);
 
 const POST_OPTS = (body) => ({
   method: "POST",

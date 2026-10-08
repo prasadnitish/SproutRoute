@@ -48,6 +48,8 @@ import { parsePastedProfileJson } from "./utils/profileImportJson.js";
 import { bucketTextLength, parserLogContext } from "./services/privacyTelemetry.js";
 import { fetchPlacePhoto, readBoundedResponseBody } from "./services/photoProxy.js";
 import { saveTripFeedback } from "./services/feedbackStore.js";
+import { createTripShareStore } from "./services/tripShareStore.js";
+import { mountTripShareRoutes } from "./routes/tripShares.js";
 
 const parseInput = tracing.wrap('tool.parseInput', raw_parseInput);
 
@@ -379,6 +381,7 @@ export function createApp(deps = {}) {
     getPetTravelGuidanceFn: raw_getPetTravelGuidanceFn = getPetTravelGuidance,
     attractionMemoryService = createAttractionMemoryService(),
     groupTripStore = createGroupTripStore(),
+    tripShareStore = createTripShareStore(),
     getSupabaseAdminFn = getSupabaseAdmin,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
@@ -432,6 +435,7 @@ export function createApp(deps = {}) {
   );
 
   // Enforce reasonable request body size limits while allowing multi-city route review payloads.
+  app.use('/api/v1/trip/shares', express.json({ limit: '160kb' }));
   app.use(express.json({ limit: "64kb" }));
   app.use(express.urlencoded({ limit: "64kb", extended: false }));
 
@@ -534,6 +538,14 @@ export function createApp(deps = {}) {
     const clientKey = `${ipKeyGenerator(req.ip || "unknown")}:${req.get?.("user-agent") || "unknown"}`;
     return `guest:${crypto.createHmac("sha256", secret).update(clientKey).digest("base64url")}`;
   }
+
+  mountTripShareRoutes(app, { store: tripShareStore, createLimiter: groupTripCreateLimiter, readLimiter: apiLimiter });
+  app.use('/s', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+    next();
+  });
 
   app.get("/api/health", (req, res) => {
     res.json({
