@@ -240,3 +240,23 @@ test('geocodes the city instead of an AI annotation in its route label',async()=
  await planRouteStops({routePlan:{stops:[{id:'hakone',name:'Hakone (Hot Springs)',arrivalDate:'2026-12-01',dayStart:1,dayEnd:1}]},baseTrip:{},geocodeLocationFn:async q=>{query=q;return{lat:35,lon:139}},getWeatherForecastFn:async()=>({forecast:[]}),scheduleItineraryFn:()=>[],generateTripPlanChunkedFn:async()=>({suggestedActivities:[],dailyItinerary:[],tips:[]})});
  assert.equal(query,'Hakone');
 });
+
+test('route-stop batches pass cancellation and schedule each batch from its actual date',async()=>{
+  const controller=new AbortController();const dates=[];let providerSignal;
+  await planRouteStops({
+    routePlan:{stops:[{id:'orlando',name:'Orlando',arrivalDate:'2026-12-20',departureDate:'2026-12-24',dayStart:1,dayEnd:4}]},
+    baseTrip:{},signal:controller.signal,
+    geocodeLocationFn:async()=>({lat:28.5,lon:-81.4,countryCode:'US'}),
+    getWeatherForecastFn:async()=>({forecast:[]}),
+    scheduleItineraryFn:(_plan,_map,start)=>{dates.push(start);return[]},
+    generateTripPlanChunkedFn:async(_trip,_weather,emit,deps)=>{
+      providerSignal=deps.signal;
+      const plan={suggestedActivities:[],dailyItinerary:[],tips:[]};
+      emit(plan,{chunk:1,totalChunks:2,dayOffset:0});
+      emit(plan,{chunk:2,totalChunks:2,dayOffset:3});
+      return plan;
+    },
+  });
+  assert.equal(providerSignal,controller.signal);
+  assert.deepEqual(dates.slice(0,2),['2026-12-20','2026-12-23']);
+});

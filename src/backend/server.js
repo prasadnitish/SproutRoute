@@ -1620,11 +1620,13 @@ export function createApp(deps = {}) {
     const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
     const timing = {};
     let clientClosed = false;
+    const streamAbort = new AbortController();
 
     const markClosed = () => {
       clientClosed = true;
+      streamAbort.abort(new Error("Client disconnected"));
     };
-    if (typeof req.on === "function") req.on("close", markClosed);
+    if (typeof req.on === "function") req.on("aborted", markClosed);
     if (typeof res.on === "function") res.on("close", markClosed);
 
     const isClientClosed = () => clientClosed || res.writableEnded || res.destroyed;
@@ -1635,7 +1637,8 @@ export function createApp(deps = {}) {
       throw err;
     };
     const cleanupStreamListeners = () => {
-      if (typeof req.off === "function") req.off("close", markClosed);
+      clearInterval(keepalive);
+      if (typeof req.off === "function") req.off("aborted", markClosed);
       if (typeof res.off === "function") res.off("close", markClosed);
     };
 
@@ -1645,6 +1648,12 @@ export function createApp(deps = {}) {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       return true;
     };
+    // Proxy idle deadlines should not interrupt a model call before the app's
+    // own deadline can emit a useful result or explicit error.
+    const keepalive = setInterval(() => {
+      if (!isClientClosed()) res.write(": keepalive\n\n");
+    }, 15_000);
+    keepalive.unref?.();
 
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1728,6 +1737,7 @@ export function createApp(deps = {}) {
           generateTripPlanChunkedFn,
           scheduleItineraryFn: scheduleItinerary,
           shouldAbort: isClientClosed,
+          signal: streamAbort.signal,
           onEvent: (event, payload) => {
             if (isClientClosed()) return;
             if (event === "stop-itinerary" && !firstStopSent) {
@@ -1842,7 +1852,7 @@ export function createApp(deps = {}) {
         cachedAttractions,
       };
 
-      // Determine if we need chunked generation (trips > 7 days)
+      // Small batches let attractions appear before the full trip is ready.
       const chunks = computeChunks(startDate, endDate);
       const needsChunking = chunks.length > 1;
 
@@ -1879,7 +1889,7 @@ export function createApp(deps = {}) {
               timing.firstChunk = Date.now() - t0;
             }
           },
-          { shouldAbort: isClientClosed },
+          { shouldAbort: isClientClosed, signal: streamAbort.signal },
         );
       } catch (err) {
         if (err.name === "AbortError" || isClientClosed()) {

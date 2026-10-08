@@ -244,7 +244,7 @@ flowchart TD
 
 - `src/backend/server.js` is still the composition root for the web API.
 - `resolvePlanningContext()` merges browser-supplied profile context with stored profile context.
-- `generateTripPlanChunked()` is the long-trip planning engine used by the streamed route.
+- `generateTripPlanChunked()` is the long-trip planning engine used by the streamed route. It emits non-overlapping batches of at most three inclusive dates, with activity IDs scoped by batch. SSE keepalive comments run every 15 seconds; response disconnects abort the active model request. A stream interrupted after destination data is received shows a retry error instead of starting another full bundle generation.
 - `scheduleItinerary()` converts AI output into time-slotted itinerary structure for the UI.
 - `createAttractionMemoryService()` is already in the path for cached planning candidates and background persistence.
 

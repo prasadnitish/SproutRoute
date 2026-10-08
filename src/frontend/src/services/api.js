@@ -318,6 +318,7 @@ export async function streamTripPlan(tripData, onEvent, signal) {
     stopItineraries: {},
     scheduledByStop: {},
   };
+  let streamCompleted = false;
 
   try {
     const response = await fetch(url, {
@@ -454,6 +455,7 @@ export async function streamTripPlan(tripData, onEvent, signal) {
             } else if (type === "safety") {
               result.safetyGuidance = data;
             } else if (type === "done") {
+              streamCompleted = true;
               if (data.routePlan) result.routePlan = data.routePlan;
               if (data.stopWeather) result.stopWeather = data.stopWeather;
               if (data.stopItineraries) result.stopItineraries = data.stopItineraries;
@@ -473,9 +475,10 @@ export async function streamTripPlan(tripData, onEvent, signal) {
       }
     }
 
+    if (!streamCompleted) throw new Error("Trip stream interrupted before the itinerary completed. Please retry or edit your trip.");
     return result;
   } catch (err) {
-    if (err.name === "AbortError" || err.status === 429 || err.isStreamError || result.routePlan || result.tripPlan) throw err;
+    if (err.name === "AbortError" || err.status === 429 || err.isStreamError || result.trip || result.routePlan || result.tripPlan) throw err;
 
     // Fallback only for transport failure before an itinerary has started.
     console.warn("SSE stream failed, falling back to bundle:", err.message);
