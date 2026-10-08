@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useTrip } from "./hooks/useTrip.js";
-import { analytics } from "./utils/analytics.js";
 import { useGeolocation } from "./hooks/useGeolocation.js";
 import { usePlacesEnrich } from "./hooks/usePlacesEnrich.js";
 import InputScreen from "./screens/InputScreen.jsx";
 import GeneratingScreen from "./screens/GeneratingScreen.jsx";
 import ResultsScreen from "./screens/ResultsScreen.jsx";
 import ProfileImportModal from "./components/ProfileImportModal.jsx";
+import ShareTripDialog from "./components/ShareTripDialog.jsx";
 import { Icon } from "./components/Icon.jsx";
 
 function loadSavedProfile() {
@@ -24,6 +24,7 @@ export default function App() {
   const { enrichedData, enrich } = usePlacesEnrich();
   const [showImport, setShowImport] = useState(false);
   const [savedProfile, setSavedProfile] = useState(loadSavedProfile);
+  const [showShare, setShowShare] = useState(false);
 
   const goHome = () => {
     if (trip.screen !== "input") trip.goBack();
@@ -65,15 +66,10 @@ export default function App() {
 
             {trip.screen === "results" && (
               <button
-                onClick={() => {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("dest", trip.tripData?.parsed?.destination || "");
-                  navigator.clipboard.writeText(url.toString());
-                  analytics.shareClicked();
-                }}
+                onClick={() => setShowShare(true)}
                 className="w-8 h-8 inline-flex items-center justify-center bg-gray-100 hover:bg-meadow-50 rounded-lg text-gray-600 hover:text-meadow-600 transition"
-                title="Share trip"
-                aria-label="Share trip link"
+                title="Share trip summary"
+                aria-label="Share trip summary"
               >
                 <Icon name="share" size={14} />
               </button>
@@ -150,6 +146,7 @@ export default function App() {
         onClose={() => setShowImport(false)}
         onSaved={(profile) => setSavedProfile(profile)}
       />
+      <ShareTripDialog isOpen={showShare && trip.screen === "results"} onClose={() => setShowShare(false)} tripData={trip.tripData} />
     </div>
   );
 }
