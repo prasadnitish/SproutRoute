@@ -146,7 +146,7 @@ export default function App() {
         onClose={() => setShowImport(false)}
         onSaved={(profile) => setSavedProfile(profile)}
       />
-      <ShareTripDialog isOpen={showShare && trip.screen === "results"} onClose={() => setShowShare(false)} tripData={trip.tripData} />
+      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} />}
     </div>
   );
 }
