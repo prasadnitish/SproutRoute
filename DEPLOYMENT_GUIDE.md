@@ -170,6 +170,9 @@ npm run smoke:trip-hub:mutating
 | `GOOGLE_GEMINI_API_KEY` | If `AI_PROVIDER=gemini` | `...` | From Google AI Studio |
 | `OPENAI_API_KEY` | If `AI_PROVIDER=openai` | `sk-...` | From OpenAI dashboard |
 | `DEEPSEEK_API_KEY` | If `AI_PROVIDER=deepseek` | `...` | From DeepSeek dashboard |
+| `AI_DAILY_SPEND_ALERT_USD` | No | `5` | Alert when estimated AI spend for the UTC day passes this amount |
+| `AI_ALERT_WEBHOOK_URL` | No | `https://hooks.slack.com/...` | Receives a JSON POST (`text`, `content`, `kind`) for spend and provider-credit alerts. Alerts are always logged as `ai:alert` |
+| `AI_PRICE_OVERRIDES` | No | `{"gpt-5.4-nano":{"in":0.2,"out":1.25}}` | Dollars per 1M tokens for a model that has no built-in price, so its cost is not shown as unpriced |
 | `SUPABASE_URL` | Yes | `https://abc.supabase.co` | Required for Trip Hub, profiles, metrics, and attraction memory |
 | `SUPABASE_SERVICE_KEY` | Yes | `...` | Backend-only service role key; `SUPABASE_SERVICE_ROLE_KEY` is also accepted |
 | `SUPABASE_ANON_KEY` | Yes | `...` | User-scoped Supabase client |

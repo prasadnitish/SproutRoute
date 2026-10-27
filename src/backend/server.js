@@ -44,6 +44,7 @@ import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
 // NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
 import { metrics } from "./services/metrics.js";
+import { aiAlerts } from "./services/aiAlerts.js";
 import { parsePastedProfileJson } from "./utils/profileImportJson.js";
 import { bucketTextLength, parserLogContext } from "./services/privacyTelemetry.js";
 import { fetchPlacePhoto, readBoundedResponseBody } from "./services/photoProxy.js";
@@ -623,7 +624,7 @@ export function createApp(deps = {}) {
     res.setHeader("Cache-Control", "no-store");
     try {
       const snapshot = await metrics.getSnapshot();
-      res.json(snapshot);
+      res.json({ ...snapshot, alerts: aiAlerts.snapshot() });
     } catch (err) {
       res.status(500).json({ error: "Failed to load metrics", message: err.message });
     }
