@@ -14,13 +14,19 @@ const FAILURE_COOLDOWN_MS = 6 * 3600 * 1000;
 const MAX_RECENT = 20;
 const dayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
 
+const WEBHOOK_TIMEOUT_MS = 3000;
+
 export function createAiAlerts({
-  webhookUrl = process.env.AI_ALERT_WEBHOOK_URL || "",
-  dailyLimitUsd = Number(process.env.AI_DAILY_SPEND_ALERT_USD) || 5,
+  webhookUrl: webhookOverride,
+  dailyLimitUsd: limitOverride,
   fetchFn = globalThis.fetch,
   now = Date.now,
   logger = log,
 } = {}) {
+  // Read at use, not at import: server.js loads .env after its imports are evaluated.
+  const webhookUrl = () => webhookOverride ?? process.env.AI_ALERT_WEBHOOK_URL ?? "";
+  const dailyLimitUsd = () => limitOverride ?? (Number(process.env.AI_DAILY_SPEND_ALERT_USD) || 5);
+
   let day = dayKey(now());
   let spendUsd = 0;
   let unpriced = 0;
@@ -38,21 +44,25 @@ export function createAiAlerts({
     }
   }
 
+  // Delivery is fire-and-forget with a timeout: a slow webhook must never hold up an AI request.
+  function deliver(url, alert) {
+    Promise.resolve()
+      .then(() => fetchFn(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: `SproutRoute: ${alert.text}`, content: `SproutRoute: ${alert.text}`, kind: alert.kind }),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      }))
+      .catch((error) => logger.warn("ai:alert-webhook-failed", { error: error.message }));
+  }
+
   async function send(alert) {
     const entry = { ...alert, at: new Date(now()).toISOString() };
     recent.push(entry);
     if (recent.length > MAX_RECENT) recent.shift();
     logger.error("ai:alert", entry);
-    if (!webhookUrl || !fetchFn) return;
-    try {
-      await fetchFn(webhookUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text: `SproutRoute: ${alert.text}`, content: `SproutRoute: ${alert.text}`, kind: alert.kind }),
-      });
-    } catch (error) {
-      logger.warn("ai:alert-webhook-failed", { error: error.message });
-    }
+    const url = webhookUrl();
+    if (url && fetchFn) deliver(url, alert);
   }
 
   return {
@@ -63,11 +73,11 @@ export function createAiAlerts({
         return;
       }
       spendUsd = Math.round((spendUsd + costUsd) * 1e6) / 1e6;
-      if (!spendAlerted && spendUsd >= dailyLimitUsd) {
+      if (!spendAlerted && spendUsd >= dailyLimitUsd()) {
         spendAlerted = true;
         await send({
           kind: "daily_spend",
-          text: `estimated AI spend today is $${spendUsd.toFixed(2)}, over the $${dailyLimitUsd.toFixed(2)} daily limit.`,
+          text: `estimated AI spend today is $${spendUsd.toFixed(2)}, over the $${dailyLimitUsd().toFixed(2)} daily limit.`,
         });
       }
     },
@@ -87,9 +97,9 @@ export function createAiAlerts({
       return {
         day,
         spendTodayUsd: spendUsd,
-        dailyLimitUsd,
+        dailyLimitUsd: dailyLimitUsd(),
         unpricedCallsToday: unpriced,
-        webhookConfigured: Boolean(webhookUrl),
+        webhookConfigured: Boolean(webhookUrl()),
         recentAlerts: [...recent],
       };
     },

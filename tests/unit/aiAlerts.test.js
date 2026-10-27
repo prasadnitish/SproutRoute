@@ -87,3 +87,36 @@ test("without a webhook the alert is still logged and kept in the snapshot", asy
   assert.equal(logged[0].msg, "ai:alert");
   assert.equal(alerts.snapshot().recentAlerts.length, 1);
 });
+
+const within = (ms, promise) => Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error(`still waiting after ${ms}ms`)), ms))]);
+
+test("a webhook that never answers does not hold up the AI request", async () => {
+  const { alerts } = setup({ fetchFn: () => new Promise(() => {}) });
+  await within(200, alerts.recordSpend(10));
+  await within(200, alerts.recordFailure({ provider: "gemini", kind: "credits" }));
+});
+
+test("webhook delivery carries a timeout signal", async () => {
+  let signal;
+  const { alerts } = setup({ fetchFn: async (_url, init) => { signal = init.signal; return { ok: true }; } });
+  await alerts.recordFailure({ provider: "gemini", kind: "credits" });
+  assert.ok(signal instanceof AbortSignal);
+});
+
+test("settings are read when an alert fires, so a .env loaded after import still applies", async () => {
+  const saved = { url: process.env.AI_ALERT_WEBHOOK_URL, limit: process.env.AI_DAILY_SPEND_ALERT_USD };
+  const posts = [];
+  const alerts = createAiAlerts({ fetchFn: async (url) => { posts.push(url); return { ok: true }; }, logger: silent });
+  try {
+    process.env.AI_ALERT_WEBHOOK_URL = "https://hooks.example/late";
+    process.env.AI_DAILY_SPEND_ALERT_USD = "3";
+    await alerts.recordSpend(4);
+    assert.deepEqual(posts, ["https://hooks.example/late"]);
+    assert.equal(alerts.snapshot().dailyLimitUsd, 3);
+  } finally {
+    for (const [name, value] of [["AI_ALERT_WEBHOOK_URL", saved.url], ["AI_DAILY_SPEND_ALERT_USD", saved.limit]]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});

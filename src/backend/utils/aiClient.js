@@ -294,7 +294,16 @@ function usageOf(modelId, response) {
 
 async function alertOnProviderFailure(alerts, provider, error) {
   const kind = classifyProviderFailure(error);
-  if (kind) await alerts.recordFailure({ provider, kind });
+  if (kind) await safely(() => alerts.recordFailure({ provider, kind }));
+}
+
+// Monitoring must never break the request it is watching.
+async function safely(work) {
+  try {
+    await work();
+  } catch (error) {
+    log.warn("ai:alert-failed", { error: error.message });
+  }
 }
 
 /**
@@ -356,7 +365,7 @@ export async function callModel(prompt, deps = {}) {
         }, deps);
         // Tokens are spent even when the answer is then rejected, so count them before validating.
         const spent = usageOf(params.modelId, response);
-        await alerts.recordSpend(spent.costUsd);
+        await safely(() => alerts.recordSpend(spent.costUsd));
         try {
           if (!response.responseText?.trim()) throw new Error("AI returned empty output");
           if (["length", "max_tokens", "MAX_TOKENS"].includes(response.stopReason)) {

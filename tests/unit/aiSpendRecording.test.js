@@ -94,6 +94,15 @@ test("tokens from an answer that fails validation are still counted as spend", w
   assert.equal(alerts.calls.spend.length, 1);
 }));
 
+test("an alerting failure never discards a good AI answer", withCleanEnv(async () => {
+  const alerts = { async recordSpend() { throw new Error("alert store broke"); }, async recordFailure() { throw new Error("alert store broke"); } };
+  const result = await callModel(
+    { system: "s", user: "u", provider: "gemini", model: "gemini-3.8-flash", caller: "tripPlan" },
+    { geminiModel: geminiOk({ promptTokenCount: 1, candidatesTokenCount: 1 }), alerts },
+  );
+  assert.equal(result.responseText, "{}");
+}));
+
 test("getSpend totals recorded cost per day and per model and counts unpriced calls", async () => {
   const rows = [
     { created_at: "2026-10-23T10:00:00Z", provider: "gemini", model: "gemini-3.8-flash", timing_json: { inputTokens: 1000, outputTokens: 2000, costUsd: 0.5 } },
