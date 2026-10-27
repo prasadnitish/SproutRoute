@@ -59,7 +59,7 @@
     <h2>Third-party services</h2>
     <p>SproutRoute uses service providers to operate core features. Each provider receives only the information reasonably needed for its task.</p>
     <ul>
-      <li><strong>AI providers:</strong> Anthropic, OpenAI, Google Gemini, and DeepSeek may process trip planning content to parse requests, generate itineraries, summarize safety guidance, or create packing recommendations.</li>
+      <li><strong>AI providers:</strong> Anthropic, OpenAI, and Google Gemini may process trip planning content to parse requests, generate itineraries, summarize safety guidance, or create packing recommendations. Different parts of a plan can go to different providers, and if one is unavailable another may be used.</li>
       <li><strong>Weather providers:</strong> Weather.gov and Visual Crossing support web and backend weather planning. On iOS, Apple Weather and WeatherKit may refresh destination forecasts and display Apple Weather attribution where required.</li>
       <li><strong>Maps, geocoding, and places:</strong> OpenStreetMap Nominatim, Google Places, Apple Maps, and MapKit support destination lookup, place enrichment, maps, and handoff to Apple Maps.</li>
       <li><strong>Safety and advisory data:</strong> government travel advisory sources, static car-seat rule datasets, airline pet policy datasets, and pet entry rule datasets support safety cards. Some neighborhood safety functionality may use Amadeus Safe Place where configured.</li>

@@ -604,6 +604,38 @@ test("callModel falls back to anthropic when gemini fails", async () => {
   else delete process.env.ANTHROPIC_API_KEY;
 });
 
+test("callModel never falls back to DeepSeek, even when its key is set", async () => {
+  const saved = {
+    openai: process.env.OPENAI_API_KEY,
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    deepseek: process.env.DEEPSEEK_API_KEY,
+  };
+  delete process.env.OPENAI_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.DEEPSEEK_API_KEY = "test-key";
+
+  let deepseekCalled = false;
+  try {
+    await assert.rejects(
+      () => callModel(
+        { system: "s", user: "u", provider: "gemini" },
+        {
+          geminiModel: { generateContent: async () => { throw new Error("Gemini down"); } },
+          anthropicClient: { messages: { create: async () => { throw new Error("Anthropic down"); } } },
+          deepseekClient: { chat: { completions: { create: async () => { deepseekCalled = true; return {}; } } } },
+        },
+      ),
+      /Gemini down/,
+    );
+    assert.equal(deepseekCalled, false, "DeepSeek must not receive trip content");
+  } finally {
+    for (const [name, value] of [["OPENAI_API_KEY", saved.openai], ["ANTHROPIC_API_KEY", saved.anthropic], ["DEEPSEEK_API_KEY", saved.deepseek]]) {
+      if (value !== undefined) process.env[name] = value;
+      else delete process.env[name];
+    }
+  }
+});
+
 test("callModel uses OpenAI first when Gemini has no credits", async () => {
   const originalOpenAIKey = process.env.OPENAI_API_KEY;
   const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;

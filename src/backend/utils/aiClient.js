@@ -318,7 +318,7 @@ export async function callModel(prompt, deps = {}) {
   if (provider === "gemini" && process.env.OPENAI_API_KEY) fallbackProviders.push("openai");
   if (provider === "openai" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
-  if (provider !== "deepseek" && process.env.DEEPSEEK_API_KEY) fallbackProviders.push("deepseek");
+  // DeepSeek is never an automatic fallback: the privacy policy does not list it as a recipient of trip content.
 
   async function callWithRemainingBudget(selectedProvider, params, attemptsRemaining) {
     const remainingMs = deadlineAt - Date.now();
