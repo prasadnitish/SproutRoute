@@ -85,7 +85,54 @@ export const metrics = {
       latency_ms: data.ms || null,
       output_chars: data.outChars || 0,
       success: data.success !== false,
+      // timing_json is the existing jsonb column; reusing it avoids a schema change.
+      timing_json: Number.isFinite(data.inputTokens) || Number.isFinite(data.outputTokens)
+        ? { inputTokens: data.inputTokens ?? null, outputTokens: data.outputTokens ?? null, costUsd: data.costUsd ?? null }
+        : null,
     });
+  },
+
+  /** Estimated AI spend from stored ai_call rows: today, the last 7 days, per day and per model. */
+  async getSpend({ getAdmin = getSupabaseAdmin, now = Date.now, days = 7 } = {}) {
+    const empty = { available: false, today: { usd: 0, calls: 0 }, last7Days: { usd: 0, calls: 0 }, byDay: {}, byModel: {} };
+    let rows;
+    try {
+      const since = new Date(now() - days * 86400000).toISOString();
+      const { data, error } = await getAdmin()
+        .from("trip_metrics")
+        .select("created_at, provider, model, timing_json")
+        .eq("event_type", "ai_call")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(20000);
+      if (error) throw new Error(error.message);
+      rows = data || [];
+    } catch {
+      return empty;
+    }
+    const today = new Date(now()).toISOString().slice(0, 10);
+    const spend = { available: true, today: { usd: 0, calls: 0 }, last7Days: { usd: 0, calls: 0 }, byDay: {}, byModel: {}, truncated: rows.length >= 20000 };
+    for (const row of rows) {
+      const usage = row.timing_json || {};
+      const cost = Number.isFinite(usage.costUsd) ? usage.costUsd : null;
+      const day = String(row.created_at).slice(0, 10);
+      const key = `${row.provider || "?"}/${row.model || "?"}`;
+      const model = (spend.byModel[key] ||= { calls: 0, usd: 0, inputTokens: 0, outputTokens: 0, unpricedCalls: 0 });
+      model.calls += 1;
+      model.inputTokens += usage.inputTokens || 0;
+      model.outputTokens += usage.outputTokens || 0;
+      spend.last7Days.calls += 1;
+      if (day === today) spend.today.calls += 1;
+      if (cost === null) {
+        model.unpricedCalls += 1;
+        continue;
+      }
+      model.usd = Math.round((model.usd + cost) * 1e6) / 1e6;
+      spend.byDay[day] = Math.round(((spend.byDay[day] || 0) + cost) * 1e6) / 1e6;
+      spend.last7Days.usd = Math.round((spend.last7Days.usd + cost) * 1e6) / 1e6;
+      if (day === today) spend.today.usd = Math.round((spend.today.usd + cost) * 1e6) / 1e6;
+    }
+    return spend;
   },
 
   recordError(data) {
@@ -253,6 +300,7 @@ export const metrics = {
       topDestinations,
       modelUsage,
       aiByTask,
+      spend: await this.getSpend({ getAdmin }),
 
       recentSearches: dbSearches.slice(0, 20).map(s => ({
         ts: s.created_at || s.ts,

@@ -32,6 +32,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { log } from "./logger.js";
 import { metrics } from "../services/metrics.js";
+import { aiAlerts } from "../services/aiAlerts.js";
+import { estimateCostUsd, classifyProviderFailure } from "./aiCost.js";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -161,6 +163,12 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, cac
   return { responseText, stopReason: message.stop_reason || null, usage: {input_tokens:message.usage?.input_tokens, output_tokens:message.usage?.output_tokens, usage_source:'provider'} };
 }
 
+// Google bills "thinking" tokens as output, and they are reported separately from candidates.
+function geminiOutputTokens(usage) {
+  if (!Number.isFinite(usage?.candidatesTokenCount)) return undefined;
+  return usage.candidatesTokenCount + (usage.thoughtsTokenCount || 0);
+}
+
 /**
  * Call Gemini via Google Generative AI SDK.
  * Returns { responseText, stopReason }.
@@ -183,7 +191,7 @@ async function callGemini(model, { system, user, maxTokens, temperature, modelId
   const responseText = response.text();
   const stopReason = response.candidates?.[0]?.finishReason || null;
 
-  return { responseText, stopReason, usage: {input_tokens:response.usageMetadata?.promptTokenCount, output_tokens:response.usageMetadata?.candidatesTokenCount, usage_source:'provider'} };
+  return { responseText, stopReason, usage: {input_tokens:response.usageMetadata?.promptTokenCount, output_tokens:geminiOutputTokens(response.usageMetadata), usage_source:'provider'} };
 }
 
 /**
@@ -278,6 +286,26 @@ function modelIdForProvider(provider, caller = "") {
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
+function usageOf(modelId, response) {
+  const inputTokens = response?.usage?.input_tokens;
+  const outputTokens = response?.usage?.output_tokens;
+  return { inputTokens, outputTokens, costUsd: estimateCostUsd(modelId, { inputTokens, outputTokens }) };
+}
+
+async function alertOnProviderFailure(alerts, provider, error) {
+  const kind = classifyProviderFailure(error);
+  if (kind) await safely(() => alerts.recordFailure({ provider, kind }));
+}
+
+// Monitoring must never break the request it is watching.
+async function safely(work) {
+  try {
+    await work();
+  } catch (error) {
+    log.warn("ai:alert-failed", { error: error.message });
+  }
+}
+
 /**
  * Call the configured AI model and return a normalised response.
  *
@@ -306,6 +334,7 @@ export async function callModel(prompt, deps = {}) {
     cacheSystemPrompt = false,
   } = prompt;
 
+  const alerts = deps.alerts ?? aiAlerts;
   const provider = resolveProvider(prompt);
   const caller = prompt.caller || "unknown";
   const modelId = prompt.model || modelIdForProvider(provider, caller);
@@ -334,12 +363,20 @@ export async function callModel(prompt, deps = {}) {
           signal: deadline.signal,
           timeoutMs: attemptMs,
         }, deps);
-        if (!response.responseText?.trim()) throw new Error("AI returned empty output");
-        if (["length", "max_tokens", "MAX_TOKENS"].includes(response.stopReason)) {
-          throw new Error("AI response exceeded its output limit");
+        // Tokens are spent even when the answer is then rejected, so count them before validating.
+        const spent = usageOf(params.modelId, response);
+        await safely(() => alerts.recordSpend(spent.costUsd));
+        try {
+          if (!response.responseText?.trim()) throw new Error("AI returned empty output");
+          if (["length", "max_tokens", "MAX_TOKENS"].includes(response.stopReason)) {
+            throw new Error("AI response exceeded its output limit");
+          }
+          await prompt.validateResponse?.(response.responseText);
+        } catch (rejected) {
+          rejected.aiUsage = spent;
+          throw rejected;
         }
-        await prompt.validateResponse?.(response.responseText);
-        return response;
+        return { ...response, aiUsage: spent };
       }));
       return { ...result, provider: selectedProvider, model: params.modelId };
     } finally {
@@ -353,13 +390,14 @@ export async function callModel(prompt, deps = {}) {
     }, fallbackProviders.length + 1);
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
-    metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true });
+    metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true, ...result.aiUsage });
     return result;
   } catch (error) {
     if (prompt.signal?.aborted) throw prompt.signal.reason || error;
     const ms = Date.now() - t0;
     log.warn(`AI call failed (${provider})`, { caller, error: error.message, ms });
-    metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: 0, success: false });
+    metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: 0, success: false, ...error.aiUsage });
+    await alertOnProviderFailure(alerts, provider, error);
 
     // Try fallbacks in order
     for (const [index, fb] of fallbackProviders.entries()) {
@@ -371,11 +409,12 @@ export async function callModel(prompt, deps = {}) {
         }, fallbackProviders.length - index);
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
-        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true });
+        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true, ...result.aiUsage });
         return result;
       } catch (fbError) {
         if (prompt.signal?.aborted) throw prompt.signal.reason || fbError;
-        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: Date.now() - fbT0, outChars: 0, success: false });
+        metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: Date.now() - fbT0, outChars: 0, success: false, ...fbError.aiUsage });
+        await alertOnProviderFailure(alerts, fb, fbError);
         log.warn(`Fallback ${fb} also failed`, { caller, error: fbError.message });
       }
     }
