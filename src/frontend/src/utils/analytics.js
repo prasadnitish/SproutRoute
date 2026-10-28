@@ -10,6 +10,7 @@
  */
 
 import posthog from "posthog-js";
+import { posthogOptions } from "./analyticsConfig.js";
 import { buildTripErrorProperties, buildTripSearchProperties } from "./analyticsPayloads.js";
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
@@ -22,18 +23,7 @@ let initialized = false;
 function init() {
   if (initialized || !IS_PROD || !POSTHOG_KEY) return;
   try {
-    posthog.init(POSTHOG_KEY, {
-      api_host: "https://us.i.posthog.com",
-      person_profiles: "identified_only",
-      capture_pageview: true,
-      capture_pageleave: true,
-      autocapture: true, // Clicks, form submits, page views
-      session_recording: {
-        maskAllInputs: true, // Protect user trip text (contains PII: ages, locations, names)
-        maskInputOptions: { password: true },
-      },
-      persistence: "localStorage",
-    });
+    posthog.init(POSTHOG_KEY, posthogOptions);
     initialized = true;
   } catch {
     // PostHog load failure should never break the app
