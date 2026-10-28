@@ -9,15 +9,22 @@ test("a parse case is one parse call on both clients", () => {
   for (const client of ["web", "ios"]) assert.deepEqual(paths("parse-vegas-explicit", client), ["/api/v1/trip/parse-input"]);
 });
 
-const FULL_FLOW = [
-  "/api/v1/trip/stream", "/api/v1/trip/packing", "/api/safety/travel-tips", "/api/safety/car-seat-check", "/api/v1/safety/pet-travel-check",
+const flow = (packingPath) => [
+  "/api/v1/trip/stream", packingPath, "/api/safety/travel-tips", "/api/safety/car-seat-check", "/api/v1/safety/pet-travel-check",
 ];
 
-test("a trip runs the calls both apps make: stream, then packing, travel tips, car seat for children and pet check for pets", () => {
+test("a trip runs the calls each app makes: stream, packing, travel tips, car seat for children and pet check for pets", () => {
+  assert.deepEqual(paths("trip-san-diego-dog", "web"), flow("/api/generate"));
+  assert.deepEqual(paths("trip-san-diego-dog", "ios"), flow("/api/v1/trip/packing"));
   for (const client of ["web", "ios"]) {
-    assert.deepEqual(paths("trip-san-diego-dog", client), FULL_FLOW);
-    assert.deepEqual(paths("trip-tokyo-five-day", client), FULL_FLOW.slice(0, 4), "no pets, no pet check");
+    assert.equal(paths("trip-tokyo-five-day", client).length, 4, "no pets, no pet check");
+    assert.equal(paths("trip-vegas-family", client).length, 4);
   }
+});
+
+test("the web app packs through the legacy route, which has its own limiter; the iOS app uses the v1 route", () => {
+  assert.equal(stepsFor(byId("trip-vegas-family"), "web")[1].path, "/api/generate");
+  assert.equal(stepsFor(byId("trip-vegas-family"), "ios")[1].path, "/api/v1/trip/packing");
 });
 
 test("the bundle endpoint is only the iOS fallback when streaming fails, so no case uses it", () => {

@@ -29,8 +29,8 @@ export const CASES = [
 ];
 
 /**
- * The calls the apps make for a case, in order. The web app and the iOS app make the same ones; only the
- * `client` field differs.
+ * The calls the apps make for a case, in order. The web app and the iOS app make the same ones, except that
+ * packing goes to a different route (see below), and the `client` field differs.
  *   parse case: parse-input.
  *   trip case:  stream, then packing, travel tips, the car seat check (children) and the pet check (pets).
  * The bundle endpoint is not used: the iOS app calls it only when streaming fails.
@@ -43,7 +43,8 @@ export function stepsFor(testCase, client) {
   const { body, countryCode } = testCase;
   const steps = [
     { step: "stream", path: "/api/v1/trip/stream", body: { ...body, client } },
-    { step: "packing", path: "/api/v1/trip/packing", body: { ...body, client } },
+    // The web app packs through the legacy /api/generate (lighter limiter); the iOS app uses the v1 route.
+    { step: "packing", path: client === "web" ? "/api/generate" : "/api/v1/trip/packing", body: { ...body, client } },
     {
       step: "travel-tips",
       path: "/api/safety/travel-tips",

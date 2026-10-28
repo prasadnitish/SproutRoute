@@ -29,10 +29,10 @@ EVAL_CAPTURE_TOKEN=<same value> node scripts/run-eval-traces.mjs --base=https://
 
 Each run sends ten made-up cases (three free-text parses, seven trips). A trip is several calls, so each case sends the calls its client makes, in order, under one journey id (`scripts/eval-cases.mjs` lists them):
 
-The web app and the iOS app make the same calls for a trip (the iOS app makes the packing, travel-tips, car seat and pet calls in the background once the plan is showing), so both runs send the same steps and differ only in the `client` field and tag:
+The web app and the iOS app make the same calls for a trip (the iOS app makes the packing, travel-tips, car seat and pet calls in the background once the plan is showing), so both runs send the same steps and differ in the `client` field and tag, and in the packing route:
 
 1. `trip/stream`
-2. `trip/packing`
+2. packing: `/api/generate` for web (the route the browser calls, with the lighter API limiter), `/api/v1/trip/packing` for ios
 3. `safety/travel-tips`
 4. `safety/car-seat-check`, if the family has children
 5. `safety/pet-travel-check`, if the family has pets (`drive` at home, `fly` abroad, as the iOS app chooses)
