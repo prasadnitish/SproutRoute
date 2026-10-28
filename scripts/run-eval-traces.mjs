@@ -94,6 +94,10 @@ for (const [index, testCase] of selected.entries()) {
       if (failed && step === "stream") break;
     } catch (error) {
       failures++;
+      // A request that never got a response is still an attempt, so it is saved and scored as a failure.
+      if (saveDir) {
+        appendFileSync(`${saveDir}/calls.jsonl`, `${JSON.stringify({ case: testCase.id, step, client, journey, status: 0, ms: Math.round(performance.now() - started), trace: null, error: error.message, body: "" })}\n`);
+      }
       console.log(JSON.stringify({ case: testCase.id, step, client, journey, error: error.message }));
       if (step === "stream") break;
     }

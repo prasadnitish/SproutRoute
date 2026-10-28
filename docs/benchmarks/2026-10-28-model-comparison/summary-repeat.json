@@ -1,5 +1,5 @@
 {
-  "scoredAt": "2026-10-28T07:33:03.255Z",
+  "scoredAt": "2026-10-28T07:54:43.775Z",
   "configs": {
     "gemini-3-8-flash": {
       "meta": {
@@ -30,8 +30,8 @@
         "p50Ms": 28690,
         "p95Ms": 44375,
         "maxMs": 44375,
-        "meanCost": 0.0162405,
-        "meanOutputTokens": 3415.285714285714,
+        "meanCost": 0.016793125000000002,
+        "meanOutputTokens": 3457,
         "durationInRange": 0.9476190476190476,
         "kidFriendlyShare": 0.9629629629629629,
         "petFriendlyShare": 0.9,
@@ -48,10 +48,11 @@
         "validRate": 1,
         "failures": [],
         "p50Ms": 4800,
-        "meanCost": 0.0012237857142857141,
-        "meanOutputTokens": 271.57142857142856
+        "meanCost": 0.00142775,
+        "meanOutputTokens": 316.8333333333333
       },
-      "totalCost": 0.15324449999999998,
+      "totalCost": 0.14031974999999997,
+      "unpricedCalls": 2,
       "rows": {
         "parse": [
           {
@@ -331,11 +332,8 @@
             "petFriendlyShare": null,
             "groundedRatio": null,
             "destinationKept": false,
-            "tokens": {
-              "input": 1408,
-              "output": 3165
-            },
-            "cost": 0.01292475
+            "tokens": null,
+            "cost": null
           }
         ],
         "tips": [
@@ -417,11 +415,8 @@
             "ms": 4933,
             "valid": true,
             "problems": [],
-            "tokens": {
-              "input": 0,
-              "output": 0
-            },
-            "cost": 0
+            "tokens": null,
+            "cost": null
           }
         ]
       }
@@ -477,6 +472,7 @@
         "meanOutputTokens": 504.7142857142857
       },
       "totalCost": 0.022474,
+      "unpricedCalls": 0,
       "rows": {
         "parse": [
           {
@@ -905,10 +901,11 @@
         "validRate": 1,
         "failures": [],
         "p50Ms": 3765,
-        "meanCost": 0.00026284285714285713,
-        "meanOutputTokens": 442.57142857142856
+        "meanCost": 0.0003065428571428571,
+        "meanOutputTokens": 515.8571428571429
       },
-      "totalCost": 0.0280079,
+      "totalCost": 0.0283138,
+      "unpricedCalls": 0,
       "rows": {
         "parse": [
           {
@@ -1265,10 +1262,10 @@
             "valid": true,
             "problems": [],
             "tokens": {
-              "input": 0,
-              "output": 0
+              "input": 494,
+              "output": 513
             },
-            "cost": 0
+            "cost": 0.00030589999999999995
           },
           {
             "case": "trip-nyc-two-kids",

@@ -1,5 +1,5 @@
 {
-  "scoredAt": "2026-10-28T07:06:28.957Z",
+  "scoredAt": "2026-10-28T07:46:16.256Z",
   "configs": {
     "gemini-3-8-flash": {
       "meta": {
@@ -48,10 +48,11 @@
         "validRate": 1,
         "failures": [],
         "p50Ms": 4473,
-        "meanCost": 0.0012103928571428571,
-        "meanOutputTokens": 268
+        "meanCost": 0.001412125,
+        "meanOutputTokens": 312.6666666666667
       },
       "totalCost": 0.15592725,
+      "unpricedCalls": 1,
       "rows": {
         "parse": [
           {
@@ -417,11 +418,8 @@
             "ms": 4473,
             "valid": true,
             "problems": [],
-            "tokens": {
-              "input": 0,
-              "output": 0
-            },
-            "cost": 0
+            "tokens": null,
+            "cost": null
           }
         ]
       }
@@ -514,10 +512,11 @@
         "validRate": 1,
         "failures": [],
         "p50Ms": 2652,
-        "meanCost": 0.0002353,
-        "meanOutputTokens": 164
+        "meanCost": 0.0004706,
+        "meanOutputTokens": 328
       },
       "totalCost": 0.08907055000000001,
+      "unpricedCalls": 1,
       "rows": {
         "parse": [
           {
@@ -646,7 +645,7 @@
             "case": "trip-vegas-family",
             "status": 200,
             "ms": 47165,
-            "firstChunkMs": 18624,
+            "firstChunkMs": null,
             "hoursCorrections": 0,
             "expectedDays": 2,
             "complete": false,
@@ -673,7 +672,7 @@
             "case": "trip-san-diego-dog",
             "status": 200,
             "ms": 51834,
-            "firstChunkMs": 24060,
+            "firstChunkMs": null,
             "hoursCorrections": 0,
             "expectedDays": 2,
             "complete": false,
@@ -701,7 +700,7 @@
             "status": 200,
             "ms": 77990,
             "firstChunkMs": null,
-            "hoursCorrections": null,
+            "hoursCorrections": 0,
             "expectedDays": 5,
             "complete": false,
             "problems": [
@@ -727,8 +726,8 @@
             "case": "trip-seattle-toddler-rain",
             "status": 200,
             "ms": 20209,
-            "firstChunkMs": null,
-            "hoursCorrections": null,
+            "firstChunkMs": 18624,
+            "hoursCorrections": 0,
             "expectedDays": 3,
             "complete": true,
             "problems": [],
@@ -751,7 +750,7 @@
             "status": 200,
             "ms": 64429,
             "firstChunkMs": null,
-            "hoursCorrections": null,
+            "hoursCorrections": 0,
             "expectedDays": 4,
             "complete": false,
             "problems": [
@@ -778,7 +777,7 @@
             "status": 200,
             "ms": 57237,
             "firstChunkMs": null,
-            "hoursCorrections": null,
+            "hoursCorrections": 0,
             "expectedDays": 6,
             "complete": false,
             "problems": [
@@ -804,8 +803,8 @@
             "case": "trip-nyc-two-kids",
             "status": 200,
             "ms": 25401,
-            "firstChunkMs": null,
-            "hoursCorrections": null,
+            "firstChunkMs": 24060,
+            "hoursCorrections": 0,
             "expectedDays": 3,
             "complete": true,
             "problems": [],
@@ -843,11 +842,8 @@
             "ms": 2785,
             "valid": true,
             "problems": [],
-            "tokens": {
-              "input": 0,
-              "output": 0
-            },
-            "cost": 0
+            "tokens": null,
+            "cost": null
           }
         ]
       }
@@ -903,6 +899,7 @@
         "meanOutputTokens": 510.2857142857143
       },
       "totalCost": 0.0222002,
+      "unpricedCalls": 0,
       "rows": {
         "parse": [
           {
@@ -1335,6 +1332,7 @@
         "meanOutputTokens": 353.2857142857143
       },
       "totalCost": 0.31467,
+      "unpricedCalls": 0,
       "rows": {
         "parse": [
           {
@@ -1781,8 +1779,8 @@
         ],
         "p50Ms": 5591,
         "p95Ms": 6697,
-        "meanCost": 0.0007166200000000001,
-        "meanOutputTokens": 950.9
+        "meanCost": 0.0007954500000000002,
+        "meanOutputTokens": 1055
       },
       "plan": {
         "n": 7,
@@ -1846,7 +1844,8 @@
         "meanCost": 0.00048442857142857136,
         "meanOutputTokens": 871.4285714285714
       },
-      "totalCost": 0.04464619999999999,
+      "totalCost": 0.04543449999999999,
+      "unpricedCalls": 0,
       "rows": {
         "parse": [
           {
@@ -1896,10 +1895,10 @@
             "pass": true,
             "failed": [],
             "tokens": {
-              "input": 0,
-              "output": 0
+              "input": 2678,
+              "output": 1041
             },
-            "cost": 0
+            "cost": 0.0007882999999999999
           },
           {
             "case": "parse-europe-multi-stop",
@@ -2294,8 +2293,8 @@
         ],
         "p50Ms": 1994,
         "p95Ms": 4730,
-        "meanCost": 0.00052115,
-        "meanOutputTokens": 506.6
+        "meanCost": 0.0005283777777777777,
+        "meanOutputTokens": 521.2222222222222
       },
       "plan": {
         "n": 7,
@@ -2322,10 +2321,11 @@
         "validRate": 1,
         "failures": [],
         "p50Ms": 3695,
-        "meanCost": 0.0002805428571428571,
-        "meanOutputTokens": 477.7142857142857
+        "meanCost": 0.0003273,
+        "meanOutputTokens": 557.3333333333334
       },
-      "totalCost": 0.022582499999999995,
+      "totalCost": 0.0221264,
+      "unpricedCalls": 2,
       "rows": {
         "parse": [
           {
@@ -2358,11 +2358,8 @@
             "ms": 1873,
             "pass": true,
             "failed": [],
-            "tokens": {
-              "input": 2686,
-              "output": 375
-            },
-            "cost": 0.00045610000000000003
+            "tokens": null,
+            "cost": null
           },
           {
             "case": "parse-maui-two-dogs",
@@ -2693,11 +2690,8 @@
             "ms": 2916,
             "valid": true,
             "problems": [],
-            "tokens": {
-              "input": 0,
-              "output": 0
-            },
-            "cost": 0
+            "tokens": null,
+            "cost": null
           }
         ]
       }
@@ -2749,10 +2743,11 @@
         "validRate": 1,
         "failures": [],
         "p50Ms": 6662,
-        "meanCost": 0.0071082857142857146,
-        "meanOutputTokens": 627.2857142857143
+        "meanCost": 0.008197142857142858,
+        "meanOutputTokens": 722.2857142857143
       },
-      "totalCost": 0.616,
+      "totalCost": 0.623622,
+      "unpricedCalls": 0,
       "rows": {
         "parse": [
           {
@@ -3119,10 +3114,10 @@
             "valid": true,
             "problems": [],
             "tokens": {
-              "input": 0,
-              "output": 0
+              "input": 486,
+              "output": 665
             },
-            "cost": 0
+            "cost": 0.007622
           }
         ]
       }
@@ -3156,8 +3151,8 @@
         "p50Ms": 47521,
         "p95Ms": 89705,
         "maxMs": 89705,
-        "meanCost": 0.07890142857142858,
-        "meanOutputTokens": 7471.285714285715,
+        "meanCost": 0.07287966666666668,
+        "meanOutputTokens": 6873.166666666667,
         "durationInRange": 0.9353741496598639,
         "kidFriendlyShare": 0.9464285714285714,
         "petFriendlyShare": 0.7,
@@ -3177,7 +3172,8 @@
         "meanCost": 0.008018,
         "meanOutputTokens": 704.5714285714286
       },
-      "totalCost": 0.7194760000000001,
+      "totalCost": 0.6044440000000001,
+      "unpricedCalls": 1,
       "rows": {
         "parse": [
           {
@@ -3457,11 +3453,8 @@
             "petFriendlyShare": null,
             "groundedRatio": null,
             "destinationKept": false,
-            "tokens": {
-              "input": 2216,
-              "output": 11060
-            },
-            "cost": 0.115032
+            "tokens": null,
+            "cost": null
           }
         ],
         "tips": [

@@ -68,14 +68,14 @@ Scoring is in three layers:
 
 | Model | Parse pass | Parse p50 | Itinerary complete | Itinerary p50 | Itinerary p95 | Tips valid | Tips p50 | Cost per trip (parse + itinerary + tips) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| gemini-3-8-flash | 10/10 | 4.6s | 7/7 | 30.7s | 44.1s | 7/7 | 4.5s | 2.10¢ |
-| gpt-5-4-nano | 10/10 | 4.1s | 2/7 | 51.8s | 78.0s | 2/2 | 2.7s | 1.24¢ |
+| gemini-3-8-flash | 10/10 | 4.6s | 7/7 | 30.7s | 44.1s | 7/7 | 4.5s | 2.12¢ |
+| gpt-5-4-nano | 10/10 | 4.1s | 2/7 | 51.8s | 78.0s | 2/2 | 2.7s | 1.27¢ |
 | gpt-6-luna | 10/10 | 7.3s | 7/7 | 36.1s | 53.1s | 7/7 | 7.1s | 0.30¢ |
 | haiku-4-5 | 9/10 | 6.1s | 7/7 | 36.6s | 112.8s | 7/7 | 4.3s | 4.27¢ |
 | haiku-5-5 | 4/10 | 5.6s | 7/7 | 46.6s | 59.1s | 4/7 | 5.8s | 0.61¢ |
-| haiku-5-5-nothink | 9/10 | 2.0s | 7/7 | 18.0s | 31.8s | 7/7 | 3.7s | 0.30¢ |
-| sonnet-5-5 | 10/10 | 3.7s | 7/7 | 50.0s | 66.5s | 7/7 | 6.7s | 8.34¢ |
-| sonnet-5-5-nothink | 10/10 | 4.1s | 7/7 | 47.5s | 89.7s | 7/7 | 7.4s | 9.80¢ |
+| haiku-5-5-nothink | 9/10 | 2.0s | 7/7 | 18.0s | 31.8s | 7/7 | 3.7s | 0.31¢ |
+| sonnet-5-5 | 10/10 | 3.7s | 7/7 | 50.0s | 66.5s | 7/7 | 6.7s | 8.45¢ |
+| sonnet-5-5-nothink | 10/10 | 4.1s | 7/7 | 47.5s | 89.7s | 7/7 | 7.4s | 9.20¢ |
 
 ### Itinerary quality signals
 
@@ -88,7 +88,7 @@ Scoring is in three layers:
 | haiku-5-5 | 9617 | 100% | 94% | 0.3 | 0.0 | 0.7 | 2.1 | 1.9 | 13.0 |
 | haiku-5-5-nothink | 4224 | 100% | 91% | 0.9 | 0.4 | 4.0 | 1.9 | 1.7 | 12.0 |
 | sonnet-5-5 | 6449 | 100% | 95% | 0.3 | 0.0 | 2.7 | 2.4 | 2.1 | 12.3 |
-| sonnet-5-5-nothink | 7471 | 100% | 94% | 0.7 | 0.0 | 3.7 | 2.0 | 1.6 | 12.6 |
+| sonnet-5-5-nothink | 6873 | 100% | 94% | 0.7 | 0.0 | 3.7 | 2.0 | 1.6 | 12.6 |
 
 ### Travel-safety answers
 
@@ -107,9 +107,9 @@ Scoring is in three layers:
 
 | Model | Itinerary complete (run 1 / run 2) | Itinerary p50 (run 1 / run 2) | Itinerary p95 (run 1 / run 2) | Cost per trip (run 1 / run 2) |
 | --- | ---: | ---: | ---: | ---: |
-| gemini-3-8-flash | 7/7 / 7/7 | 30.7s / 28.7s | 44.1s / 44.4s | 2.10¢ / 2.06¢ |
+| gemini-3-8-flash | 7/7 / 7/7 | 30.7s / 28.7s | 44.1s / 44.4s | 2.12¢ / 2.13¢ |
 | gpt-6-luna | 7/7 / 7/7 | 36.1s / 38.9s | 53.1s / 61.6s | 0.30¢ / 0.30¢ |
-| haiku-5-5-nothink | 7/7 / 7/7 | 18.0s / 19.1s | 31.8s / 55.7s | 0.30¢ / 0.38¢ |
+| haiku-5-5-nothink | 7/7 / 7/7 | 18.0s / 19.1s | 31.8s / 55.7s | 0.31¢ / 0.38¢ |
 
 
 "Itinerary complete" means the stream finished without an error, had one day object per requested day, and every
@@ -133,9 +133,10 @@ Google-confirmed row. A judge score of 3 is a middling plan. The judge was stric
 - **GPT-6 Luna matches Gemini on the quality signals at about a seventh of the itinerary cost.** The judge scored it the same
   as Gemini (2.1 and 1.9), it finished 14 of 14, and it repeated fewer stops on long trips (1.7). It is slower: median
   36.1 and 38.9 seconds against 30.7 and 28.7. It is already the production fallback.
-- **Sonnet 5.5 scored best with the judge (2.4 and 2.1) and costs 6.6¢ to 7.9¢ per itinerary**, four to five times
+- **Sonnet 5.5 scored best with the judge (2.4 and 2.1) and costs 6.6¢ to 7.3¢ per itinerary**, about four times
   Gemini, with a median near 50 seconds. The gap with the cheaper models is a few tenths of a point on a strict judge.
-  Turning its thinking off did not make it faster or cheaper.
+  Turning its thinking off left the median about the same (47.5 seconds), made the slowest run worse (89.7 against 66.5)
+  and did not lower the cost.
 - **Haiku 4.5, the current third fallback, is the slowest and weakest of the models that finished.** Its slowest run
   was 112.8 seconds, it had two failed attempts that were retried, and the judge gave it the lowest scores of the models that
   finished most plans (1.7 and 1.6).
@@ -198,7 +199,9 @@ These are recommendations from a pilot, for the owner to decide.
   medians moved by 2 to 3 seconds between runs, and one p95 moved by 24 seconds.
 - The judge is a model, uncalibrated, and Opus 5.5 comes from the same vendor as five of the eight configurations, which may flatter
   them. No venue, opening hour or legal claim was independently verified except by the database match.
-- Cost is tokens times catalog prices, for the three jobs only. It excludes geocoding, weather and Places calls, and it
+- Cost is tokens times catalog prices, for the three jobs only. A few calls had no token usage in Langfuse (Gemini 1,
+  nano 1, Haiku 5.5 with thinking off 2, Sonnet 5.5 with thinking off 1, and 2 more for Gemini on the second run). They are
+  left out of the cost averages, so those figures are slightly incomplete. It excludes geocoding, weather and Places calls, and it
   would be different at production traffic mixes.
 - The local backend wrote a few extra rows to `trip_metrics` and may have written back stops not in the database.
 - No fault injection. This comparison says nothing about recovery from 429s, timeouts or truncation, which the
