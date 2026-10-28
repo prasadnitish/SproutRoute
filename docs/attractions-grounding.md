@@ -97,6 +97,13 @@ Seattle rows, with the production key:
   `grounding: { total, matched, ratio }`, and the ratio is logged as `trip-plan:grounding` with the names that
   did not match. Matched stops are not written back to the table.
 
+Opening hours are enforced after generation (`enforceOpeningHours`, logged as `trip-plan:hours-corrected`). For each
+matched stop it reads the place's hours for the day (the weekday comes from the date in the day label). A time in
+the timing tip that runs past closing or starts before opening is moved to the nearest time that fits, and the tip
+text is rewritten. A stop at a place closed all day is swapped for an unused shortlisted place that is open at that
+time; with no such place it is kept and reported. Hours that are missing or unreadable are left alone. Only the
+first time in a timing tip is checked, and overlaps between stops on the same day are not.
+
 Limits: the rule against invented venues is in the prompt and measured, not enforced. A stop that matches no
 row is flagged `grounded: false` and kept. Meals are still chosen by the model. Hours are the weekly pattern
 Google returns, not holiday exceptions.

@@ -4,7 +4,7 @@ import { callModel } from "../utils/aiClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import { buildCachedAttractionsSummary } from "./attractionMemory.js";
-import { attachGroundingToPlan } from "./groundedAttractions.js";
+import { attachGroundingToPlan, enforceOpeningHours } from "./groundedAttractions.js";
 import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
@@ -664,7 +664,9 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
       hasPets: pets.length > 0, expectedDays,
       minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
     }));
-    const { tripPlan, stats } = attachGroundingToPlan(checked, cachedAttractions);
+    const { tripPlan: onTime, changes } = enforceOpeningHours(checked, cachedAttractions, { startDate });
+    if (changes.length) log.info("trip-plan:hours-corrected", { destination, changes: changes.slice(0, 10) });
+    const { tripPlan, stats } = attachGroundingToPlan(onTime, cachedAttractions);
     if (stats) {
       log.info("trip-plan:grounding", { destination, total: stats.total, matched: stats.matched, ratio: Number(stats.ratio.toFixed(2)), unmatched: stats.unmatched.slice(0, 8) });
       tripPlan.grounding = { total: stats.total, matched: stats.matched, ratio: stats.ratio };
