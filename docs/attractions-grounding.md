@@ -138,7 +138,7 @@ Re-running with the same data changes nothing (posts keyed by link, venues by pl
 looked up or classified again, decay is measured from when the score was set). At most 20 new venues are
 resolved per city per run, so Google cost is bounded at about $0.04 per new venue.
 
-Unverified: the HikerAPI endpoints and field names (see `docs/trend-providers.md`). Run the provider bench first.
+HikerAPI's location endpoint was verified live on 2026-10-28 (see `docs/trend-providers.md`); its hashtag endpoint was not.
 
 ## Not done yet
 

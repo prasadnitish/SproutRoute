@@ -34,7 +34,7 @@ function defaultResolveVenue({ name, city }) {
 
 export async function runTrendJob({
   admin, provider, classifier, resolveVenue = defaultResolveVenue,
-  now = Date.now(), apply = false, cityId = null, sinceDays = 7, postLimit = 50,
+  now = Date.now(), apply = false, cityId = null, sinceDays = 7, postLimit = 200,
   authorSalt = process.env.TREND_AUTHOR_SALT || "sproutroute-trend-v1", onProgress = () => {},
 }) {
   const runId = randomUUID();

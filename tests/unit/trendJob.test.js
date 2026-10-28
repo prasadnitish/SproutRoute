@@ -289,3 +289,11 @@ test("a name conflict the read could not see (a concurrent run) is resolved by r
   assert.equal(summary.inserted, 0);
   assert.ok(admin.tables.trend_posts.every((p) => p.attraction_id === "attr-hidden"));
 });
+
+test("each seed is fetched for a full week of posts, not just the newest page", async () => {
+  let asked;
+  const { run } = setup();
+  await run({ provider: { name: "spy", fetchLocationPosts: async (req) => { asked = req; return []; }, fetchHashtagPosts: async () => [] } });
+  assert.equal(asked.sinceDays, 7);
+  assert.ok(asked.limit >= 200, `limit was ${asked.limit}`);
+});
