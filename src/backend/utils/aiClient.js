@@ -1,4 +1,5 @@
 import { tracing } from '../services/tracing.js';
+import { evalCapture } from '../services/evalCapture.js';
 /**
  * aiClient.js — Unified AI model client abstraction
  *
@@ -327,6 +328,7 @@ async function safely(work) {
  * @param {object} [deps.anthropicClient]  - Pre-built Anthropic client
  * @param {object} [deps.geminiModel]      - Pre-built Gemini model
  * @param {object} [deps.deepseekClient]   - Pre-built DeepSeek/OpenAI client
+ * @param {object} [deps.evalCapture]      - Eval trace recorder (tests)
  *
  * @returns {Promise<{ responseText: string, stopReason: string|null }>}
  */
@@ -341,6 +343,7 @@ export async function callModel(prompt, deps = {}) {
   } = prompt;
 
   const alerts = deps.alerts ?? aiAlerts;
+  const capture = deps.evalCapture ?? evalCapture;
   const provider = resolveProvider(prompt);
   const caller = prompt.caller || "unknown";
   const modelId = prompt.model || modelIdForProvider(provider, caller);
@@ -355,13 +358,19 @@ export async function callModel(prompt, deps = {}) {
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   // DeepSeek is never an automatic fallback: the privacy policy does not list it as a recipient of trip content.
 
-  async function callWithRemainingBudget(selectedProvider, params, attemptsRemaining) {
+  async function callWithRemainingBudget(selectedProvider, params, attemptsRemaining, attempt) {
     const remainingMs = deadlineAt - Date.now();
     if (remainingMs <= 0) throw new Error("AI provider deadline exceeded");
     // Reserve an equal share for every remaining provider; a hung primary must
     // never consume the entire request deadline. Fast failures release their time.
     const attemptMs = Math.max(1, Math.floor(remainingMs / attemptsRemaining));
     const deadline = createAttemptDeadline(prompt.signal, attemptMs);
+    // Eval runs only: records the full prompt and answer for rubric scoring.
+    const generation = capture.startGeneration({
+      caller, provider: selectedProvider, model: params.modelId, attempt,
+      system: params.system, user: params.user, temperature: params.temperature,
+      maxTokens: params.maxTokens, effort: params.effort,
+    });
     try {
       const result = await tracing.span('ai.attempt', {provider:selectedProvider, model_id:params.modelId}, () => deadline.run(async () => {
         const response = await callProvider(selectedProvider, {
@@ -380,11 +389,17 @@ export async function callModel(prompt, deps = {}) {
           await prompt.validateResponse?.(response.responseText);
         } catch (rejected) {
           rejected.aiUsage = spent;
+          generation?.end({ output: response.responseText, stopReason: response.stopReason, usage: spent, error: rejected, validation: "rejected" });
           throw rejected;
         }
+        generation?.end({ output: response.responseText, stopReason: response.stopReason, usage: spent, validation: "passed" });
         return { ...response, aiUsage: spent };
       }));
       return { ...result, provider: selectedProvider, model: params.modelId };
+    } catch (error) {
+      // Provider errors and deadlines; no-op if validation already recorded it.
+      generation?.end({ error, validation: "not_reached" });
+      throw error;
     } finally {
       deadline.cleanup();
     }
@@ -393,7 +408,7 @@ export async function callModel(prompt, deps = {}) {
   try {
     const result = await callWithRemainingBudget(provider, {
       system, user, maxTokens, temperature, effort, cacheSystemPrompt, modelId,
-    }, fallbackProviders.length + 1);
+    }, fallbackProviders.length + 1, "primary");
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
     metrics.recordAiCall({ caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0, success: true, ...result.aiUsage });
@@ -412,7 +427,7 @@ export async function callModel(prompt, deps = {}) {
       try {
         const result = await callWithRemainingBudget(fb, {
           system, user, maxTokens, temperature, effort, cacheSystemPrompt: false, modelId: fallbackModelId,
-        }, fallbackProviders.length - index);
+        }, fallbackProviders.length - index, `fallback-${index + 1}`);
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
         metrics.recordAiCall({ caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0, success: true, ...result.aiUsage });

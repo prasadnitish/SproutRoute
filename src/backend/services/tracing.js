@@ -1,4 +1,5 @@
 import { createTraceArchive } from "./traceArchive.js";
+import { evalCapture } from "./evalCapture.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
 import { performance } from "node:perf_hooks";
@@ -39,7 +40,14 @@ export function createTracer({
   function snapshot() {
     return structuredClone(history);
   }
-  function span(label, detail, operation) {
+  function span(label, detail, operation, input) {
+    // Tool steps are mirrored into the eval trace (a no-op outside eval runs).
+    // Model attempts are recorded as generations by aiClient, and raw HTTP
+    // dependency spans are left out as noise.
+    if (label.startsWith("tool.")) {
+      const inner = operation;
+      operation = () => evalCapture.observe(label, { asType: "tool", input }, inner);
+    }
     const parent = context.getStore();
     if (!parent) return operation();
     const { trace, origin } = parent;
@@ -256,7 +264,7 @@ export function createTracer({
     wrap:
       (name, fn) =>
       (...args) =>
-        span(name, {}, () => fn(...args)),
+        span(name, {}, () => fn(...args), args),
   };
 }
 export const traceArchive = createTraceArchive(process.env.TRACE_ARCHIVE_PATH);
