@@ -14,6 +14,8 @@ const TOKEN_HEADER = "x-eval-capture";
 const MIN_TOKEN_LENGTH = 32;
 const CLIENTS = new Set(["web", "ios", "android"]);
 const LABEL = /^[A-Za-z0-9_.:-]{1,80}$/;
+// The same random 32-character id the web app sends as X-Journey-Id on every call of one trip submission.
+const HEX_ID = /^[a-f0-9]{32}$/;
 const RUBRIC_LINES = /^[A-Z][0-9]{1,2}(,[A-Z][0-9]{1,2}){0,19}$/;
 const MAX_FIELD_CHARS = 200_000;
 const MAX_STREAM_EVENTS = 200;
@@ -221,17 +223,34 @@ export function createEvalCapture({ env = process.env, exporter, loadSdk = defau
     const caseId = label(req.get("x-eval-case"));
     const runId = label(req.get("x-eval-run"));
     const rubric = RUBRIC_LINES.test(req.get("x-eval-rubric") || "") ? req.get("x-eval-rubric").split(",") : undefined;
+    const step = label(req.get("x-eval-step"));
+    // Calls of one trip share a journey id. It becomes the Langfuse session, so parse, stream, packing and
+    // safety calls read together; the run label stays a tag. Without one, the run label is the session.
+    const journeyHeader = req.get("x-journey-id") || "";
+    const journeyId = HEX_ID.test(journeyHeader) ? journeyHeader : undefined;
+    const runtimeHeader = String(res.getHeader?.("X-Trace-Id") || "");
+    const runtimeTraceId = HEX_ID.test(runtimeHeader) ? runtimeHeader : undefined;
 
     sdk()
       .then(({ langfuseTracing }) => {
         const tags = ["eval", `client:${client}`];
         if (caseId) tags.push(`case:${caseId}`);
+        if (runId) tags.push(`run:${runId}`);
+        if (step) tags.push(`step:${step}`);
         langfuseTracing.propagateAttributes(
           {
             traceName: traceNameFor(req.path),
-            sessionId: runId,
+            sessionId: journeyId || runId,
             tags,
-            metadata: { client, ...(caseId && { case_id: caseId }), ...(runId && { run_id: runId }), ...(rubric && { rubric_lines: rubric }) },
+            metadata: {
+              client,
+              ...(caseId && { case_id: caseId }),
+              ...(runId && { run_id: runId }),
+              ...(journeyId && { journey_id: journeyId }),
+              ...(step && { step }),
+              ...(runtimeTraceId && { runtime_trace_id: runtimeTraceId }),
+              ...(rubric && { rubric_lines: rubric }),
+            },
           },
           () =>
             langfuseTracing.startActiveObservation(
@@ -242,6 +261,8 @@ export function createEvalCapture({ env = process.env, exporter, loadSdk = defau
                   input: toPayload(req.body),
                   metadata: { method: req.method, path: req.path, query: toPayload(req.query) },
                 });
+                // Lets a caller open this trace, and lets the runtime tracer record which eval trace it matches.
+                if (HEX_ID.test(String(root.traceId || "")) && !res.headersSent) res.setHeader("X-Langfuse-Trace-Id", root.traceId);
                 captureResponse(res, root);
                 store.run({ parent: root }, next);
               },
