@@ -75,12 +75,29 @@ export interface ItineraryDay {
   notes?: string;
 }
 
+/** Fields added to a suggested activity that matches a Google-confirmed attraction in the database. */
+export interface ActivityGrounding {
+  /** false when the activity is not in the database; the other fields are then absent. */
+  grounded: boolean;
+  placeId?: string;
+  rating?: number | null;
+  ratingCount?: number | null;
+  /** 0 (free) to 4 (very expensive); Google leaves it empty for most places. */
+  priceLevel?: number | null;
+  /** Same-origin photo proxy URL, so the Google key stays on the server. */
+  photoUrl?: string | null;
+  /** True while the place is being talked about on social media this week or last. */
+  trending: boolean;
+}
+
 /** The AI-generated trip plan */
 export interface TripPlanResult {
   overview: string;
   suggestedActivities: string[];
   dailyItinerary: ItineraryDay[];
   tips: string[];
+  /** Present when the plan was built from a database shortlist: how many stops came from it. */
+  grounding?: { total: number; matched: number; ratio: number };
 }
 
 export interface ScheduledDayRouteMeta {

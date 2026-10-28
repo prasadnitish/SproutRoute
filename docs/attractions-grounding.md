@@ -76,8 +76,31 @@ Seattle rows, with the production key:
   Well under a cent per row at Haiku 5.5 prices. The ops dashboard shows the exact figure under "AI Spend by
   Model" once the calls are recorded.
 
+## How generation uses the table (Part D)
+
+- `getPlanningCandidates` reads `city_attractions` rows that are `status = 'active'`, have a Google place id and
+  coordinates, and are not rejected, closed or adults-only (`isGroundedRow`). Rows a model wrote and nothing
+  verified never qualify, whatever their other columns say. The old filter (`verified` and not `generated`)
+  returned no rows and is gone.
+- Rows are ranked by the existing family scoring plus review volume and rating. Up to 1 in 6 slots (at most 3)
+  go to trending venues (`trend_score > 0`, refreshed in the last 14 days), replacing the lowest ranked
+  evergreen ones. Formal fine dining is dropped when a child is under 8 unless the traveler asked for it.
+- A city with fewer than 8 grounded rows is filled once from Google Places (three family-phrased searches,
+  open places rated 4.0 or higher with at least 100 reviews, no bars, casinos, hotels or restaurants). The fill
+  costs about $0.10 per city. A failed or empty fill is not retried for 6 hours. Filled rows get their
+  family-fit judgment from the next refresh run.
+- The prompt lists each stop with rating, price, typical hours and closed days, duration and a trending flag.
+  Rules: never invent a venue, do not schedule a place on a day it is closed, 45 minutes to 3 hours per stop,
+  no formal fine dining under age 8 unless asked, timing tips must agree with the scheduled time.
+- Each suggested activity that matches a row gets `grounded`, `placeId`, `rating`, `ratingCount`, `priceLevel`,
+  `photoUrl` (the existing `/api/v1/places/photo` proxy) and `trending`. The plan gets
+  `grounding: { total, matched, ratio }`, and the ratio is logged as `trip-plan:grounding` with the names that
+  did not match. Matched stops are not written back to the table.
+
+Limits: the rule against invented venues is in the prompt and measured, not enforced. A stop that matches no
+row is flagged `grounded: false` and kept. Meals are still chosen by the model. Hours are the weekly pattern
+Google returns, not holiday exceptions.
+
 ## Not done yet
 
 - Part C: trending layer.
-- Part D: itinerary generation reading only active, grounded rows, with the candidate list and prompt rules.
-- The existing retrieval filter (`verified` and not `generated`) still returns no rows. It is changed in Part D.

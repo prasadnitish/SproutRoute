@@ -12,6 +12,10 @@ import {
   refreshStaleCandidates,
 } from "../../src/backend/services/attractionMemory.js";
 
+// Planning reads only rows Google confirmed, so fixtures for getPlanningCandidates carry place data.
+const grounded = (row) => ({ ...row, status: "active", google_place_id: row.google_place_id || `gp-${row.id}`, lat: 1, lon: 1 });
+const noFill = async () => ({ status: "error", inserted: 0 });
+
 test("rankCandidateAttractions prioritizes kid-friendly fresh verified matches", () => {
   const ranked = rankCandidateAttractions(
     [
@@ -521,6 +525,7 @@ test("getPlanningCandidates uses region attraction pools for broad destinations 
     ],
     verification: [],
   };
+  state.attractions = state.attractions.map(grounded);
 
   function makeQuery(table) {
     const ctx = { filters: [] };
@@ -537,6 +542,10 @@ test("getPlanningCandidates uses region attraction pools for broad destinations 
       },
       in(column, values) {
         ctx.filters.push((row) => values.includes(row[column]));
+        return api;
+      },
+      not(column, op, value) {
+        ctx.filters.push((row) => (op === "is" && value === null ? row[column] != null : true));
         return api;
       },
       neq(column, value) {
@@ -566,6 +575,7 @@ test("getPlanningCandidates uses region attraction pools for broad destinations 
   const service = createAttractionMemoryService({
     getAdmin: () => admin,
     resolvePlaceIdentity: async () => null,
+    fillCity: noFill,
   });
 
   const results = await service.getPlanningCandidates({
@@ -682,6 +692,7 @@ test("getPlanningCandidates supplements a thin city cache with nearby regional c
     ],
     verification: [],
   };
+  state.attractions = state.attractions.map(grounded);
 
   function makeQuery(table) {
     const ctx = { filters: [] };
@@ -698,6 +709,10 @@ test("getPlanningCandidates supplements a thin city cache with nearby regional c
       },
       in(column, values) {
         ctx.filters.push((row) => values.includes(row[column]));
+        return api;
+      },
+      not(column, op, value) {
+        ctx.filters.push((row) => (op === "is" && value === null ? row[column] != null : true));
         return api;
       },
       neq(column, value) {
@@ -727,6 +742,7 @@ test("getPlanningCandidates supplements a thin city cache with nearby regional c
   const service = createAttractionMemoryService({
     getAdmin: () => admin,
     resolvePlaceIdentity: async () => null,
+    fillCity: noFill,
   });
 
   const results = await service.getPlanningCandidates({
