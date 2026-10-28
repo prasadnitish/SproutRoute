@@ -636,6 +636,40 @@ test("callModel never falls back to DeepSeek, even when its key is set", async (
   }
 });
 
+function capturingAnthropic(captured) {
+  return {
+    messages: {
+      create: async (params) => {
+        captured.push(params);
+        return { content: [{ type: "text", text: "{}" }], stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 } };
+      },
+    },
+  };
+}
+
+test("callModel leaves temperature out for Claude 5.x models, which reject it with a 400", async () => {
+  delete process.env.AI_PROVIDER;
+  for (const model of ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-4-8"]) {
+    const captured = [];
+    await callModel({ system: "s", user: "u", provider: "anthropic", model, temperature: 0 }, { anthropicClient: capturingAnthropic(captured) });
+    assert.equal("temperature" in captured[0], false, `${model} must not receive temperature`);
+  }
+});
+
+test("callModel still sends temperature to Claude 4.x models", async () => {
+  delete process.env.AI_PROVIDER;
+  const captured = [];
+  await callModel({ system: "s", user: "u", provider: "anthropic", model: "claude-haiku-4-5", temperature: 0 }, { anthropicClient: capturingAnthropic(captured) });
+  assert.equal(captured[0].temperature, 0);
+});
+
+test("callModel passes effort to Claude 5.x models as output_config", async () => {
+  delete process.env.AI_PROVIDER;
+  const captured = [];
+  await callModel({ system: "s", user: "u", provider: "anthropic", model: "claude-haiku-5-5", effort: "low" }, { anthropicClient: capturingAnthropic(captured) });
+  assert.deepEqual(captured[0].output_config, { effort: "low" });
+});
+
 test("callModel uses OpenAI first when Gemini has no credits", async () => {
   const originalOpenAIKey = process.env.OPENAI_API_KEY;
   const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;

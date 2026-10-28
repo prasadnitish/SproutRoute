@@ -1,0 +1,198 @@
+{
+  "ranAt": "2026-10-27T18:13:31.886Z",
+  "blockedWrites": [],
+  "results": [
+    {
+      "case": "long_tail",
+      "label": "Leavenworth, WA (long tail, in DB)",
+      "http": 500,
+      "elapsedMs": 136725,
+      "requestedDestination": "Leavenworth, WA",
+      "dbQueries": [
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code)",
+            "eq(country_code,US)",
+            "ilike(city_name,Leavenworth)",
+            "limit(1)"
+          ],
+          "rows": 1,
+          "error": null
+        },
+        {
+          "table": "city_attractions",
+          "steps": [
+            "select(*)",
+            "in(city_id,{})",
+            "eq(verification_status,verified)",
+            "neq(source_type,generated)",
+            "limit(50)"
+          ],
+          "rows": 0,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "eq(region_code,WA)",
+            "limit(12)"
+          ],
+          "rows": 4,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "limit(216)"
+          ],
+          "rows": 70,
+          "error": null
+        },
+        {
+          "table": "city_attractions",
+          "steps": [
+            "select(*)",
+            "in(city_id,{})",
+            "eq(verification_status,verified)",
+            "neq(source_type,generated)",
+            "limit(160)"
+          ],
+          "rows": 0,
+          "error": null
+        }
+      ],
+      "candidatesReturned": 0,
+      "shortlistPassedToModel": 0,
+      "finalVenueCount": 0,
+      "finalVenuesInShortlist": 0,
+      "finalVenuesInAnyCityRow": 0,
+      "shareInShortlist": null,
+      "shareInAnyCityRow": null,
+      "venuesNotInDb": [],
+      "finalVenues": [],
+      "candidates": [],
+      "persistSkipped": false
+    },
+    {
+      "case": "not_in_db",
+      "label": "Anchorage, AK (not in DB)",
+      "http": 200,
+      "elapsedMs": 48348,
+      "requestedDestination": "Anchorage, AK",
+      "dbQueries": [
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code)",
+            "eq(country_code,US)",
+            "ilike(city_name,Anchorage)",
+            "limit(1)"
+          ],
+          "rows": 0,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "eq(region_code,AK)",
+            "limit(12)"
+          ],
+          "rows": 0,
+          "error": null
+        }
+      ],
+      "candidatesReturned": 0,
+      "shortlistPassedToModel": 0,
+      "finalVenueCount": 36,
+      "finalVenuesInShortlist": 0,
+      "finalVenuesInAnyCityRow": 0,
+      "shareInShortlist": 0,
+      "shareInAnyCityRow": 0,
+      "venuesNotInDb": [
+        "Alaska Wildlife Conservation Center",
+        "Anchorage Museum",
+        "Alaska Railroad Depot",
+        "Downtown Anchorage Walking Tour",
+        "Delaney Park Strip",
+        "Alaska Botanical Garden",
+        "Glenn Square Park",
+        "Alaska Native Heritage Center",
+        "Ship Creek",
+        "Earthquake Park",
+        "Kincaid Park",
+        "Alaska Aviation Museum",
+        "Anchorage Public Library",
+        "Carr-Gottstein Park",
+        "Alaska Experience Theatre",
+        "Alaska Science Center",
+        "Alaska Zoo",
+        "Alaska Heritage Museum",
+        "Alaska Railroad Tour",
+        "Alaska Conservation Center",
+        "downtown-anchorage-walking-tour",
+        "alaska-railroad-depot",
+        "delaney-park",
+        "anchorage-museum",
+        "alaska-wildlife-conservation-center",
+        "alaska-botanical-garden",
+        "glenn-square-park",
+        "alaska-native-heritage-center",
+        "ship-creek-center",
+        "earthquake-park",
+        "kincaid-park",
+        "alaska-aviation-museum",
+        "anchorage-public-library",
+        "carr-gottstein-park",
+        "alaska-experience-theatre",
+        "alaska-science-center"
+      ],
+      "finalVenues": [
+        "Alaska Wildlife Conservation Center",
+        "Anchorage Museum",
+        "Alaska Railroad Depot",
+        "Downtown Anchorage Walking Tour",
+        "Delaney Park Strip",
+        "Alaska Botanical Garden",
+        "Glenn Square Park",
+        "Alaska Native Heritage Center",
+        "Ship Creek",
+        "Earthquake Park",
+        "Kincaid Park",
+        "Alaska Aviation Museum",
+        "Anchorage Public Library",
+        "Carr-Gottstein Park",
+        "Alaska Experience Theatre",
+        "Alaska Science Center",
+        "Alaska Zoo",
+        "Alaska Heritage Museum",
+        "Alaska Railroad Tour",
+        "Alaska Conservation Center",
+        "downtown-anchorage-walking-tour",
+        "alaska-railroad-depot",
+        "delaney-park",
+        "anchorage-museum",
+        "alaska-wildlife-conservation-center",
+        "alaska-botanical-garden",
+        "glenn-square-park",
+        "alaska-native-heritage-center",
+        "ship-creek-center",
+        "earthquake-park",
+        "kincaid-park",
+        "alaska-aviation-museum",
+        "anchorage-public-library",
+        "carr-gottstein-park",
+        "alaska-experience-theatre",
+        "alaska-science-center"
+      ],
+      "candidates": [],
+      "persistSkipped": true
+    }
+  ]
+}

@@ -13,6 +13,8 @@ const PRICES = {
   "gemini-3.6-flash": { in: 0.75, out: 3.75 },
   "gemini-2.5-flash": { in: 0.3, out: 2.5 },
   "claude-haiku-4-5": { in: 1, out: 5 },
+  "claude-haiku-5-5": { in: 0.1, out: 0.5 }, // prompts up to 100K tokens
+  "claude-sonnet-5-5": { in: 2, out: 10 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
   "gpt-6-luna": { in: 0.1, out: 0.5 },
 };

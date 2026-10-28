@@ -1,0 +1,256 @@
+{
+  "ranAt": "2026-10-27T18:09:06.551Z",
+  "blockedWrites": [],
+  "results": [
+    {
+      "case": "seattle",
+      "label": "Seattle (well covered)",
+      "http": 200,
+      "elapsedMs": 69233,
+      "requestedDestination": "Seattle, WA",
+      "dbQueries": [
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code)",
+            "eq(country_code,US)",
+            "ilike(city_name,Seattle)",
+            "limit(1)"
+          ],
+          "rows": 1,
+          "error": null
+        },
+        {
+          "table": "city_attractions",
+          "steps": [
+            "select(*)",
+            "in(city_id,{})",
+            "eq(verification_status,verified)",
+            "neq(source_type,generated)",
+            "limit(50)"
+          ],
+          "rows": 0,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "eq(region_code,WA)",
+            "limit(12)"
+          ],
+          "rows": 4,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "limit(216)"
+          ],
+          "rows": 70,
+          "error": null
+        },
+        {
+          "table": "city_attractions",
+          "steps": [
+            "select(*)",
+            "in(city_id,{})",
+            "eq(verification_status,verified)",
+            "neq(source_type,generated)",
+            "limit(160)"
+          ],
+          "rows": 0,
+          "error": null
+        }
+      ],
+      "candidatesReturned": 0,
+      "shortlistPassedToModel": 0,
+      "finalVenueCount": 41,
+      "finalVenuesInShortlist": 0,
+      "finalVenuesInAnyCityRow": 28,
+      "shareInShortlist": 0,
+      "shareInAnyCityRow": 0.68,
+      "venuesNotInDb": [
+        "Seattle Central Library",
+        "Downtown Seattle Walking Tour",
+        "Gum Wall",
+        "Seattle Waterfront",
+        "Fremont Troll",
+        "Fremont Sunday Market",
+        "University of Washington Campus",
+        "gum-wall",
+        "seattle-waterfront",
+        "great-wheel",
+        "seattle-childrens-museum",
+        "downtown-walking-tour",
+        "seattle-public-library"
+      ],
+      "finalVenues": [
+        "Pike Place Market",
+        "Seattle Aquarium",
+        "Seattle Center Monorail",
+        "Space Needle",
+        "Chihuly Garden and Glass",
+        "Pacific Science Center",
+        "Seattle Children's Museum",
+        "Woodland Park Zoo",
+        "Green Lake Park",
+        "Seattle Art Museum",
+        "Kerry Park",
+        "Museum of Flight",
+        "Seattle Central Library",
+        "Downtown Seattle Walking Tour",
+        "Gum Wall",
+        "Seattle Waterfront",
+        "Seattle Great Wheel",
+        "Olympic Sculpture Park",
+        "Fremont Troll",
+        "Fremont Sunday Market",
+        "Gas Works Park",
+        "University of Washington Campus",
+        "Burke Museum",
+        "pike-place-market",
+        "gum-wall",
+        "seattle-aquarium",
+        "seattle-waterfront",
+        "great-wheel",
+        "seattle-center-monorail",
+        "space-needle",
+        "chihuly-garden",
+        "pacific-science-center",
+        "seattle-childrens-museum",
+        "woodland-park-zoo",
+        "green-lake-park",
+        "kerry-park",
+        "seattle-art-museum",
+        "museum-of-flight",
+        "downtown-walking-tour",
+        "seattle-public-library",
+        "olympic-sculpture-park"
+      ],
+      "candidates": [],
+      "persistSkipped": true
+    },
+    {
+      "case": "long_tail",
+      "label": "Leavenworth, WA (long tail, in DB)",
+      "http": 500,
+      "elapsedMs": 147120,
+      "requestedDestination": "Leavenworth, WA",
+      "dbQueries": [
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code)",
+            "eq(country_code,US)",
+            "ilike(city_name,Leavenworth)",
+            "limit(1)"
+          ],
+          "rows": 1,
+          "error": null
+        },
+        {
+          "table": "city_attractions",
+          "steps": [
+            "select(*)",
+            "in(city_id,{})",
+            "eq(verification_status,verified)",
+            "neq(source_type,generated)",
+            "limit(50)"
+          ],
+          "rows": 0,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "eq(region_code,WA)",
+            "limit(12)"
+          ],
+          "rows": 4,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "limit(216)"
+          ],
+          "rows": 70,
+          "error": null
+        },
+        {
+          "table": "city_attractions",
+          "steps": [
+            "select(*)",
+            "in(city_id,{})",
+            "eq(verification_status,verified)",
+            "neq(source_type,generated)",
+            "limit(160)"
+          ],
+          "rows": 0,
+          "error": null
+        }
+      ],
+      "candidatesReturned": 0,
+      "shortlistPassedToModel": 0,
+      "finalVenueCount": 0,
+      "finalVenuesInShortlist": 0,
+      "finalVenuesInAnyCityRow": 0,
+      "shareInShortlist": null,
+      "shareInAnyCityRow": null,
+      "venuesNotInDb": [],
+      "finalVenues": [],
+      "candidates": [],
+      "persistSkipped": false
+    },
+    {
+      "case": "not_in_db",
+      "label": "Anchorage, AK (not in DB)",
+      "http": 500,
+      "elapsedMs": 142692,
+      "requestedDestination": "Anchorage, AK",
+      "dbQueries": [
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code)",
+            "eq(country_code,US)",
+            "ilike(city_name,Anchorage)",
+            "limit(1)"
+          ],
+          "rows": 0,
+          "error": null
+        },
+        {
+          "table": "cities",
+          "steps": [
+            "select(id, city_name, display_name, country_code, region_code, lat, lon, priority_tier)",
+            "eq(country_code,US)",
+            "eq(region_code,AK)",
+            "limit(12)"
+          ],
+          "rows": 0,
+          "error": null
+        }
+      ],
+      "candidatesReturned": 0,
+      "shortlistPassedToModel": 0,
+      "finalVenueCount": 0,
+      "finalVenuesInShortlist": 0,
+      "finalVenuesInAnyCityRow": 0,
+      "shareInShortlist": null,
+      "shareInAnyCityRow": null,
+      "venuesNotInDb": [],
+      "finalVenues": [],
+      "candidates": [],
+      "persistSkipped": false
+    }
+  ]
+}
