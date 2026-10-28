@@ -40,13 +40,26 @@ test("formal fine dining is dropped for kids under 8 unless the traveler asked f
   assert.equal(excludeForTravelers(rows, { childrenAges: [] }).length, 2);
 });
 
-test("opening hours are summarized as typical hours plus closed days", () => {
+test("opening hours that are the same every open day are shown once, with the closed days", () => {
   const hours = { weekdayDescriptions: [
     "Monday: Closed", "Tuesday: 9:00 AM – 5:00 PM", "Wednesday: 9:00 AM – 5:00 PM", "Thursday: 9:00 AM – 5:00 PM",
-    "Friday: 9:00 AM – 8:00 PM", "Saturday: 9:00 AM – 5:00 PM", "Sunday: 9:00 AM – 5:00 PM",
+    "Friday: 9:00 AM – 5:00 PM", "Saturday: 9:00 AM – 5:00 PM", "Sunday: 9:00 AM – 5:00 PM",
   ] };
   assert.equal(summarizeHours(hours), "9:00 AM – 5:00 PM; closed Mon");
   assert.equal(summarizeHours({ weekdayDescriptions: ["Monday: Open 24 hours", "Tuesday: Open 24 hours"] }), "Open 24 hours");
+});
+
+test("opening hours that differ by weekday keep every exception instead of showing only the typical hours", () => {
+  const hours = { weekdayDescriptions: [
+    "Monday: 9:00 AM – 5:00 PM", "Tuesday: 9:00 AM – 5:00 PM", "Wednesday: 9:00 AM – 5:00 PM", "Thursday: 9:00 AM – 5:00 PM",
+    "Friday: 9:00 AM – 5:00 PM", "Saturday: 9:00 AM – 5:00 PM", "Sunday: 12:00 PM – 3:00 PM",
+  ] };
+  assert.equal(summarizeHours(hours), "Mon–Sat 9:00 AM – 5:00 PM; Sun 12:00 PM – 3:00 PM");
+  const withClosed = { weekdayDescriptions: [
+    "Monday: Closed", "Tuesday: 9:00 AM – 5:00 PM", "Wednesday: 9:00 AM – 5:00 PM", "Thursday: 9:00 AM – 5:00 PM",
+    "Friday: 9:00 AM – 8:00 PM", "Saturday: 9:00 AM – 5:00 PM", "Sunday: 9:00 AM – 5:00 PM",
+  ] };
+  assert.equal(summarizeHours(withClosed), "Mon closed; Tue–Thu 9:00 AM – 5:00 PM; Fri 9:00 AM – 8:00 PM; Sat–Sun 9:00 AM – 5:00 PM");
   assert.equal(summarizeHours(null), "");
   assert.equal(summarizeHours({ weekdayDescriptions: [] }), "");
 });

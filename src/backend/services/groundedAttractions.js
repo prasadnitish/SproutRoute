@@ -29,21 +29,38 @@ export function excludeForTravelers(rows, { childrenAges = [], mustHaves = [], r
   return rows.filter((row) => !row.family_fit_json?.fineDining);
 }
 
-/** "9:00 AM – 5:00 PM; closed Mon": the most common hours text, then the closed days. */
+/**
+ * Opening hours as one line. When every open day has the same hours: "9:00 AM – 5:00 PM; closed Mon". When they
+ * differ, each run of days is spelled out so an exception such as short Sunday hours is never hidden:
+ * "Mon–Sat 9:00 AM – 5:00 PM; Sun 12:00 PM – 3:00 PM".
+ */
 export function summarizeHours(openingHours) {
   const lines = openingHours?.weekdayDescriptions;
   if (!Array.isArray(lines) || !lines.length) return "";
-  const counts = new Map();
-  const closed = [];
+  const days = [];
   for (const line of lines) {
     const [day, ...rest] = String(line).split(":");
     const text = rest.join(":").trim();
     if (!text) continue;
-    if (/^closed$/i.test(text)) closed.push(DAY_ABBREVIATIONS[day.trim().toLowerCase()] || day.trim());
-    else counts.set(text, (counts.get(text) || 0) + 1);
+    days.push({ day: DAY_ABBREVIATIONS[day.trim().toLowerCase()] || day.trim(), text, closed: /^closed$/i.test(text) });
   }
-  const typical = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
-  return [typical, closed.length ? `closed ${closed.join(", ")}` : ""].filter(Boolean).join("; ");
+  if (!days.length) return "";
+
+  const openHours = new Set(days.filter((d) => !d.closed).map((d) => d.text));
+  if (openHours.size <= 1) {
+    const closedDays = days.filter((d) => d.closed).map((d) => d.day);
+    return [[...openHours][0] || "", closedDays.length ? `closed ${closedDays.join(", ")}` : ""].filter(Boolean).join("; ");
+  }
+
+  const runs = [];
+  for (const entry of days) {
+    const last = runs[runs.length - 1];
+    if (last && last.text === entry.text) last.end = entry.day;
+    else runs.push({ start: entry.day, end: entry.day, text: entry.text, closed: entry.closed });
+  }
+  return runs
+    .map((run) => `${run.start === run.end ? run.start : `${run.start}–${run.end}`} ${run.closed ? "closed" : run.text}`)
+    .join("; ");
 }
 
 /** Trending means a positive score that the weekly job refreshed recently, so a stale score is not shown as news. */
