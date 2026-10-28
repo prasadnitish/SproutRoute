@@ -72,6 +72,7 @@ test("privacy policy covers shared links, group trips, calendar, and says web se
   assert.match(html, /expires after seven days/i);
   assert.match(html, /Trip Hub group trips/i);
   assert.match(html, /90 days/i);
+  assert.match(html, /removal can come later than 90 days/i);
   assert.match(html, /write-only access/i);
   assert.match(html, /web app does not record sessions or screens/i);
   assert.match(html, /asked to agree before your trip text is first sent/i);
