@@ -846,18 +846,35 @@ export function createAttractionMemoryService({
   resolvePlaceIdentity = enrichActivity,
   fillCity = fillCityFromPlaces,
 } = {}) {
-  // A city is filled from Places once. A failed or empty fill is not retried on every request.
+  // A city is filled from Places once. A failed or empty fill is not retried on every request, and a request that
+  // arrives while a fill is running waits for it instead of planning from the old, thin rows.
   const fillAttempts = new Map();
+  const fillsInFlight = new Map();
 
   async function ensureGroundedRows(admin, city, data) {
     if (data.length >= MIN_GROUNDED_ROWS) return data;
+    const reload = () => fetchAttractionsForCityIds(admin, [city.id], 120);
+
+    const running = fillsInFlight.get(city.id);
+    if (running) return (await running) ? reload() : data;
+
     const lastAttempt = fillAttempts.get(city.id);
     if (lastAttempt && Date.now() - lastAttempt < FILL_RETRY_MS) return data;
     fillAttempts.set(city.id, Date.now());
-    const result = await fillCity({ admin, city });
-    logger.info("attraction-memory:fill", { city: city.city_name, status: result.status, inserted: result.inserted, reason: result.reason });
-    if (result.status !== "filled" || !result.inserted) return data;
-    return fetchAttractionsForCityIds(admin, [city.id], 120);
+
+    const work = fillCity({ admin, city }).then((result) => {
+      logger.info("attraction-memory:fill", { city: city.city_name, status: result.status, inserted: result.inserted, grounded: result.grounded, reason: result.reason });
+      return result.status === "filled" && (result.inserted > 0 || result.grounded > 0);
+    }, (error) => {
+      logger.warn("attraction-memory:fill-failed", { city: city.city_name, error: error.message });
+      return false;
+    });
+    fillsInFlight.set(city.id, work);
+    try {
+      return (await work) ? reload() : data;
+    } finally {
+      fillsInFlight.delete(city.id);
+    }
   }
 
   async function withAdmin(work, fallback) {

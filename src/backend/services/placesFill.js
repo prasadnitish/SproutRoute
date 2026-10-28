@@ -77,31 +77,59 @@ async function fill({ admin, city, fetchFn, apiKey, now }) {
     return { status: "error", inserted: 0, reason: error.message };
   }
 
-  const { data: existing, error: readError } = await admin.from("city_attractions").select("google_place_id").eq("city_id", city.id);
+  const { data: existing, error: readError } = await admin.from("city_attractions").select("id, canonical_name, google_place_id").eq("city_id", city.id);
   if (readError) return { status: "error", inserted: 0, reason: readError.message };
   const have = new Set((existing || []).map((row) => row.google_place_id).filter(Boolean));
+  const byName = new Map((existing || []).map((row) => [row.canonical_name, row]));
 
-  const rows = [...found.values()]
-    .filter((place) => !have.has(place.placeId))
-    .sort((a, b) => b.ratingCount - a.ratingCount)
-    .slice(0, MAX_ROWS)
-    .map((place) => ({
-      city_id: city.id,
-      canonical_name: place.name,
-      category: categoryFor(place),
-      source_type: "places",
-      confidence_score: 0.8,
-      ...placeRowFields(place, { status: "active", nowIso: now }),
-    }));
-  if (!rows.length) return { status: "filled", inserted: 0 };
+  // (city_id, canonical_name) is unique, so a place named like an existing row cannot be inserted. When that row
+  // has no place id yet, ground it in place with Google's facts; otherwise leave it alone.
+  const toGround = [];
+  const fresh = [];
+  const newNames = new Set();
+  for (const place of [...found.values()].sort((a, b) => b.ratingCount - a.ratingCount)) {
+    if (have.has(place.placeId)) continue;
+    const sameName = byName.get(place.name);
+    if (sameName) {
+      if (!sameName.google_place_id) toGround.push({ id: sameName.id, place });
+      continue;
+    }
+    if (newNames.has(place.name)) continue;
+    newNames.add(place.name);
+    fresh.push(place);
+  }
 
-  const { error } = await admin.from("city_attractions").insert(rows);
-  // A concurrent fill (another instance) may have inserted the same places; the unique index rejects the repeat.
-  if (error && error.code !== "23505") return { status: "error", inserted: 0, reason: error.message };
-  return { status: "filled", inserted: error ? 0 : rows.length };
+  let grounded = 0;
+  for (const { id, place } of toGround.slice(0, MAX_ROWS)) {
+    const { error } = await admin.from("city_attractions").update(placeRowFields(place, { status: "active", nowIso: now })).eq("id", id);
+    if (!error) grounded += 1;
+  }
+
+  const rows = fresh.slice(0, MAX_ROWS).map((place) => ({
+    city_id: city.id,
+    canonical_name: place.name,
+    category: categoryFor(place),
+    source_type: "places",
+    confidence_score: 0.8,
+    ...placeRowFields(place, { status: "active", nowIso: now }),
+  }));
+  if (!rows.length) return { status: "filled", inserted: 0, grounded };
+
+  const batch = await admin.from("city_attractions").insert(rows);
+  if (!batch.error) return { status: "filled", inserted: rows.length, grounded };
+  if (batch.error.code !== "23505") return { status: "error", inserted: 0, grounded, reason: batch.error.message };
+
+  // A conflict the read did not predict (another instance inserted in between): keep the rows that fit.
+  let inserted = 0;
+  for (const row of rows) {
+    const { error } = await admin.from("city_attractions").insert(row);
+    if (!error) inserted += 1;
+    else if (error.code !== "23505") return { status: "error", inserted, grounded, reason: error.message };
+  }
+  return { status: "filled", inserted, grounded };
 }
 
-/** @returns {Promise<{status: "filled"|"error"|"no_api_key", inserted: number, reason?: string}>} */
+/** @returns {Promise<{status: "filled"|"error"|"no_api_key", inserted: number, grounded?: number, reason?: string}>} */
 export function fillCityFromPlaces({ admin, city, fetchFn = globalThis.fetch, apiKey = process.env.GOOGLE_PLACES_API_KEY, now = new Date().toISOString() }) {
   if (inflight.has(city.id)) return inflight.get(city.id);
   const work = fill({ admin, city, fetchFn, apiKey, now }).finally(() => inflight.delete(city.id));

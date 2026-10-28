@@ -148,3 +148,30 @@ test("activities that came from the database are not written back as model-gener
   await svc.persistTripAttractions({ destination: "Seattle, WA", coords: COORDS, countryCode: "US", tripPlan: { suggestedActivities: [{ name: "Space Needle", grounded: true }] } });
   assert.equal(adminCalls, 0);
 });
+
+test("a second request for a city that is being filled waits for the fill and plans from the new rows", async () => {
+  const state = { cities: [SEATTLE], attractions: [] };
+  let fills = 0;
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const fillCity = async () => {
+    fills += 1;
+    await gate;
+    for (let i = 0; i < 12; i += 1) state.attractions.push(row(`Filled Place ${i}`));
+    return { status: "filled", inserted: 12 };
+  };
+  const svc = service(state, fillCity);
+  const first = ask(svc);
+  const second = ask(svc);
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  release();
+  const [a, b] = await Promise.all([first, second]);
+  assert.equal(fills, 1);
+  assert.ok(a.length > 0 && b.length > 0, "neither request is planned from an empty list");
+});
+
+test("rows grounded in place by the fill count as a successful fill", async () => {
+  const state = { cities: [SEATTLE], attractions: [] };
+  const fillCity = async () => { for (let i = 0; i < 9; i += 1) state.attractions.push(row(`Grounded ${i}`)); return { status: "filled", inserted: 0, grounded: 9 }; };
+  assert.equal((await ask(service(state, fillCity))).length, 8);
+});

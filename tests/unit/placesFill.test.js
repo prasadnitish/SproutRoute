@@ -23,15 +23,27 @@ function fetchReturning(...pages) {
   return fn;
 }
 
-function fakeAdmin({ existing = [], insertError = null } = {}) {
+// Models the (city_id, canonical_name) unique index from migration 018: a batch containing a taken name fails whole.
+function fakeAdmin({ existing = [], insertError = null, conflictNames = [] } = {}) {
   const inserted = [];
+  const updated = [];
+  const stored = existing.map((e, i) => (typeof e === "string" ? { id: `old-${i}`, google_place_id: e, canonical_name: `Old ${e}` } : e));
+  const taken = (row) => conflictNames.includes(row.canonical_name) || stored.some((e) => e.canonical_name === row.canonical_name) || inserted.some((e) => e.canonical_name === row.canonical_name);
   return {
     inserted,
+    updated,
     from(table) {
       assert.equal(table, "city_attractions");
       return {
-        select() { return { eq: async () => ({ data: existing.map((id) => ({ google_place_id: id })), error: null }) }; },
-        insert: async (rows) => { if (insertError) return { error: insertError }; inserted.push(...rows); return { error: null }; },
+        select() { return { eq: async () => ({ data: stored, error: null }) }; },
+        insert: async (input) => {
+          const rows = Array.isArray(input) ? input : [input];
+          if (insertError) return { error: insertError };
+          if (rows.some(taken)) return { error: { code: "23505", message: "duplicate key value violates unique constraint" } };
+          inserted.push(...rows);
+          return { error: null };
+        },
+        update(patch) { return { eq: async (column, value) => { updated.push({ [column]: value, patch }); return { error: null }; } }; },
       };
     },
   };
@@ -122,4 +134,34 @@ test("two requests for the same city share one fill", async () => {
   assert.equal(a.status, "filled");
   assert.equal(b.status, "filled");
   assert.equal(admin.inserted.length, 1);
+});
+
+test("an older row with the same name and no place id is grounded in place instead of colliding on insert", async () => {
+  const admin = fakeAdmin({ existing: [{ id: "old-1", google_place_id: null, canonical_name: "Space Needle" }] });
+  const fetchFn = fetchReturning([place("p1", "Space Needle"), place("p2", "Pike Place Market")]);
+  const result = await fillCityFromPlaces({ admin, city: CITY, fetchFn, apiKey: "k", now: NOW });
+  assert.deepEqual(admin.inserted.map((r) => r.canonical_name), ["Pike Place Market"], "only the genuinely new place is inserted");
+  assert.equal(admin.updated.length, 1);
+  assert.equal(admin.updated[0].id, "old-1");
+  assert.equal(admin.updated[0].patch.google_place_id, "p1");
+  assert.equal(admin.updated[0].patch.rating, 4.6);
+  assert.equal(admin.updated[0].patch.status, "active");
+  assert.equal(result.status, "filled");
+  assert.equal(result.inserted, 1);
+  assert.equal(result.grounded, 1);
+});
+
+test("a same-named row that already belongs to a different place is left alone and does not block the rest", async () => {
+  const admin = fakeAdmin({ existing: [{ id: "old-1", google_place_id: "other", canonical_name: "Space Needle" }] });
+  const result = await fillCityFromPlaces({ admin, city: CITY, fetchFn: fetchReturning([place("p1", "Space Needle"), place("p2", "Pike Place Market")]), apiKey: "k", now: NOW });
+  assert.deepEqual(admin.inserted.map((r) => r.canonical_name), ["Pike Place Market"]);
+  assert.equal(admin.updated.length, 0);
+  assert.equal(result.inserted, 1);
+});
+
+test("a name conflict the read did not predict only loses that row, not the whole batch", async () => {
+  const admin = fakeAdmin({ conflictNames: ["Space Needle"] });
+  const result = await fillCityFromPlaces({ admin, city: CITY, fetchFn: fetchReturning([place("p1", "Space Needle"), place("p2", "Pike Place Market"), place("p3", "Kerry Park")]), apiKey: "k", now: NOW });
+  assert.deepEqual(admin.inserted.map((r) => r.canonical_name).sort(), ["Kerry Park", "Pike Place Market"]);
+  assert.equal(result.inserted, 2);
 });
