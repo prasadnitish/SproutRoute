@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { runTrendJob } from "../../src/backend/services/trend/trendJob.js";
+import { isTrending } from "../../src/backend/services/groundedAttractions.js";
 
 const NOW = Date.parse("2026-10-28T12:00:00Z");
 const hoursAgo = (h) => new Date(NOW - h * 3600000).toISOString();
@@ -17,7 +18,7 @@ function fakeAdmin(tables) {
     let wantRows = false;
     let limitN = Infinity;
     const run = () => {
-      const hit = rows(name).filter((r) => filters.every((f) => f(r)));
+      const hit = rows(name).filter((r) => !r._hidden && filters.every((f) => f(r)));
       if (patch) { hit.forEach((r) => Object.assign(r, patch)); return { data: wantRows ? hit : null, error: null }; }
       return { data: hit.slice(0, limitN), error: null };
     };
@@ -34,16 +35,20 @@ function fakeAdmin(tables) {
       insert(input) {
         const list = (Array.isArray(input) ? input : [input]).map((r) => ({ id: `${name}-${++ids}`, ...r }));
         if (name === "city_attractions") for (const r of list) {
-          if (r.google_place_id && rows(name).some((x) => x.city_id === r.city_id && x.google_place_id === r.google_place_id)) {
-            return Promise.resolve({ data: null, error: { code: "23505", message: "duplicate" } });
-          }
+          const clash = rows(name).some((x) => x.city_id === r.city_id && (x.canonical_name === r.canonical_name || (r.google_place_id && x.google_place_id === r.google_place_id)));
+          if (clash) return Promise.resolve({ data: null, error: { code: "23505", message: "duplicate" } });
         }
         rows(name).push(...list);
         const result = { data: list, error: null };
         return Object.assign(Promise.resolve(result), { select: () => Promise.resolve(result) });
       },
       upsert(input, { onConflict }) {
-        for (const r of Array.isArray(input) ? input : [input]) {
+        const batch = Array.isArray(input) ? input : [input];
+        const keys = batch.map((r) => r[onConflict]);
+        if (new Set(keys).size !== keys.length) {
+          return Promise.resolve({ data: null, error: { code: "21000", message: "ON CONFLICT DO UPDATE command cannot affect row a second time" } });
+        }
+        for (const r of batch) {
           const hit = rows(name).find((x) => x[onConflict] === r[onConflict]);
           if (hit) Object.assign(hit, r); else rows(name).push({ id: `${name}-${++ids}`, ...r });
         }
@@ -164,9 +169,19 @@ test("a venue with no new posts loses half its score each week and does not deca
   const { admin, run } = setup({ posts: [], tables: { city_attractions: [attraction] } });
   await run();
   assert.equal(admin.tables.city_attractions[0].trend_score, 20);
-  assert.equal(admin.tables.city_attractions[0].trend_updated_at, daysAgo(1), "advanced by whole weeks, so it stops reading as trending");
+  assert.equal(admin.tables.city_attractions[0].trend_decayed_at, daysAgo(1), "the decay checkpoint advances by whole weeks");
   await run();
   assert.equal(admin.tables.city_attractions[0].trend_score, 20);
+});
+
+test("decay never renews trend freshness: the last real observation date is left alone", async () => {
+  const attraction = { id: "attr-9", city_id: "city-1", canonical_name: "Old Hit", google_place_id: "p9", status: "active", trend_score: 80, trend_updated_at: daysAgo(21), source_type: "trending" };
+  const { admin, run } = setup({ posts: [], tables: { city_attractions: [attraction] } });
+  await run();
+  const row = admin.tables.city_attractions[0];
+  assert.equal(row.trend_score, 10);
+  assert.equal(row.trend_updated_at, daysAgo(21));
+  assert.equal(isTrending(row, NOW), false, "21 days without a post is not trending, whatever the score");
 });
 
 test("a decayed score below 1 becomes zero", async () => {
@@ -226,4 +241,51 @@ test("a busier week than the week before raises the score", async () => {
   const falling = setup({ tables: { city_attractions: [attraction()], trend_posts: busyBefore } });
   await rising.run(); await falling.run();
   assert.ok(rising.admin.tables.city_attractions[0].trend_score > falling.admin.tables.city_attractions[0].trend_score);
+});
+
+test("the same post returned by two seeds is stored once", async () => {
+  const shared = post("dup");
+  const { admin, run } = setup({
+    posts: [shared, post("other")],
+    tables: { city_seeds: [
+      { id: "seed-1", city_id: "city-1", kind: "location", value: "L1", label: "Seattle Aquarium", active: true },
+      { id: "seed-2", city_id: "city-1", kind: "location", value: "L1", label: "Seattle Aquarium", active: true },
+    ] },
+  });
+  const summary = await run();
+  assert.equal(summary.errors, 0);
+  assert.equal(admin.tables.trend_posts.length, 2);
+  assert.ok(admin.tables.city_attractions[0].trend_score > 0, "the city was still scored");
+});
+
+test("a venue named like an older row with no place id grounds that row instead of failing on the name index", async () => {
+  const older = { id: "attr-old", city_id: "city-1", canonical_name: "Seattle Aquarium", google_place_id: null, status: "active", trend_score: 0, trend_updated_at: null, source_type: "precomputed", verification_status: "unverified" };
+  const { admin, run } = setup({ tables: { city_attractions: [older] } });
+  const summary = await run();
+  assert.equal(admin.tables.city_attractions.length, 1);
+  assert.equal(admin.tables.city_attractions[0].google_place_id, "place-aq");
+  assert.equal(admin.tables.city_attractions[0].source_type, "precomputed", "the row keeps its origin");
+  assert.ok(admin.tables.city_attractions[0].trend_score > 0);
+  assert.ok(admin.tables.trend_posts.every((p) => p.attraction_id === "attr-old"));
+  assert.equal(summary.inserted, 0);
+  assert.equal(summary.grounded, 1);
+});
+
+test("a name conflict with a row that belongs to a different place drops the venue instead of reporting an insert", async () => {
+  const other = { id: "attr-other", city_id: "city-1", canonical_name: "Seattle Aquarium", google_place_id: "someone-else", status: "active", trend_score: 0, trend_updated_at: null, source_type: "places" };
+  const { admin, run } = setup({ tables: { city_attractions: [other] } });
+  const summary = await run();
+  assert.equal(admin.tables.city_attractions.length, 1);
+  assert.equal(admin.tables.trend_posts.length, 0);
+  assert.equal(summary.inserted, 0);
+  assert.equal(summary.droppedNoPlace, 1);
+});
+
+test("a name conflict the read could not see (a concurrent run) is resolved by reloading the row", async () => {
+  const hidden = { id: "attr-hidden", city_id: "city-1", canonical_name: "Seattle Aquarium", google_place_id: "place-aq", status: "active", trend_score: 0, trend_updated_at: null, source_type: "places", _hidden: true };
+  const { admin, run } = setup({ tables: { city_attractions: [hidden] } });
+  const summary = await run();
+  assert.equal(admin.tables.city_attractions.length, 1);
+  assert.equal(summary.inserted, 0);
+  assert.ok(admin.tables.trend_posts.every((p) => p.attraction_id === "attr-hidden"));
 });

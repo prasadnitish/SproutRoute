@@ -46,6 +46,10 @@ alter table public.trend_posts enable row level security;
 revoke all on public.city_seeds, public.trend_posts from public, anon, authenticated;
 grant select, insert, update, delete on public.city_seeds, public.trend_posts to service_role;
 
+-- trend_updated_at is the date of the last real observation (it drives "trending"). trend_decayed_at is where the
+-- weekly halving last stopped, so decaying a score never makes old activity look recent.
+alter table public.city_attractions add column if not exists trend_decayed_at timestamptz;
+
 -- The trend job writes to the same change log as the refresh job.
 alter table public.refresh_log drop constraint if exists refresh_log_change_type_check;
 alter table public.refresh_log add constraint refresh_log_change_type_check

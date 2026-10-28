@@ -129,7 +129,9 @@ by location (captions are used only for posts with no location); asks Claude Hai
 could visit; resolves new venues through Google Places; links them to an existing row by place id or adds a
 `source_type = 'trending'` row; stores the post link, time, counts, an HMAC of the author and the place (never
 captions or handles); and writes `trend_score` and `trend_updated_at`. A venue with no new posts loses half its
-score per whole week since the score was set, and is not marked trending after 14 days (`isTrending`). If any
+score per whole week since `trend_decayed_at` (the decay checkpoint). `trend_updated_at` stays the date of the last
+real observation, so decay cannot make old activity look fresh, and a venue is not marked trending after 14 days
+(`isTrending`). If any
 fetch or the classifier fails for a city, that city's scores are left alone that week.
 
 Re-running with the same data changes nothing (posts keyed by link, venues by place id, mapped venues are not

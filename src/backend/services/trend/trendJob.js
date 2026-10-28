@@ -41,7 +41,7 @@ export async function runTrendJob({
   const nowIso = iso(now);
   const summary = {
     runId, applied: apply, cities: 0, seeds: 0, fetched: 0, droppedPromo: 0, droppedNoVenue: 0, droppedNotFamily: 0,
-    droppedNoPlace: 0, inserted: 0, linked: 0, scored: 0, decayed: 0, postsStored: 0, errors: 0,
+    droppedNoPlace: 0, inserted: 0, grounded: 0, linked: 0, scored: 0, decayed: 0, postsStored: 0, errors: 0,
   };
 
   let seedQuery = admin.from("city_seeds").select("id, city_id, kind, value, label").eq("active", true);
@@ -125,10 +125,11 @@ export async function runTrendJob({
     for (const stored of storedPosts || []) if (stored.attraction_id) mapped.set(stored.venue_key, stored.attraction_id);
 
     const { data: attractionRows } = await admin.from("city_attractions")
-      .select("id, canonical_name, google_place_id, status, trend_score, trend_updated_at")
+      .select("id, canonical_name, google_place_id, status, trend_score, trend_updated_at, trend_decayed_at")
       .eq("city_id", city.id);
     const attractions = new Map((attractionRows || []).map((row) => [row.id, { ...row }]));
     const byPlaceId = new Map((attractionRows || []).filter((r) => r.google_place_id).map((r) => [r.google_place_id, r.id]));
+    const byName = new Map((attractionRows || []).map((r) => [r.canonical_name, r]));
 
     const venueAttraction = new Map(); // venue key -> attraction id
     for (const key of venues.keys()) if (mapped.has(key) && attractions.has(mapped.get(key))) venueAttraction.set(key, mapped.get(key));
@@ -159,26 +160,28 @@ export async function runTrendJob({
       if (attractionId) {
         summary.linked += 1;
       } else {
-        summary.inserted += 1;
-        attractionId = apply ? await insertTrendingRow(city, place) : `new:${place.placeId}`;
-        if (!attractionId) continue;
+        const attached = await attachNewPlace(city, place, byName);
+        if (!attached) { summary.droppedNoPlace += 1; continue; }
+        attractionId = attached.id;
+        summary[attached.how] += 1;
         byPlaceId.set(place.placeId, attractionId);
-        attractions.set(attractionId, { id: attractionId, canonical_name: place.name, google_place_id: place.placeId, status: "active", trend_score: 0, trend_updated_at: null });
-        newRows.push({ attractionId, place });
+        byName.set(attached.name, { id: attractionId, canonical_name: attached.name, google_place_id: place.placeId });
+        attractions.set(attractionId, { id: attractionId, canonical_name: attached.name, google_place_id: place.placeId, status: "active", trend_score: 0, trend_updated_at: null, trend_decayed_at: null });
+        if (attached.how === "inserted") newRows.push({ attractionId, place });
       }
       venueAttraction.set(venue.key, attractionId);
     }
     for (const venue of venues.values()) if (venueAttraction.has(venue.key) && mapped.has(venue.key)) summary.linked += 1;
 
     // 4. Store posts.
-    const postRows = [];
+    const postRows = new Map(); // by post url: two seeds can return the same post, and one batch may not repeat a key
     const thisWeek = new Map(); // post url -> scoring record, merged with stored posts below
     for (const venue of venues.values()) {
       const attractionId = venueAttraction.get(venue.key);
       if (!attractionId) continue;
       for (const { post, seed } of venue.posts) {
         const author = hashAuthor(authorSalt, post.author);
-        postRows.push({
+        postRows.set(post.url, {
           city_id: city.id,
           attraction_id: attractionId.startsWith("new:") ? null : attractionId,
           post_url: post.url, posted_at: post.timestamp, likes: post.likes ?? 0, comments: post.comments ?? 0, views: post.views ?? null,
@@ -187,9 +190,9 @@ export async function runTrendJob({
         thisWeek.set(post.url, { attractionId, timestamp: post.timestamp, likes: post.likes, comments: post.comments, views: post.views, author });
       }
     }
-    summary.postsStored += postRows.length;
-    if (apply && postRows.length) {
-      const { error } = await admin.from("trend_posts").upsert(postRows, { onConflict: "post_url" });
+    summary.postsStored += postRows.size;
+    if (apply && postRows.size) {
+      const { error } = await admin.from("trend_posts").upsert([...postRows.values()], { onConflict: "post_url" });
       if (error) throw new Error(`storing posts failed: ${error.message}`);
     }
 
@@ -210,7 +213,7 @@ export async function runTrendJob({
       const row = attractions.get(attractionId);
       summary.scored += 1;
       if (apply && !attractionId.startsWith("new:")) {
-        const { error } = await admin.from("city_attractions").update({ trend_score: score, trend_updated_at: nowIso }).eq("id", attractionId);
+        const { error } = await admin.from("city_attractions").update({ trend_score: score, trend_updated_at: nowIso, trend_decayed_at: nowIso }).eq("id", attractionId);
         if (error) throw new Error(`score update failed: ${error.message}`);
         if (Math.abs(Number(row.trend_score || 0) - score) > 1e-4) {
           logs.push({ run_id: runId, attraction_id: attractionId, change_type: "trend_scored", detail: { from: Number(row.trend_score || 0), to: score, posts, authors: uniqueAuthors } });
@@ -224,14 +227,16 @@ export async function runTrendJob({
     // 6. Decay venues that had no posts this run, but only when every fetch for the city succeeded.
     if (allFetched) {
       for (const [id, row] of attractions) {
-        if (touched.has(id) || !(Number(row.trend_score) > 0) || !row.trend_updated_at) continue;
-        const weeks = Math.floor((now - Date.parse(row.trend_updated_at)) / WEEK);
+        const checkpoint = row.trend_decayed_at || row.trend_updated_at;
+        if (touched.has(id) || !(Number(row.trend_score) > 0) || !checkpoint) continue;
+        const weeks = Math.floor((now - Date.parse(checkpoint)) / WEEK);
         if (weeks < 1) continue;
         const decayed = applyWeeklyDecay(Number(row.trend_score), weeks);
         const next = decayed < 1 ? 0 : decayed;
         summary.decayed += 1;
         if (apply) {
-          const { error } = await admin.from("city_attractions").update({ trend_score: next, trend_updated_at: iso(Date.parse(row.trend_updated_at) + weeks * WEEK) }).eq("id", id);
+          // trend_updated_at stays the date of the last real observation, so decay cannot make old activity look fresh.
+          const { error } = await admin.from("city_attractions").update({ trend_score: next, trend_decayed_at: iso(Date.parse(checkpoint) + weeks * WEEK) }).eq("id", id);
           if (error) throw new Error(`decay update failed: ${error.message}`);
           logs.push({ run_id: runId, attraction_id: id, change_type: "trend_scored", detail: { from: Number(row.trend_score), to: next, decayWeeks: weeks } });
         }
@@ -240,16 +245,34 @@ export async function runTrendJob({
     if (apply && logs.length) await admin.from("refresh_log").insert(logs);
   }
 
-  async function insertTrendingRow(city, place) {
+  /**
+   * Attach a venue Google matched to an attraction row. (city_id, canonical_name) and (city_id, google_place_id) are
+   * both unique, so: a same-named row with no place id is grounded in place with Google's facts; a same-named row
+   * that belongs to another place blocks the venue; otherwise the place is inserted as a 'trending' row.
+   * @returns {Promise<{id: string, name: string, how: "inserted" | "grounded"} | null>}
+   */
+  async function attachNewPlace(city, place, byName) {
+    const sameName = byName.get(place.name);
+    if (sameName) {
+      if (sameName.google_place_id) return null;
+      if (!apply) return { id: sameName.id, name: place.name, how: "grounded" };
+      const { error } = await admin.from("city_attractions").update(placeRowFields(place, { status: "active", nowIso })).eq("id", sameName.id);
+      if (error) throw new Error(`grounding existing row failed: ${error.message}`);
+      return { id: sameName.id, name: place.name, how: "grounded" };
+    }
+    if (!apply) return { id: `new:${place.placeId}`, name: place.name, how: "inserted" };
+
     const row = {
       city_id: city.id, canonical_name: place.name, category: categoryFor(place), source_type: "trending", confidence_score: 0.7,
       ...placeRowFields(place, { status: "active", nowIso }),
     };
     const { data, error } = await admin.from("city_attractions").insert(row).select("id");
-    if (!error) return data?.[0]?.id || null;
+    if (!error) return data?.[0]?.id ? { id: data[0].id, name: place.name, how: "inserted" } : null;
     if (error.code !== "23505") throw new Error(`insert failed: ${error.message}`);
-    // Another run added the same place first: use its row.
-    const { data: existing } = await admin.from("city_attractions").select("id").eq("city_id", city.id).eq("google_place_id", place.placeId);
-    return existing?.[0]?.id || null;
+
+    // A concurrent run added this place or name first. Use its row if it is this place.
+    const { data: rows } = await admin.from("city_attractions").select("id, google_place_id").eq("city_id", city.id).eq("canonical_name", place.name);
+    const raced = rows?.[0];
+    return raced && raced.google_place_id === place.placeId ? { id: raced.id, name: place.name, how: "grounded" } : null;
   }
 }
