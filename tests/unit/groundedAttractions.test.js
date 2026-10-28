@@ -114,3 +114,88 @@ test("with no candidates the plan is returned untouched and nothing is reported 
   assert.equal(tripPlan, plan);
   assert.equal(stats, null);
 });
+
+// ── Opening hours enforcement ────────────────────────────────────────────────
+
+import { parseDayHours, enforceOpeningHours } from "../../src/backend/services/groundedAttractions.js";
+
+const hoursOf = (monday, rest = monday) => ({ weekdayDescriptions: [`Monday: ${monday}`, ...["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => `${d}: ${rest}`)] });
+const hourRow = (name, hours, over = {}) => row({ id: name, canonical_name: name, google_place_id: `p-${name}`, opening_hours: hours, ...over });
+// 2026-11-02 is a Monday.
+const planOf = (stops, date = "2026-11-02") => ({
+  suggestedActivities: stops.map((s, i) => ({ id: `a${i}`, name: s.name, duration: s.duration || "2 hours", timingTip: s.tip ?? "", category: "museums", ...s.extra })),
+  dailyItinerary: [{ day: `Day 1 (${date})`, activities: stops.map((_, i) => `a${i}`) }],
+});
+
+test("opening hours text is read into minute intervals, including closed, 24 hours, split and overnight days", () => {
+  assert.deepEqual(parseDayHours("Monday: 10:00 AM – 5:00 PM"), [[600, 1020]]);
+  assert.deepEqual(parseDayHours("Monday: 10:00 AM – 5:00 PM"), parseDayHours("Monday: 10:00 AM – 5:00 PM"));
+  assert.deepEqual(parseDayHours("Tuesday: Closed"), []);
+  assert.deepEqual(parseDayHours("Tuesday: Open 24 hours"), [[0, 1440]]);
+  assert.deepEqual(parseDayHours("Friday: 9:00 AM – 12:00 PM, 1:00 – 5:00 PM"), [[540, 720], [780, 1020]]);
+  assert.deepEqual(parseDayHours("Saturday: 6:00 PM – 2:00 AM"), [[1080, 1560]]);
+  assert.equal(parseDayHours("Monday: whenever"), null, "text it cannot read is not treated as closed");
+});
+
+test("a stop that would run past closing is moved earlier so it fits, and its timing tip says the new time", () => {
+  const flight = hourRow("The Museum of Flight", hoursOf("10:00 AM – 5:00 PM"));
+  const plan = planOf([{ name: "The Museum of Flight", duration: "2 hours", tip: "Arrive around 4:45 PM for an inspiring indoor walk." }]);
+  const { tripPlan, changes } = enforceOpeningHours(plan, [flight], { startDate: "2026-11-02" });
+  assert.equal(tripPlan.suggestedActivities[0].timingTip, "Arrive around 3:00 PM for an inspiring indoor walk.");
+  assert.deepEqual(changes.map((c) => [c.kind, c.name]), [["moved", "The Museum of Flight"]]);
+  assert.equal(plan.suggestedActivities[0].timingTip.includes("4:45"), true, "the input plan is not mutated");
+});
+
+test("a stop that would start before opening is moved to opening time", () => {
+  const plan = planOf([{ name: "Seattle Aquarium", duration: "2 hours", tip: "Go at 8:00 AM to beat crowds." }]);
+  const { tripPlan } = enforceOpeningHours(plan, [hourRow("Seattle Aquarium", hoursOf("9:30 AM – 6:00 PM"))], { startDate: "2026-11-02" });
+  assert.equal(tripPlan.suggestedActivities[0].timingTip, "Go at 9:30 AM to beat crowds.");
+});
+
+test("a stop that already fits, has no time in its tip, or has no hours on record is left alone", () => {
+  const fits = planOf([{ name: "Aquarium", tip: "Arrive at 10:00 AM." }, { name: "Park", tip: "Whenever you like." }, { name: "Mystery", tip: "Arrive around 11:45 PM." }]);
+  const candidates = [hourRow("Aquarium", hoursOf("9:30 AM – 6:00 PM")), hourRow("Park", hoursOf("Closed", "6:00 AM – 9:00 PM")), hourRow("Mystery", null)];
+  const { tripPlan, changes } = enforceOpeningHours(fits, candidates, { startDate: "2026-11-02" });
+  assert.deepEqual(tripPlan.suggestedActivities.map((a) => a.timingTip), ["Arrive at 10:00 AM.", "Whenever you like.", "Arrive around 11:45 PM."]);
+  assert.equal(changes.length, 1, "only the closed-Monday park changes");
+  assert.equal(changes[0].name, "Park");
+});
+
+test("a stop at a place that is closed that day is replaced by an open, unused shortlisted place", () => {
+  const science = hourRow("Pacific Science Center", hoursOf("Closed", "10:00 AM – 5:00 PM"));
+  const spare = hourRow("Woodland Park Zoo", hoursOf("9:00 AM – 5:00 PM"), { short_summary: "Zoo with a rainforest." });
+  const alsoOpen = hourRow("Seattle Aquarium", hoursOf("9:30 AM – 6:00 PM"));
+  const plan = planOf([{ name: "Seattle Aquarium", tip: "Arrive at 10:00 AM." }, { name: "Pacific Science Center", duration: "3 hours", tip: "Head here around 11:00 AM." }]);
+  const { tripPlan, changes } = enforceOpeningHours(plan, [alsoOpen, science, spare], { startDate: "2026-11-02" });
+  const names = tripPlan.suggestedActivities.map((a) => a.name);
+  assert.ok(names.includes("Woodland Park Zoo"));
+  assert.ok(!names.includes("Pacific Science Center"));
+  assert.equal(names.filter((n) => n === "Seattle Aquarium").length, 1, "a stop already in the plan is never used as the replacement");
+  const zoo = tripPlan.suggestedActivities.find((a) => a.name === "Woodland Park Zoo");
+  assert.equal(zoo.timingTip, "Arrive around 11:00 AM.");
+  assert.equal(zoo.duration, "3 hours");
+  assert.deepEqual(tripPlan.dailyItinerary[0].activities, ["a0", zoo.id]);
+  assert.equal(changes[0].kind, "replaced");
+  assert.equal(changes[0].with, "Woodland Park Zoo");
+});
+
+test("a closed stop with no open replacement is kept and reported, not silently dropped", () => {
+  const plan = planOf([{ name: "Pacific Science Center", tip: "Head here around 11:00 AM." }]);
+  const { tripPlan, changes } = enforceOpeningHours(plan, [hourRow("Pacific Science Center", hoursOf("Closed", "10:00 AM – 5:00 PM"))], { startDate: "2026-11-02" });
+  assert.equal(tripPlan.suggestedActivities.length, 1);
+  assert.equal(changes[0].kind, "closed_no_replacement");
+});
+
+test("the weekday comes from the date in the day label, falling back to the trip start date", () => {
+  const candidates = [hourRow("Museum", hoursOf("Closed", "9:00 AM – 5:00 PM"))];
+  const sunday = planOf([{ name: "Museum", tip: "Arrive at 10:00 AM." }], "2026-11-01");
+  assert.equal(enforceOpeningHours(sunday, candidates, { startDate: "2026-11-01" }).changes.length, 0);
+  const unlabeled = planOf([{ name: "Museum", tip: "Arrive at 10:00 AM." }]);
+  unlabeled.dailyItinerary[0].day = "Day 1";
+  assert.equal(enforceOpeningHours(unlabeled, candidates, { startDate: "2026-11-02" }).changes[0].kind, "closed_no_replacement");
+});
+
+test("without candidates the plan is returned untouched", () => {
+  const plan = planOf([{ name: "Anything" }]);
+  assert.equal(enforceOpeningHours(plan, [], { startDate: "2026-11-02" }).tripPlan, plan);
+});

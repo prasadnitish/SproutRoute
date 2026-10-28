@@ -94,3 +94,28 @@ test("a plan for a city with no shortlist is returned as before, without groundi
   assert.equal(plan.grounding, undefined);
   assert.equal(plan.suggestedActivities[0].grounded, undefined);
 });
+
+test("a generated plan is corrected against opening hours: a stop planned past closing is moved earlier and a closed-day stop is swapped", async () => {
+  delete process.env.AI_PROVIDER;
+  const week = (monday, rest) => ({ weekdayDescriptions: [`Monday: ${monday}`, ...["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((d) => `${d}: ${rest}`)] });
+  const shortlist = candidates.map((c) => ({ ...c }));
+  shortlist[0].opening_hours = week("10:00 AM – 5:00 PM", "10:00 AM – 5:00 PM");   // Seattle Aquarium
+  shortlist[8].opening_hours = week("Closed", "10:00 AM – 5:00 PM");              // Pacific Science Center, closed Mondays
+  shortlist[9].opening_hours = week("9:00 AM – 6:00 PM", "9:00 AM – 6:00 PM");    // Discovery Park, unused spare
+  const names = ["Seattle Aquarium", "Pike Place Market", "Woodland Park Zoo", "Space Needle", "Chihuly Garden and Glass", "Museum of Pop Culture", "Kerry Park", "Seattle Center", "Pacific Science Center", "Kerry Park 2"];
+  const activity = (name, i) => ({ id: `act-${i}`, name, category: "city", description: "A stop", duration: "2 hours", timingTip: name === "Seattle Aquarium" ? "Arrive around 4:45 PM." : "Arrive around 11:00 AM.", kidFriendly: true, weatherDependent: false, bestDays: ["Monday"], reason: "Good for kids" });
+  const text = JSON.stringify({
+    overview: "x", suggestedActivities: names.slice(0, 9).map(activity),
+    // Day 1 is Monday 2026-06-01, when Pacific Science Center is closed; day 2 is Tuesday.
+    dailyItinerary: [["act-8", "act-0", "act-1", "act-2", "act-3"], ["act-4", "act-5", "act-6", "act-7"]].map((ids, d) => ({ day: `Day ${d + 1}`, activities: ids, meals: "Dinner", notes: "" })),
+    tips: ["t"],
+  });
+  const plan = await generateTripPlan(
+    { destination: "Seattle, WA", startDate: "2026-06-01", endDate: "2026-06-02", activities: [], children: [{ age: 5 }], cachedAttractions: shortlist },
+    { summary: "", forecast: [] }, mocks(text),
+  );
+  const aquarium = plan.suggestedActivities.find((a) => a.name === "Seattle Aquarium");
+  assert.match(aquarium.timingTip, /^Arrive around 3:00 PM\.?$/);
+  assert.ok(!plan.suggestedActivities.some((a) => a.name === "Pacific Science Center"), "closed on Monday, so swapped out");
+  assert.ok(plan.suggestedActivities.some((a) => a.name === "Discovery Park" && a.grounded === true), "replacement comes from the shortlist and is grounded");
+});
