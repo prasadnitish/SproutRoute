@@ -53,3 +53,9 @@ test("classifyProviderFailure ignores ordinary failures", () => {
   assert.equal(classifyProviderFailure(new Error("Request failed after 4021 retries")), null);
   assert.equal(classifyProviderFailure(null), null);
 });
+
+test("the Claude 5.5 models used for attraction work are priced", () => {
+  // claude-haiku-5-5 $0.10 / $0.50 and claude-sonnet-5-5 $2 / $10 per 1M tokens (first-party, prompts up to 100K)
+  assert.equal(estimateCostUsd("claude-haiku-5-5", { inputTokens: 1_000_000, outputTokens: 1_000_000 }), 0.6);
+  assert.equal(estimateCostUsd("claude-sonnet-5-5", { inputTokens: 1_000_000, outputTokens: 1_000_000 }), 12);
+});

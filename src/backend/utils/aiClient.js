@@ -131,15 +131,20 @@ function resolveModelId(provider, caller = "") {
  * Call Claude via Anthropic SDK.
  * Returns { responseText, stopReason }.
  */
-async function callAnthropic(client, { system, user, maxTokens, temperature, cacheSystemPrompt, modelId, signal, timeoutMs }) {
+// Claude 5.x and Opus 4.7+ reject non-default sampling parameters with a 400 and take effort instead.
+const FIXED_SAMPLING_CLAUDE = /^claude-(?:[a-z]+-5(?:-|$)|opus-4-[78](?:-|$))/;
+
+async function callAnthropic(client, { system, user, maxTokens, temperature, effort, cacheSystemPrompt, modelId, signal, timeoutMs }) {
   const systemParam = cacheSystemPrompt
     ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
     : system;
+  const fixedSampling = FIXED_SAMPLING_CLAUDE.test(modelId || "");
 
   const message = await client.messages.create({
     model: modelId,
     system: systemParam,
-    temperature,
+    ...(fixedSampling ? {} : { temperature }),
+    ...(fixedSampling && effort ? { output_config: { effort } } : {}),
     max_tokens: maxTokens,
     messages: [{ role: "user", content: user }],
   }, { signal, timeout: timeoutMs });
@@ -332,6 +337,7 @@ export async function callModel(prompt, deps = {}) {
     maxTokens = DEFAULT_MAX_TOKENS,
     temperature = DEFAULT_TEMPERATURE,
     cacheSystemPrompt = false,
+    effort,
   } = prompt;
 
   const alerts = deps.alerts ?? aiAlerts;
@@ -386,7 +392,7 @@ export async function callModel(prompt, deps = {}) {
 
   try {
     const result = await callWithRemainingBudget(provider, {
-      system, user, maxTokens, temperature, cacheSystemPrompt, modelId,
+      system, user, maxTokens, temperature, effort, cacheSystemPrompt, modelId,
     }, fallbackProviders.length + 1);
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });
@@ -405,7 +411,7 @@ export async function callModel(prompt, deps = {}) {
       const fallbackModelId = modelIdForProvider(fb, caller);
       try {
         const result = await callWithRemainingBudget(fb, {
-          system, user, maxTokens, temperature, cacheSystemPrompt: false, modelId: fallbackModelId,
+          system, user, maxTokens, temperature, effort, cacheSystemPrompt: false, modelId: fallbackModelId,
         }, fallbackProviders.length - index);
         const fbMs = Date.now() - fbT0;
         log.info("ai:call", { caller, provider: `${fb}-fallback`, model: fallbackModelId, ms: fbMs, outChars: result.responseText?.length || 0 });
