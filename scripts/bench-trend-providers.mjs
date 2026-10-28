@@ -6,7 +6,8 @@
 //
 // Copy scripts/trend-bench-locations.example.json and replace FILL_ME with Instagram location ids: search the
 // place on instagram.com, open its location page, and use the number in /explore/locations/<id>/.
-// Each location is one request per provider, so a three-place run on free tiers costs nothing.
+// --save-raw writes the provider's original response bodies next to the normalized posts, so a wrong field
+// mapping can be fixed from real data. Each location is one request per provider on free tiers.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { createTrendProvider } from "../src/backend/services/trend/index.js";
 import { summarizeProviderRun, compareProviders, estimateCost } from "../src/backend/services/trend/bench.js";
@@ -50,10 +51,15 @@ for (const location of locations) {
         posts, ms: Date.now() - started, requests,
         costUsd: estimateCost(name, { locations: 1, posts: posts.length, requests }),
       });
-      if (rawDir) writeFileSync(`${rawDir}/${name}-${location.locationId}.json`, JSON.stringify(posts, null, 2));
+      if (rawDir) {
+        writeFileSync(`${rawDir}/${name}-${location.locationId}.json`, JSON.stringify({ raw: provider.takeRaw(), normalized: posts }, null, 2));
+      }
     } catch (error) {
       byProvider[name] = [];
       runs[name] = { error: error.message };
+      if (rawDir) {
+        writeFileSync(`${rawDir}/${name}-${location.locationId}.json`, JSON.stringify({ error: error.message, raw: provider.takeRaw() }, null, 2));
+      }
     }
   }
   report.locations.push({ ...location, runs, ...compareProviders(byProvider) });

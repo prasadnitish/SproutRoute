@@ -42,3 +42,11 @@ test("post urls are compared without tracking query strings or trailing slashes"
   const b = [post("x", 1, { url: "https://www.instagram.com/p/AAA?igshid=zzz" })];
   assert.equal(compareProviders({ p: a, q: b }).overlap["p|q"].shared, 1);
 });
+
+test("post links that differ only in letter case are different posts", () => {
+  const a = [post("x", 1, { url: "https://www.instagram.com/p/AbC/" })];
+  const b = [post("x", 1, { url: "https://www.instagram.com/p/aBc/" })];
+  assert.equal(compareProviders({ p: a, q: b }).overlap["p|q"].shared, 0);
+  const c = [post("x", 1, { url: "https://WWW.Instagram.com/p/AbC" })];
+  assert.equal(compareProviders({ p: a, q: c }).overlap["p|q"].shared, 1);
+});

@@ -33,10 +33,13 @@ function mapItem(item) {
   });
 }
 
-export function createHikerApiProvider({ accessKey, fetchFn = globalThis.fetch, base = BASE }) {
+export function createHikerApiProvider({ accessKey, fetchFn = globalThis.fetch, base = BASE, now = Date.now }) {
   let requests = 0;
+  let raw = [];
 
-  async function pages(path, params, limit) {
+  // Posts come newest first, so once a page reaches a post older than the window, later pages hold only older ones.
+  async function pages(path, params, limit, sinceDays) {
+    const cutoff = now() - sinceDays * 86400000;
     const posts = [];
     let cursor = null;
     for (let page = 0; page < MAX_PAGES && posts.length < limit; page += 1) {
@@ -44,9 +47,12 @@ export function createHikerApiProvider({ accessKey, fetchFn = globalThis.fetch, 
       requests += 1;
       const response = await fetchFn(`${base}${path}?${query}`, { method: "GET", headers: { "x-access-key": accessKey } });
       await ensureOk(response, "hikerapi");
-      const { items, cursor: next } = unwrap(await response.json());
-      posts.push(...items.map(mapItem).filter(Boolean));
-      if (!next) break;
+      const body = await response.json();
+      raw.push(body);
+      const { items, cursor: next } = unwrap(body);
+      const mapped = items.map(mapItem).filter(Boolean);
+      posts.push(...mapped.filter((post) => Date.parse(post.timestamp) >= cutoff));
+      if (!next || mapped.some((post) => Date.parse(post.timestamp) < cutoff)) break;
       cursor = next;
     }
     return posts.slice(0, limit);
@@ -55,9 +61,15 @@ export function createHikerApiProvider({ accessKey, fetchFn = globalThis.fetch, 
   return {
     name: "hikerapi",
     stats: () => ({ requests }),
-    fetchLocationPosts: ({ locationId, limit = 50 }) =>
-      pages("/v1/location/medias/recent/chunk", { location_pk: String(locationId) }, limit),
-    fetchHashtagPosts: (tag, { limit = 50 } = {}) =>
-      pages("/v1/hashtag/medias/recent/chunk", { name: String(tag).replace(/^#/, "") }, limit),
+    /** Raw response bodies since the last call, before any mapping or filtering. */
+    takeRaw() {
+      const taken = raw;
+      raw = [];
+      return taken;
+    },
+    fetchLocationPosts: ({ locationId, limit = 50, sinceDays = 7 }) =>
+      pages("/v1/location/medias/recent/chunk", { location_pk: String(locationId) }, limit, sinceDays),
+    fetchHashtagPosts: (tag, { limit = 50, sinceDays = 7 } = {}) =>
+      pages("/v1/hashtag/medias/recent/chunk", { name: String(tag).replace(/^#/, "") }, limit, sinceDays),
   };
 }

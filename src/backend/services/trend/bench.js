@@ -37,7 +37,15 @@ export function summarizeProviderRun({ posts, ms, requests, now = Date.now(), co
   };
 }
 
-const normalizeUrl = (url) => String(url).split("?")[0].replace(/\/+$/, "").toLowerCase();
+// Instagram shortcodes are case-sensitive, so only the host is lowercased.
+function normalizeUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.protocol}//${parsed.host.toLowerCase()}${parsed.pathname.replace(/\/+$/, "")}`;
+  } catch {
+    return String(url).split(/[?#]/)[0].replace(/\/+$/, "");
+  }
+}
 
 export function compareProviders(byProvider) {
   const urls = Object.fromEntries(Object.entries(byProvider).map(([name, posts]) => [name, new Set(posts.map((p) => normalizeUrl(p.url)))]));

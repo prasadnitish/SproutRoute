@@ -7,6 +7,7 @@ const DEFAULT_ACTOR = "apidojo~instagram-location-scraper-api";
 
 export function createApifyProvider({ token, actor = DEFAULT_ACTOR, fetchFn = globalThis.fetch, now = Date.now }) {
   let requests = 0;
+  let raw = [];
 
   function mapItem(item) {
     return finishPost({
@@ -24,6 +25,12 @@ export function createApifyProvider({ token, actor = DEFAULT_ACTOR, fetchFn = gl
   return {
     name: "apify",
     stats: () => ({ requests }),
+    /** Raw response bodies since the last call, before any mapping or filtering. */
+    takeRaw() {
+      const taken = raw;
+      raw = [];
+      return taken;
+    },
 
     async fetchLocationPosts({ locationId, limit = 50, sinceDays = 7 }) {
       requests += 1;
@@ -35,6 +42,7 @@ export function createApifyProvider({ token, actor = DEFAULT_ACTOR, fetchFn = gl
       });
       await ensureOk(response, "apify");
       const items = await response.json();
+      raw.push(items);
       return (Array.isArray(items) ? items : []).map(mapItem).filter(Boolean);
     },
 

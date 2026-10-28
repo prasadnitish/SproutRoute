@@ -77,7 +77,7 @@ const HIKER_ITEM = {
 
 test("HikerAPI posts map onto the same shape, whichever envelope the response uses", async () => {
   for (const envelope of [[[HIKER_ITEM], "cursor"], { response: { items: [HIKER_ITEM] } }, { items: [HIKER_ITEM] }, [HIKER_ITEM]]) {
-    const provider = createHikerApiProvider({ accessKey: "k", fetchFn: ok(envelope) });
+    const provider = createHikerApiProvider({ now: () => NOW, accessKey: "k", fetchFn: ok(envelope) });
     const [post] = await provider.fetchLocationPosts({ locationId: "213131048" });
     assert.equal(post.url, "https://www.instagram.com/p/Cxyz789/");
     assert.equal(post.likes, 300);
@@ -89,7 +89,7 @@ test("HikerAPI posts map onto the same shape, whichever envelope the response us
 });
 
 test("HikerAPI accepts epoch-second timestamps", async () => {
-  const provider = createHikerApiProvider({ accessKey: "k", fetchFn: ok([{ ...HIKER_ITEM, taken_at: 1793181600 }]) });
+  const provider = createHikerApiProvider({ now: () => NOW, accessKey: "k", fetchFn: ok([{ ...HIKER_ITEM, taken_at: 1793181600 }]) });
   const [post] = await provider.fetchLocationPosts({ locationId: "1" });
   assert.equal(post.timestamp, new Date(1793181600 * 1000).toISOString());
 });
@@ -112,7 +112,7 @@ test("HikerAPI sends its key in the x-access-key header and follows the page cur
 
 test("hashtag posts use the hashtag endpoint", async () => {
   let url;
-  const provider = createHikerApiProvider({ accessKey: "k", fetchFn: async (u) => { url = u; return { ok: true, status: 200, json: async () => [[HIKER_ITEM], null] }; } });
+  const provider = createHikerApiProvider({ now: () => NOW, accessKey: "k", fetchFn: async (u) => { url = u; return { ok: true, status: 200, json: async () => [[HIKER_ITEM], null] }; } });
   const posts = await provider.fetchHashtagPosts("seattlewithkids");
   assert.match(url, /hashtag/);
   assert.match(url, /seattlewithkids/);
@@ -125,4 +125,37 @@ test("createTrendProvider picks the provider named in TREND_PROVIDER and fails c
   assert.throws(() => createTrendProvider({ TREND_PROVIDER: "hikerapi" }), /HIKERAPI_ACCESS_KEY/);
   assert.throws(() => createTrendProvider({ TREND_PROVIDER: "nope" }), /Unknown TREND_PROVIDER/);
   assert.throws(() => createTrendProvider({}), /TREND_PROVIDER/);
+});
+
+test("raw responses are kept before normalization so a wrong mapping can be diagnosed", async () => {
+  const dropped = { likeCount: 5, mystery: "field" };
+  const apify = createApifyProvider({ token: "t", fetchFn: ok([APIFY_ITEM, dropped]) });
+  await apify.fetchLocationPosts({ locationId: "1" });
+  const rawApify = apify.takeRaw();
+  assert.equal(rawApify.length, 1);
+  assert.equal(rawApify[0].length, 2);
+  assert.deepEqual(rawApify[0][1], dropped);
+  assert.deepEqual(apify.takeRaw(), []);
+
+  const envelope = { response: { items: [{ unknown_shape: true }] } };
+  const hiker = createHikerApiProvider({ now: () => NOW, accessKey: "k", fetchFn: ok(envelope) });
+  assert.deepEqual(await hiker.fetchLocationPosts({ locationId: "1" }), []);
+  assert.deepEqual(hiker.takeRaw(), [envelope]);
+});
+
+test("HikerAPI honors the requested time window and stops paging once a page reaches older posts", async () => {
+  const fresh = (code, hours) => ({ ...HIKER_ITEM, code, taken_at: new Date(NOW - hours * 3600000).toISOString() });
+  const pages = [[[fresh("A", 5), fresh("B", 100), fresh("OLD", 24 * 30)], "next"], [[fresh("C", 6)], null]];
+  let calls = 0;
+  const provider = createHikerApiProvider({ now: () => NOW, accessKey: "k", fetchFn: async () => ({ ok: true, status: 200, json: async () => pages[calls++] }) });
+  const posts = await provider.fetchLocationPosts({ locationId: "1", limit: 50, sinceDays: 7 });
+  assert.deepEqual(posts.map((p) => p.url.split("/p/")[1]), ["A/", "B/"]);
+  assert.equal(calls, 1);
+});
+
+test("HikerAPI defaults to a 7 day window, like Apify, and applies it to hashtags too", async () => {
+  const old = { ...HIKER_ITEM, code: "OLD", taken_at: new Date(NOW - 20 * 86400000).toISOString() };
+  const provider = createHikerApiProvider({ now: () => NOW, accessKey: "k", fetchFn: ok([[old], null]) });
+  assert.deepEqual(await provider.fetchLocationPosts({ locationId: "1" }), []);
+  assert.deepEqual(await provider.fetchHashtagPosts("seattle"), []);
 });
