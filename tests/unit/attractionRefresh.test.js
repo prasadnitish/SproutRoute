@@ -189,3 +189,11 @@ test("a refresh can be limited to one city", async () => {
   assert.equal(seen.length, 1);
   assert.deepEqual(admin.state.filter, { col: "city_id", value: "seattle" });
 });
+
+test("a corrected place id is written and the replacement is logged", async () => {
+  const admin = fakeAdmin([row({ google_place_id: "wrong-city-id" })]);
+  await run(admin, { apply: true, resolveFn: async () => ({ status: "matched", place: place({ placeId: "right-id" }) }) });
+  assert.equal(admin.state.updates[0].fields.google_place_id, "right-id");
+  assert.deepEqual(admin.state.logs.map((l) => l.change_type), ["matched"]);
+  assert.deepEqual(admin.state.logs[0].detail, { placeId: "right-id", replacedPlaceId: "wrong-city-id" });
+});

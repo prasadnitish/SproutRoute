@@ -52,6 +52,9 @@ function planMatched(row, place, status, nowIso) {
   };
   const logs = [];
   if (!row.google_place_id) logs.push({ change_type: "matched", detail: { placeId: place.placeId } });
+  else if (row.google_place_id !== place.placeId) {
+    logs.push({ change_type: "matched", detail: { placeId: place.placeId, replacedPlaceId: row.google_place_id } });
+  }
   if (row.status !== "closed_unverified" && status === "closed_unverified") {
     logs.push({ change_type: "closed", detail: { businessStatus: place.businessStatus } });
   }

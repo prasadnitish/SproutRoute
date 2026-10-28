@@ -89,19 +89,29 @@ export async function resolvePlace(target, { fetchFn = globalThis.fetch, apiKey 
   if (!apiKey) return { status: "error", reason: "no_api_key" };
   const headers = { "Content-Type": "application/json", "X-Goog-Api-Key": apiKey };
 
+  const hasCenter = Number.isFinite(target.cityLat) && Number.isFinite(target.cityLon);
+  const maxKm = target.maxKm ?? DEFAULT_MAX_KM;
+  const farFromCity = (place) => hasCenter && place.location
+    && distanceKm(target.cityLat, target.cityLon, place.location.latitude, place.location.longitude) > maxKm;
+
   if (target.placeId) {
     const { response, failure } = await request(fetchFn, `${PLACES_URL}/places/${encodeURIComponent(target.placeId)}`, {
       method: "GET",
       headers: { ...headers, "X-Goog-FieldMask": DETAILS_MASK },
     });
     if (failure) return failure;
-    if (response.status === 404) return { status: "unmatched", reason: "not_found" };
-    if (!response.ok) return { status: "error", reason: `http_${response.status}` };
-    const place = await response.json();
-    return place?.id ? { status: "matched", place: normalize(place) } : { status: "unmatched", reason: "not_found" };
+    if (response.ok) {
+      const place = await response.json();
+      // A stored id is only a hint: ids were saved from unchecked first search results, so it must pass the
+      // same name and distance checks as a search result. Otherwise fall through and search by name.
+      if (place?.id && nameScore(target.name, place.displayName?.text) >= MIN_NAME_SCORE && !farFromCity(place)) {
+        return { status: "matched", place: normalize(place) };
+      }
+    } else if (response.status !== 404) {
+      return { status: "error", reason: `http_${response.status}` };
+    }
   }
 
-  const hasCenter = Number.isFinite(target.cityLat) && Number.isFinite(target.cityLon);
   const body = {
     textQuery: `${target.name} ${target.city}`,
     maxResultCount: 5,
@@ -124,9 +134,7 @@ export async function resolvePlace(target, { fetchFn = globalThis.fetch, apiKey 
     .sort((a, b) => b.score - a.score);
   if (!scored.length) return { status: "unmatched", reason: "no_close_name" };
 
-  const maxKm = target.maxKm ?? DEFAULT_MAX_KM;
-  const nearby = scored.filter(({ place }) => !hasCenter || !place.location
-    || distanceKm(target.cityLat, target.cityLon, place.location.latitude, place.location.longitude) <= maxKm);
+  const nearby = scored.filter(({ place }) => !farFromCity(place));
   if (!nearby.length) return { status: "unmatched", reason: "too_far" };
 
   return { status: "matched", place: normalize(nearby[0].place) };

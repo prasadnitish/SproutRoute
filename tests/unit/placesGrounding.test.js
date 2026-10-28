@@ -87,10 +87,53 @@ test("an empty search is unmatched", async () => {
   assert.equal(result.reason, "no_results");
 });
 
-test("a place id Google no longer knows is unmatched", async () => {
-  const result = await resolvePlace({ name: "Gone", city: "Seattle, WA", placeId: "old" }, options(respond({ error: { status: "NOT_FOUND" } }, 404)));
+const byUrl = (details, search) => async (url) => {
+  const body = url.includes(":searchText") ? search : details;
+  const status = body?.__status || 200;
+  return { ok: status >= 200 && status < 300, status, json: async () => body };
+};
+
+test("a place id Google no longer knows falls back to a name search, and is unmatched if that finds nothing", async () => {
+  const result = await resolvePlace({ name: "Gone", city: "Seattle, WA", placeId: "old" }, options(byUrl({ __status: 404 }, {})));
   assert.equal(result.status, "unmatched");
-  assert.equal(result.reason, "not_found");
+  assert.equal(result.reason, "no_results");
+});
+
+test("a place id that Google has replaced is recovered through the name search", async () => {
+  const result = await resolvePlace({ name: "Seattle Aquarium", city: "Seattle, WA", cityLat: SEATTLE.lat, cityLon: SEATTLE.lon, placeId: "stale" }, options(byUrl({ __status: 404 }, { places: [PLACE] })));
+  assert.equal(result.status, "matched");
+  assert.equal(result.place.placeId, "ChIJ-aquarium");
+});
+
+test("a stored id that points at a place in another city is not trusted", async () => {
+  const tokyo = { ...PLACE, id: "tokyo-id", location: { latitude: 35.68, longitude: 139.76 } };
+  const result = await resolvePlace(
+    { name: "Seattle Aquarium", city: "Seattle, WA", cityLat: SEATTLE.lat, cityLon: SEATTLE.lon, placeId: "tokyo-id" },
+    options(byUrl(tokyo, { places: [PLACE] })),
+  );
+  assert.equal(result.status, "matched");
+  assert.equal(result.place.placeId, "ChIJ-aquarium");
+});
+
+test("a stored id that points at a differently named place is not trusted", async () => {
+  const wrong = { ...PLACE, id: "wrong-id", displayName: { text: "Joe's Bar and Grill" } };
+  const result = await resolvePlace({ name: "Seattle Aquarium", city: "Seattle, WA", placeId: "wrong-id" }, options(byUrl(wrong, {})));
+  assert.equal(result.status, "unmatched");
+});
+
+test("a stored id with a matching name and location is kept without searching", async () => {
+  let searched = false;
+  const result = await resolvePlace(
+    { name: "Seattle Aquarium", city: "Seattle, WA", cityLat: SEATTLE.lat, cityLon: SEATTLE.lon, placeId: "ChIJ-aquarium" },
+    options(async (url) => { if (url.includes(":searchText")) searched = true; return { ok: true, status: 200, json: async () => PLACE }; }),
+  );
+  assert.equal(result.status, "matched");
+  assert.equal(searched, false);
+});
+
+test("an outage while checking a stored id is an error, not a retirement", async () => {
+  const result = await resolvePlace({ name: "Seattle Aquarium", city: "Seattle, WA", placeId: "x" }, options(byUrl({ __status: 503 }, {})));
+  assert.equal(result.status, "error");
 });
 
 test("a server or quota error is an error, never an unmatched or closed place", async () => {
