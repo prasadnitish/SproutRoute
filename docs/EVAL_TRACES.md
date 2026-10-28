@@ -29,10 +29,15 @@ EVAL_CAPTURE_TOKEN=<same value> node scripts/run-eval-traces.mjs --base=https://
 
 Each run sends ten made-up cases (three free-text parses, seven trips). A trip is several calls, so each case sends the calls its client makes, in order, under one journey id (`scripts/eval-cases.mjs` lists them):
 
-| Client | Calls for a trip |
-| --- | --- |
-| `web` | `trip/stream`, then `trip/packing`, then `safety/car-seat-check` if the family has children and `safety/pet-travel-check` if it has pets |
-| `ios` | `trip/stream`, then `safety/pet-travel-check` if the family has pets. The iOS app packs on the device and never calls packing, car seat or bundle |
+The web app and the iOS app make the same calls for a trip (the iOS app makes the packing, travel-tips, car seat and pet calls in the background once the plan is showing), so both runs send the same steps and differ only in the `client` field and tag:
+
+1. `trip/stream`
+2. `trip/packing`
+3. `safety/travel-tips`
+4. `safety/car-seat-check`, if the family has children
+5. `safety/pet-travel-check`, if the family has pets (`drive` at home, `fly` abroad, as the iOS app chooses)
+
+The bundle endpoint is not used. The iOS app calls it only as a fallback when streaming fails.
 
 If the stream step fails, the later steps are skipped, as a client would. Both runs call real models (the web run also generates a packing list), so each spends provider credit and counts toward the hourly AI rate limit. Use `--only=<case-id>` to rerun one case. Each call prints its journey id and Langfuse trace id.
 
@@ -75,4 +80,5 @@ To score, create one boolean score config per line in Langfuse, named by its ID 
 
 - Only the backend is traced. The iOS app's on-device recap never reaches the server, so it isn't in these traces.
 - The native iOS app does not send `X-Journey-Id` yet, so real iOS sessions cannot be joined the way the web app's can; only the runner's ios run is. Adding the header to the app is a separate change in the iOS repo.
+- The runner reproduces the calls, not on-device work. The iOS app's on-device weather refresh and recap never reach the server.
 - Eval traces contain only the synthetic cases in the runner. Don't send real trips with the eval token.

@@ -5,12 +5,11 @@
 // Dates are relative to today so trips are always in the future.
 export const day = (offset) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
 
-const trip = (id, rubric, startOffset, nights, { countryCode = "US", travelMode = "car", ...fields }) => ({
+const trip = (id, rubric, startOffset, nights, { countryCode = "US", ...fields }) => ({
   id,
   rubric,
   kind: "trip",
   countryCode,
-  travelMode,
   body: { startDate: day(startOffset), endDate: day(startOffset + nights), ...fields },
 });
 
@@ -30,31 +29,40 @@ export const CASES = [
 ];
 
 /**
- * The calls one client makes for a case, in order.
- *   web: parse-input; or stream, packing, then car seat and pet checks when the family needs them.
- *   ios: parse-input; or stream, then the pet check. The iOS app packs on the device and calls neither
- *        packing nor the car seat check, and it never calls the bundle endpoint.
+ * The calls the apps make for a case, in order. The web app and the iOS app make the same ones; only the
+ * `client` field differs.
+ *   parse case: parse-input.
+ *   trip case:  stream, then packing, travel tips, the car seat check (children) and the pet check (pets).
+ * The bundle endpoint is not used: the iOS app calls it only when streaming fails.
  * @returns {Array<{step: string, path: string, body: object}>}
  */
 export function stepsFor(testCase, client) {
   if (testCase.kind === "parse") {
     return [{ step: "parse", path: "/api/v1/trip/parse-input", body: { ...testCase.body, clientDate: day(0) } }];
   }
-  const { body } = testCase;
-  const steps = [{ step: "stream", path: "/api/v1/trip/stream", body: { ...body, client } }];
-  if (client === "web") steps.push({ step: "packing", path: "/api/v1/trip/packing", body: { ...body, client } });
-  if (client === "web" && body.children?.length) {
+  const { body, countryCode } = testCase;
+  const steps = [
+    { step: "stream", path: "/api/v1/trip/stream", body: { ...body, client } },
+    { step: "packing", path: "/api/v1/trip/packing", body: { ...body, client } },
+    {
+      step: "travel-tips",
+      path: "/api/safety/travel-tips",
+      body: { destination: body.destination, childrenAges: (body.children || []).map((c) => c.age), countryCode, client, schemaVersion: "1" },
+    },
+  ];
+  if (body.children?.length) {
     steps.push({
       step: "car-seat",
-      path: "/api/v1/safety/car-seat-check",
-      body: { destination: body.destination, tripDate: body.startDate, children: body.children, countryCode: testCase.countryCode },
+      path: "/api/safety/car-seat-check",
+      body: { destination: body.destination, tripDate: body.startDate, children: body.children, client, schemaVersion: "1" },
     });
   }
   if (body.pets?.length) {
     steps.push({
       step: "pet",
       path: "/api/v1/safety/pet-travel-check",
-      body: { pets: body.pets, destination: body.destination, countryCode: testCase.countryCode, travelMode: testCase.travelMode },
+      // The iOS app's rule: drive at home, fly abroad. The backend accepts only these two modes.
+      body: { pets: body.pets, destination: body.destination, countryCode, travelMode: countryCode === "US" ? "drive" : "fly", client, schemaVersion: "1" },
     });
   }
   return steps;

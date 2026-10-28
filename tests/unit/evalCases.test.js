@@ -9,33 +9,39 @@ test("a parse case is one parse call on both clients", () => {
   for (const client of ["web", "ios"]) assert.deepEqual(paths("parse-vegas-explicit", client), ["/api/v1/trip/parse-input"]);
 });
 
-test("the web run follows the web app: stream, packing, then car seat and pet checks when the family needs them", () => {
-  assert.deepEqual(paths("trip-san-diego-dog", "web"), [
-    "/api/v1/trip/stream", "/api/v1/trip/packing", "/api/v1/safety/car-seat-check", "/api/v1/safety/pet-travel-check",
-  ]);
-  assert.deepEqual(paths("trip-tokyo-five-day", "web"), ["/api/v1/trip/stream", "/api/v1/trip/packing", "/api/v1/safety/car-seat-check"]);
+const FULL_FLOW = [
+  "/api/v1/trip/stream", "/api/v1/trip/packing", "/api/safety/travel-tips", "/api/safety/car-seat-check", "/api/v1/safety/pet-travel-check",
+];
+
+test("a trip runs the calls both apps make: stream, then packing, travel tips, car seat for children and pet check for pets", () => {
+  for (const client of ["web", "ios"]) {
+    assert.deepEqual(paths("trip-san-diego-dog", client), FULL_FLOW);
+    assert.deepEqual(paths("trip-tokyo-five-day", client), FULL_FLOW.slice(0, 4), "no pets, no pet check");
+  }
 });
 
-test("the ios run follows the iOS app: stream and the pet check only, never bundle, packing or car seat", () => {
-  assert.deepEqual(paths("trip-san-diego-dog", "ios"), ["/api/v1/trip/stream", "/api/v1/safety/pet-travel-check"]);
-  assert.deepEqual(paths("trip-vegas-family", "ios"), ["/api/v1/trip/stream"]);
-  for (const c of CASES) for (const path of paths(c.id, "ios")) assert.ok(!/bundle|packing|car-seat/.test(path), `${c.id}: ${path}`);
+test("the bundle endpoint is only the iOS fallback when streaming fails, so no case uses it", () => {
+  for (const c of CASES) for (const client of ["web", "ios"]) for (const path of paths(c.id, client)) assert.ok(!/bundle/.test(path), `${c.id}: ${path}`);
 });
 
-test("every step carries its name and a body the backend accepts", () => {
+test("every step carries its name and the body the apps send", () => {
   const steps = stepsFor(byId("trip-london-car-seat"), "web");
-  assert.deepEqual(steps.map((s) => s.step), ["stream", "packing", "car-seat"]);
-  const carSeat = steps[2].body;
+  assert.deepEqual(steps.map((s) => s.step), ["stream", "packing", "travel-tips", "car-seat"]);
+  const tips = steps[2].body;
+  assert.deepEqual(tips, { destination: "London, United Kingdom", childrenAges: [4], countryCode: "GB", client: "web", schemaVersion: "1" });
+  const carSeat = steps[3].body;
   assert.equal(carSeat.destination, "London, United Kingdom");
-  assert.equal(carSeat.countryCode, "GB");
   assert.deepEqual(carSeat.children, [{ age: 4 }]);
   assert.match(carSeat.tripDate, /^\d{4}-\d{2}-\d{2}$/);
-  const pet = stepsFor(byId("trip-san-diego-dog"), "web").at(-1).body;
-  assert.equal(pet.pets[0].type, "dog");
-  assert.equal(pet.travelMode, "car");
-  assert.equal(pet.countryCode, "US");
   assert.equal(steps[0].body.client, "web");
   assert.equal(stepsFor(byId("trip-london-car-seat"), "ios")[0].body.client, "ios");
+});
+
+test("the pet check uses the travel modes the backend accepts: drive at home, fly abroad", () => {
+  assert.equal(stepsFor(byId("trip-san-diego-dog"), "ios").at(-1).body.travelMode, "drive");
+  const abroad = { ...byId("trip-san-diego-dog"), countryCode: "GB" };
+  assert.equal(stepsFor(abroad, "ios").at(-1).body.travelMode, "fly");
+  assert.equal(stepsFor(abroad, "ios").at(-1).body.pets[0].type, "dog");
 });
 
 test("case ids are unique and every case names its rubric lines", () => {
