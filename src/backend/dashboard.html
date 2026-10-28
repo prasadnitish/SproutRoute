@@ -111,7 +111,20 @@ function render(root, d) {
   addCard(cg, "Last Hour", s.tripsLastHour, "within trip sample");
   addCard(cg, "AI Calls", s.totalAiCalls, "latest 500 maximum");
   addCard(cg, "Errors", s.totalErrors, "latest 50 maximum", s.totalErrors > 0 ? "err" : "");
+  const sp = d.spend || {};
+  const usd = (n) => "$" + (Number(n) || 0).toFixed(2);
+  const limit = d.alerts && d.alerts.dailyLimitUsd;
+  const overLimit = limit && sp.today && sp.today.usd >= limit;
+  addCard(cg, "Est. AI spend today", sp.available ? usd(sp.today.usd) : "n/a",
+    sp.available ? sp.today.calls + " calls, UTC day" + (limit ? ", alert at " + usd(limit) : "") : "metrics store unavailable", overLimit ? "err" : "");
+  addCard(cg, "Est. AI spend, 7 days", sp.available ? usd(sp.last7Days.usd) : "n/a", sp.available ? sp.last7Days.calls + " calls" : "");
   cards.appendChild(cg);
+  const recentAlerts = (d.alerts && d.alerts.recentAlerts) || [];
+  if (recentAlerts.length) {
+    const al = el("p", "Alerts since last deploy: " + recentAlerts.slice(-3).map((a) => a.at.slice(0, 16).replace("T", " ") + " " + a.text).join(" | "), "");
+    al.style.cssText = "font-size:12px;color:#b91c1c;margin:6px 0;";
+    cards.appendChild(al);
+  }
 
   // Data source indicator
   if (d.dataSource) {
@@ -195,6 +208,21 @@ function render(root, d) {
   mt.appendChild(mtb);
   mSec.appendChild(mt);
   cols2.appendChild(mSec);
+
+  // AI spend by model (estimates from provider token counts; blank cost means no price on file)
+  const spSec = el("div");
+  spSec.appendChild(el("div", "AI Spend by Model (7 days)", "section-title"));
+  const spt = document.createElement("table");
+  spt.appendChild(mkRow(true, ["Model", "Calls", "Tokens in/out", "Est. cost"]));
+  const sptb = document.createElement("tbody");
+  const spendRows = Object.entries((d.spend && d.spend.byModel) || {}).sort((a, b) => b[1].usd - a[1].usd);
+  for (const [k, v] of spendRows) {
+    const unpriced = v.unpricedCalls ? " (" + v.unpricedCalls + " unpriced)" : "";
+    sptb.appendChild(mkRow(false, [k, v.calls, v.inputTokens.toLocaleString() + " / " + v.outputTokens.toLocaleString(), "$" + v.usd.toFixed(2) + unpriced]));
+  }
+  spt.appendChild(sptb);
+  spSec.appendChild(spt);
+  cols2.appendChild(spSec);
 
   // AI by task
   const aSec = el("div");
