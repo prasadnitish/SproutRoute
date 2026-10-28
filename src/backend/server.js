@@ -1,4 +1,5 @@
 import { tracing, traceArchive, tracedFetch } from './services/tracing.js';
+import { evalCapture } from './services/evalCapture.js';
 // Backend entry point: Express server that orchestrates location, weather, and AI calls.
 import express from "express";
 import cors from "cors";
@@ -439,6 +440,8 @@ export function createApp(deps = {}) {
   app.use('/api/v1/trip/shares', express.json({ limit: '160kb' }));
   app.use(express.json({ limit: "64kb" }));
   app.use(express.urlencoded({ limit: "64kb", extended: false }));
+  // Opt-in eval traces for synthetic golden-set runs (needs the parsed body).
+  app.use(evalCapture.middleware);
 
   mountMcpRoutes(app, deps);
 
