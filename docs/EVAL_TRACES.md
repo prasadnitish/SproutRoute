@@ -27,7 +27,7 @@ EVAL_CAPTURE_TOKEN=<same value> node scripts/run-eval-traces.mjs --base=https://
 EVAL_CAPTURE_TOKEN=<same value> node scripts/run-eval-traces.mjs --base=https://<backend> --client=ios --confirm-spend
 ```
 
-Each run sends ten made-up cases (three free-text parses, seven trips). A trip is several calls, so each case sends the calls its client makes, in order, under one journey id (`scripts/eval-cases.mjs` lists them):
+Each run sends seventeen made-up cases (ten free-text parses, seven trips). `--steps=` limits a run to some steps, and `--save=<dir>` keeps the response bodies for scoring. To compare models on these cases, see `docs/benchmarks/2026-10-28-model-comparison/README.md`. A trip is several calls, so each case sends the calls its client makes, in order, under one journey id (`scripts/eval-cases.mjs` lists them):
 
 The web app and the iOS app make the same calls for a trip (the iOS app makes the packing, travel-tips, car seat and pet calls in the background once the plan is showing), so both runs send the same steps and differ in the `client` field and tag, and in the packing route:
 

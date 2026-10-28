@@ -7,11 +7,13 @@
 //     --base=https://<your-backend> --client=web --confirm-spend
 //
 // Options: --client=web|ios (default web), --only=<case-id,...>,
-// --run=<label> (tags every trace of the run), --delay-ms=<n>.
+// --run=<label> (tags every trace of the run), --delay-ms=<n>, --save=<dir> (keep response bodies and timings),
+// --steps=<step,...> (run only those steps).
 // Each case runs the calls its client makes (see scripts/eval-cases.mjs) under one journey id.
 // Each case calls real models (the web run also generates a packing list) and spends provider credit,
 // hence --confirm-spend.
 import { randomBytes } from "node:crypto";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { CASES, stepsFor } from "./eval-cases.mjs";
 
 const args = Object.fromEntries(
@@ -36,6 +38,13 @@ if (!args["confirm-spend"]) {
   process.exit(2);
 }
 
+// --save=<dir> keeps every response body next to its timing, so a run can be scored later without a person.
+const saveDir = typeof args.save === "string" ? args.save : null;
+if (saveDir) mkdirSync(saveDir, { recursive: true });
+
+// --steps=parse,stream,travel-tips,pet limits a run to those steps (a model comparison skips the rule-based ones).
+const stepFilter = typeof args.steps === "string" ? new Set(args.steps.split(",")) : null;
+
 const only = args.only ? new Set(String(args.only).split(",")) : null;
 const selected = CASES.filter((c) => !only || only.has(c.id));
 
@@ -47,6 +56,7 @@ let failures = 0;
 for (const [index, testCase] of selected.entries()) {
   const journey = journeyId();
   for (const { step, path, body } of stepsFor(testCase, client)) {
+    if (stepFilter && !stepFilter.has(step)) continue;
     const started = performance.now();
     try {
       const res = await fetch(`${base}${path}`, {
@@ -67,6 +77,9 @@ for (const [index, testCase] of selected.entries()) {
       const streamError = /^event: error$/m.test(text);
       const failed = !res.ok || streamError;
       if (failed) failures++;
+      if (saveDir) {
+        appendFileSync(`${saveDir}/calls.jsonl`, `${JSON.stringify({ case: testCase.id, step, client, journey, status: res.status, ms: Math.round(performance.now() - started), trace: res.headers.get("x-langfuse-trace-id"), body: text })}\n`);
+      }
       console.log(JSON.stringify({
         case: testCase.id,
         step,

@@ -1,0 +1,14 @@
+{
+  "name": "haiku-5-5",
+  "provider": "anthropic",
+  "model": "claude-haiku-5-5",
+  "effort": "low",
+  "price": {
+    "in": 0.1,
+    "out": 0.5
+  },
+  "note": "newest Haiku",
+  "startedAt": "2026-10-28T06:33:33.896Z",
+  "finishedAt": "2026-10-28T06:40:34.791Z",
+  "runnerExit": 1
+}

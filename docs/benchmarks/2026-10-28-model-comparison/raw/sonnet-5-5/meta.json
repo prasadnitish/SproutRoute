@@ -1,0 +1,14 @@
+{
+  "name": "sonnet-5-5",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5-5",
+  "effort": "low",
+  "price": {
+    "in": 2,
+    "out": 10
+  },
+  "note": "newest Sonnet",
+  "startedAt": "2026-10-28T06:49:31.073Z",
+  "finishedAt": "2026-10-28T06:56:54.565Z",
+  "runnerExit": 0
+}

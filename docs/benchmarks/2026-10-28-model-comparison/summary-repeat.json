@@ -1,0 +1,1289 @@
+{
+  "scoredAt": "2026-10-28T07:33:03.255Z",
+  "configs": {
+    "gemini-3-8-flash": {
+      "meta": {
+        "name": "gemini-3-8-flash",
+        "provider": "gemini",
+        "model": "gemini-3.8-flash",
+        "effort": null,
+        "thinking": null,
+        "price": {
+          "in": 0.75,
+          "out": 3.75
+        },
+        "note": "current itinerary model"
+      },
+      "parse": {
+        "n": 10,
+        "passRate": 1,
+        "failures": [],
+        "p50Ms": 4726,
+        "p95Ms": 26990,
+        "meanCost": 0.0030994499999999997,
+        "meanOutputTokens": 465.5
+      },
+      "plan": {
+        "n": 7,
+        "completeRate": 1,
+        "problems": [],
+        "p50Ms": 28690,
+        "p95Ms": 44375,
+        "maxMs": 44375,
+        "meanCost": 0.0162405,
+        "meanOutputTokens": 3415.285714285714,
+        "durationInRange": 0.9476190476190476,
+        "kidFriendlyShare": 0.9629629629629629,
+        "petFriendlyShare": 0.9,
+        "groundedRatio": 0.9833333333333334,
+        "destinationKeptRate": 0.7142857142857143,
+        "thinDaysPerPlan": 0,
+        "repeatedStopsPerPlan": 1,
+        "repeatedStopsLongTrips": 2.3333333333333335,
+        "hoursCorrectionsPer10Stops": 0.09009009009009009,
+        "stops": 111
+      },
+      "tips": {
+        "n": 7,
+        "validRate": 1,
+        "failures": [],
+        "p50Ms": 4800,
+        "meanCost": 0.0012237857142857141,
+        "meanOutputTokens": 271.57142857142856
+      },
+      "totalCost": 0.15324449999999998,
+      "rows": {
+        "parse": [
+          {
+            "case": "parse-vegas-explicit",
+            "status": 200,
+            "ms": 4292,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1815,
+              "output": 369
+            },
+            "cost": 0.002745
+          },
+          {
+            "case": "parse-vague-beach-pet",
+            "status": 200,
+            "ms": 5919,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1809,
+              "output": 581
+            },
+            "cost": 0.0035355
+          },
+          {
+            "case": "parse-tokyo-vegetarian",
+            "status": 200,
+            "ms": 4070,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1809,
+              "output": 373
+            },
+            "cost": 0.0027555
+          },
+          {
+            "case": "parse-maui-two-dogs",
+            "status": 200,
+            "ms": 5229,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1806,
+              "output": 511
+            },
+            "cost": 0.00327075
+          },
+          {
+            "case": "parse-europe-multi-stop",
+            "status": 200,
+            "ms": 4726,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1804,
+              "output": 536
+            },
+            "cost": 0.003363
+          },
+          {
+            "case": "parse-japan-country-tour",
+            "status": 200,
+            "ms": 26990,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1795,
+              "output": 632
+            },
+            "cost": 0.00371625
+          },
+          {
+            "case": "parse-napa-no-kids",
+            "status": 200,
+            "ms": 3749,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1806,
+              "output": 350
+            },
+            "cost": 0.002667
+          },
+          {
+            "case": "parse-orlando-toddler",
+            "status": 200,
+            "ms": 4442,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1794,
+              "output": 385
+            },
+            "cost": 0.00278925
+          },
+          {
+            "case": "parse-vague-warm-spring",
+            "status": 200,
+            "ms": 5208,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1804,
+              "output": 492
+            },
+            "cost": 0.003198
+          },
+          {
+            "case": "parse-portland-cat-gluten",
+            "status": 200,
+            "ms": 4932,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1809,
+              "output": 426
+            },
+            "cost": 0.00295425
+          }
+        ],
+        "plan": [
+          {
+            "case": "trip-vegas-family",
+            "status": 200,
+            "ms": 21486,
+            "firstChunkMs": 20213,
+            "hoursCorrections": 0,
+            "expectedDays": 2,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 10,
+            "durationInRange": 0.9,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 3388,
+              "output": 2319
+            },
+            "cost": 0.01123725
+          },
+          {
+            "case": "trip-san-diego-dog",
+            "status": 200,
+            "ms": 23715,
+            "firstChunkMs": 22848,
+            "hoursCorrections": 0,
+            "expectedDays": 2,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 10,
+            "durationInRange": 1,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": 0.9,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 3318,
+              "output": 2620
+            },
+            "cost": 0.0123135
+          },
+          {
+            "case": "trip-tokyo-five-day",
+            "status": 200,
+            "ms": 44375,
+            "firstChunkMs": 24503,
+            "hoursCorrections": 0,
+            "expectedDays": 5,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 20,
+            "durationInRange": 0.9,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 0.9,
+            "destinationKept": false,
+            "tokens": {
+              "input": 7261,
+              "output": 4732
+            },
+            "cost": 0.02319075
+          },
+          {
+            "case": "trip-seattle-toddler-rain",
+            "status": 200,
+            "ms": 21163,
+            "firstChunkMs": 20104,
+            "hoursCorrections": 1,
+            "expectedDays": 3,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 12,
+            "durationInRange": 0.8333333333333334,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 3087,
+              "output": 2453
+            },
+            "cost": 0.011514
+          },
+          {
+            "case": "trip-london-car-seat",
+            "status": 200,
+            "ms": 35381,
+            "firstChunkMs": 23609,
+            "hoursCorrections": 0,
+            "expectedDays": 4,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 17,
+            "durationInRange": 1,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 7349,
+              "output": 3924
+            },
+            "cost": 0.02022675
+          },
+          {
+            "case": "trip-yellowstone-six-day",
+            "status": 200,
+            "ms": 42590,
+            "firstChunkMs": 25451,
+            "hoursCorrections": 0,
+            "expectedDays": 6,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 7,
+            "stops": 27,
+            "durationInRange": 1,
+            "kidFriendlyShare": 0.7407407407407407,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 6232,
+              "output": 4694
+            },
+            "cost": 0.0222765
+          },
+          {
+            "case": "trip-nyc-two-kids",
+            "status": 200,
+            "ms": 28690,
+            "firstChunkMs": 27389,
+            "hoursCorrections": 0,
+            "expectedDays": 3,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 15,
+            "durationInRange": 1,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": null,
+            "destinationKept": false,
+            "tokens": {
+              "input": 1408,
+              "output": 3165
+            },
+            "cost": 0.01292475
+          }
+        ],
+        "tips": [
+          {
+            "case": "trip-vegas-family",
+            "status": 200,
+            "ms": 5275,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 319,
+              "output": 329
+            },
+            "cost": 0.001473
+          },
+          {
+            "case": "trip-san-diego-dog",
+            "status": 200,
+            "ms": 4380,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 319,
+              "output": 304
+            },
+            "cost": 0.00137925
+          },
+          {
+            "case": "trip-tokyo-five-day",
+            "status": 200,
+            "ms": 4800,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 318,
+              "output": 317
+            },
+            "cost": 0.00142725
+          },
+          {
+            "case": "trip-seattle-toddler-rain",
+            "status": 200,
+            "ms": 4281,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 318,
+              "output": 313
+            },
+            "cost": 0.00141225
+          },
+          {
+            "case": "trip-london-car-seat",
+            "status": 200,
+            "ms": 4943,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 319,
+              "output": 325
+            },
+            "cost": 0.001458
+          },
+          {
+            "case": "trip-yellowstone-six-day",
+            "status": 200,
+            "ms": 4171,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 324,
+              "output": 313
+            },
+            "cost": 0.00141675
+          },
+          {
+            "case": "trip-nyc-two-kids",
+            "status": 200,
+            "ms": 4933,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 0,
+              "output": 0
+            },
+            "cost": 0
+          }
+        ]
+      }
+    },
+    "gpt-6-luna": {
+      "meta": {
+        "name": "gpt-6-luna",
+        "provider": "openai",
+        "model": "gpt-6-luna",
+        "effort": null,
+        "thinking": null,
+        "price": {
+          "in": 0.1,
+          "out": 0.5
+        },
+        "note": "newest OpenAI small model"
+      },
+      "parse": {
+        "n": 10,
+        "passRate": 1,
+        "failures": [],
+        "p50Ms": 6623,
+        "p95Ms": 9428,
+        "meanCost": 0.00042834000000000004,
+        "meanOutputTokens": 507.5
+      },
+      "plan": {
+        "n": 7,
+        "completeRate": 1,
+        "problems": [],
+        "p50Ms": 38929,
+        "p95Ms": 61641,
+        "maxMs": 61641,
+        "meanCost": 0.0023158,
+        "meanOutputTokens": 3809.714285714286,
+        "durationInRange": 0.9142857142857144,
+        "kidFriendlyShare": 0.9654761904761904,
+        "petFriendlyShare": 0.625,
+        "groundedRatio": 1,
+        "destinationKeptRate": 0.7142857142857143,
+        "thinDaysPerPlan": 0,
+        "repeatedStopsPerPlan": 0.7142857142857143,
+        "repeatedStopsLongTrips": 1.6666666666666667,
+        "hoursCorrectionsPer10Stops": 0.4,
+        "stops": 100
+      },
+      "tips": {
+        "n": 7,
+        "validRate": 1,
+        "failures": [],
+        "p50Ms": 7438,
+        "meanCost": 0.0002828571428571428,
+        "meanOutputTokens": 504.7142857142857
+      },
+      "totalCost": 0.022474,
+      "rows": {
+        "parse": [
+          {
+            "case": "parse-vegas-explicit",
+            "status": 200,
+            "ms": 6432,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1754,
+              "output": 393
+            },
+            "cost": 0.0003719
+          },
+          {
+            "case": "parse-vague-beach-pet",
+            "status": 200,
+            "ms": 9428,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1749,
+              "output": 626
+            },
+            "cost": 0.0004879
+          },
+          {
+            "case": "parse-tokyo-vegetarian",
+            "status": 200,
+            "ms": 6260,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1749,
+              "output": 455
+            },
+            "cost": 0.00040239999999999997
+          },
+          {
+            "case": "parse-maui-two-dogs",
+            "status": 200,
+            "ms": 6681,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1748,
+              "output": 489
+            },
+            "cost": 0.0004193
+          },
+          {
+            "case": "parse-europe-multi-stop",
+            "status": 200,
+            "ms": 8567,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1744,
+              "output": 650
+            },
+            "cost": 0.0004994
+          },
+          {
+            "case": "parse-japan-country-tour",
+            "status": 200,
+            "ms": 7654,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1737,
+              "output": 608
+            },
+            "cost": 0.00047770000000000006
+          },
+          {
+            "case": "parse-napa-no-kids",
+            "status": 200,
+            "ms": 7404,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1748,
+              "output": 514
+            },
+            "cost": 0.00043180000000000003
+          },
+          {
+            "case": "parse-orlando-toddler",
+            "status": 200,
+            "ms": 5391,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1737,
+              "output": 374
+            },
+            "cost": 0.00036070000000000004
+          },
+          {
+            "case": "parse-vague-warm-spring",
+            "status": 200,
+            "ms": 6623,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1745,
+              "output": 545
+            },
+            "cost": 0.000447
+          },
+          {
+            "case": "parse-portland-cat-gluten",
+            "status": 200,
+            "ms": 5946,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 1748,
+              "output": 421
+            },
+            "cost": 0.0003853
+          }
+        ],
+        "plan": [
+          {
+            "case": "trip-vegas-family",
+            "status": 200,
+            "ms": 29032,
+            "firstChunkMs": 27689,
+            "hoursCorrections": 0,
+            "expectedDays": 2,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 8,
+            "durationInRange": 0.75,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 2985,
+              "output": 2322
+            },
+            "cost": 0.0014595
+          },
+          {
+            "case": "trip-san-diego-dog",
+            "status": 200,
+            "ms": 27139,
+            "firstChunkMs": 26256,
+            "hoursCorrections": 1,
+            "expectedDays": 2,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 8,
+            "durationInRange": 1,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": 0.625,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 2974,
+              "output": 2780
+            },
+            "cost": 0.0016874000000000001
+          },
+          {
+            "case": "trip-tokyo-five-day",
+            "status": 200,
+            "ms": 49118,
+            "firstChunkMs": 28781,
+            "hoursCorrections": 2,
+            "expectedDays": 5,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 4,
+            "stops": 20,
+            "durationInRange": 0.9,
+            "kidFriendlyShare": 0.8,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": false,
+            "tokens": {
+              "input": 6439,
+              "output": 5203
+            },
+            "cost": 0.0032454
+          },
+          {
+            "case": "trip-seattle-toddler-rain",
+            "status": 200,
+            "ms": 32354,
+            "firstChunkMs": 31014,
+            "hoursCorrections": 0,
+            "expectedDays": 3,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 12,
+            "durationInRange": 0.8333333333333334,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 2721,
+              "output": 3242
+            },
+            "cost": 0.0018931
+          },
+          {
+            "case": "trip-london-car-seat",
+            "status": 200,
+            "ms": 49798,
+            "firstChunkMs": 31532,
+            "hoursCorrections": 1,
+            "expectedDays": 4,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 16,
+            "durationInRange": 1,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 6408,
+              "output": 4469
+            },
+            "cost": 0.0028753
+          },
+          {
+            "case": "trip-yellowstone-six-day",
+            "status": 200,
+            "ms": 61641,
+            "firstChunkMs": 33433,
+            "hoursCorrections": 0,
+            "expectedDays": 6,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 1,
+            "stops": 24,
+            "durationInRange": 1,
+            "kidFriendlyShare": 0.9583333333333334,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 5923,
+              "output": 5639
+            },
+            "cost": 0.0034118
+          },
+          {
+            "case": "trip-nyc-two-kids",
+            "status": 200,
+            "ms": 38929,
+            "firstChunkMs": 37828,
+            "hoursCorrections": 0,
+            "expectedDays": 3,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 12,
+            "durationInRange": 0.9166666666666666,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": null,
+            "destinationKept": false,
+            "tokens": {
+              "input": 1316,
+              "output": 3013
+            },
+            "cost": 0.0016381
+          }
+        ],
+        "tips": [
+          {
+            "case": "trip-vegas-family",
+            "status": 200,
+            "ms": 8690,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 304,
+              "output": 584
+            },
+            "cost": 0.0003224
+          },
+          {
+            "case": "trip-san-diego-dog",
+            "status": 200,
+            "ms": 6146,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 304,
+              "output": 452
+            },
+            "cost": 0.0002564
+          },
+          {
+            "case": "trip-tokyo-five-day",
+            "status": 200,
+            "ms": 6028,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 303,
+              "output": 417
+            },
+            "cost": 0.0002388
+          },
+          {
+            "case": "trip-seattle-toddler-rain",
+            "status": 200,
+            "ms": 7438,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 303,
+              "output": 527
+            },
+            "cost": 0.0002938
+          },
+          {
+            "case": "trip-london-car-seat",
+            "status": 200,
+            "ms": 7265,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 304,
+              "output": 457
+            },
+            "cost": 0.00025889999999999995
+          },
+          {
+            "case": "trip-yellowstone-six-day",
+            "status": 200,
+            "ms": 7469,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 308,
+              "output": 548
+            },
+            "cost": 0.00030480000000000004
+          },
+          {
+            "case": "trip-nyc-two-kids",
+            "status": 200,
+            "ms": 7442,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 309,
+              "output": 548
+            },
+            "cost": 0.0003049
+          }
+        ]
+      }
+    },
+    "haiku-5-5-nothink": {
+      "meta": {
+        "name": "haiku-5-5-nothink",
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5",
+        "effort": "low",
+        "thinking": "disabled",
+        "price": {
+          "in": 0.1,
+          "out": 0.5
+        },
+        "note": "newest Haiku, thinking off"
+      },
+      "parse": {
+        "n": 10,
+        "passRate": 0.9,
+        "failures": [
+          {
+            "case": "parse-maui-two-dogs",
+            "failed": [
+              "days"
+            ]
+          }
+        ],
+        "p50Ms": 2742,
+        "p95Ms": 4812,
+        "meanCost": 0.00052315,
+        "meanOutputTokens": 510.6
+      },
+      "plan": {
+        "n": 7,
+        "completeRate": 1,
+        "problems": [],
+        "p50Ms": 19134,
+        "p95Ms": 55679,
+        "maxMs": 55679,
+        "meanCost": 0.0029909285714285715,
+        "meanOutputTokens": 5676.428571428572,
+        "durationInRange": 0.8752497502497504,
+        "kidFriendlyShare": 0.8779761904761905,
+        "petFriendlyShare": 0.5,
+        "groundedRatio": 1,
+        "destinationKeptRate": 0.7142857142857143,
+        "thinDaysPerPlan": 0.14285714285714285,
+        "repeatedStopsPerPlan": 2.7142857142857144,
+        "repeatedStopsLongTrips": 6.333333333333333,
+        "hoursCorrectionsPer10Stops": 1.4035087719298245,
+        "stops": 114
+      },
+      "tips": {
+        "n": 7,
+        "validRate": 1,
+        "failures": [],
+        "p50Ms": 3765,
+        "meanCost": 0.00026284285714285713,
+        "meanOutputTokens": 442.57142857142856
+      },
+      "totalCost": 0.0280079,
+      "rows": {
+        "parse": [
+          {
+            "case": "parse-vegas-explicit",
+            "status": 200,
+            "ms": 1788,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2689,
+              "output": 339
+            },
+            "cost": 0.00043840000000000003
+          },
+          {
+            "case": "parse-vague-beach-pet",
+            "status": 200,
+            "ms": 4812,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2683,
+              "output": 762
+            },
+            "cost": 0.0006493
+          },
+          {
+            "case": "parse-tokyo-vegetarian",
+            "status": 200,
+            "ms": 1979,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2686,
+              "output": 362
+            },
+            "cost": 0.00044960000000000003
+          },
+          {
+            "case": "parse-maui-two-dogs",
+            "status": 200,
+            "ms": 2195,
+            "pass": false,
+            "failed": [
+              "days"
+            ],
+            "tokens": {
+              "input": 2677,
+              "output": 444
+            },
+            "cost": 0.0004897
+          },
+          {
+            "case": "parse-europe-multi-stop",
+            "status": 200,
+            "ms": 4279,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2682,
+              "output": 804
+            },
+            "cost": 0.0006702
+          },
+          {
+            "case": "parse-japan-country-tour",
+            "status": 200,
+            "ms": 3729,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2666,
+              "output": 729
+            },
+            "cost": 0.0006311
+          },
+          {
+            "case": "parse-napa-no-kids",
+            "status": 200,
+            "ms": 3908,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2680,
+              "output": 366
+            },
+            "cost": 0.000451
+          },
+          {
+            "case": "parse-orlando-toddler",
+            "status": 200,
+            "ms": 1730,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2665,
+              "output": 325
+            },
+            "cost": 0.000429
+          },
+          {
+            "case": "parse-vague-warm-spring",
+            "status": 200,
+            "ms": 2742,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2675,
+              "output": 547
+            },
+            "cost": 0.000541
+          },
+          {
+            "case": "parse-portland-cat-gluten",
+            "status": 200,
+            "ms": 2860,
+            "pass": true,
+            "failed": [],
+            "tokens": {
+              "input": 2682,
+              "output": 428
+            },
+            "cost": 0.0004822
+          }
+        ],
+        "plan": [
+          {
+            "case": "trip-vegas-family",
+            "status": 200,
+            "ms": 14052,
+            "firstChunkMs": 12210,
+            "hoursCorrections": 1,
+            "expectedDays": 2,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 8,
+            "durationInRange": 0.875,
+            "kidFriendlyShare": 0.75,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 297,
+              "output": 2412
+            },
+            "cost": 0.0012357
+          },
+          {
+            "case": "trip-san-diego-dog",
+            "status": 200,
+            "ms": 15984,
+            "firstChunkMs": 14302,
+            "hoursCorrections": 2,
+            "expectedDays": 2,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 10,
+            "durationInRange": 1,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": 0.5,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 287,
+              "output": 3346
+            },
+            "cost": 0.0017017
+          },
+          {
+            "case": "trip-tokyo-five-day",
+            "status": 200,
+            "ms": 34758,
+            "firstChunkMs": 21364,
+            "hoursCorrections": 6,
+            "expectedDays": 5,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 8,
+            "stops": 26,
+            "durationInRange": 0.9230769230769231,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": false,
+            "tokens": {
+              "input": 1111,
+              "output": 8334
+            },
+            "cost": 0.0042781
+          },
+          {
+            "case": "trip-seattle-toddler-rain",
+            "status": 200,
+            "ms": 14975,
+            "firstChunkMs": 12866,
+            "hoursCorrections": 5,
+            "expectedDays": 3,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 0,
+            "stops": 13,
+            "durationInRange": 0.6923076923076923,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 337,
+              "output": 2889
+            },
+            "cost": 0.0014782
+          },
+          {
+            "case": "trip-london-car-seat",
+            "status": 200,
+            "ms": 19134,
+            "firstChunkMs": 10061,
+            "hoursCorrections": 2,
+            "expectedDays": 4,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 2,
+            "stops": 16,
+            "durationInRange": 1,
+            "kidFriendlyShare": 0.5625,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 921,
+              "output": 3269
+            },
+            "cost": 0.0017265999999999998
+          },
+          {
+            "case": "trip-yellowstone-six-day",
+            "status": 200,
+            "ms": 55679,
+            "firstChunkMs": 44774,
+            "hoursCorrections": 0,
+            "expectedDays": 6,
+            "complete": true,
+            "problems": [],
+            "thinDays": 0,
+            "repeatedStops": 9,
+            "stops": 30,
+            "durationInRange": 1,
+            "kidFriendlyShare": 0.8333333333333334,
+            "petFriendlyShare": null,
+            "groundedRatio": 1,
+            "destinationKept": true,
+            "tokens": {
+              "input": 5521,
+              "output": 13042
+            },
+            "cost": 0.007073100000000001
+          },
+          {
+            "case": "trip-nyc-two-kids",
+            "status": 200,
+            "ms": 31630,
+            "firstChunkMs": 30304,
+            "hoursCorrections": 0,
+            "expectedDays": 3,
+            "complete": true,
+            "problems": [],
+            "thinDays": 1,
+            "repeatedStops": 0,
+            "stops": 11,
+            "durationInRange": 0.6363636363636364,
+            "kidFriendlyShare": 1,
+            "petFriendlyShare": null,
+            "groundedRatio": null,
+            "destinationKept": false,
+            "tokens": {
+              "input": 2216,
+              "output": 6443
+            },
+            "cost": 0.0034431
+          }
+        ],
+        "tips": [
+          {
+            "case": "trip-vegas-family",
+            "status": 200,
+            "ms": 2858,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 487,
+              "output": 427
+            },
+            "cost": 0.0002622
+          },
+          {
+            "case": "trip-san-diego-dog",
+            "status": 200,
+            "ms": 3691,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 482,
+              "output": 467
+            },
+            "cost": 0.00028169999999999996
+          },
+          {
+            "case": "trip-tokyo-five-day",
+            "status": 200,
+            "ms": 5618,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 486,
+              "output": 540
+            },
+            "cost": 0.00031860000000000005
+          },
+          {
+            "case": "trip-seattle-toddler-rain",
+            "status": 200,
+            "ms": 4983,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 484,
+              "output": 535
+            },
+            "cost": 0.0003159
+          },
+          {
+            "case": "trip-london-car-seat",
+            "status": 200,
+            "ms": 3765,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 485,
+              "output": 638
+            },
+            "cost": 0.0003675
+          },
+          {
+            "case": "trip-yellowstone-six-day",
+            "status": 200,
+            "ms": 4757,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 0,
+              "output": 0
+            },
+            "cost": 0
+          },
+          {
+            "case": "trip-nyc-two-kids",
+            "status": 200,
+            "ms": 3015,
+            "valid": true,
+            "problems": [],
+            "tokens": {
+              "input": 485,
+              "output": 491
+            },
+            "cost": 0.000294
+          }
+        ]
+      }
+    }
+  }
+}

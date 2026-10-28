@@ -135,7 +135,7 @@ function resolveModelId(provider, caller = "") {
 // Claude 5.x and Opus 4.7+ reject non-default sampling parameters with a 400 and take effort instead.
 const FIXED_SAMPLING_CLAUDE = /^claude-(?:[a-z]+-5(?:-|$)|opus-4-[78](?:-|$))/;
 
-async function callAnthropic(client, { system, user, maxTokens, temperature, effort, cacheSystemPrompt, modelId, signal, timeoutMs }) {
+async function callAnthropic(client, { system, user, maxTokens, temperature, effort, thinking, cacheSystemPrompt, modelId, signal, timeoutMs }) {
   const systemParam = cacheSystemPrompt
     ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
     : system;
@@ -146,6 +146,7 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, eff
     system: systemParam,
     ...(fixedSampling ? {} : { temperature }),
     ...(fixedSampling && effort ? { output_config: { effort } } : {}),
+    ...(thinking ? { thinking: { type: thinking } } : {}),
     max_tokens: maxTokens,
     messages: [{ role: "user", content: user }],
   }, { signal, timeout: timeoutMs });
@@ -280,6 +281,31 @@ async function makeDeepSeekClient() {
 
 // ── Provider resolver ─────────────────────────────────────────────────────────
 
+// Eval only. AI_EVAL_MODEL_OVERRIDE='{"provider":"anthropic","model":"claude-haiku-5-5","effort":"low","thinking":"disabled"}' sends the
+// planning callers to one model with no fallback, so a model comparison measures that model alone. It does nothing
+// unless ALLOW_EVAL_MODEL_OVERRIDE=true is also set, so a stray variable cannot redirect production traffic.
+const EVAL_OVERRIDE_CALLERS = new Set(["parseInput", "travelSafety", "tripPlan", "tripPlan:repair"]);
+const EVAL_OVERRIDE_PROVIDERS = new Set(["anthropic", "openai", "gemini"]);
+// How a Claude model is told not to think: "disabled" on Haiku 5.5, "between_tools" on Sonnet 5.5 (which rejects "disabled").
+const THINKING_OFF = new Set(["disabled", "between_tools"]);
+
+function evalOverrideFor(caller) {
+  if (process.env.ALLOW_EVAL_MODEL_OVERRIDE !== "true" || !process.env.AI_EVAL_MODEL_OVERRIDE) return null;
+  if (!EVAL_OVERRIDE_CALLERS.has(caller)) return null;
+  try {
+    const parsed = JSON.parse(process.env.AI_EVAL_MODEL_OVERRIDE);
+    const provider = String(parsed?.provider || "").toLowerCase();
+    if (!EVAL_OVERRIDE_PROVIDERS.has(provider) || typeof parsed.model !== "string" || !parsed.model) return null;
+    return {
+      provider, model: parsed.model,
+      effort: typeof parsed.effort === "string" ? parsed.effort : undefined,
+      thinking: THINKING_OFF.has(parsed.thinking) ? parsed.thinking : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function resolveProvider(prompt) {
   // Per-task override takes priority, then global default
   if (prompt.provider) return prompt.provider.toLowerCase().trim();
@@ -344,18 +370,22 @@ export async function callModel(prompt, deps = {}) {
 
   const alerts = deps.alerts ?? aiAlerts;
   const capture = deps.evalCapture ?? evalCapture;
-  const provider = resolveProvider(prompt);
   const caller = prompt.caller || "unknown";
-  const modelId = prompt.model || modelIdForProvider(provider, caller);
+  const override = evalOverrideFor(caller);
+  const provider = override ? override.provider : resolveProvider(prompt);
+  const modelId = override ? override.model : prompt.model || modelIdForProvider(provider, caller);
+  const effortSetting = override?.effort ?? effort;
   const t0 = Date.now();
   const timeoutMs = positiveTimeout(prompt.timeoutMs || process.env.AI_PROVIDER_TIMEOUT_MS);
   const deadlineAt = Date.now() + timeoutMs;
 
   // Prefer the already-configured OpenAI path when Gemini is unavailable.
   const fallbackProviders = [];
-  if (provider === "gemini" && process.env.OPENAI_API_KEY) fallbackProviders.push("openai");
-  if (provider === "openai" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
-  if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
+  if (!override) {
+    if (provider === "gemini" && process.env.OPENAI_API_KEY) fallbackProviders.push("openai");
+    if (provider === "openai" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
+    if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
+  }
   // DeepSeek is never an automatic fallback: the privacy policy does not list it as a recipient of trip content.
 
   async function callWithRemainingBudget(selectedProvider, params, attemptsRemaining, attempt) {
@@ -407,7 +437,7 @@ export async function callModel(prompt, deps = {}) {
 
   try {
     const result = await callWithRemainingBudget(provider, {
-      system, user, maxTokens, temperature, effort, cacheSystemPrompt, modelId,
+      system, user, maxTokens, temperature, effort: effortSetting, thinking: override?.thinking, cacheSystemPrompt, modelId,
     }, fallbackProviders.length + 1, "primary");
     const ms = Date.now() - t0;
     log.info("ai:call", { caller, provider, model: modelId, ms, outChars: result.responseText?.length || 0 });

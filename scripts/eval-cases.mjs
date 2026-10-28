@@ -13,12 +13,20 @@ const trip = (id, rubric, startOffset, nights, { countryCode = "US", ...fields }
   body: { startDate: day(startOffset), endDate: day(startOffset + nights), ...fields },
 });
 
-// Ten cases, matching the rubric's "human-score about 10 traces" step.
-// `rubric` names the lines each case mainly exercises.
+// Seventeen cases: ten parses and seven trips. `rubric` names the lines each case mainly exercises. A parse case
+// also carries `expect`, what the request actually says, so the parse can be scored without a person.
+// The first three parse cases and the seven trips are the original golden set.
 export const CASES = [
-  { id: "parse-vegas-explicit", rubric: ["O1", "T1"], kind: "parse", body: { text: "Plan a 3-day trip to Las Vegas with two adults and my 6-year-old. We want shows and pools." } },
-  { id: "parse-vague-beach-pet", rubric: ["T1", "O1"], kind: "parse", body: { text: "I want a beach trip near Bellevue with my 3-year-old and dog named Max next weekend." } },
-  { id: "parse-tokyo-vegetarian", rubric: ["O1"], kind: "parse", body: { text: "Five days in Tokyo with my 8-year-old. We are vegetarian and want to avoid crowds." } },
+  { id: "parse-vegas-explicit", rubric: ["O1", "T1"], kind: "parse", body: { text: "Plan a 3-day trip to Las Vegas with two adults and my 6-year-old. We want shows and pools." }, expect: { destinationIncludes: ["Las Vegas"], childrenAges: [6], adults: 2, dayCount: 3 } },
+  { id: "parse-vague-beach-pet", rubric: ["T1", "O1"], kind: "parse", body: { text: "I want a beach trip near Bellevue with my 3-year-old and dog named Max next weekend." }, expect: { destinationNull: true, childrenAges: [3], petTypes: ["dog"] } },
+  { id: "parse-tokyo-vegetarian", rubric: ["O1"], kind: "parse", body: { text: "Five days in Tokyo with my 8-year-old. We are vegetarian and want to avoid crowds." }, expect: { destinationIncludes: ["Tokyo"], childrenAges: [8], dietary: ["vegetarian"], dayCount: 5 } },
+  { id: "parse-maui-two-dogs", rubric: ["O1"], kind: "parse", body: { text: "A week in Maui with our two dogs and two kids, ages 4 and 7." }, expect: { destinationIncludes: ["Maui"], childrenAges: [4, 7], petTypes: ["dog", "dog"], dayCount: [7, 8] } },
+  { id: "parse-europe-multi-stop", rubric: ["O1"], kind: "parse", body: { text: "Ten days covering Amsterdam, Berlin and Budapest with our 9-year-old." }, expect: { tripShape: "multi_stop", stops: ["Amsterdam", "Berlin", "Budapest"], childrenAges: [9] } },
+  { id: "parse-japan-country-tour", rubric: ["O1"], kind: "parse", body: { text: "Two weeks in Japan with our teenager." }, expect: { tripShape: "country_tour", country: "Japan", childrenAges: [14] } },
+  { id: "parse-napa-no-kids", rubric: ["O1"], kind: "parse", body: { text: "Anniversary weekend in Napa, just the two of us. We love wine and fine dining." }, expect: { destinationIncludes: ["Napa"], childrenAges: [], adults: 2, budget: "fine_dining" } },
+  { id: "parse-orlando-toddler", rubric: ["O1"], kind: "parse", body: { text: "Orlando theme parks with our toddler." }, expect: { destinationIncludes: ["Orlando"], childrenAges: [2] } },
+  { id: "parse-vague-warm-spring", rubric: ["T1", "O1"], kind: "parse", body: { text: "Somewhere warm for spring break with our 10 and 12 year olds." }, expect: { destinationNull: true, childrenAges: [10, 12] } },
+  { id: "parse-portland-cat-gluten", rubric: ["O1"], kind: "parse", body: { text: "Long weekend in Portland with our cat and our 5-year-old. We eat gluten-free." }, expect: { destinationIncludes: ["Portland"], childrenAges: [5], petTypes: ["cat"], dietary: ["gluten-free"] } },
   trip("trip-vegas-family", ["O2", "O3", "X2"], 30, 1, { destination: "Las Vegas, Nevada", activities: ["family museums", "outdoor gardens"], children: [{ age: 6 }] }),
   trip("trip-san-diego-dog", ["O3", "G1"], 32, 1, { destination: "San Diego, California", activities: ["beaches", "parks"], children: [{ age: 4 }], pets: [{ type: "dog", name: "Max", weightLb: 20 }] }),
   trip("trip-tokyo-five-day", ["O1", "O2", "X1"], 40, 4, { countryCode: "JP", destination: "Tokyo, Japan", activities: ["museums", "parks", "vegetarian food"], children: [{ age: 8 }] }),

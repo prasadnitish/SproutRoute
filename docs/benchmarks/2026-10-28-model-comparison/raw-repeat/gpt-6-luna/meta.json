@@ -1,0 +1,13 @@
+{
+  "name": "gpt-6-luna",
+  "provider": "openai",
+  "model": "gpt-6-luna",
+  "price": {
+    "in": 0.1,
+    "out": 0.5
+  },
+  "note": "newest OpenAI small model",
+  "startedAt": "2026-10-28T07:25:42.141Z",
+  "finishedAt": "2026-10-28T07:32:55.654Z",
+  "runnerExit": 0
+}
