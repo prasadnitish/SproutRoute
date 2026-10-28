@@ -1,7 +1,12 @@
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination } from "./inputSafety.js";
+import { isGroundedRow, excludeForTravelers, ensureTrendingSlots, summarizeHours, isTrending } from "./groundedAttractions.js";
+import { fillCityFromPlaces } from "./placesFill.js";
 import { enrichActivity } from "./placesEnrich.js";
+
+const MIN_GROUNDED_ROWS = 8;
+const FILL_RETRY_MS = 6 * 60 * 60 * 1000;
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -117,6 +122,15 @@ function keywordScore(attraction, requestedActivities = []) {
     if (haystack.includes(keyword)) return score + 2;
     return score;
   }, 0);
+}
+
+/** Review volume (up to 5 points) and rating above 4.0 (up to 2): proven places beat barely reviewed ones. */
+function popularityScore(attraction) {
+  const count = Number(attraction.rating_count);
+  const rating = Number(attraction.rating);
+  const volume = Number.isFinite(count) && count > 0 ? Math.min(Math.log10(1 + count), 5) : 0;
+  const quality = Number.isFinite(rating) ? Math.max(0, Math.min(rating - 4, 1)) * 2 : 0;
+  return volume + quality;
 }
 
 function textSignals(attraction) {
@@ -360,6 +374,7 @@ export function rankCandidateAttractions(attractions, context = {}) {
       score += freshnessScore(attraction.freshness_bucket);
       score += recencyScore(attraction.last_seen_at || attraction.updated_at);
       score += Math.min(Number(attraction.times_seen || 0), 5);
+      score += popularityScore(attraction);
       score += keywordScore(attraction, requestedActivities);
       score += phraseMatchScore(attraction, tripGoals, 2);
       score += phraseMatchScore(attraction, mustHaves, 4);
@@ -389,6 +404,20 @@ export function rankCandidateAttractions(attractions, context = {}) {
   return selectDiverseAttractions(candidatePool, maxResults);
 }
 
+/** Google-sourced facts the model plans around: rating, price, hours and whether the place is trending now. */
+function groundedFacts(attraction) {
+  const rating = Number(attraction.rating);
+  const count = Number(attraction.rating_count);
+  const price = attraction.price_level;
+  const hours = summarizeHours(attraction.opening_hours);
+  return [
+    Number.isFinite(rating) && rating > 0 && `rating: ${rating}${Number.isFinite(count) && count > 0 ? ` (${count.toLocaleString("en-US")})` : ""}`,
+    Number.isInteger(price) && `price: ${price === 0 ? "free" : "$".repeat(price)}`,
+    hours && `hours: ${hours}`,
+    isTrending(attraction) && "trending",
+  ];
+}
+
 export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compact = false } = {}) {
   const lines = toArray(attractions)
     .slice(0, maxItems)
@@ -402,13 +431,15 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
       const whyRecommended = firstNonEmpty(attraction.why_recommended, attraction.whyRecommended);
       const timingTip = firstNonEmpty(attraction.timing_tip, attraction.timingTip);
       const verification = firstNonEmpty(attraction.verification_status, attraction.verificationStatus, "unverified");
+      const typicalMinutes = Number(attraction.family_fit_json?.typicalDurationMinutes) || 0;
 
       if (compact) {
         const compactParts = [
           `${name} | ${category}`,
           area && `area: ${area}`,
           indoorOutdoor && `mode: ${indoorOutdoor}`,
-          durationBucket && `duration: ${durationBucket}`,
+          typicalMinutes ? `duration: ~${typicalMinutes} min` : durationBucket && `duration: ${durationBucket}`,
+          ...groundedFacts(attraction),
           `status: ${verification}`,
         ].filter(Boolean);
         return `- ${compactParts.join(" | ")}`;
@@ -434,7 +465,7 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
 
   let query = admin
     .from("cities")
-    .select("id, city_name, display_name, country_code, region_code")
+    .select("id, city_name, display_name, country_code, region_code, lat, lon")
     .eq("country_code", countryCode)
     .ilike("city_name", identity.cityName)
     .limit(1);
@@ -458,7 +489,7 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
   const { data: inserted, error: insertError } = await admin
     .from("cities")
     .insert(insertPayload)
-    .select("id, city_name, display_name, country_code, region_code")
+    .select("id, city_name, display_name, country_code, region_code, lat, lon")
     .limit(1);
 
   if (insertError) throw insertError;
@@ -530,16 +561,19 @@ async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
   const safeIds = toArray(cityIds).filter(Boolean);
   if (safeIds.length === 0) return [];
 
+  // Only rows Google confirmed (place id, coordinates) and the refresh job has not retired are planned from.
+  // Rows a model wrote and nothing verified are excluded by isGroundedRow, whatever their other columns say.
   const { data, error } = await admin
     .from("city_attractions")
     .select("*")
     .in("city_id", safeIds)
-    .eq("verification_status", "verified")
-    .neq("source_type", "generated")
+    .eq("status", "active")
+    .not("google_place_id", "is", null)
+    .order("rating_count", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (error) throw error;
-  return data || [];
+  return (data || []).filter(isGroundedRow);
 }
 
 function buildStoredAttraction(activity) {
@@ -810,7 +844,39 @@ export function createAttractionMemoryService({
   getAdmin = getSupabaseAdmin,
   logger = log,
   resolvePlaceIdentity = enrichActivity,
+  fillCity = fillCityFromPlaces,
 } = {}) {
+  // A city is filled from Places once. A failed or empty fill is not retried on every request, and a request that
+  // arrives while a fill is running waits for it instead of planning from the old, thin rows.
+  const fillAttempts = new Map();
+  const fillsInFlight = new Map();
+
+  async function ensureGroundedRows(admin, city, data) {
+    if (data.length >= MIN_GROUNDED_ROWS) return data;
+    const reload = () => fetchAttractionsForCityIds(admin, [city.id], 120);
+
+    const running = fillsInFlight.get(city.id);
+    if (running) return (await running) ? reload() : data;
+
+    const lastAttempt = fillAttempts.get(city.id);
+    if (lastAttempt && Date.now() - lastAttempt < FILL_RETRY_MS) return data;
+    fillAttempts.set(city.id, Date.now());
+
+    const work = fillCity({ admin, city }).then((result) => {
+      logger.info("attraction-memory:fill", { city: city.city_name, status: result.status, inserted: result.inserted, grounded: result.grounded, reason: result.reason });
+      return result.status === "filled" && (result.inserted > 0 || result.grounded > 0);
+    }, (error) => {
+      logger.warn("attraction-memory:fill-failed", { city: city.city_name, error: error.message });
+      return false;
+    });
+    fillsInFlight.set(city.id, work);
+    try {
+      return (await work) ? reload() : data;
+    } finally {
+      fillsInFlight.delete(city.id);
+    }
+  }
+
   async function withAdmin(work, fallback) {
     try {
       const admin = getAdmin();
@@ -841,9 +907,12 @@ export function createAttractionMemoryService({
       return withAdmin(async (admin) => {
         const identity = deriveCityIdentity(destination, coords);
         const broadRegional = isBroadRegionalDestination(identity, coords);
-        const city = broadRegional
+        let city = broadRegional
           ? null
           : await resolveCityRecord(admin, destination, coords, countryCode);
+        if (!city && !broadRegional && Number.isFinite(Number(coords?.lat)) && Number.isFinite(Number(coords?.lon))) {
+          city = await resolveCityRecord(admin, destination, coords, countryCode, { createIfMissing: true });
+        }
         const cityDisplayNames = new Map();
         const minimumAttractionPool = Math.max(Math.min(maxResults, 24), 12);
 
@@ -852,7 +921,7 @@ export function createAttractionMemoryService({
 
         if (city?.id) {
           cityDisplayNames.set(city.id, city.display_name || city.city_name || identity.displayName);
-          data = await fetchAttractionsForCityIds(admin, [city.id], 50);
+          data = await ensureGroundedRows(admin, city, await fetchAttractionsForCityIds(admin, [city.id], 120));
 
           if ((data || []).length < minimumAttractionPool) {
             const supplementalCityIds = new Set();
@@ -906,7 +975,8 @@ export function createAttractionMemoryService({
           await fetchLatestVerificationMap(admin, withCityDisplay.map((row) => row.id)),
         );
 
-        const ranked = rankCandidateAttractions(withFreshness, {
+        const eligible = excludeForTravelers(withFreshness, { childrenAges, mustHaves, requestedActivities });
+        const ranked = rankCandidateAttractions(eligible, {
           childrenAges,
           requestedActivities,
           tripGoals,
@@ -920,9 +990,11 @@ export function createAttractionMemoryService({
           maxResults,
         });
 
-        logger.info("attraction-memory:ranked", { destination, rankedCount: ranked.length, maxResults });
+        const shortlist = ensureTrendingSlots(ranked, eligible, { maxResults, slots: Math.min(3, Math.ceil(maxResults / 6)) });
+        logger.info("attraction-memory:ranked", { destination, rankedCount: shortlist.length, maxResults });
 
-        return refreshStaleCandidates(admin, ranked, destination, resolvePlaceIdentity);
+        // Grounded rows are re-verified by the weekly refresh job, so there is no per-request Places lookup here.
+        return shortlist;
       }, []);
     },
 
@@ -932,7 +1004,8 @@ export function createAttractionMemoryService({
       countryCode = "US",
       tripPlan,
     }) {
-      const activities = toArray(tripPlan?.suggestedActivities).filter((activity) => activity?.name);
+      // Stops that came from the database are already stored with Google facts; only new discoveries are written back.
+      const activities = toArray(tripPlan?.suggestedActivities).filter((activity) => activity?.name && activity.grounded !== true);
       if (activities.length === 0) return;
 
       return withAdmin(async (admin) => {

@@ -8,7 +8,7 @@
  * Nothing is written unless `apply` is true.
  */
 import { randomUUID } from "node:crypto";
-import { resolvePlace, statusForPlace } from "./placesGrounding.js";
+import { resolvePlace, statusForPlace, placeRowFields } from "./placesGrounding.js";
 import { assessFamilyFit, fitToRowUpdate, FAMILY_FIT_VERSION, FAMILY_FIT_MODEL } from "./attractionFit.js";
 
 const RATING_MOVE = 0.3;
@@ -34,22 +34,7 @@ function targetFor(row) {
 }
 
 function planMatched(row, place, status, nowIso) {
-  const fields = {
-    google_place_id: place.placeId,
-    lat: place.lat,
-    lon: place.lon,
-    rating: place.rating,
-    rating_count: place.ratingCount,
-    price_level: place.priceLevel,
-    opening_hours: place.openingHours,
-    photo_ref: place.photoRef,
-    business_status: place.businessStatus,
-    place_types: place.types,
-    status,
-    last_verified_at: nowIso,
-    updated_at: nowIso,
-    ...(status === "active" ? { verification_status: "verified" } : {}),
-  };
+  const fields = placeRowFields(place, { status, nowIso });
   const logs = [];
   if (!row.google_place_id) logs.push({ change_type: "matched", detail: { placeId: place.placeId } });
   else if (row.google_place_id !== place.placeId) {

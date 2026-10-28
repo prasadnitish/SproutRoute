@@ -11,7 +11,7 @@ const FIELDS = [
   "id", "displayName", "location", "rating", "userRatingCount", "priceLevel",
   "regularOpeningHours", "photos", "businessStatus", "types", "primaryType",
 ];
-const SEARCH_MASK = FIELDS.map((f) => `places.${f}`).join(",");
+export const SEARCH_MASK = FIELDS.map((f) => `places.${f}`).join(",");
 const DETAILS_MASK = FIELDS.join(",");
 
 const PRICE_LEVELS = {
@@ -46,14 +46,14 @@ export function nameScore(left, right) {
   return shared / (a.size + b.size - shared);
 }
 
-function distanceKm(lat1, lon1, lat2, lon2) {
+export function distanceKm(lat1, lon1, lat2, lon2) {
   const rad = (deg) => (deg * Math.PI) / 180;
   const h = Math.sin(rad(lat2 - lat1) / 2) ** 2
     + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lon2 - lon1) / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
-function normalize(place) {
+export function normalize(place) {
   return {
     placeId: place.id,
     name: place.displayName?.text || null,
@@ -138,6 +138,26 @@ export async function resolvePlace(target, { fetchFn = globalThis.fetch, apiKey 
   if (!nearby.length) return { status: "unmatched", reason: "too_far" };
 
   return { status: "matched", place: normalize(nearby[0].place) };
+}
+
+/** The city_attractions columns a normalized place fills in. */
+export function placeRowFields(place, { status = "active", nowIso } = {}) {
+  return {
+    google_place_id: place.placeId,
+    lat: place.lat,
+    lon: place.lon,
+    rating: place.rating,
+    rating_count: place.ratingCount,
+    price_level: place.priceLevel,
+    opening_hours: place.openingHours,
+    photo_ref: place.photoRef,
+    business_status: place.businessStatus,
+    place_types: place.types,
+    status,
+    last_verified_at: nowIso,
+    updated_at: nowIso,
+    ...(status === "active" ? { verification_status: "verified" } : {}),
+  };
 }
 
 /** The status a resolve result implies: null means "leave the row alone" (the request failed). */

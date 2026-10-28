@@ -4,6 +4,7 @@ import { callModel } from "../utils/aiClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import { buildCachedAttractionsSummary } from "./attractionMemory.js";
+import { attachGroundingToPlan } from "./groundedAttractions.js";
 import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
@@ -659,10 +660,16 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
         parsed.dailyItinerary.some(day => !day.activities.length || day.activities.some(id => !ids.has(id)))) {
       throw new Error("Trip plan has missing days or invalid activity references");
     }
-    validatedPlan = assertTripPlanQuality(repairTripPlanDuplicates(parsed, cachedAttractions, {
+    const checked = assertTripPlanQuality(repairTripPlanDuplicates(parsed, cachedAttractions, {
       hasPets: pets.length > 0, expectedDays,
       minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
     }));
+    const { tripPlan, stats } = attachGroundingToPlan(checked, cachedAttractions);
+    if (stats) {
+      log.info("trip-plan:grounding", { destination, total: stats.total, matched: stats.matched, ratio: Number(stats.ratio.toFixed(2)), unmatched: stats.unmatched.slice(0, 8) });
+      tripPlan.grounding = { total: stats.total, matched: stats.matched, ratio: stats.ratio };
+    }
+    validatedPlan = tripPlan;
   };
 
   // Provider recovery runs inside validation. One compact regeneration and one
@@ -988,10 +995,14 @@ ${daySpecificShortlist}
 ` : ""}
 
 CRITICAL RULES FOR ATTRACTIONS:
-- You MUST use attractions from this list for your suggestedActivities. These are VERIFIED REAL PLACES.
-- Do NOT invent or hallucinate attraction names. If you need more variety, pick from different categories above.
-- You may add at most 1 new discovery per day that is NOT on this list — but it must be a real, well-known place.
+- Every suggestedActivities entry must be a place from this list. Never invent a venue. Google Maps confirms each one exists and is open.
+- If you need more variety, pick from different categories above. Do not add places that are not listed.
 - Keep each attraction name EXACTLY as shown above (do not rename, abbreviate, or paraphrase).
+- Do not schedule a place on a day it is closed (see "hours"), and keep to its opening hours.
+- Plan each stop for 45 minutes to 3 hours. Use the duration shown when there is one.
+- Places marked "trending" are popular with visitors right now. Include one or two when they suit this family.
+- No formal fine dining when any child is under 8, unless the traveler asked for it.
+- Any timing tip you write must agree with the time you scheduled for that stop. Never contradict the schedule.
 - Each day should draw primarily from its own day-specific pool before borrowing from another day.
 - If you borrow from another day pool, immediately backfill that other day with a different unused shortlisted attraction.
 - This saves significant processing time — the places are already researched and verified.`
@@ -1046,7 +1057,7 @@ ${attractionMemoryContext}
 5. Be specific to the destination — only suggest REAL places that actually exist and are currently open.
 6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
 7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects.
-8. For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity.
+8. ${hasShortlist ? "For city trips of 1-3 days: group nearby shortlisted places into one walkable cluster per day." : `For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity.`}
 9. **ABSOLUTE RULE — NO REPEATS**: NEVER use the same activity on multiple days. Each activity ID must appear in ONLY ONE day's activities array. Before returning JSON, CHECK every day — if any activity name appears in more than one day, REPLACE the duplicate with a different attraction. Going to the same beach/park/museum twice across the trip is INVALID.
 10. **SCHEDULING**: Start activities in the MORNING (9 AM). All activities must finish by 7 PM. A family day: activity 9AM → activity 11AM → activity 1PM → activity 3PM → activity 5PM → dinner 7PM. NO activities after 7 PM for trips with children.
 11. **VARIETY**: Each day MUST have a DIFFERENT theme/area. Day 1: downtown/waterfront. Day 2: theme park/zoo. Day 3: beaches/nature. Day 4: museums/culture. Cover the FULL breadth — not the same neighborhood repeated.
