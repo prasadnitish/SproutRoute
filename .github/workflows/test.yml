@@ -18,7 +18,7 @@ jobs:
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: "npm"
 
       # ── Root (test runner) ──────────────────────────────────────────
@@ -65,7 +65,7 @@ jobs:
   #   steps:
   #     - uses: actions/checkout@v4
   #     - uses: actions/setup-node@v4
-  #       with: { node-version: "20" }
+  #       with: { node-version: "22" }
   #     - run: npm ci && cd src/backend && npm ci
   #     - run: node --test tests/integration/apiV1.contract.test.js
   #       env:
@@ -78,7 +78,7 @@ jobs:
   #   steps:
   #     - uses: actions/checkout@v4
   #     - uses: actions/setup-node@v4
-  #       with: { node-version: "20" }
+  #       with: { node-version: "22" }
   #     - run: cd sproutroute-mobile && npm ci
   #     - run: cd sproutroute-mobile && npx tsc --noEmit
   #     - run: cd sproutroute-mobile && npx expo lint

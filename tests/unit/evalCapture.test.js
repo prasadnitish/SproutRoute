@@ -152,7 +152,7 @@ test("an eval request becomes one Langfuse trace with tool and generation childr
   assert.equal(attrs(root)["langfuse.observation.type"], "chain");
   assert.equal(attrs(root)["langfuse.trace.name"], "trip-stream");
   assert.equal(attrs(root)["session.id"], "run-2026-10-28");
-  assert.deepEqual([...attrs(root)["langfuse.trace.tags"]].sort(), ["case:seattle-toddler", "client:ios", "eval"]);
+  assert.deepEqual([...attrs(root)["langfuse.trace.tags"]].sort(), ["case:seattle-toddler", "client:ios", "eval", "run:run-2026-10-28"]);
   assert.deepEqual(parsed(attrs(root)["langfuse.observation.input"]), { destination: "Seattle" });
   assert.deepEqual(parsed(attrs(root)["langfuse.observation.output"]), { weather: { summary: "Mild" }, done: { days: [] } });
   assert.deepEqual(parsed(attrs(root)["langfuse.trace.metadata.rubric_lines"]), ["O1", "X2"]);
@@ -224,4 +224,84 @@ test("a rejected answer and the fallback that rescued it are both recorded", nee
     { attempt: "fallback-1", provider: "anthropic", validation: "passed", level: "DEFAULT" },
     { attempt: "primary", provider: "openai", validation: "rejected", level: "ERROR" },
   ]);
+});
+
+// ── Linking the calls of one journey ─────────────────────────────────────────
+
+const JOURNEY = "a1b2c3d4".repeat(4);
+
+async function captureCalls(calls, { runtimeTraceId } = {}) {
+  const { InMemorySpanExporter } = await load("@opentelemetry/sdk-trace-node");
+  const exporter = new InMemorySpanExporter();
+  const capture = createEvalCapture({ env: ENV, exporter });
+  const { default: express } = await load("express");
+  const app = express();
+  app.use(express.json());
+  // Stands in for tracing.middleware, which sets X-Trace-Id before the eval middleware runs.
+  app.use((req, res, next) => { if (runtimeTraceId) res.setHeader("X-Trace-Id", runtimeTraceId); next(); });
+  app.use(capture.middleware);
+  app.post("/api/v1/*", (req, res) => res.json({ ok: true }));
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once("listening", resolve));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headersSeen = [];
+  try {
+    for (const { path, headers } of calls) {
+      const res = await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json", "x-eval-capture": TOKEN, ...headers }, body: "{}" });
+      headersSeen.push(res.headers.get("x-langfuse-trace-id"));
+      await res.text();
+    }
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+  await capture.flush();
+  return { spans: exporter.getFinishedSpans(), headersSeen };
+}
+
+test("calls that share a journey id land in one Langfuse session, one trace each, tagged by step and run", needsSdk, async () => {
+  const common = { "x-eval-client": "web", "x-eval-case": "trip-seattle", "x-eval-run": "web-202610281200", "x-journey-id": JOURNEY };
+  const { spans } = await captureCalls([
+    { path: "/api/v1/trip/stream", headers: { ...common, "x-eval-step": "stream" } },
+    { path: "/api/v1/trip/packing", headers: { ...common, "x-eval-step": "packing" } },
+    { path: "/api/v1/safety/car-seat-check", headers: { ...common, "x-eval-step": "car-seat" } },
+  ]);
+  const roots = spans.filter((s) => s.attributes["langfuse.observation.type"] === "chain");
+  assert.equal(roots.length, 3);
+  assert.deepEqual([...new Set(roots.map((s) => s.attributes["session.id"]))], [JOURNEY]);
+  assert.equal(new Set(roots.map((s) => s.spanContext().traceId)).size, 3, "each call is its own trace");
+  const packing = roots.find((s) => s.attributes["langfuse.trace.name"] === "trip-packing");
+  assert.deepEqual([...packing.attributes["langfuse.trace.tags"]].sort(), ["case:trip-seattle", "client:web", "eval", "run:web-202610281200", "step:packing"]);
+  assert.equal(parsed(packing.attributes["langfuse.trace.metadata.journey_id"]), JOURNEY);
+  assert.equal(parsed(packing.attributes["langfuse.trace.metadata.step"]), "packing");
+  assert.equal(parsed(packing.attributes["langfuse.trace.metadata.run_id"]), "web-202610281200");
+});
+
+test("without a valid journey id the session falls back to the run label", needsSdk, async () => {
+  const { spans } = await captureCalls([
+    { path: "/api/v1/trip/stream", headers: { "x-eval-run": "run-7", "x-journey-id": "not-a-journey-id" } },
+    { path: "/api/v1/trip/packing", headers: { "x-eval-run": "run-7" } },
+  ]);
+  const roots = spans.filter((s) => s.attributes["langfuse.observation.type"] === "chain");
+  assert.deepEqual([...new Set(roots.map((s) => s.attributes["session.id"]))], ["run-7"]);
+  assert.equal(roots[0].attributes["langfuse.trace.metadata.journey_id"], undefined);
+});
+
+test("the response names the Langfuse trace, and the trace names the runtime trace, so either id finds the other", needsSdk, async () => {
+  const runtimeTraceId = "0123456789abcdef".repeat(2);
+  const { spans, headersSeen } = await captureCalls([{ path: "/api/v1/trip/stream", headers: { "x-journey-id": JOURNEY } }], { runtimeTraceId });
+  const root = spans.find((s) => s.attributes["langfuse.observation.type"] === "chain");
+  assert.match(headersSeen[0], /^[a-f0-9]{32}$/);
+  assert.equal(headersSeen[0], root.spanContext().traceId);
+  assert.equal(parsed(root.attributes["langfuse.trace.metadata.runtime_trace_id"]), runtimeTraceId);
+});
+
+test("an uncaptured request gets no Langfuse trace header", async () => {
+  const capture = createEvalCapture({ env: ENV, loadSdk: async () => { throw Error("must not load"); } });
+  const app = await startApp(capture, (a) => a.post("/api/v1/trip/stream", (req, res) => res.json({ ok: true })));
+  try {
+    const res = await fetch(`${app.base}/api/v1/trip/stream`, { method: "POST", headers: { "content-type": "application/json", "x-journey-id": JOURNEY }, body: "{}" });
+    assert.equal(res.headers.get("x-langfuse-trace-id"), null);
+  } finally {
+    await app.close();
+  }
 });

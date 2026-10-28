@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import { createTracer } from "../../src/backend/services/tracing.js";
 
 test("browser and server traces use the same deployed environment and build", async (t) => {
@@ -89,4 +90,36 @@ test("browser evidence rejects private names and invalid durations", () => {
     t.snapshot()[0].meta.source,
     "browser-reported; stream milestones only",
   );
+});
+
+function fakeResponse() {
+  const headers = {};
+  return Object.assign(new EventEmitter(), {
+    statusCode: 200, writableFinished: true,
+    setHeader: (k, v) => { headers[k.toLowerCase()] = v; },
+    getHeader: (k) => headers[k.toLowerCase()],
+  });
+}
+
+async function traceOneRequest(evalTraceId) {
+  const t = createTracer();
+  const res = fakeResponse();
+  const req = { path: "/api/v1/trip/stream", method: "POST", route: { path: "/api/v1/trip/stream" }, get: () => "c".repeat(32) };
+  t.middleware(req, res, () => {
+    if (evalTraceId !== undefined) res.setHeader("X-Langfuse-Trace-Id", evalTraceId);
+    setImmediate(() => res.emit("finish"));
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  return t.snapshot().at(-1);
+}
+
+test("a runtime trace records the eval trace id of the same request, next to the journey id", async () => {
+  const trace = await traceOneRequest("ab".repeat(16));
+  assert.equal(trace.meta.eval_trace_id, "ab".repeat(16));
+  assert.equal(trace.meta.journey_id, "c".repeat(32));
+});
+
+test("an eval trace id that is not a 32 character hex id is not recorded", async () => {
+  assert.equal((await traceOneRequest("user@example.com")).meta.eval_trace_id, undefined);
+  assert.equal((await traceOneRequest(undefined)).meta.eval_trace_id, undefined);
 });

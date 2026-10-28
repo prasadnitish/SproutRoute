@@ -170,7 +170,8 @@ export function createTracer({
       (runId) =>
         new Promise((resolve) => {
           res.setHeader("X-Trace-Id", runId);
-          const root = context.getStore().trace.spans[0];
+          const { trace } = context.getStore();
+          const root = trace.spans[0];
           res.traceError = () => {
             root.detail.error_code = "RESPONSE_FAILED";
           };
@@ -179,6 +180,9 @@ export function createTracer({
             if (done) return;
             done = true;
             root.detail.http_status = res.statusCode;
+            // Set only for token-authorised eval requests: ties this payload-free trace to its Langfuse trace.
+            const evalTraceId = String(res.getHeader?.("X-Langfuse-Trace-Id") || "");
+            if (/^[a-f0-9]{32}$/.test(evalTraceId)) trace.meta.eval_trace_id = evalTraceId;
             root.label = `${req.method} ${typeof req.route?.path === "string" ? req.route.path : "unmatched"}`;
             resolve();
           };
