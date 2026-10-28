@@ -24,7 +24,7 @@
     <p class="eyebrow">Privacy Policy</p>
     <h1>Built for parents. Careful with family data.</h1>
     <p class="lede">SproutRoute helps parents and guardians plan family trips. We collect only the information needed to generate and save trip guidance, operate the service, prevent abuse, and respond to support requests.</p>
-    <p class="updated">Last updated: May 6, 2026</p>
+    <p class="updated">Last updated: October 27, 2026</p>
   </div>
 
   <section class="callout">
@@ -38,7 +38,10 @@
       <li><strong>Trip planning content:</strong> destination, origin if provided, travel dates, trip length, family composition, child ages or age ranges, pet type and travel details, pace, interests, accessibility notes, food preferences, and other free-text planning details you choose to provide.</li>
       <li><strong>Profile import content:</strong> travel preferences pasted from ChatGPT, Claude, Gemini, or another assistant if you choose to import a reusable profile. The iOS app stores this locally unless you separately use an authenticated web feature.</li>
       <li><strong>Saved trip data:</strong> generated itinerary, weather summary, packing list, safety guidance, saved packing progress, reminders, and local widget snapshots.</li>
-      <li><strong>Device and app data:</strong> app version, locale, timezone, unit system, operating system version, error information, diagnostic events, and similar reliability data.</li>
+      <li><strong>Shared trip links:</strong> if you create a link, we store a filtered copy of your itinerary (destination, dates, activities, weather and route). It leaves out your original prompt, imported profile, children's ages and pet details. The link expires after seven days, and you can stop it earlier from the same screen.</li>
+      <li><strong>Trip Hub group trips:</strong> if you create or join a group trip, we store the display name you choose, the items, decisions, votes and expenses members add, and an invite code. If a member turns on location sharing, we store that member's latest location while it is on. Group trip data is deleted 90 days after it was created, and invite codes expire after seven days.</li>
+      <li><strong>Calendar:</strong> if you add a trip to your calendar, the events are written to your device calendar. SproutRoute asks for write-only access and does not read your calendar. If you export a file instead, it stays on your device until you share it.</li>
+      <li><strong>Device and app data:</strong> app version, locale, timezone, unit system, operating system version, and similar reliability data. The iOS app does not collect crash reports or diagnostic events of its own; only the optional analytics events described below leave the device.</li>
       <li><strong>Location data:</strong> destinations and map queries you enter. If a web or app feature asks for device location and you grant permission, we use it only to help plan or contextualize the trip. You can deny location permission.</li>
       <li><strong>Support communications:</strong> your email address and message contents when you contact us.</li>
     </ul>
@@ -59,11 +62,11 @@
     <h2>Third-party services</h2>
     <p>SproutRoute uses service providers to operate core features. Each provider receives only the information reasonably needed for its task.</p>
     <ul>
-      <li><strong>AI providers:</strong> Anthropic, OpenAI, and Google Gemini may process trip planning content to parse requests, generate itineraries, summarize safety guidance, or create packing recommendations. Different parts of a plan can go to different providers, and if one is unavailable another may be used.</li>
+      <li><strong>AI providers:</strong> Anthropic, OpenAI, and Google Gemini may process trip planning content to parse requests, generate itineraries, summarize safety guidance, or create packing recommendations. Different parts of a plan can go to different providers, and if one is unavailable another may be used. In the iOS app you are asked to agree before your trip text is first sent to these providers.</li>
       <li><strong>Weather providers:</strong> Weather.gov and Visual Crossing support web and backend weather planning. On iOS, Apple Weather and WeatherKit may refresh destination forecasts and display Apple Weather attribution where required.</li>
       <li><strong>Maps, geocoding, and places:</strong> OpenStreetMap Nominatim, Google Places, Apple Maps, and MapKit support destination lookup, place enrichment, maps, and handoff to Apple Maps.</li>
       <li><strong>Safety and advisory data:</strong> government travel advisory sources, static car-seat rule datasets, airline pet policy datasets, and pet entry rule datasets support safety cards. Some neighborhood safety functionality may use Amadeus Safe Place where configured.</li>
-      <li><strong>Analytics, hosting, and storage:</strong> the web app may use PostHog for product analytics. The native iOS app offers optional opt-in product analytics through a direct PostHog event endpoint when configured, but it does not include the PostHog SDK, autocapture, session replay, advertising tracking, or cross-app tracking. Supabase, Railway, and Cloudflare may process authenticated profile data, hosting logs, performance data, and security events where configured.</li>
+      <li><strong>Analytics, hosting, and storage:</strong> the web app uses PostHog for product analytics such as page views, clicks, and the steps of planning a trip. The web app does not record sessions or screens. The native iOS app offers optional opt-in product analytics through a direct PostHog event endpoint when configured, but it does not include the PostHog SDK, autocapture, session replay, advertising tracking, or cross-app tracking. Supabase, Railway, and Cloudflare may process authenticated profile data, hosting logs, performance data, and security events where configured.</li>
       <li><strong>Apple services:</strong> App Store, TestFlight, App Analytics, WeatherKit, MapKit, UserNotifications, App Intents, ActivityKit, WidgetKit, and Spotlight may process data according to Apple's policies. We are not responsible for data Apple independently collects through Apple frameworks and services.</li>
     </ul>
   </section>
@@ -92,6 +95,7 @@
   <section>
     <h2>Deletion and privacy choices</h2>
     <p>You can delete local iOS data in the app. You can also request deletion of server-side personal information, revoke optional permissions, or ask privacy questions by following the instructions on our <a href="/privacy-choices.html">User Privacy Choices</a> page.</p>
+    <p>Settings &gt; Delete all local trip data removes everything stored on your device. Copies of shared links and group trips stored on our servers expire on the schedule above, and you can email us to have them deleted sooner.</p>
   </section>
 
   <section>

@@ -63,3 +63,21 @@ test("support page provides reviewer-visible contact and required public policy 
   assert.match(html, /terms\.html/i);
   assert.match(html, /privacy-choices\.html/i);
 });
+
+test("privacy policy covers shared links, group trips, calendar, and says web sessions are not recorded", () => {
+  const html = publicPage("privacy.html");
+
+  assert.ok(!html.includes("Last updated: May 6, 2026"));
+  assert.match(html, /Shared trip links/i);
+  assert.match(html, /expires after seven days/i);
+  assert.match(html, /Trip Hub group trips/i);
+  assert.match(html, /90 days/i);
+  assert.match(html, /write-only access/i);
+  assert.match(html, /web app does not record sessions or screens/i);
+  assert.match(html, /asked to agree before your trip text is first sent/i);
+  assert.ok(!/error information, diagnostic events/i.test(html));
+});
+
+test("privacy choices page says the web app does not record sessions", () => {
+  assert.match(publicPage("privacy-choices.html"), /does not record sessions or screens/i);
+});
