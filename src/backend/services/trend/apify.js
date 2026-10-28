@@ -1,4 +1,4 @@
-import { TrendProviderUnsupported, count, ensureOk, finishPost, toIso } from "./common.js";
+import { TrendProviderUnsupported, captionText, count, ensureOk, finishPost, toIso } from "./common.js";
 
 // Output shape from the actor's page: createdAt, likeCount, commentCount, owner.username,
 // location.id and location.name. It returns no view counts. Pricing: $0.025 per location plus
@@ -19,6 +19,7 @@ export function createApifyProvider({ token, actor = DEFAULT_ACTOR, fetchFn = gl
       author: item.owner?.username || null,
       location_id: item.location?.id ? String(item.location.id) : null,
       location_name: item.location?.name || null,
+      caption: captionText(item.caption),
     });
   }
 

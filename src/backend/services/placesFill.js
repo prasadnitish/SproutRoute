@@ -28,7 +28,7 @@ const CATEGORIES = [
 
 const inflight = new Map();
 
-function categoryFor(place) {
+export function categoryFor(place) {
   const types = [place.primaryType, ...(place.types || [])].filter(Boolean);
   for (const [matches, category] of CATEGORIES) if (types.some((type) => matches.includes(type))) return category;
   return "general";
