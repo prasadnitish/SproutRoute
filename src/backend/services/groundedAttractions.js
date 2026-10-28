@@ -232,7 +232,13 @@ export function enforceOpeningHours(tripPlan, candidates, { startDate } = {}) {
   const activities = tripPlan.suggestedActivities.map((activity) => ({ ...activity }));
   const days = tripPlan.dailyItinerary.map((day) => ({ ...day, activities: [...(day.activities || [])] }));
   const byId = new Map(activities.map((activity, i) => [activity.id, i]));
-  const used = new Set(activities.map((activity) => activity.name));
+  // Identify what is already planned by the matched shortlist row, not the model's spelling of the name, so a
+  // venue written "seattle aquarium" is never added a second time under its canonical name.
+  const used = new Set();
+  for (const activity of activities) {
+    const planned = matchCandidate(activity.name, candidates);
+    if (planned) used.add(planned.id ?? planned.canonical_name);
+  }
   const changes = [];
 
   days.forEach((day, dayIndex) => {
@@ -252,7 +258,7 @@ export function enforceOpeningHours(tripPlan, candidates, { startDate } = {}) {
 
       if (!intervals.length) {
         const replacement = candidates.find((other) => {
-          if (used.has(other.canonical_name)) return false;
+          if (used.has(other.id ?? other.canonical_name)) return false;
           const open = intervalsFor(other, weekday);
           return open && open.length && (start === null || duration === null || fitsInside(open, start, duration));
         });
@@ -260,7 +266,7 @@ export function enforceOpeningHours(tripPlan, candidates, { startDate } = {}) {
           changes.push({ kind: "closed_no_replacement", name: activity.name, day: day.day });
           return;
         }
-        used.add(replacement.canonical_name);
+        used.add(replacement.id ?? replacement.canonical_name);
         const id2 = `${slug(replacement.canonical_name)}`;
         activities[position] = {
           id: id2,

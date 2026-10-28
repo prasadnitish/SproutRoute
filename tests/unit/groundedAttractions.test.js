@@ -199,3 +199,13 @@ test("without candidates the plan is returned untouched", () => {
   const plan = planOf([{ name: "Anything" }]);
   assert.equal(enforceOpeningHours(plan, [], { startDate: "2026-11-02" }).tripPlan, plan);
 });
+
+test("a venue already in the plan under different capitalization is not used again as a replacement", () => {
+  const aquarium = hourRow("Seattle Aquarium", hoursOf("9:30 AM – 6:00 PM"));
+  const science = hourRow("Pacific Science Center", hoursOf("Closed", "10:00 AM – 5:00 PM"));
+  const plan = planOf([{ name: "seattle aquarium!", tip: "Arrive at 10:00 AM." }, { name: "Pacific Science Center", tip: "Head here around 11:00 AM." }]);
+  const { tripPlan, changes } = enforceOpeningHours(plan, [aquarium, science], { startDate: "2026-11-02" });
+  assert.equal(tripPlan.suggestedActivities.length, 2);
+  assert.ok(!tripPlan.suggestedActivities.some((a) => a.name === "Seattle Aquarium"), "no second visit to the aquarium");
+  assert.equal(changes[0].kind, "closed_no_replacement");
+});
