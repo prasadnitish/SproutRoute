@@ -253,3 +253,72 @@ test("resolveDestinationQuery returns max three nearby suggestions", async () =>
   assert.equal(result.mode, "suggestions");
   assert.equal(result.suggestions.length, 3);
 });
+
+// --- Audit fix: bounded Nominatim fan-out ---
+
+function manyCommaParts(count) {
+  return Array.from({ length: count }, (_, index) => `zz${index}`).join(", ");
+}
+
+test("geocodeLocation caps broader-query retries when every suffix returns no results", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  await assert.rejects(() => geocodeLocation(manyCommaParts(60)), /Location not found/);
+
+  // 1 initial lookup + at most 3 broader retries.
+  assert.equal(calls, 4);
+});
+
+test("geocodeLocation remembers not-found lookups so repeats do not hit Nominatim again", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  const query = manyCommaParts(10);
+  await assert.rejects(() => geocodeLocation(query), /Location not found/);
+  const callsAfterFirst = calls;
+  await assert.rejects(() => geocodeLocation(query), /Location not found/);
+
+  assert.equal(calls, callsAfterFirst);
+});
+
+test("geocodeLocation stops retrying on a non-OK upstream response and does not cache it", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls += 1;
+    if (calls === 1) {
+      return new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response("slow down", { status: 429 });
+  };
+
+  await assert.rejects(() => geocodeLocation(manyCommaParts(10)), /Failed to geocode location/);
+  assert.equal(calls, 2);
+
+  // An upstream error is not a "not found" answer, so a later identical call tries again.
+  await assert.rejects(() => geocodeLocation(manyCommaParts(10)), /Failed to geocode location/);
+  assert.equal(calls, 3);
+});
+
+test("geocodeLocation still broadens a short comma list to the first suffix that resolves", async () => {
+  const queries = [];
+  global.fetch = async (url) => {
+    const q = decodeURIComponent(new URL(String(url)).searchParams.get("q"));
+    queries.push(q);
+    const body = q === "Hawaii"
+      ? [{ lat: "19.9", lon: "-155.6", display_name: "Hawaii, United States", address: { country_code: "us" } }]
+      : [];
+    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+
+  const result = await geocodeLocation("Ko Olina, Oahu, Hawaii");
+
+  assert.equal(result.displayName, "Hawaii, United States");
+  assert.deepEqual(queries, ["Ko Olina, Oahu, Hawaii", "Oahu, Hawaii", "Hawaii"]);
+});

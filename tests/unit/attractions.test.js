@@ -205,3 +205,113 @@ test("POST /api/v1/profile/me/feedback without auth returns 401", async () => {
     server.close();
   }
 });
+
+// ── Audit fixes: anonymous city route and replan jurisdiction codes ─────────
+
+const CITY_UUID = "123e4567-e89b-42d3-a456-426614174000";
+
+function cityRow(overrides = {}) {
+  return {
+    id: "a1",
+    city_id: CITY_UUID,
+    canonical_name: "Zoo",
+    short_summary: "A zoo",
+    category: "wildlife",
+    verification_status: "verified",
+    kid_appeal_score: 8,
+    llm_notes: "internal note",
+    confidence_score: 0.65,
+    source_type: "generated",
+    times_seen: 4,
+    last_seen_at: "2026-01-01T00:00:00Z",
+    some_future_internal_column: "secret",
+    city_attraction_tags: [{ id: "t1", attraction_id: "a1", tag: "animals", tag_group: "theme", weight: 1, created_at: "x" }],
+    ...overrides,
+  };
+}
+
+function fakeCityAdmin(rows, captured = {}) {
+  const chain = {
+    select(columns) { captured.select = columns; return chain; },
+    eq() { return chain; },
+    in(column, values) { captured.in = { column, values }; return chain; },
+    order() { return chain; },
+    then(resolve, reject) { return Promise.resolve({ data: rows, error: null }).then(resolve, reject); },
+  };
+  return { from: () => chain };
+}
+
+test("GET /api/v1/attractions/city/:id hides rejected and stale rows and internal columns", async () => {
+  const captured = {};
+  const rows = [
+    cityRow({ id: "ok-verified" }),
+    cityRow({ id: "ok-unverified", verification_status: "unverified" }),
+    cityRow({ id: "bad-rejected", verification_status: "rejected" }),
+    cityRow({ id: "bad-stale", verification_status: "stale" }),
+  ];
+  const { server, port } = await makeServer({ getSupabaseAdminFn: () => fakeCityAdmin(rows, captured) });
+  try {
+    const res = await fetch(`http://localhost:${port}/api/v1/attractions/city/${CITY_UUID}`);
+    assert.equal(res.status, 200);
+    const { attractions } = await res.json();
+
+    assert.deepEqual(attractions.map((a) => a.id), ["ok-verified", "ok-unverified"]);
+    for (const attraction of attractions) {
+      for (const hidden of ["llm_notes", "confidence_score", "source_type", "times_seen", "last_seen_at", "some_future_internal_column"]) {
+        assert.equal(hidden in attraction, false, `${hidden} must not be returned`);
+      }
+      assert.deepEqual(Object.keys(attraction.city_attraction_tags[0]).sort(), ["tag", "tag_group", "weight"]);
+    }
+    // The query itself is narrowed too: explicit columns, no select("*"), status filter.
+    assert.ok(!captured.select.includes("*"), "select must not use a wildcard");
+    assert.ok(!captured.select.includes("llm_notes"));
+    assert.deepEqual(captured.in, { column: "verification_status", values: ["verified", "unverified"] });
+  } finally {
+    server.close();
+  }
+});
+
+async function replanWith(body) {
+  const persisted = [];
+  const loaded = [];
+  const attractionMemoryService = {
+    getPlanningCandidates: async (args) => { loaded.push(args); return []; },
+    persistTripAttractions: async (payload) => { persisted.push(payload); },
+  };
+  const optionalAuthMw = (req, _res, next) => { req.user = { id: "user-1" }; next(); };
+  const { server, port } = await makeServer({ attractionMemoryService, optionalAuthMw });
+  try {
+    const res = await fetch(`http://localhost:${port}/api/v1/trip/replan`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        destination: "San Diego, CA",
+        startDate: isoDateDaysFromNow(30),
+        endDate: isoDateDaysFromNow(33),
+        activities: ["parks"],
+        children: [{ age: 4 }],
+        weather: { summary: "Sunny", forecast: [] },
+        ...body,
+      }),
+    });
+    assert.equal(res.status, 200);
+  } finally {
+    server.close();
+  }
+  return { persisted, loaded };
+}
+
+test("POST /api/v1/trip/replan passes only ISO-shaped country and region codes to persistence", async () => {
+  const { persisted, loaded } = await replanWith({ countryCode: "ZZZZZZZZ' OR 1=1", regionCode: "<script>" });
+  assert.equal(persisted.length, 1);
+  assert.equal(persisted[0].countryCode, "US");
+  assert.equal(persisted[0].coords.countryCode, "US");
+  assert.equal(persisted[0].coords.regionCode, null);
+  assert.equal(loaded[0].countryCode, "US");
+});
+
+test("POST /api/v1/trip/replan keeps valid codes and normalizes case", async () => {
+  const { persisted } = await replanWith({ countryCode: "ca", regionCode: "on" });
+  assert.equal(persisted[0].countryCode, "CA");
+  assert.equal(persisted[0].coords.regionCode, "ON");
+});

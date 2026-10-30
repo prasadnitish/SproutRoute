@@ -1041,3 +1041,161 @@ test("areNamesNearDuplicate catches case-insensitive matches", () => {
   assert.equal(areNamesNearDuplicate("Stearns Wharf", "STEARNS WHARF"), true);
   assert.equal(areNamesNearDuplicate("Balboa Park", "Central Park"), false);
 });
+
+// --- Audit fixes: persist guard and city creation -------------------------
+
+function makePersistFakeAdmin({ cities = [], attractions = [] } = {}) {
+  const state = { cities: [...cities], attractions: [...attractions], updates: [], verification: [] };
+  const tables = { cities: state.cities, city_attractions: state.attractions, attraction_verification_cache: state.verification };
+
+  function query(table) {
+    const filters = [];
+    const api = {
+      select() { return api; },
+      eq(column, value) { filters.push((row) => row[column] === value); return api; },
+      ilike(column, value) {
+        const needle = String(value).replace(/%/g, "").toLowerCase();
+        filters.push((row) => String(row[column] || "").toLowerCase() === needle);
+        return api;
+      },
+      limit() { return api; },
+      then(resolve, reject) {
+        const rows = tables[table].filter((row) => filters.every((filter) => filter(row)));
+        return Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+      },
+      insert(payload) {
+        const row = { id: `${table}-${tables[table].length + 1}`, ...payload };
+        tables[table].push(row);
+        return {
+          select() { return { limit: async () => ({ data: [row], error: null }) }; },
+          then(resolve, reject) { return Promise.resolve({ data: [row], error: null }).then(resolve, reject); },
+        };
+      },
+      update(payload) {
+        return {
+          eq: async (column, value) => {
+            const rows = tables[table].filter((row) => row[column] === value);
+            state.updates.push({ table, payload, ids: rows.map((row) => row.id) });
+            rows.forEach((row) => Object.assign(row, payload));
+            return { data: rows, error: null };
+          },
+        };
+      },
+    };
+    return api;
+  }
+
+  return { state, admin: { from: (table) => query(table) } };
+}
+
+const zooPlan = {
+  suggestedActivities: [
+    { name: "Central Park Zoo Tour", category: "wildlife", whatItIs: "LLM text", whyRecommended: "LLM reason", kidFriendly: true },
+  ],
+};
+
+const existingZoo = (overrides = {}) => ({
+  id: "attr-existing",
+  city_id: "city-1",
+  canonical_name: "Central Park Zoo",
+  short_summary: "Curated summary",
+  verification_status: "unverified",
+  source_type: "precomputed",
+  times_seen: 3,
+  ...overrides,
+});
+
+for (const status of ["rejected", "verified"]) {
+  test(`persistTripAttractions does not rewrite or demote an existing ${status} row`, async () => {
+    const { admin, state } = makePersistFakeAdmin({
+      cities: [{ id: "city-1", city_name: "New York", display_name: "New York, NY", country_code: "US", region_code: "NY" }],
+      attractions: [existingZoo({ verification_status: status })],
+    });
+    const service = createAttractionMemoryService({ getAdmin: () => admin });
+
+    await service.persistTripAttractions({
+      destination: "New York, NY",
+      coords: { displayName: "New York, NY", countryCode: "US", lat: 40.7, lon: -74 },
+      countryCode: "US",
+      tripPlan: zooPlan,
+    });
+
+    assert.equal(state.attractions.length, 1);
+    assert.equal(state.updates.length, 1);
+    assert.deepEqual(Object.keys(state.updates[0].payload).sort(), ["last_seen_at", "times_seen"]);
+    const row = state.attractions[0];
+    assert.equal(row.verification_status, status);
+    assert.equal(row.source_type, "precomputed");
+    assert.equal(row.canonical_name, "Central Park Zoo");
+    assert.equal(row.short_summary, "Curated summary");
+    assert.equal(row.times_seen, 4);
+  });
+}
+
+test("persistTripAttractions still refreshes an existing unverified row", async () => {
+  const { admin, state } = makePersistFakeAdmin({
+    cities: [{ id: "city-1", city_name: "New York", display_name: "New York, NY", country_code: "US", region_code: "NY" }],
+    attractions: [existingZoo()],
+  });
+  const service = createAttractionMemoryService({ getAdmin: () => admin });
+
+  await service.persistTripAttractions({
+    destination: "New York, NY",
+    coords: { displayName: "New York, NY", countryCode: "US", lat: 40.7, lon: -74 },
+    countryCode: "US",
+    tripPlan: zooPlan,
+  });
+
+  const row = state.attractions[0];
+  assert.equal(row.canonical_name, "Central Park Zoo Tour");
+  assert.equal(row.source_type, "generated");
+  assert.equal(row.times_seen, 4);
+});
+
+test("persistTripAttractions does not create a city from a non-ISO country code", async () => {
+  const { admin, state } = makePersistFakeAdmin();
+  const service = createAttractionMemoryService({ getAdmin: () => admin });
+
+  await service.persistTripAttractions({
+    destination: "Junk Town",
+    coords: { displayName: "Junk Town", countryCode: "ZZZZZZZZ", regionCode: "XX", lat: 10, lon: 10 },
+    countryCode: "ZZZZZZZZ",
+    tripPlan: zooPlan,
+  });
+
+  assert.equal(state.cities.length, 0);
+  assert.equal(state.attractions.length, 0);
+});
+
+test("persistTripAttractions does not create a city without geocoded coordinates (replan path)", async () => {
+  const { admin, state } = makePersistFakeAdmin();
+  const service = createAttractionMemoryService({ getAdmin: () => admin });
+
+  await service.persistTripAttractions({
+    destination: "Madeup City",
+    coords: { displayName: "Madeup City", countryCode: "US", regionCode: "CA" },
+    countryCode: "US",
+    tripPlan: zooPlan,
+  });
+
+  assert.equal(state.cities.length, 0);
+  assert.equal(state.attractions.length, 0);
+});
+
+test("persistTripAttractions creates a geocoded city and drops a malformed region code", async () => {
+  const { admin, state } = makePersistFakeAdmin();
+  const service = createAttractionMemoryService({ getAdmin: () => admin });
+
+  await service.persistTripAttractions({
+    destination: "Seattle, WA",
+    coords: { displayName: "Seattle, WA", countryCode: "US", regionCode: "not a region", lat: 47.6, lon: -122.3 },
+    countryCode: "US",
+    tripPlan: zooPlan,
+  });
+
+  assert.equal(state.cities.length, 1);
+  assert.equal(state.cities[0].country_code, "US");
+  assert.equal(state.cities[0].region_code, "");
+  assert.equal(state.cities[0].lat, 47.6);
+  assert.equal(state.attractions.length, 1);
+});

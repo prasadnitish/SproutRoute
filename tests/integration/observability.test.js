@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createApp } from "../../src/backend/server.js";
-import { log } from "../../src/backend/utils/logger.js";
-import { planRouteStops } from "../../src/backend/services/multiStopPlanner.js";
+
+// The logger is silent under NODE_ENV=test, which CI sets, and these tests read what it writes. Clear the
+// variable before any app module loads; each test file runs in its own process, so nothing else is affected.
+delete process.env.NODE_ENV;
+const { createApp } = await import("../../src/backend/server.js");
+const { log } = await import("../../src/backend/utils/logger.js");
+const { planRouteStops } = await import("../../src/backend/services/multiStopPlanner.js");
 
 // Starts the real app on an ephemeral port so middleware, headers and logs are exercised end to end.
 async function withApp(deps, run) {
