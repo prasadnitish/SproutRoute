@@ -286,8 +286,7 @@ async function replanWith(body) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         destination: "San Diego, CA",
-        startDate: isoDateDaysFromNow(30),
-        endDate: isoDateDaysFromNow(33),
+        ...futureRange(),
         activities: ["parks"],
         children: [{ age: 4 }],
         weather: { summary: "Sunny", forecast: [] },

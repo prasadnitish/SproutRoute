@@ -459,6 +459,22 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
   return lines.join("\n");
 }
 
+const ISO_COUNTRY_CODE = /^[A-Z]{2}$/;
+const ISO_REGION_CODE = /^[A-Z0-9]{1,3}$/;
+
+// Rows in cities are shared reference data. Only create one from a geocoded point (real, non-zero
+// coordinates) with ISO-shaped codes; anything else is not trusted.
+function canCreateCity(countryCode, coords = {}) {
+  const lat = Number(coords.lat);
+  const lon = Number(coords.lon);
+  return (
+    ISO_COUNTRY_CODE.test(countryCode) &&
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 && Math.abs(lon) <= 180 &&
+    !(lat === 0 && lon === 0)
+  );
+}
+
 async function resolveCityRecord(admin, destination, coords = {}, countryCode = "US", { createIfMissing = false } = {}) {
   const identity = deriveCityIdentity(destination, coords);
   if (!identity.cityName) return null;
@@ -474,15 +490,15 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
   if (error) throw error;
   if (data?.length) return data[0];
 
-  if (!createIfMissing) return null;
+  if (!createIfMissing || !canCreateCity(countryCode, coords)) return null;
 
   const insertPayload = {
     country_code: countryCode,
-    region_code: coords.regionCode || "",
+    region_code: ISO_REGION_CODE.test(coords.regionCode || "") ? coords.regionCode : "",
     city_name: identity.cityName,
     display_name: identity.displayName,
-    lat: Number(coords.lat) || 0,
-    lon: Number(coords.lon) || 0,
+    lat: Number(coords.lat),
+    lon: Number(coords.lon),
     priority_tier: "tier3",
   };
 
@@ -685,6 +701,9 @@ async function resolveStoredAttraction(activity, destination, resolvePlaceIdenti
   };
 }
 
+// Rows an operator verified or rejected keep their content; live model output only bumps the seen counters.
+const PROTECTED_STATUSES = new Set(["verified", "rejected"]);
+
 async function persistOneAttraction(admin, cityId, destination, activity, resolvePlaceIdentity) {
   const now = new Date().toISOString();
   const resolved = await resolveStoredAttraction(activity, destination, resolvePlaceIdentity);
@@ -693,13 +712,10 @@ async function persistOneAttraction(admin, cityId, destination, activity, resolv
   const existing = findExistingAttraction(existingRows, stored);
 
   if (existing?.id) {
-    const preservesTrustedContent =
-      existing.verification_status === "verified" && stored.verification_status !== "verified";
-    const update = preservesTrustedContent
+    const update = PROTECTED_STATUSES.has(existing.verification_status)
       ? {
         times_seen: Number(existing.times_seen || 0) + 1,
         last_seen_at: now,
-        updated_at: now,
       }
       : {
         ...stored,

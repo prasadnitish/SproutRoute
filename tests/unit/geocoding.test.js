@@ -6,6 +6,9 @@ import {
   resolveDestinationQuery,
 } from "../../src/backend/services/geocoding.js";
 
+// The cache reset below is a no-op outside NODE_ENV=test (CI sets it; a bare `npm test` does not).
+process.env.NODE_ENV = process.env.NODE_ENV || "test";
+
 const originalFetch = global.fetch;
 
 test.afterEach(() => {

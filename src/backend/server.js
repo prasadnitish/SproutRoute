@@ -377,6 +377,29 @@ function sanitizePrefetchedAttractionsByStopId(raw, allowedStopIds = []) {
   return result;
 }
 
+// Columns the anonymous city attractions route may return (llm_notes, confidence_score, times_seen,
+// last_seen_at, source_type and the like are internal).
+const PUBLIC_ATTRACTION_FIELDS = [
+  "id", "city_id", "canonical_name", "short_summary", "category", "subcategories_json",
+  "age_bands_json", "indoor_outdoor", "duration_bucket", "pace_fit", "crowd_level",
+  "budget_tier", "stroller_friendly", "rainy_day_fit", "parent_appeal_score",
+  "kid_appeal_score", "pet_friendly", "booking_needed", "google_place_id",
+  "last_verified_at", "verification_status",
+];
+const PUBLIC_VERIFICATION_STATUSES = ["verified", "unverified"];
+
+// Jurisdiction codes in request bodies are untrusted. Keep only ISO-shaped values so they cannot
+// reach shared tables (cities) as free text.
+function normalizeCountryCode(value, fallback = "US") {
+  const code = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : fallback;
+}
+
+function normalizeRegionCode(value) {
+  const code = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z0-9]{1,3}$/.test(code) ? code : null;
+}
+
 export function createApp(deps = {}) {
   // App factory enables dependency injection for fast, isolated integration tests.
   const {
@@ -534,6 +557,18 @@ export function createApp(deps = {}) {
     },
   });
 
+  // Counts failed ops-secret attempts per IP; successful requests are skipped. One instance is shared by
+  // POST /ops/session and the header/Bearer path on the ops APIs, so every way to guess OPS_SECRET draws
+  // on a single budget. Once an IP is over it, even the right secret gets 429 until the window ends.
+  const opsAttemptLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many failed attempts. Please try again in 15 minutes." },
+  });
+
   const groupTripCreateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -670,9 +705,9 @@ export function createApp(deps = {}) {
     catch {res.status(400).json({error:'Invalid milestone evidence'});}
   });
 
-  app.get("/api/v1/ops/traces", opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health() }));
+  app.get("/api/v1/ops/traces", opsAttemptLimiter, opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health() }));
 
-  app.get("/api/v1/ops/metrics", opsGuard, async (req, res) => {
+  app.get("/api/v1/ops/metrics", opsAttemptLimiter, opsGuard, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     try {
       const snapshot = await metrics.getSnapshot();
@@ -682,7 +717,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/ops/session", apiLimiter, (req, res) => {
+  app.post("/ops/session", apiLimiter, opsAttemptLimiter, (req, res) => {
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).send("Ops dashboard not configured");
     if (!secureSecretMatches(req.body?.key, secret)) return res.status(403).send("Forbidden");
@@ -2058,6 +2093,8 @@ export function createApp(deps = {}) {
       };
 
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const countryCode = normalizeCountryCode(req.body?.countryCode);
+      const regionCode = normalizeRegionCode(req.body?.regionCode);
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
       const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
         destination,
@@ -2065,10 +2102,10 @@ export function createApp(deps = {}) {
         endDate,
         coords: {
           displayName: destination,
-          countryCode: req.body?.countryCode || "US",
-          regionCode: req.body?.regionCode || null,
+          countryCode,
+          regionCode,
         },
-        countryCode: req.body?.countryCode || "US",
+        countryCode,
         children,
         activities,
         pets,
@@ -2095,10 +2132,10 @@ export function createApp(deps = {}) {
         destination,
         coords: {
           displayName: destination,
-          countryCode: req.body?.countryCode || "US",
-          regionCode: req.body?.regionCode || null,
+          countryCode,
+          regionCode,
         },
-        countryCode: req.body?.countryCode || "US",
+        countryCode,
         tripPlan,
       });
 
@@ -2884,16 +2921,23 @@ export function createApp(deps = {}) {
       if (!uuidRegex.test(req.params.cityId)) {
         return res.status(400).json({ error: "Invalid cityId format" });
       }
-      const admin = getSupabaseAdmin();
+      const admin = getSupabaseAdminFn();
+      // Anonymous route on a service-role client: allow-list the columns and hide rejected or stale
+      // rows. New table columns stay private until they are added to PUBLIC_ATTRACTION_FIELDS.
       const { data, error } = await admin
         .from("city_attractions")
-        .select("*, city_attraction_tags(*)")
+        .select(`${PUBLIC_ATTRACTION_FIELDS.join(", ")}, city_attraction_tags(tag, tag_group, weight)`)
         .eq("city_id", req.params.cityId)
+        .in("verification_status", PUBLIC_VERIFICATION_STATUSES)
         .order("kid_appeal_score", { ascending: false });
 
       if (error) throw error;
-      // Strip internal scoring/operational fields before returning
-      const publicAttractions = (data || []).map(({ llm_notes, confidence_score, times_seen, last_seen_at, source_type, why_recommended, timing_tip, ...pub }) => pub);
+      const publicAttractions = (data || [])
+        .filter((row) => PUBLIC_VERIFICATION_STATUSES.includes(row.verification_status))
+        .map((row) => ({
+          ...Object.fromEntries(PUBLIC_ATTRACTION_FIELDS.filter((field) => field in row).map((field) => [field, row[field]])),
+          city_attraction_tags: (row.city_attraction_tags || []).map(({ tag, tag_group, weight }) => ({ tag, tag_group, weight })),
+        }));
       res.json({ attractions: publicAttractions });
     } catch (err) {
       log.error("attractions:city-error", { error: err.message });

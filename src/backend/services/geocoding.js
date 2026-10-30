@@ -9,6 +9,10 @@ const NOMINATIM_TIMEOUT_MS = 8000;
 const OVERPASS_TIMEOUT_MS = 12000;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 const CACHE_MAX_ENTRIES = 500;
+// Nominatim asks for about one request per second. Cap the broader-query retries per lookup so a
+// caller-supplied string with many commas cannot fan out into dozens of upstream calls.
+const MAX_BROADER_RETRIES = 3;
+const NOT_FOUND_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
 // 500 mi ceiling prevents abuse via giant Overpass queries while staying generous for road trips.
 const MAX_RADIUS_MILES = 500;
@@ -18,6 +22,8 @@ const MAX_SUGGESTIONS = 3;
 
 const geocodeCache = new Map();
 const suggestionCache = new Map();
+// Remembers lookups Nominatim answered with "no results", so repeats do not query it again.
+const notFoundCache = new Map();
 
 // Test helper to reset in-memory caches between test cases.
 // No-op outside of the test environment so the export is safe to leave on the module.
@@ -25,13 +31,14 @@ export function __resetGeocodingCachesForTests() {
   if (process.env.NODE_ENV !== "test") return;
   geocodeCache.clear();
   suggestionCache.clear();
+  notFoundCache.clear();
 }
 
-function getCache(map, key) {
+function getCache(map, key, ttlMs = CACHE_TTL_MS) {
   // Shared TTL-aware cache read used by geocode + suggestion lookups.
   const cached = map.get(key);
   if (!cached) return null;
-  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+  if (Date.now() - cached.timestamp > ttlMs) {
     map.delete(key);
     return null;
   }
@@ -101,6 +108,9 @@ export async function geocodeLocation(locationString) {
   const cacheKey = locationString.trim().toLowerCase();
   const cached = getCache(geocodeCache, cacheKey);
   if (cached) return cached;
+  if (getCache(notFoundCache, cacheKey, NOT_FOUND_CACHE_TTL_MS)) {
+    throw new Error("Failed to geocode location: Location not found. Please try a different city or address.");
+  }
 
   try {
     const encodedLocation = encodeURIComponent(locationString);
@@ -135,7 +145,8 @@ export async function geocodeLocation(locationString) {
     // "Ko Olina, Oahu, Hawaii" → "Oahu, Hawaii" → "Hawaii"
     if ((!data || data.length === 0) && locationString.includes(",")) {
       const parts = placeOnly.split(",").map((s) => s.trim());
-      for (let i = 1; i < parts.length; i++) {
+      const lastRetry = Math.min(parts.length - 1, MAX_BROADER_RETRIES);
+      for (let i = 1; i <= lastRetry; i++) {
         const broader = parts.slice(i).join(", ");
         const broaderEncoded = encodeURIComponent(broader);
         const retryResponse = await fetchWithTimeout(
@@ -143,18 +154,22 @@ export async function geocodeLocation(locationString) {
           { headers: { "User-Agent": "SproutRoute/1.0" } },
           NOMINATIM_TIMEOUT_MS,
         );
-        if (retryResponse.ok) {
-          const retryData = await retryResponse.json();
-          if (retryData && retryData.length > 0) {
-            log.info("Geocoding broadened query", { original: locationString, broadened: broader });
-            data = retryData;
-            break;
-          }
+        // Stop on an upstream error (including 429) instead of hammering Nominatim. Throwing also keeps
+        // this from being cached as "not found".
+        if (!retryResponse.ok) {
+          throw new Error("Geocoding service unavailable");
+        }
+        const retryData = await retryResponse.json();
+        if (retryData && retryData.length > 0) {
+          log.info("Geocoding broadened query", { original: locationString, broadened: broader });
+          data = retryData;
+          break;
         }
       }
     }
 
     if (!data || data.length === 0) {
+      setCache(notFoundCache, cacheKey, true);
       throw new Error("Location not found. Please try a different city or address.");
     }
 
