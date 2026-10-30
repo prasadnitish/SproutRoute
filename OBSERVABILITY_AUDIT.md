@@ -8,7 +8,7 @@ Scale assumed: one developer, one Railway replica, low traffic. "Later" means la
 
 ## Implementation status (2026-10-30)
 
-Nothing is committed or pushed. Backend and web: `npm test` 808 of 808 passing (baseline was 766), `vite build` succeeds. iOS: 380 of 380 passing in the `sproutroute-ios-audit` worktree.
+Everything below is on `main` and deployed: backend and web in `db3daa8` and `447e81b`, iOS in `240a020`. Railway reported the deploy as successful and production was probed afterwards (readiness route, `X-Request-Id`, v1 error envelope). `npm test` passes 816 of 816 (baseline was 766) and `vite build` succeeds. The iOS suite passes 380 of 380. The scorecard, journey table and gap plan further down describe the state before these changes.
 
 | # | Item | Status | Where |
 | --- | --- | --- | --- |
@@ -17,18 +17,21 @@ Nothing is committed or pushed. Backend and web: `npm test` 808 of 808 passing (
 | 3 | Swallowed catches on the main path | Done | `stream:schedule-failed`, `parse-input:geo-failed`, `multi-stop:schedule-failed`. The `res.end` catches are left alone on purpose. |
 | 4 | Web PostHog consent | Done | `analyticsConsent.js`, `AnalyticsConsent.jsx`, `analytics.js` no longer loads PostHog without a "granted" choice; `privacy.html` sentence updated. iOS was already opt-in. |
 | 5 | One request id | Done | Assigned before the body parser, equal to the tracer run id, returned as `X-Request-Id`, used as `requestId` in v1 responses, added to every log line through `AsyncLocalStorage` |
-| 6 | Railway settings | Partly done | `healthcheckPath=/api/health`, `healthcheckTimeout=60` set on production (applies at next deploy). Deploy-failure webhook not created: needs the Slack or Discord URL. `drainingSeconds` not set (see below). |
+| 6 | Railway settings | Done | `healthcheckPath=/api/health`, `healthcheckTimeout=60`, `drainingSeconds=10` on production. Deploy-failure alerts use Railway's built-in email notifications (Account Settings) because there is no Slack or Discord target for a webhook. That toggle is the owner's to confirm. |
 | 7 | Readiness check | Done, with a change | `/api/health/ready` checks Supabase (2 s timeout, 503 on failure). `/api/health` stays a cheap liveness route so a database blip cannot fail a deploy. |
-| 8 | 5xx alert | Done | `aiAlerts.recordResponse`: 5 server errors in 5 minutes (`HTTP_5XX_ALERT_THRESHOLD`), then a 30 minute cooldown, through the existing `AI_ALERT_WEBHOOK_URL` |
-| 9 | iOS journey id | Done in a separate worktree | `beginJourney()` called at the start of each submission; `X-Journey-Id` on every request; failed requests log `requestId` |
+| 8 | 5xx alert | Done | `aiAlerts.recordResponse`: 5 server errors in 5 minutes (`HTTP_5XX_ALERT_THRESHOLD`), then a 30 minute cooldown |
+| 8b | Alert email | Done | Alerts (5xx, daily spend, provider credits) also email through Resend when `RESEND_API_KEY` and `ALERT_EMAIL_TO` are set. Sender defaults to `onboarding@resend.dev`, which Resend delivers only to the account owner's address. `scripts/send-test-alert.mjs` sends a test through the production variables (`railway run -s SproutRoute -e production node scripts/send-test-alert.mjs`); Resend accepted one on 2026-10-30. |
+| 9 | iOS journey id | Done | `beginJourney()` called at the start of each submission; `X-Journey-Id` on every request; failed requests log `requestId` |
 | 10 | Langfuse gaps | Done, one part open | Reasoning tokens exported as `output_reasoning_tokens`; `completed` score posted per eval trace (`scripts/lib/langfuseScore.mjs`); SIGTERM flush added. Reasoning text is not captured: it needs thought summaries turned on per provider, which changes requests and cost. |
 | 11 | Candidate set logging | Done | `attractions:candidates` (name, category, status, capped at 20) in `loadCachedAttractionsForTrip`, covering plan, bundle, stream and replan |
 
 Open points:
 
-- The score post follows the docs' array body but has not been run against your Langfuse project. Run the eval runner once with the Langfuse keys set and check that a `completed` score appears.
-- The SIGTERM flush only helps if Railway waits long enough after SIGTERM. Setting `drainingSeconds` (about 10) on the service is the matching change; it was not in the approved list, so it is left for you.
+- The consent banner was checked in a browser on sproutroute.app on 2026-10-30. The first version had an invisible Allow button (`bg-sprout-green` is not in the Tailwind config, so the button was white on white). Fixed in `542374d`, with a test that checks every `sprout-*` class against the config. After the fix: no PostHog request before a choice or after "No thanks", PostHog loads and sends events after "Allow", and the stored choice survives a reload.
+- Two third-party hosts still load before any consent choice: Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`) and the Cloudflare Web Analytics beacon (`static.cloudflareinsights.com`, injected by Cloudflare). Neither is PostHog, and they were outside this audit's first pass. Whether they are acceptable under the no-third-party-without-consent rule is the owner's call. Fonts can be self-hosted; the beacon is a toggle in the Cloudflare dashboard.
+- The `completed` score was checked against production on 2026-10-30. One eval case (`parse-vegas-explicit`) produced a BOOLEAN `completed` score on its trace. Writing stays on `POST /api/public/scores`. Reading scores back needs `GET /api/public/v3/scores`: the v2 read is unavailable to this Langfuse organization, and Langfuse removes legacy endpoints on 2026-11-16. Nothing in the repo reads from a legacy endpoint.
 - A stream that fails after its 200 status line does not count toward the 5xx alert. Those failures are logged as `stream:error`.
+- Alert email uses the Resend test sender. Sending from a project domain, or to anyone but the account owner, needs a verified domain and `ALERT_EMAIL_FROM`.
 - Items under "Later or skip" are unchanged.
 
 ## Scorecard: backend
