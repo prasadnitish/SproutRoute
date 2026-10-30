@@ -161,3 +161,71 @@ test("a continuing outage alerts once per cooldown, then again after it", async 
   for (let i = 0; i < 5; i++) await fail(alerts);
   assert.equal(posts.length, 2);
 });
+
+function emailSetup(overrides = {}) {
+  const calls = [];
+  const warnings = [];
+  const alerts = createAiAlerts({
+    webhookUrl: "",
+    dailyLimitUsd: 5,
+    resendApiKey: "re_test_key",
+    emailTo: "owner@example.com",
+    fetchFn: async (url, init) => { calls.push({ url, headers: init.headers, body: JSON.parse(init.body) }); return { ok: true }; },
+    now: () => Date.parse("2026-10-23T10:00:00Z"),
+    logger: { ...silent, warn: (msg, meta) => warnings.push({ msg, meta }) },
+    ...overrides,
+  });
+  return { alerts, calls, warnings };
+}
+
+test("an alert is emailed through Resend when a key and recipient are configured", async () => {
+  const { alerts, calls } = emailSetup();
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://api.resend.com/emails");
+  assert.equal(calls[0].headers.authorization, "Bearer re_test_key");
+  assert.deepEqual(calls[0].body.to, ["owner@example.com"]);
+  assert.match(calls[0].body.from, /onboarding@resend\.dev/);
+  assert.match(calls[0].body.subject, /SproutRoute alert/);
+  assert.match(calls[0].body.text, /\$6\.00/);
+});
+
+test("no email is sent unless both the key and the recipient are set", async () => {
+  const noKey = emailSetup({ resendApiKey: "" });
+  await noKey.alerts.recordSpend(6);
+  const noRecipient = emailSetup({ emailTo: "" });
+  await noRecipient.alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(noKey.calls.length, 0);
+  assert.equal(noRecipient.calls.length, 0);
+  assert.equal(noKey.alerts.snapshot().emailConfigured, false);
+});
+
+test("the webhook and the email both fire for one alert", async () => {
+  const { alerts, calls } = emailSetup({ webhookUrl: "https://hooks.example/alert" });
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls.map((c) => c.url).sort(), ["https://api.resend.com/emails", "https://hooks.example/alert"]);
+});
+
+test("a failed email is logged and never throws into the request", async () => {
+  const { alerts, warnings } = emailSetup({ fetchFn: async () => { throw new Error("network down"); } });
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(warnings[0].msg, "ai:alert-email-failed");
+  assert.equal(warnings[0].meta.error, "network down");
+});
+
+test("a Resend rejection is logged with its status so a bad key is visible", async () => {
+  const { alerts, warnings } = emailSetup({ fetchFn: async () => ({ ok: false, status: 403 }) });
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(warnings[0].msg, "ai:alert-email-failed");
+  assert.equal(warnings[0].meta.status, 403);
+});

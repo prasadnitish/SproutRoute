@@ -7,6 +7,8 @@
  *
  * Env: AI_DAILY_SPEND_ALERT_USD (default 5), AI_ALERT_WEBHOOK_URL (optional, any URL that accepts a
  * JSON POST with "text" and "content", which covers Slack and Discord). Alerts are always logged.
+ * Email: RESEND_API_KEY and ALERT_EMAIL_TO (optional ALERT_EMAIL_FROM). Without a verified Resend domain,
+ * the default onboarding@resend.dev sender can only deliver to the Resend account owner's own address.
  */
 import { log } from "../utils/logger.js";
 
@@ -21,12 +23,18 @@ const HTTP_5XX_COOLDOWN_MS = 30 * 60 * 1000;
 export function createAiAlerts({
   webhookUrl: webhookOverride,
   dailyLimitUsd: limitOverride,
+  resendApiKey: keyOverride,
+  emailTo: toOverride,
   fetchFn = globalThis.fetch,
   now = Date.now,
   logger = log,
 } = {}) {
   // Read at use, not at import: server.js loads .env after its imports are evaluated.
   const webhookUrl = () => webhookOverride ?? process.env.AI_ALERT_WEBHOOK_URL ?? "";
+  const resendApiKey = () => keyOverride ?? process.env.RESEND_API_KEY ?? "";
+  const emailTo = () => toOverride ?? process.env.ALERT_EMAIL_TO ?? "";
+  const emailFrom = () => process.env.ALERT_EMAIL_FROM || "SproutRoute Alerts <onboarding@resend.dev>";
+  const emailConfigured = () => Boolean(resendApiKey() && emailTo());
   const dailyLimitUsd = () => limitOverride ?? (Number(process.env.AI_DAILY_SPEND_ALERT_USD) || 5);
   const http5xxThreshold = () => Number(process.env.HTTP_5XX_ALERT_THRESHOLD) || 5;
 
@@ -61,6 +69,25 @@ export function createAiAlerts({
       .catch((error) => logger.warn("ai:alert-webhook-failed", { error: error.message }));
   }
 
+  function deliverEmail(alert) {
+    Promise.resolve()
+      .then(() => fetchFn("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${resendApiKey()}` },
+        body: JSON.stringify({
+          from: emailFrom(),
+          to: [emailTo()],
+          subject: `SproutRoute alert: ${alert.kind}`,
+          text: alert.text,
+        }),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      }))
+      .then((res) => {
+        if (res && res.ok === false) logger.warn("ai:alert-email-failed", { status: res.status });
+      })
+      .catch((error) => logger.warn("ai:alert-email-failed", { error: error.message }));
+  }
+
   async function send(alert) {
     const entry = { ...alert, at: new Date(now()).toISOString() };
     recent.push(entry);
@@ -68,6 +95,7 @@ export function createAiAlerts({
     logger.error("ai:alert", entry);
     const url = webhookUrl();
     if (url && fetchFn) deliver(url, alert);
+    if (emailConfigured() && fetchFn) deliverEmail(alert);
   }
 
   return {
@@ -117,6 +145,7 @@ export function createAiAlerts({
         dailyLimitUsd: dailyLimitUsd(),
         unpricedCallsToday: unpriced,
         webhookConfigured: Boolean(webhookUrl()),
+        emailConfigured: emailConfigured(),
         recentAlerts: [...recent],
       };
     },
