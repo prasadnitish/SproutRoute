@@ -625,8 +625,8 @@ test("CSP allows Google Fonts and Google Maps iframe", async () => {
 
   const csp = capturedHeaders["Content-Security-Policy"];
   assert.ok(csp, "Content-Security-Policy header must be set");
-  assert.ok(csp.includes("fonts.googleapis.com"), "CSP must allow Google Fonts stylesheets");
-  assert.ok(csp.includes("fonts.gstatic.com"), "CSP must allow Google Fonts files");
+  assert.ok(!csp.includes("fonts.googleapis.com"), "fonts are self-hosted, so the CSP must not allow Google Fonts stylesheets");
+  assert.ok(!csp.includes("fonts.gstatic.com"), "fonts are self-hosted, so the CSP must not allow Google Fonts files");
   assert.ok(csp.includes("https://www.google.com"), "CSP must allow Google Maps iframe");
   assert.ok(csp.includes("https://maps.google.com"), "CSP must allow Google Maps route iframe");
   assert.ok(nextCalled, "middleware must call next()");

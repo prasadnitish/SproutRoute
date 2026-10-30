@@ -11,6 +11,7 @@
 
 import posthog from "posthog-js";
 import { posthogOptions } from "./analyticsConfig.js";
+import { loadCloudflareBeacon } from "./cloudflareBeacon.js";
 import { readConsent, writeConsent, shouldLoadAnalytics, shouldAskConsent } from "./analyticsConsent.js";
 import { buildTripErrorProperties, buildTripSearchProperties } from "./analyticsPayloads.js";
 
@@ -40,8 +41,13 @@ function init() {
   }
 }
 
+function initBeacon() {
+  loadCloudflareBeacon({ isProd: IS_PROD, consent: readConsent(store()), doc: document });
+}
+
 // Auto-init on import: only a visitor who already agreed on an earlier visit gets analytics.
 init();
+initBeacon();
 
 export const analytics = {
   // ── Consent ───────────────────────────────────────────────────────
@@ -52,6 +58,7 @@ export const analytics = {
     writeConsent(store(), value);
     if (value === "granted") {
       init();
+      initBeacon();
       if (initialized) posthog.opt_in_capturing();
     } else if (initialized) {
       posthog.opt_out_capturing();
