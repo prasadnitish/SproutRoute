@@ -25,7 +25,7 @@ export default function AnalyticsConsent() {
         <button type="button" onClick={() => choose("denied")} className="rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-100">
           No thanks
         </button>
-        <button type="button" onClick={() => choose("granted")} className="rounded-lg bg-sprout-green px-3 py-2 text-sm font-medium text-white">
+        <button type="button" onClick={() => choose("granted")} className="rounded-lg bg-sprout-dark px-3 py-2 text-sm font-medium text-white hover:opacity-90">
           Allow
         </button>
       </div>
