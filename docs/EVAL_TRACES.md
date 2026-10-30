@@ -39,7 +39,7 @@ The web app and the iOS app make the same calls for a trip (the iOS app makes th
 
 The bundle endpoint is not used. The iOS app calls it only as a fallback when streaming fails.
 
-If the stream step fails, the later steps are skipped, as a client would. Both runs call real models (the web run also generates a packing list), so each spends provider credit and counts toward the hourly AI rate limit. Use `--only=<case-id>` to rerun one case. Each call prints its journey id and Langfuse trace id.
+If the stream step fails, the later steps are skipped, as a client would. Both runs call real models, so each spends provider credit and counts toward the hourly AI rate limit. Use `--only=<case-id>` to rerun one case. Each call prints its journey id and Langfuse trace id.
 
 ## What a trace looks like
 
@@ -47,9 +47,13 @@ If the stream step fails, the later steps are skipped, as a client would. Both r
 | --- | --- | --- |
 | `trip-stream`, `trip-bundle`, `trip-parse-input` | chain (root) | Input: the trip request. Output: what the client received (for streams, grouped by event). Metadata: route, HTTP status, stream event order. |
 | `tool.*` (geocode, weather, places, safety, plan) | tool | Arguments and result of each step. |
-| `generate.<caller>` (tripPlan, parseInput, packingList, ...) | generation | System and user prompt as messages, the raw answer, model, token usage and cost, attempt (`primary`, `fallback-1`, ...), and whether validation `passed` or was `rejected`. |
+| `generate.<caller>` (tripPlan, parseInput, travelSafety, ...) | generation | System and user prompt as messages, the raw answer, model, token usage and cost, attempt (`primary`, `fallback-1`, ...), and whether validation `passed` or was `rejected`. |
 
 Every trace is tagged `eval`, `client:web` or `client:ios`, `case:<id>`, `run:<label>` and `step:<name>`, and the case's main rubric lines are in trace metadata (`rubric_lines`). Environment is `eval`, so these never mix with production dashboards. Release is the deployed commit.
+
+## What a full run costs and shows
+
+A first full web run (10 cases, 32 calls) cost about $0.13 in model spend and produced 10 sessions: 4 traces per trip (5 with a pet) and 1 per parse case. Packing lists and car seat checks are built by fixed rules, not a model, so their traces show tool steps and no `generate.*` observation. The model calls are `generate.parseInput`, `generate.tripPlan` and `generate.travelSafety`.
 
 ## Following one trip across calls
 
