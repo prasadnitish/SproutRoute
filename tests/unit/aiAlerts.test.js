@@ -229,3 +229,30 @@ test("a Resend rejection is logged with its status so a bad key is visible", asy
   assert.equal(warnings[0].msg, "ai:alert-email-failed");
   assert.equal(warnings[0].meta.status, 403);
 });
+
+test("sendTest emails a test message and reports that it was delivered", async () => {
+  const { alerts, calls } = emailSetup();
+  const result = await alerts.sendTest();
+
+  assert.deepEqual(result, { sent: true });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].body.text, /test alert/i);
+});
+
+test("sendTest says why nothing was sent when email is not configured", async () => {
+  const { alerts, calls } = emailSetup({ resendApiKey: "" });
+  const result = await alerts.sendTest();
+
+  assert.equal(result.sent, false);
+  assert.match(result.reason, /RESEND_API_KEY/);
+  assert.equal(calls.length, 0);
+});
+
+test("sendTest reports Resend's status when the send is rejected, without echoing the key", async () => {
+  const { alerts } = emailSetup({ fetchFn: async () => ({ ok: false, status: 403 }) });
+  const result = await alerts.sendTest();
+
+  assert.equal(result.sent, false);
+  assert.match(result.reason, /403/);
+  assert.doesNotMatch(JSON.stringify(result), /re_test_key/);
+});

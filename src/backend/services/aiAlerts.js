@@ -69,8 +69,9 @@ export function createAiAlerts({
       .catch((error) => logger.warn("ai:alert-webhook-failed", { error: error.message }));
   }
 
+  // Resolves to { ok: true } or { ok: false, reason }; callers that fire and forget can ignore it.
   function deliverEmail(alert) {
-    Promise.resolve()
+    return Promise.resolve()
       .then(() => fetchFn("https://api.resend.com/emails", {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${resendApiKey()}` },
@@ -83,9 +84,16 @@ export function createAiAlerts({
         signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
       }))
       .then((res) => {
-        if (res && res.ok === false) logger.warn("ai:alert-email-failed", { status: res.status });
+        if (res && res.ok === false) {
+          logger.warn("ai:alert-email-failed", { status: res.status });
+          return { ok: false, reason: `Resend answered ${res.status}` };
+        }
+        return { ok: true };
       })
-      .catch((error) => logger.warn("ai:alert-email-failed", { error: error.message }));
+      .catch((error) => {
+        logger.warn("ai:alert-email-failed", { error: error.message });
+        return { ok: false, reason: error.message };
+      });
   }
 
   async function send(alert) {
@@ -135,6 +143,13 @@ export function createAiAlerts({
       if (lastHttpAlert !== undefined && t - lastHttpAlert < HTTP_5XX_COOLDOWN_MS) return;
       lastHttpAlert = t;
       await send({ kind: "http_5xx", text: `${errorTimes.length} server errors in the last 5 minutes, latest on ${path}. Search the logs for level "error".` });
+    },
+
+    // Used by scripts/send-test-alert.mjs to prove the email path end to end.
+    async sendTest() {
+      if (!emailConfigured()) return { sent: false, reason: "RESEND_API_KEY and ALERT_EMAIL_TO must both be set" };
+      const result = await deliverEmail({ kind: "test", text: "This is a test alert from SproutRoute. If you can read this, email alerts work." });
+      return result.ok ? { sent: true } : { sent: false, reason: result.reason };
     },
 
     snapshot() {
