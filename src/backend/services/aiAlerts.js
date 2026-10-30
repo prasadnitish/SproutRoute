@@ -15,6 +15,8 @@ const MAX_RECENT = 20;
 const dayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 const WEBHOOK_TIMEOUT_MS = 3000;
+const HTTP_5XX_WINDOW_MS = 5 * 60 * 1000;
+const HTTP_5XX_COOLDOWN_MS = 30 * 60 * 1000;
 
 export function createAiAlerts({
   webhookUrl: webhookOverride,
@@ -26,12 +28,15 @@ export function createAiAlerts({
   // Read at use, not at import: server.js loads .env after its imports are evaluated.
   const webhookUrl = () => webhookOverride ?? process.env.AI_ALERT_WEBHOOK_URL ?? "";
   const dailyLimitUsd = () => limitOverride ?? (Number(process.env.AI_DAILY_SPEND_ALERT_USD) || 5);
+  const http5xxThreshold = () => Number(process.env.HTTP_5XX_ALERT_THRESHOLD) || 5;
 
   let day = dayKey(now());
   let spendUsd = 0;
   let unpriced = 0;
   let spendAlerted = false;
   const lastFailureAlert = new Map();
+  const errorTimes = [];
+  let lastHttpAlert;
   const recent = [];
 
   function rollDay() {
@@ -90,6 +95,18 @@ export function createAiAlerts({
       lastFailureAlert.set(key, now());
       const reason = kind === "credits" ? "has no credits left" : "rejected our API key";
       await send({ kind: `provider_${kind}`, provider, text: `the ${provider} account ${reason}. Requests are falling back to other providers.` });
+    },
+
+    // Server errors in a short window: the failure that used to be found by a user.
+    async recordResponse({ status, path }) {
+      if (!(status >= 500)) return;
+      const t = now();
+      errorTimes.push(t);
+      while (t - errorTimes[0] > HTTP_5XX_WINDOW_MS) errorTimes.shift();
+      if (errorTimes.length < http5xxThreshold()) return;
+      if (lastHttpAlert !== undefined && t - lastHttpAlert < HTTP_5XX_COOLDOWN_MS) return;
+      lastHttpAlert = t;
+      await send({ kind: "http_5xx", text: `${errorTimes.length} server errors in the last 5 minutes, latest on ${path}. Search the logs for level "error".` });
     },
 
     snapshot() {

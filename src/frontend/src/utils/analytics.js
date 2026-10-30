@@ -11,17 +11,27 @@
 
 import posthog from "posthog-js";
 import { posthogOptions } from "./analyticsConfig.js";
+import { readConsent, writeConsent, shouldLoadAnalytics, shouldAskConsent } from "./analyticsConsent.js";
 import { buildTripErrorProperties, buildTripSearchProperties } from "./analyticsPayloads.js";
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
 // Shared URLs contain an access token in the fragment. Never send them to analytics.
 const IS_PROD = import.meta.env.PROD && !/^\/s\/?$/.test(window.location.pathname);
 
-// Initialize PostHog (only in production to avoid dev noise)
+// Initialize PostHog only in production, with a key, and after the visitor has agreed.
 let initialized = false;
 
+function store() {
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 function init() {
-  if (initialized || !IS_PROD || !POSTHOG_KEY) return;
+  if (initialized) return;
+  if (!shouldLoadAnalytics({ isProd: IS_PROD, key: POSTHOG_KEY, consent: readConsent(store()) })) return;
   try {
     posthog.init(POSTHOG_KEY, posthogOptions);
     initialized = true;
@@ -30,24 +40,38 @@ function init() {
   }
 }
 
-// Auto-init on import
+// Auto-init on import: only a visitor who already agreed on an earlier visit gets analytics.
 init();
 
 export const analytics = {
+  // ── Consent ───────────────────────────────────────────────────────
+  needsConsent() {
+    return shouldAskConsent({ isProd: IS_PROD, key: POSTHOG_KEY, consent: readConsent(store()) });
+  },
+  setConsent(value) {
+    writeConsent(store(), value);
+    if (value === "granted") {
+      init();
+      if (initialized) posthog.opt_in_capturing();
+    } else if (initialized) {
+      posthog.opt_out_capturing();
+    }
+  },
+
   // ── Screen transitions (funnel tracking) ──────────────────────────
   screenView(screen, properties = {}) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("$screen_view", { screen, ...properties });
   },
 
   // ── Trip funnel events ────────────────────────────────────────────
   tripSearched(text, properties = {}) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("trip_searched", buildTripSearchProperties(text, properties));
   },
 
   tripParsed(parsed) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("trip_parsed", {
       destination: parsed?.destination,
       vibe: parsed?.vibe,
@@ -59,17 +83,17 @@ export const analytics = {
   },
 
   destinationPicked(destination) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("destination_picked", { destination });
   },
 
   tripGenerationStarted(destination, duration) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("trip_generation_started", { destination, duration_days: duration });
   },
 
   tripResultsViewed(destination, loadTimeMs) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("trip_results_viewed", {
       destination,
       load_time_ms: loadTimeMs,
@@ -77,7 +101,7 @@ export const analytics = {
   },
 
   tripCompleted(destination, duration, timing) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("trip_completed", {
       destination,
       duration_days: duration,
@@ -88,54 +112,54 @@ export const analytics = {
   },
 
   tripError(errorCode) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("trip_error", buildTripErrorProperties(errorCode));
   },
 
   // ── Feature usage ─────────────────────────────────────────────────
   featureUsed(feature, properties = {}) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("feature_used", { feature, ...properties });
   },
 
   profileImported(provider) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("profile_imported", { provider });
   },
 
   vibeChipClicked(vibe) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("vibe_chip_clicked", { vibe });
   },
 
   tabSwitched(tab) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("tab_switched", { tab });
   },
 
   dayChanged(dayIndex) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("itinerary_day_changed", { day_index: dayIndex });
   },
 
   activityTapped(activityName) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("activity_tapped", { activity: activityName?.slice(0, 100) });
   },
 
   shareClicked() {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("share_clicked");
   },
 
   backClicked(fromScreen) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.capture("back_clicked", { from_screen: fromScreen });
   },
 
   // ── User identification (when auth is ready) ─────────────────────
   identify(userId, traits = {}) {
-    if (!IS_PROD) return;
+    if (!initialized) return;
     posthog.identify(userId, traits);
   },
 };

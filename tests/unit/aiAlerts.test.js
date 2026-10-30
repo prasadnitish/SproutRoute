@@ -120,3 +120,44 @@ test("settings are read when an alert fires, so a .env loaded after import still
     }
   }
 });
+
+const MIN = 60_000;
+const fail = (alerts, path = "/api/v1/trip/plan") => alerts.recordResponse({ status: 500, path });
+
+test("fewer than five server errors in five minutes sends nothing", async () => {
+  const { alerts, posts } = setup();
+  for (let i = 0; i < 4; i++) await fail(alerts);
+  assert.equal(posts.length, 0);
+});
+
+test("five server errors within five minutes send one alert naming the count and the latest path", async () => {
+  const { alerts, posts, advance } = setup();
+  for (let i = 0; i < 4; i++) { await fail(alerts); advance(30_000); }
+  await fail(alerts, "/api/v1/trip/stream");
+  await fail(alerts);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.kind, "http_5xx");
+  assert.match(posts[0].body.text, /5 server errors in the last 5 minutes/);
+  assert.match(posts[0].body.text, /\/api\/v1\/trip\/stream/);
+});
+
+test("server errors spread out beyond the window never alert", async () => {
+  const { alerts, posts, advance } = setup();
+  for (let i = 0; i < 8; i++) { await fail(alerts); advance(2 * MIN); }
+  assert.equal(posts.length, 0);
+});
+
+test("responses below 500 are ignored", async () => {
+  const { alerts, posts } = setup();
+  for (let i = 0; i < 20; i++) await alerts.recordResponse({ status: i % 2 ? 404 : 429, path: "/api/x" });
+  assert.equal(posts.length, 0);
+});
+
+test("a continuing outage alerts once per cooldown, then again after it", async () => {
+  const { alerts, posts, advance } = setup();
+  for (let i = 0; i < 12; i++) await fail(alerts);
+  assert.equal(posts.length, 1);
+  advance(31 * MIN);
+  for (let i = 0; i < 5; i++) await fail(alerts);
+  assert.equal(posts.length, 2);
+});

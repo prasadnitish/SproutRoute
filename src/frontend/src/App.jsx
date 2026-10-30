@@ -9,6 +9,7 @@ import ProfileImportModal from "./components/ProfileImportModal.jsx";
 import ShareTripDialog from "./components/ShareTripDialog.jsx";
 import SharedTripScreen from "./screens/SharedTripScreen.jsx";
 import { Icon } from "./components/Icon.jsx";
+import AnalyticsConsent from "./components/AnalyticsConsent.jsx";
 
 function loadSavedProfile() {
   try {
@@ -152,6 +153,7 @@ function PlannerApp() {
         onSaved={(profile) => setSavedProfile(profile)}
       />
       {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
+      <AnalyticsConsent />
     </div>
   );
 }

@@ -197,7 +197,7 @@ async function callGemini(model, { system, user, maxTokens, temperature, modelId
   const responseText = response.text();
   const stopReason = response.candidates?.[0]?.finishReason || null;
 
-  return { responseText, stopReason, usage: {input_tokens:response.usageMetadata?.promptTokenCount, output_tokens:geminiOutputTokens(response.usageMetadata), usage_source:'provider'} };
+  return { responseText, stopReason, usage: {input_tokens:response.usageMetadata?.promptTokenCount, output_tokens:geminiOutputTokens(response.usageMetadata), reasoning_tokens:response.usageMetadata?.thoughtsTokenCount, usage_source:'provider'} };
 }
 
 /**
@@ -221,7 +221,7 @@ async function callOpenAI(client, { system, user, maxTokens, temperature, modelI
   const responseText = choice?.message?.content ?? "";
   const stopReason = choice?.finish_reason ?? null;
 
-  return { responseText, stopReason, usage: {input_tokens:completion.usage?.prompt_tokens, output_tokens:completion.usage?.completion_tokens, usage_source:'provider'} };
+  return { responseText, stopReason, usage: {input_tokens:completion.usage?.prompt_tokens, output_tokens:completion.usage?.completion_tokens, reasoning_tokens:completion.usage?.completion_tokens_details?.reasoning_tokens, usage_source:'provider'} };
 }
 
 /**
@@ -295,7 +295,8 @@ function modelIdForProvider(provider, caller = "") {
 function usageOf(modelId, response) {
   const inputTokens = response?.usage?.input_tokens;
   const outputTokens = response?.usage?.output_tokens;
-  return { inputTokens, outputTokens, costUsd: estimateCostUsd(modelId, { inputTokens, outputTokens }) };
+  const reasoningTokens = response?.usage?.reasoning_tokens;
+  return { inputTokens, outputTokens, reasoningTokens, costUsd: estimateCostUsd(modelId, { inputTokens, outputTokens }) };
 }
 
 async function alertOnProviderFailure(alerts, provider, error) {

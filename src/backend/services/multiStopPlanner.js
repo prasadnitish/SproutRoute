@@ -1,4 +1,5 @@
 import { scheduleItinerary } from "./itineraryScheduler.js";
+import { log, errorFields } from "../utils/logger.js";
 
 function parseIsoDate(value) {
   const date = new Date(`${value}T00:00:00Z`);
@@ -170,7 +171,9 @@ export async function planRouteStops({
             routePlan,
             routeStop: enrichedStop,
           });
-        } catch { /* non-fatal */ }
+        } catch (scheduleErr) {
+          log.warn("multi-stop:schedule-failed", { chunk: meta?.chunk, ...errorFields(scheduleErr) });
+        }
         const localDayOffset = meta?.dayOffset || 0;
         const normalizedChunk = normalizeStopTripPlan(enrichedStop, chunkResult, localDayOffset);
         onEvent("stop-itinerary", {

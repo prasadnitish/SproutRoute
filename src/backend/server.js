@@ -40,7 +40,9 @@ import {
 } from "./utils/sanitize.js";
 import { buildShopLinks } from "./utils/affiliateLinks.js";
 import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets, sanitizeRouteIntent } from "./services/inputSafety.js";
-import { log } from "./utils/logger.js";
+import { log, errorFields, requestContext } from "./utils/logger.js";
+import { createErrorHandler } from "./utils/errorHandler.js";
+import { installProcessHandlers, installShutdownHandler } from "./utils/processHandlers.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
 // NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
@@ -275,7 +277,7 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
   const tripDays = inclusiveDayCount(startDate, endDate);
   const maxResults = Math.min(36, Math.max(16, tripDays * 4 + 4));
 
-  return attractionMemoryService.getPlanningCandidates({
+  const candidates = await attractionMemoryService.getPlanningCandidates({
     destination,
     coords,
     countryCode,
@@ -291,6 +293,16 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
     pets: pets || [],
     maxResults,
   });
+
+  // The retrieved set, names only, so a bad itinerary can be told apart: retrieval miss, noisy context, or corpus gap.
+  const list = Array.isArray(candidates) ? candidates : [];
+  log.info("attractions:candidates", {
+    destination,
+    requested: maxResults,
+    count: list.length,
+    candidates: list.slice(0, 20).map((c) => ({ name: c.canonical_name, category: c.category, status: c.verification_status })),
+  });
+  return candidates;
 }
 
 function persistTripAttractionsInBackground(attractionMemoryService, payload) {
@@ -385,6 +397,7 @@ export function createApp(deps = {}) {
     groupTripStore = createGroupTripStore(),
     tripShareStore = createTripShareStore(),
     getSupabaseAdminFn = getSupabaseAdmin,
+    healthTimeoutMs = 2000,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -404,6 +417,15 @@ export function createApp(deps = {}) {
 
   const app = express();
   if (process.env.TRACING_ENABLED !== "false") app.use(tracing.middleware);
+
+  // One id per request, assigned before the body parser so parse failures carry it too.
+  // It is the tracer run id when tracing is on, so a log search and a trace lookup use the same value.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api")) return next();
+    req.reqId = String(res.getHeader("X-Trace-Id") || crypto.randomBytes(16).toString("hex"));
+    res.setHeader("X-Request-Id", req.reqId);
+    next();
+  });
 
   // Railway (and most PaaS) sit behind a load balancer that sets X-Forwarded-For.
   // Without trust proxy, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
@@ -465,15 +487,15 @@ export function createApp(deps = {}) {
   app.use((req, res, next) => {
     if (!req.path.startsWith("/api")) return next();
     const start = Date.now();
-    const reqId = crypto.randomUUID().slice(0, 8);
-    req.reqId = reqId;
+    const reqId = req.reqId;
     log.info("req:start", { reqId, method: req.method, path: req.path });
     res.on("finish", () => {
       const ms = Date.now() - start;
       log.info("req:end", { reqId, method: req.method, path: req.path, status: res.statusCode, ms });
       metrics.recordRequest({ method: req.method, path: req.path, status: res.statusCode, ms, reqId });
+      aiAlerts.recordResponse({ status: res.statusCode, path: req.route?.path ?? req.path });
     });
-    next();
+    requestContext.run({ reqId }, next);
   });
 
   // AI-intensive routes share a per-IP budget across parsing and generation.
@@ -557,6 +579,33 @@ export function createApp(deps = {}) {
       message: "SproutRoute API is running",
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // Readiness: can we reach the database? Kept apart from /api/health so a database blip cannot fail a deploy healthcheck.
+  app.get("/api/health/ready", async (req, res) => {
+    let supabase = "ok";
+    let timer;
+    try {
+      const query = getSupabaseAdminFn().from("trip_metrics").select("req_id").limit(1);
+      const outcome = await Promise.race([
+        query,
+        new Promise((resolve) => { timer = setTimeout(() => resolve("timeout"), healthTimeoutMs); }),
+      ]);
+      if (outcome === "timeout") {
+        supabase = "timeout";
+        log.warn("health:ready-failed", { check: "supabase", error: `no answer within ${healthTimeoutMs}ms` });
+      } else if (outcome?.error) {
+        supabase = "error";
+        log.warn("health:ready-failed", { check: "supabase", error: outcome.error.message });
+      }
+    } catch (err) {
+      supabase = "error";
+      log.warn("health:ready-failed", { check: "supabase", ...errorFields(err) });
+    } finally {
+      clearTimeout(timer);
+    }
+    const ok = supabase === "ok";
+    res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", checks: { supabase }, timestamp: new Date().toISOString() });
   });
 
   const OPS_SESSION_COOKIE = "sproutroute_ops_session";
@@ -740,7 +789,7 @@ export function createApp(deps = {}) {
       try {
         scheduledItinerary = scheduleItinerary(tripPlan, {}, startDate, { hasChildren: children.length > 0 });
       } catch (scheduleErr) {
-        devLog(`Schedule failed (non-blocking): ${scheduleErr.message}`);
+        log.warn("trip-plan:schedule-failed", { reqId: req.reqId, ...errorFields(scheduleErr) });
       }
 
       const tripDuration = inclusiveDayCount(startDate, endDate);
@@ -1017,7 +1066,7 @@ export function createApp(deps = {}) {
   }
 
   app.post("/api/v1/group-trips", optionalAuth, groupTripCreateLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.createTrip({
       ...(req.body || {}),
       ownerKey: groupTripOwnerKey(req),
@@ -1031,7 +1080,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/join", groupTripJoinLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.joinTrip(req.body || {});
 
     if (!result.ok) {
@@ -1048,7 +1097,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/items", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.addItem(req.body || {});
 
     if (!result.ok) {
@@ -1065,7 +1114,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/items/update", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.updateItem(req.body || {});
 
     if (!result.ok) {
@@ -1082,7 +1131,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/items/import-text", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.importItemsFromText(req.body || {});
 
     if (!result.ok) {
@@ -1099,7 +1148,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/decisions", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.createDecision(req.body || {});
 
     if (!result.ok) {
@@ -1116,7 +1165,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/decisions/vote", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.voteDecision(req.body || {});
 
     if (!result.ok) {
@@ -1133,7 +1182,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/expenses", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.createExpense(req.body || {});
 
     if (!result.ok) {
@@ -1150,7 +1199,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/location-sharing", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.setLocationSharing(req.body || {});
 
     if (!result.ok) {
@@ -1167,7 +1216,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/leave", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.leaveTrip(req.body || {});
     if (!result.ok) {
       return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
@@ -1176,7 +1225,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/invite/rotate", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.rotateInvite(req.body || {});
     if (!result.ok) {
       return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
@@ -1185,7 +1234,7 @@ export function createApp(deps = {}) {
   });
 
   app.get("/api/v1/group-trips/snapshot", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const participantAccessToken =
       req.get?.("x-group-trip-participant-token") ||
       req.headers?.["x-group-trip-participant-token"] ||
@@ -1221,7 +1270,7 @@ export function createApp(deps = {}) {
   // GET /api/v1/meta/capabilities
   // Returns feature flags, supported countries, weather providers, safety modes.
   app.get("/api/v1/meta/capabilities", (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const client = req.query?.client || req.body?.client || "web";
 
     const payload = {
@@ -1267,7 +1316,7 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/trip/resolve
   app.post("/api/v1/trip/resolve", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const rawQuery = sanitizeString(req.body?.query || "", 120);
       if (!rawQuery) {
@@ -1283,7 +1332,7 @@ export function createApp(deps = {}) {
       const result = await resolveDestinationQueryFn(rawQuery);
       return res.json({ ...result, requestId });
     } catch (error) {
-      devLog("Error in /api/v1/trip/resolve:", error);
+      log.error("v1:trip-resolve-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "RESOLVE_FAILED",
         message: "Failed to resolve destination. Please try again.",
@@ -1355,7 +1404,7 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/trip/plan
   app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
       const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
@@ -1441,7 +1490,7 @@ export function createApp(deps = {}) {
         tripPlan,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/plan:", error);
+      log.error("v1:trip-plan-failed", { reqId: req.reqId, ...errorFields(error) });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -1474,7 +1523,7 @@ export function createApp(deps = {}) {
   // Single endpoint: geocode once → weather once → trip plan + packing list in parallel.
   // Eliminates redundant geocoding + weather round-trip, runs AI calls concurrently.
   app.post("/api/v1/trip/bundle", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const timings = {};
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1591,7 +1640,7 @@ export function createApp(deps = {}) {
         timings,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/bundle:", error);
+      log.error("v1:trip-bundle-failed", { reqId: req.reqId, ...errorFields(error) });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -1888,7 +1937,9 @@ export function createApp(deps = {}) {
             try {
               const chunkStartDate = chunks[meta.chunk - 1]?.startDate || startDate;
               scheduled = scheduleItinerary(chunkResult, {}, chunkStartDate, { hasChildren: children.length > 0 });
-            } catch { /* non-fatal */ }
+            } catch (scheduleErr) {
+              log.warn("stream:schedule-failed", { reqId, chunk: meta.chunk, ...errorFields(scheduleErr) });
+            }
 
             if (!send("itinerary-chunk", {
               tripPlan: chunkResult,
@@ -1967,7 +2018,7 @@ export function createApp(deps = {}) {
   // Used when the user customizes activities after the initial plan is generated.
   // Requires: destination, startDate, endDate, activities, children, weather (cached).
   app.post("/api/v1/trip/replan", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
       const validationErrors = validateTripData(sanitizedData, { requireActivities: true });
@@ -2053,7 +2104,7 @@ export function createApp(deps = {}) {
 
       return res.json({ requestId, tripPlan });
     } catch (error) {
-      devLog("Error in /api/v1/trip/replan:", error);
+      log.error("v1:trip-replan-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "REPLAN_FAILED",
         message: "Failed to regenerate trip plan. Please try again.",
@@ -2066,7 +2117,7 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/trip/packing
   app.post("/api/v1/trip/packing", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
       const validationErrors = validateTripData(sanitizedData, { requireActivities: true });
@@ -2138,7 +2189,7 @@ export function createApp(deps = {}) {
         packingList,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/packing:", error);
+      log.error("v1:trip-packing-failed", { reqId: req.reqId, ...errorFields(error) });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -2169,7 +2220,7 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/safety/car-seat-check
   app.post("/api/v1/safety/car-seat-check", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const destination = sanitizeString(req.body?.destination || "", 120);
       const jurisdictionCode = sanitizeString(req.body?.jurisdictionCode || "", 2).toUpperCase();
@@ -2205,7 +2256,7 @@ export function createApp(deps = {}) {
         lastReviewed: guidance.lastReviewed || new Date().toISOString().split("T")[0],
       });
     } catch (error) {
-      devLog("Error in /api/v1/safety/car-seat-check:", error);
+      log.error("v1:safety-car-seat-check-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "SAFETY_CHECK_FAILED",
         message: "Failed to retrieve car seat guidance. Please try again.",
@@ -2219,7 +2270,7 @@ export function createApp(deps = {}) {
   // POST /api/v1/safety/pet-travel-check
   // Returns airline eligibility + international entry requirements for traveling with pets.
   app.post("/api/v1/safety/pet-travel-check", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       // Validate and sanitize pets array
       const rawPets = req.body?.pets;
@@ -2264,7 +2315,7 @@ export function createApp(deps = {}) {
         ...guidance,
       });
     } catch (error) {
-      devLog("Error in /api/v1/safety/pet-travel-check:", error);
+      log.error("v1:safety-pet-travel-check-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "PET_SAFETY_FAILED",
         message: "Failed to retrieve pet travel guidance. Please try again.",
@@ -2278,7 +2329,7 @@ export function createApp(deps = {}) {
   // GET /api/v1/safety/travel-advisory/:countryCode
   // Returns US State Dept travel advisory for a country. Graceful: returns null if unavailable.
   app.get("/api/v1/safety/travel-advisory/:countryCode", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const countryCode = sanitizeString(req.params.countryCode || "", 3).toUpperCase();
       if (!countryCode || countryCode.length < 2) {
@@ -2294,7 +2345,7 @@ export function createApp(deps = {}) {
       const advisory = await getTravelAdvisoryFn(countryCode);
       return res.json({ requestId, advisory });
     } catch (error) {
-      devLog("Error in /api/v1/safety/travel-advisory:", error);
+      log.error("v1:safety-travel-advisory-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "ADVISORY_FAILED",
         message: "Failed to fetch travel advisory. Trip planning will continue without it.",
@@ -2308,7 +2359,7 @@ export function createApp(deps = {}) {
   // GET /api/v1/safety/neighborhood?lat=X&lon=Y
   // Returns Amadeus/GeoSure neighborhood safety scores. Graceful: returns null if unavailable.
   app.get("/api/v1/safety/neighborhood", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const lat = parseFloat(req.query?.lat);
       const lon = parseFloat(req.query?.lon);
@@ -2326,7 +2377,7 @@ export function createApp(deps = {}) {
       const safety = await getNeighborhoodSafetyFn(lat, lon);
       return res.json({ requestId, safety });
     } catch (error) {
-      devLog("Error in /api/v1/safety/neighborhood:", error);
+      log.error("v1:safety-neighborhood-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "SAFETY_FAILED",
         message: "Failed to fetch neighborhood safety data.",
@@ -2381,7 +2432,9 @@ export function createApp(deps = {}) {
             detectedRegion = [addr.city || addr.town, addr.state].filter(Boolean).join(", ");
           }
           log.info("parse-input:geo", { reqId, ms: Date.now() - geoT0, region: detectedRegion });
-        } catch { /* silent — region is optional */ }
+        } catch (geoErr) {
+          log.warn("parse-input:geo-failed", { reqId, ...errorFields(geoErr) });
+        }
       }
       // Pass client's local date for timezone-correct relative date parsing
       const safeClientDate = /^\d{4}-\d{2}-\d{2}$/.test(clientDate) ? clientDate : null;
@@ -2880,6 +2933,8 @@ export function createApp(deps = {}) {
     });
   }
 
+  app.use(createErrorHandler());
+
   return app;
 }
 
@@ -2887,6 +2942,7 @@ export function startServer(port, deps = {}) {
   // Runtime entrypoint used by local dev/prod boot while reusing createApp().
   // Validate environment before attempting to start the app
   validateEnvironmentVariables();
+  installProcessHandlers();
 
   const app = createApp(deps);
   const PORT = Number(port ?? process.env.PORT ?? 8080);
@@ -2896,6 +2952,7 @@ export function startServer(port, deps = {}) {
       console.warn("⚠️  AMAZON_AFFILIATE_TAG not set — affiliate links will work but won't earn commission");
     }
   });
+  installShutdownHandler({ server, flush: () => evalCapture.shutdown() });
   return { app, server };
 }
 

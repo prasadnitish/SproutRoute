@@ -6,6 +6,7 @@
 //   EVAL_CAPTURE_TOKEN=... node scripts/run-eval-traces.mjs \
 //     --base=https://<your-backend> --client=web --confirm-spend
 //
+// Set LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY and LANGFUSE_BASE_URL as well to attach a "completed" score to each trace.
 // Options: --client=web|ios (default web), --only=<case-id,...>,
 // --run=<label> (tags every trace of the run), --delay-ms=<n>.
 // Each case runs the calls its client makes (see scripts/eval-cases.mjs) under one journey id.
@@ -13,6 +14,7 @@
 // hence --confirm-spend.
 import { randomBytes } from "node:crypto";
 import { CASES, stepsFor } from "./eval-cases.mjs";
+import { postScores, completionScore } from "./lib/langfuseScore.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
@@ -44,6 +46,7 @@ const selected = CASES.filter((c) => !only || only.has(c.id));
 const journeyId = () => randomBytes(16).toString("hex");
 
 let failures = 0;
+let warnedNoScores = false;
 for (const [index, testCase] of selected.entries()) {
   const journey = journeyId();
   for (const { step, path, body } of stepsFor(testCase, client)) {
@@ -77,6 +80,14 @@ for (const [index, testCase] of selected.entries()) {
         stream_error: streamError,
         ms: Math.round(performance.now() - started),
       }));
+      const score = completionScore({ trace: res.headers.get("x-langfuse-trace-id"), failed, status: res.status, streamError });
+      if (score) {
+        const posted = await postScores([score]);
+        if (posted.skipped && !warnedNoScores) {
+          warnedNoScores = true;
+          console.error(`Scores not posted: ${posted.skipped}`);
+        } else if (posted.error) console.error(`Score for ${score.traceId} not posted: ${posted.error}`);
+      }
       // A client stops when the plan fails; later steps would only trace noise.
       if (failed && step === "stream") break;
     } catch (error) {

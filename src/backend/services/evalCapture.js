@@ -363,7 +363,10 @@ export function createEvalCapture({ env = process.env, exporter, loadSdk = defau
         ended = true;
         const usageDetails = {};
         if (Number.isFinite(usage?.inputTokens)) usageDetails.input = usage.inputTokens;
-        if (Number.isFinite(usage?.outputTokens)) usageDetails.output = usage.outputTokens;
+        // Providers bill reasoning as output, so the billed total contains it; Langfuse wants the buckets exclusive.
+        const reasoning = Number.isFinite(usage?.reasoningTokens) ? usage.reasoningTokens : 0;
+        if (Number.isFinite(usage?.outputTokens)) usageDetails.output = Math.max(0, usage.outputTokens - reasoning);
+        if (reasoning > 0) usageDetails.output_reasoning_tokens = reasoning;
         generation.update({
           ...(output !== undefined && { output: toPayload(output) }),
           ...(Object.keys(usageDetails).length && { usageDetails }),
