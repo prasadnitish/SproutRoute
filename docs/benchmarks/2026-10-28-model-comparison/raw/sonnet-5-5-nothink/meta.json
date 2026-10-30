@@ -1,0 +1,15 @@
+{
+  "name": "sonnet-5-5-nothink",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5-5",
+  "effort": "low",
+  "thinking": "between_tools",
+  "price": {
+    "in": 2,
+    "out": 10
+  },
+  "note": "newest Sonnet, thinking off",
+  "startedAt": "2026-10-28T06:58:04.976Z",
+  "finishedAt": "2026-10-28T07:06:10.338Z",
+  "runnerExit": 0
+}

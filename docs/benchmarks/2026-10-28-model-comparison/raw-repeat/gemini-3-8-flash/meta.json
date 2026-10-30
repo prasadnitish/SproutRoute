@@ -1,0 +1,13 @@
+{
+  "name": "gemini-3-8-flash",
+  "provider": "gemini",
+  "model": "gemini-3.8-flash",
+  "price": {
+    "in": 0.75,
+    "out": 3.75
+  },
+  "note": "current itinerary model",
+  "startedAt": "2026-10-28T07:19:57.254Z",
+  "finishedAt": "2026-10-28T07:25:41.636Z",
+  "runnerExit": 0
+}

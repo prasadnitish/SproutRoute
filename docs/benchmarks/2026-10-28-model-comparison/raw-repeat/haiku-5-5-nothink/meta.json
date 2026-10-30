@@ -1,0 +1,15 @@
+{
+  "name": "haiku-5-5-nothink",
+  "provider": "anthropic",
+  "model": "claude-haiku-5-5",
+  "effort": "low",
+  "thinking": "disabled",
+  "price": {
+    "in": 0.1,
+    "out": 0.5
+  },
+  "note": "newest Haiku, thinking off",
+  "startedAt": "2026-10-28T07:15:27.171Z",
+  "finishedAt": "2026-10-28T07:19:56.748Z",
+  "runnerExit": 0
+}
