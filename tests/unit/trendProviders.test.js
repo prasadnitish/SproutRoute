@@ -15,6 +15,7 @@ const APIFY_ITEM = {
   commentCount: 8,
   code: "Cabc123",
   url: "https://www.instagram.com/p/Cabc123/",
+  caption: "Best day at the aquarium with the kids!",
   owner: { id: "42", username: "seattle_mom" },
   location: { id: "213131048", name: "Seattle Aquarium", lat: 47.607, lng: -122.343 },
 };
@@ -22,7 +23,7 @@ const APIFY_ITEM = {
 test("every provider normalizes to the same post shape", async () => {
   const provider = createApifyProvider({ token: "t", fetchFn: ok([APIFY_ITEM]) });
   const [post] = await provider.fetchLocationPosts({ locationId: "213131048" });
-  assert.deepEqual(Object.keys(post).sort(), ["author", "comments", "likes", "location_id", "location_name", "timestamp", "url", "views"]);
+  assert.deepEqual(Object.keys(post).sort(), ["author", "caption", "comments", "likes", "location_id", "location_name", "timestamp", "url", "views"]);
   assert.equal(post.url, "https://www.instagram.com/p/Cabc123/");
   assert.equal(post.timestamp, "2026-10-27T18:30:00.000Z");
   assert.equal(post.likes, 120);
@@ -31,6 +32,7 @@ test("every provider normalizes to the same post shape", async () => {
   assert.equal(post.author, "seattle_mom");
   assert.equal(post.location_id, "213131048");
   assert.equal(post.location_name, "Seattle Aquarium");
+  assert.equal(post.caption, "Best day at the aquarium with the kids!");
 });
 
 test("the Apify call sends the token in a header and asks for recent posts only", async () => {
@@ -73,6 +75,7 @@ const HIKER_ITEM = {
   like_count: 300, comment_count: 20, play_count: 5000,
   user: { pk: "7", username: "pnw_family" },
   location: { pk: "213131048", name: "Seattle Aquarium" },
+  caption: { text: "Family day out" },
 };
 
 test("HikerAPI posts map onto the same shape, whichever envelope the response uses", async () => {
@@ -84,6 +87,7 @@ test("HikerAPI posts map onto the same shape, whichever envelope the response us
     assert.equal(post.views, 5000);
     assert.equal(post.author, "pnw_family");
     assert.equal(post.location_id, "213131048");
+    assert.equal(post.caption, "Family day out");
     assert.equal(post.timestamp, "2026-10-28T09:00:00.000Z");
   }
 });
