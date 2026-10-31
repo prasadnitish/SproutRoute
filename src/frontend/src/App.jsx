@@ -25,7 +25,8 @@ export default function App() {
 }
 
 function PlannerApp() {
-  const geolocation = useGeolocation();
+  const geo = useGeolocation();
+  const geolocation = geo.location;
   const trip = useTrip();
   const { enrichedData, enrich } = usePlacesEnrich();
   const [showImport, setShowImport] = useState(false);
@@ -105,6 +106,7 @@ function PlannerApp() {
         {trip.screen === "input" && (
           <InputScreen
             savedProfile={savedProfile}
+            geo={geo}
             onSubmit={(arg) => {
               const text = typeof arg === "string" ? arg : arg?.text;
               const profileOverride = typeof arg === "object" ? arg?.savedProfile : null;

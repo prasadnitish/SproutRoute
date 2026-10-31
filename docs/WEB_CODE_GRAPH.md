@@ -174,7 +174,7 @@ flowchart TD
 |---|---|---|
 | App bootstrap | `src/frontend/src/main.jsx`, `src/frontend/src/App.jsx` | Mount app, choose screen, wire core hooks |
 | Trip orchestration | `src/frontend/src/hooks/useTrip.js` | Parse input, start stream, handle retries/background fetches, persist trip state |
-| Browser location | `src/frontend/src/hooks/useGeolocation.js` | Browser geolocation only; no IP fallback |
+| Browser location | `src/frontend/src/hooks/useGeolocation.js`, `components/LocationButton.jsx` | Browser geolocation only, asked once on load and again by the Use my location button; no IP fallback |
 | Activity enrichment | `src/frontend/src/hooks/usePlacesEnrich.js` | On-demand Places fetch + in-memory dedupe |
 | API client | `src/frontend/src/services/api.js` | All HTTP/SSE calls, safe response parsing, retry logic |
 | Input UI | `src/frontend/src/screens/InputScreen.jsx` | Free-text prompt, traveler tags, profile import launch |

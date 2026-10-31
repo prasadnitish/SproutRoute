@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { analytics } from "../utils/analytics.js";
 import { loadRecentTrips } from "../utils/recentTrips.js";
 import { Icon } from "../components/Icon.jsx";
+import LocationButton from "../components/LocationButton.jsx";
 
 const VIBES = [
   { key: "beach", label: "Beach trip", icon: "beach" },
@@ -55,7 +56,7 @@ function formatDates(startDate, endDate) {
   return endDate ? `${fmt(startDate)} – ${fmt(endDate)}` : fmt(startDate);
 }
 
-export default function InputScreen({ onSubmit, savedProfile }) {
+export default function InputScreen({ onSubmit, savedProfile, geo }) {
   const [text, setText] = useState(() => {
     try { return sessionStorage.getItem(SESSION_KEY) || ""; } catch { return ""; }
   });
@@ -235,13 +236,16 @@ export default function InputScreen({ onSubmit, savedProfile }) {
             placeholder="e.g. Beach week in Florida with a toddler"
           />
           <div className="flex items-center justify-between mt-2 gap-3">
-            <span className="text-[12px] text-gray-400">
-              {"\u2318"}+Enter to send
-            </span>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
+              {geo && <LocationButton status={geo.status} onRequest={geo.request} onClear={geo.clear} />}
+              <span className="text-[12px] text-gray-400">
+                {"\u2318"}+Enter to send
+              </span>
+            </div>
             <button
               onClick={() => submit()}
               disabled={!text.trim()}
-              className="inline-flex items-center gap-1.5 bg-meadow-600 hover:bg-meadow-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-4 py-2 rounded-xl shadow-sm transition cursor-pointer text-[13px]"
+              className="shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 bg-meadow-600 hover:bg-meadow-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold px-4 py-2 rounded-xl shadow-sm transition cursor-pointer text-[13px]"
             >
               Plan it <Icon name="arrowRight" size={14} />
             </button>
