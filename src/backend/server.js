@@ -41,6 +41,7 @@ import {
 import { buildShopLinks } from "./utils/affiliateLinks.js";
 import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets, sanitizeRouteIntent } from "./services/inputSafety.js";
 import { log, errorFields, requestContext } from "./utils/logger.js";
+import { createClientIpMiddleware } from "./utils/clientIp.js";
 import { createErrorHandler } from "./utils/errorHandler.js";
 import { installProcessHandlers, installShutdownHandler } from "./utils/processHandlers.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
@@ -455,6 +456,8 @@ export function createApp(deps = {}) {
   if (process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
   }
+  // Per-IP limits should count the visitor, not the Cloudflare server in front of us. See utils/clientIp.js.
+  app.use(createClientIpMiddleware());
 
   const devLog = (...args) => {
     if (process.env.NODE_ENV !== "production" && enableRequestLogging) {
@@ -2534,30 +2537,6 @@ export function createApp(deps = {}) {
       }
       log.error("photo proxy error", { error: err.message });
       res.status(500).send("Photo proxy error");
-    }
-  });
-
-  // ─── IP geolocation proxy (HTTPS — privacy-safe) ───
-  app.get("/api/v1/geo/detect", apiLimiter, async (req, res) => {
-    try {
-      const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
-      // Validate IP format before external call
-      if (!/^[\d.:a-fA-F]+$/.test(ip)) {
-        return res.json({ lat: null, lon: null, region: null });
-      }
-      const geoRes = await tracedFetch(
-        `https://ipapi.co/${encodeURIComponent(ip)}/json/`,
-        { headers: { "User-Agent": "SproutRoute/1.0" }, signal: AbortSignal.timeout(3000) }
-      );
-      if (!geoRes.ok) return res.json({ lat: null, lon: null, region: null });
-      const data = await geoRes.json();
-      res.json({
-        lat: data.latitude || null,
-        lon: data.longitude || null,
-        region: [data.city, data.region].filter(Boolean).join(", ") || null,
-      });
-    } catch {
-      res.json({ lat: null, lon: null, region: null });
     }
   });
 

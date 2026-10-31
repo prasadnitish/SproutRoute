@@ -9,7 +9,6 @@ import {
   MOCK_TRIP_PLAN,
   MOCK_PACKING_LIST,
   MOCK_SAFETY,
-  MOCK_GEO,
 } from "./trip-data";
 
 function json(body: unknown, status = 200) {
@@ -74,7 +73,6 @@ export async function mockAllApis(page: Page): Promise<void> {
   await page.route("**/api/safety/travel-tips",     (r) => r.fulfill(json(MOCK_SAFETY)));
   await page.route("**/api/safety/car-seat-check",  (r) => r.fulfill(json({})));
   await page.route("**/api/v1/safety/pet-travel-check", (r) => r.fulfill(json({})));
-  await page.route("**/api/v1/geo/detect",          (r) => r.fulfill(json(MOCK_GEO)));
   await page.route("**/api/v1/places/enrich",       (r) => r.fulfill(json(null)));
   await page.route("**/api/v1/places/photo",        (r) => r.fulfill({ status: 404, body: "" }));
 

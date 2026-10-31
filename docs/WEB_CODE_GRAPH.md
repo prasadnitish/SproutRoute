@@ -118,8 +118,7 @@ flowchart LR
     A["App mount"] --> B["useGeolocation()"]
     B --> C{"browser geolocation available?"}
     C -->|yes| D["navigator.geolocation"]
-    C -->|no / fail| E["GET /api/v1/geo/detect"]
-    E --> F["IP-based fallback region"]
+    C -->|no / denied| E["no origin coordinates"]
 ```
 
 ### Profile import
@@ -175,7 +174,7 @@ flowchart TD
 |---|---|---|
 | App bootstrap | `src/frontend/src/main.jsx`, `src/frontend/src/App.jsx` | Mount app, choose screen, wire core hooks |
 | Trip orchestration | `src/frontend/src/hooks/useTrip.js` | Parse input, start stream, handle retries/background fetches, persist trip state |
-| Browser location | `src/frontend/src/hooks/useGeolocation.js` | GPS first, IP fallback |
+| Browser location | `src/frontend/src/hooks/useGeolocation.js` | Browser geolocation only; no IP fallback |
 | Activity enrichment | `src/frontend/src/hooks/usePlacesEnrich.js` | On-demand Places fetch + in-memory dedupe |
 | API client | `src/frontend/src/services/api.js` | All HTTP/SSE calls, safe response parsing, retry logic |
 | Input UI | `src/frontend/src/screens/InputScreen.jsx` | Free-text prompt, traveler tags, profile import launch |
@@ -193,7 +192,6 @@ These are the backend routes that matter most to the browser flow today.
 
 | Frontend caller | Route | Server role | Main service dependencies |
 |---|---|---|---|
-| `useGeolocation` | `GET /api/v1/geo/detect` | IP fallback location | external `ipapi`, request sanitization in `server.js` |
 | `api.parseInput` | `POST /api/v1/trip/parse-input` | Parse natural language into trip intent | `services/parseInput.js`, reverse geocode context via Nominatim |
 | `api.streamTripPlan` | `POST /api/v1/trip/stream` | Main web planning hot path via SSE; branches to route-aware streaming for multi-stop/country trips | `geocoding.js`, `weather.js`, `tripPlanAI.js`, `itineraryScheduler.js`, `profileMerge.js`, `profileContext.js`, `routeAllocator.js`, `multiStopPlanner.js`, `attractionMemory.js` |
 | `api.getTravelSafety` | `POST /api/safety/travel-tips` | Background general safety | `services/travelSafety.js` |
