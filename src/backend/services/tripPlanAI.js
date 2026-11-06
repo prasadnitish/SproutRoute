@@ -5,6 +5,7 @@ import { log } from "../utils/logger.js";
 import { sanitizeDestination, sanitizeActivities, isAiResponseSafe } from "./inputSafety.js";
 import { buildCachedAttractionsSummary } from "./attractionMemory.js";
 import { attachGroundingToPlan, enforceOpeningHours } from "./groundedAttractions.js";
+import { buildSeasonalAccessNote, checkSeasonalAccess, filterSeasonalShortlist, seasonalAccessFor } from "./seasonalAccess.js";
 import {
   extractJsonCandidates,
 } from "../utils/aiHelpers.js";
@@ -15,6 +16,8 @@ const CHUNK_SIZE_DAYS = 3;
 const REPAIR_INPUT_MAX_CHARS = 28000;
 const MAX_QUALITY_ISSUES_IN_PROMPT = 8;
 const MIN_FAMILY_ACTIVITIES_PER_DAY = 4;
+// Short winter days with limited access: a full day can be two stops.
+const MIN_SEASONAL_ACTIVITIES_PER_DAY = 2;
 
 function sanitizeBoolean(value, fallback = false) {
   if (typeof value === "boolean") return value;
@@ -634,11 +637,14 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
   const {
     destination: rawDestination, startDate, endDate, activities: rawActivities,
     children = [], tripType = null, countryCode = "US", foodPreferences = null,
-    pets = [], plannerSummary = "", cachedAttractions = [], routeStop = null, routePlan = null, _continuationContext = "",
+    pets = [], plannerSummary = "", cachedAttractions: rawCachedAttractions = [], routeStop = null, routePlan = null, _continuationContext = "",
   } = tripData;
   const expectedDays = inclusiveDayCount(startDate, endDate);
   const maxActivities = Math.max(expectedDays * 6, 10);
   const destination = sanitizeDestination(rawDestination);
+  // Lodges closed for the season leave the shortlist, so duplicate repair can't backfill them either.
+  const seasonalAccess = seasonalAccessFor(destination, startDate, endDate);
+  const cachedAttractions = filterSeasonalShortlist(rawCachedAttractions, seasonalAccess);
   const activities = sanitizeActivities(rawActivities);
   const options = { tripType, countryCode, foodPreferences, pets, plannerSummary, cachedAttractions, routeStop, routePlan, continuationContext: _continuationContext };
   const primaryPrompt = buildTripPlanPrompt(destination, startDate, endDate, activities, children, weatherForecast, options);
@@ -662,10 +668,14 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     }
     const checked = assertTripPlanQuality(repairTripPlanDuplicates(parsed, cachedAttractions, {
       hasPets: pets.length > 0, expectedDays,
-      minimumActivitiesPerDay: children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
+      minimumActivitiesPerDay: seasonalAccess ? MIN_SEASONAL_ACTIVITIES_PER_DAY : children.length > 0 ? MIN_FAMILY_ACTIVITIES_PER_DAY : 3,
     }));
     const { tripPlan: onTime, changes } = enforceOpeningHours(checked, cachedAttractions, { startDate });
     if (changes.length) log.info("trip-plan:hours-corrected", { destination, changes: changes.slice(0, 10) });
+    if (seasonalAccess) {
+      const seasonalFailures = checkSeasonalAccess(onTime, { destination, startDate, endDate });
+      log.info("trip-plan:seasonal-access", { destination, passed: seasonalFailures.length === 0, failures: seasonalFailures.slice(0, 10) });
+    }
     const { tripPlan, stats } = attachGroundingToPlan(onTime, cachedAttractions);
     if (stats) {
       log.info("trip-plan:grounding", { destination, total: stats.total, matched: stats.matched, ratio: Number(stats.ratio.toFixed(2)), unmatched: stats.unmatched.slice(0, 8) });
@@ -888,12 +898,15 @@ export function buildTripPlanPrompt(
     foodPreferences = null,
     pets = [],
     plannerSummary = "",
-    cachedAttractions = [],
+    cachedAttractions: rawCachedAttractions = [],
     routeStop = null,
     routePlan = null,
     continuationContext = "",
   } = options;
 
+  const seasonalAccess = seasonalAccessFor(destination, startDate, endDate);
+  const cachedAttractions = filterSeasonalShortlist(rawCachedAttractions, seasonalAccess);
+  const activitiesPerDay = seasonalAccess ? "2-4" : "4-6";
   const isCruise = tripType === "cruise";
   const isInternational = countryCode && countryCode !== "US" && countryCode !== "CA";
   const isAdultsOnly = children.length === 0;
@@ -914,12 +927,12 @@ export function buildTripPlanPrompt(
 
   const sizeGuardrail = compact
     ? `**Output Size Limits (strict):**
-1. Suggest at least ${expectedDays * 4} activities total, with distinct activities for every day.
+1. Suggest at least ${expectedDays * (seasonalAccess ? 2 : 4)} activities total, with distinct activities for every day.
 2. Keep dailyItinerary to exactly ${expectedDays} day objects.
 3. Keep each activity description <= 80 characters.
 4. Keep tips to max 4 items.`
     : `**Output Rules:**
-1. Suggest 4-6 activities per day (NOT including meals). Activities should include sightseeing, tours, outdoor, cultural, and entertainment.
+1. Suggest ${activitiesPerDay} activities per day (NOT including meals). Activities should include sightseeing, tours, outdoor, cultural, and entertainment.
 2. For short city trips (2-3 days), MUST include a half-day walking/city tour as one activity that covers 4-5 landmarks in one go (e.g., "Downtown Walking Tour covering Times Square, Rockefeller Center, Grand Central, Bryant Park, and the Public Library"). This is how real families explore cities.
 3. Keep dailyItinerary to max 7 day objects.
 4. Activity descriptions: 1-2 sentences.${hasShortlist ? " For shortlisted attractions, keep descriptions brief." : ""}
@@ -997,7 +1010,7 @@ ${daySpecificShortlist}
 ` : ""}
 
 CRITICAL RULES FOR ATTRACTIONS:
-- Every suggestedActivities entry must be a place from this list. Never invent a venue. Google Maps confirms each one exists and is open.
+- Every suggestedActivities entry must be a place from this list. Never invent a venue. Google Maps confirms each one exists, and the hours shown are its regular weekly hours. They do not show seasonal closures.
 - If you need more variety, pick from different categories above. Do not add places that are not listed.
 - Keep each attraction name EXACTLY as shown above (do not rename, abbreviate, or paraphrase).
 - Do not schedule a place on a day it is closed (see "hours"), and keep to its opening hours.
@@ -1051,13 +1064,14 @@ ${routeStopContext}
 ${petContext}
 ${profileContext}
 ${attractionMemoryContext}
+${buildSeasonalAccessNote(seasonalAccess)}
 **CRITICAL Requirements (MUST follow ALL of these):**
 1. Include a mix of indoor and outdoor activities based on weather.
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
 3. Prioritise activities that match their stated interests.
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs).
 5. Be specific to the destination — only suggest REAL places that actually exist and are currently open.
-6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
+6. EVERY DAY must have ${activitiesPerDay} activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
 7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects.
 8. ${hasShortlist ? "For city trips of 1-3 days: group nearby shortlisted places into one walkable cluster per day." : `For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity.`}
 9. **ABSOLUTE RULE — NO REPEATS**: NEVER use the same activity on multiple days. Each activity ID must appear in ONLY ONE day's activities array. Before returning JSON, CHECK every day — if any activity name appears in more than one day, REPLACE the duplicate with a different attraction. Going to the same beach/park/museum twice across the trip is INVALID.
