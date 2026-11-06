@@ -1,0 +1,396 @@
+{
+ "_about": "Two itineraries from the Oct 28 model comparison for the six-day Yellowstone case, trip Dec 27 to Jan 1. Synthetic trip; place names only. Both were written as if it were summer.",
+ "tripDates": {
+  "startDate": "2026-12-27",
+  "endDate": "2027-01-01"
+ },
+ "gemini-3-8-flash": {
+  "suggestedActivities": [
+   {
+    "id": "chunk-1:old-faithful",
+    "name": "Old Faithful"
+   },
+   {
+    "id": "chunk-1:morning-glory-pool",
+    "name": "Morning Glory Pool"
+   },
+   {
+    "id": "chunk-1:black-sand-basin",
+    "name": "Black Sand Basin"
+   },
+   {
+    "id": "chunk-1:west-yellowstone-heritage-park",
+    "name": "West Yellowstone Heritage Park"
+   },
+   {
+    "id": "chunk-1:mud-volcano",
+    "name": "Mud Volcano"
+   },
+   {
+    "id": "chunk-1:grand-prismatic-spring",
+    "name": "Grand Prismatic Spring"
+   },
+   {
+    "id": "chunk-1:canyon-visitor-education-center",
+    "name": "Canyon Visitor Education Center"
+   },
+   {
+    "id": "chunk-1:grand-canyon-of-the-yellowstone",
+    "name": "Grand Canyon Of The Yellowstone"
+   },
+   {
+    "id": "chunk-1:lookout-point",
+    "name": "Lookout Point"
+   },
+   {
+    "id": "chunk-1:brink-of-lower-falls",
+    "name": "Brink of Lower Falls"
+   },
+   {
+    "id": "chunk-1:mammoth-hot-springs",
+    "name": "Mammoth Hot Springs"
+   },
+   {
+    "id": "chunk-1:yellowstone-national-park-gateway-garden",
+    "name": "Yellowstone National Park Gateway Garden"
+   },
+   {
+    "id": "chunk-1:tower-fall",
+    "name": "Tower Fall"
+   },
+   {
+    "id": "chunk-1:yellowstone-hot-springs",
+    "name": "Yellowstone Hot Springs"
+   },
+   {
+    "id": "chunk-2:kepler-cascades",
+    "name": "Kepler Cascades"
+   },
+   {
+    "id": "chunk-2:thumb-geyser",
+    "name": "Thumb Geyser"
+   },
+   {
+    "id": "chunk-2:brink-of-the-upper-falls",
+    "name": "Brink Of The Upper Falls"
+   },
+   {
+    "id": "chunk-2:excelsior-geyser-crater",
+    "name": "Excelsior Geyser Crater"
+   },
+   {
+    "id": "chunk-2:gibbon-falls",
+    "name": "Gibbon Falls"
+   },
+   {
+    "id": "chunk-2:fairy-falls",
+    "name": "Fairy Falls"
+   },
+   {
+    "id": "chunk-2:cache-yellowstone-national-park-gateway-garden-2",
+    "name": "Yellowstone National Park Gateway Garden"
+   },
+   {
+    "id": "chunk-2:cache-grand-prismatic-spring-4",
+    "name": "Grand Prismatic Spring"
+   },
+   {
+    "id": "chunk-2:cache-west-yellowstone-heritage-park-5",
+    "name": "West Yellowstone Heritage Park"
+   },
+   {
+    "id": "chunk-2:cache-yellowstone-hot-springs-3",
+    "name": "Yellowstone Hot Springs"
+   },
+   {
+    "id": "chunk-2:cache-mammoth-hot-springs-7",
+    "name": "Mammoth Hot Springs"
+   },
+   {
+    "id": "chunk-2:cache-tower-fall-16",
+    "name": "Tower Fall"
+   }
+  ],
+  "dailyItinerary": [
+   {
+    "day": "Day 1 (2026-12-27)",
+    "activities": [
+     "chunk-1:old-faithful",
+     "chunk-1:morning-glory-pool",
+     "chunk-1:black-sand-basin",
+     "chunk-1:west-yellowstone-heritage-park"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Madison Crossing Lounge"
+     }
+    }
+   },
+   {
+    "day": "Day 2 (2026-12-28)",
+    "activities": [
+     "chunk-1:grand-prismatic-spring",
+     "chunk-1:mud-volcano",
+     "chunk-1:canyon-visitor-education-center",
+     "chunk-1:grand-canyon-of-the-yellowstone",
+     "chunk-1:lookout-point"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Firehole Bar-B-Que Co."
+     }
+    }
+   },
+   {
+    "day": "Day 3 (2026-12-29)",
+    "activities": [
+     "chunk-1:yellowstone-national-park-gateway-garden",
+     "chunk-1:mammoth-hot-springs",
+     "chunk-1:tower-fall",
+     "chunk-1:yellowstone-hot-springs"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Yellowstone Mine Restaurant"
+     }
+    }
+   },
+   {
+    "day": "Day 4 (2026-12-30)",
+    "activities": [
+     "chunk-2:kepler-cascades",
+     "chunk-2:thumb-geyser",
+     "chunk-2:brink-of-the-upper-falls",
+     "chunk-2:excelsior-geyser-crater"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Madison Crossing Lounge"
+     }
+    }
+   },
+   {
+    "day": "Day 5 (2026-12-31)",
+    "activities": [
+     "chunk-2:gibbon-falls",
+     "chunk-2:fairy-falls",
+     "chunk-2:cache-yellowstone-national-park-gateway-garden-2",
+     "chunk-2:cache-grand-prismatic-spring-4"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Slippery Otter Pub"
+     }
+    }
+   },
+   {
+    "day": "Day 6 (2027-01-01)",
+    "activities": [
+     "chunk-2:cache-west-yellowstone-heritage-park-5",
+     "chunk-2:cache-yellowstone-hot-springs-3",
+     "chunk-2:cache-mammoth-hot-springs-7",
+     "chunk-2:cache-tower-fall-16"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Running Bear Pancake House"
+     }
+    }
+   }
+  ]
+ },
+ "haiku-5-5-nothink": {
+  "suggestedActivities": [
+   {
+    "id": "chunk-1:old-faithful",
+    "name": "Old Faithful"
+   },
+   {
+    "id": "chunk-1:west-yellowstone-heritage-park",
+    "name": "West Yellowstone Heritage Park"
+   },
+   {
+    "id": "chunk-1:brink-of-lower-falls",
+    "name": "Brink of Lower Falls"
+   },
+   {
+    "id": "chunk-1:morning-glory-pool",
+    "name": "Morning Glory Pool"
+   },
+   {
+    "id": "chunk-1:mud-volcano",
+    "name": "Mud Volcano"
+   },
+   {
+    "id": "chunk-1:black-sand-basin",
+    "name": "Black Sand Basin"
+   },
+   {
+    "id": "chunk-1:grand-canyon-of-the-yellowstone",
+    "name": "Grand Canyon Of The Yellowstone"
+   },
+   {
+    "id": "chunk-1:canyon-visitor-education-center",
+    "name": "Canyon Visitor Education Center"
+   },
+   {
+    "id": "chunk-1:lookout-point",
+    "name": "Lookout Point"
+   },
+   {
+    "id": "chunk-1:fairy-falls",
+    "name": "Fairy Falls"
+   },
+   {
+    "id": "chunk-1:mammoth-hot-springs",
+    "name": "Mammoth Hot Springs"
+   },
+   {
+    "id": "chunk-1:gibbon-falls",
+    "name": "Gibbon Falls"
+   },
+   {
+    "id": "chunk-1:tower-fall",
+    "name": "Tower Fall"
+   },
+   {
+    "id": "chunk-1:kepler-cascades",
+    "name": "Kepler Cascades"
+   },
+   {
+    "id": "chunk-2:yellowstone-gateway-garden",
+    "name": "Yellowstone National Park Gateway Garden"
+   },
+   {
+    "id": "chunk-2:grand-prismatic-spring",
+    "name": "Grand Prismatic Spring"
+   },
+   {
+    "id": "chunk-2:thumb-geyser",
+    "name": "Thumb Geyser"
+   },
+   {
+    "id": "chunk-2:yellowstone-hot-springs",
+    "name": "Yellowstone Hot Springs"
+   },
+   {
+    "id": "chunk-2:fairy-falls",
+    "name": "Fairy Falls"
+   },
+   {
+    "id": "chunk-2:excelsior-geyser-crater",
+    "name": "Excelsior Geyser Crater"
+   },
+   {
+    "id": "chunk-2:lewis-falls",
+    "name": "Lewis Falls"
+   },
+   {
+    "id": "chunk-2:gibbon-falls",
+    "name": "Gibbon Falls"
+   },
+   {
+    "id": "chunk-2:cache-west-yellowstone-heritage-park-5",
+    "name": "West Yellowstone Heritage Park"
+   },
+   {
+    "id": "chunk-2:cache-mammoth-hot-springs-7",
+    "name": "Mammoth Hot Springs"
+   },
+   {
+    "id": "chunk-2:cache-brink-of-the-upper-falls-13",
+    "name": "Brink Of The Upper Falls"
+   },
+   {
+    "id": "chunk-2:cache-tower-fall-16",
+    "name": "Tower Fall"
+   }
+  ],
+  "dailyItinerary": [
+   {
+    "day": "Day 1 (2026-12-27)",
+    "activities": [
+     "chunk-1:old-faithful",
+     "chunk-1:west-yellowstone-heritage-park",
+     "chunk-1:brink-of-lower-falls",
+     "chunk-1:black-sand-basin"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Bright Sky Grill"
+     }
+    }
+   },
+   {
+    "day": "Day 2 (2026-12-28)",
+    "activities": [
+     "chunk-1:morning-glory-pool",
+     "chunk-1:mud-volcano",
+     "chunk-1:canyon-visitor-education-center",
+     "chunk-1:lookout-point"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Canyon Lodge Dining Room"
+     }
+    }
+   },
+   {
+    "day": "Day 3 (2026-12-29)",
+    "activities": [
+     "chunk-1:fairy-falls",
+     "chunk-1:mammoth-hot-springs",
+     "chunk-1:gibbon-falls",
+     "chunk-1:tower-fall"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Wild Bill's Saloon"
+     }
+    }
+   },
+   {
+    "day": "Day 4 (2026-12-30)",
+    "activities": [
+     "chunk-2:yellowstone-gateway-garden",
+     "chunk-2:grand-prismatic-spring",
+     "chunk-2:thumb-geyser",
+     "chunk-2:yellowstone-hot-springs"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Grant Village Dining Room"
+     }
+    }
+   },
+   {
+    "day": "Day 5 (2026-12-31)",
+    "activities": [
+     "chunk-2:fairy-falls",
+     "chunk-2:excelsior-geyser-crater",
+     "chunk-2:lewis-falls",
+     "chunk-2:gibbon-falls"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Old Faithful Inn Dining Room"
+     }
+    }
+   },
+   {
+    "day": "Day 6 (2027-01-01)",
+    "activities": [
+     "chunk-2:cache-west-yellowstone-heritage-park-5",
+     "chunk-2:cache-mammoth-hot-springs-7",
+     "chunk-2:cache-brink-of-the-upper-falls-13",
+     "chunk-2:cache-tower-fall-16"
+    ],
+    "meals": {
+     "dinner": {
+      "name": "Lake Lodge Dining Room"
+     }
+    }
+   }
+  ]
+ }
+}
