@@ -82,11 +82,17 @@
   </section>
 
   <section>
+    <h2>App verification and free-use limits</h2>
+    <p>The iOS app uses Apple's App Attest to confirm that requests come from the genuine SproutRoute app. Our server keeps the key identifier the app generates and daily usage counts so it can enforce the free-use limits. Requests from the web app, or ones that cannot be verified, are counted under a keyed hash of the IP address, not the address itself. Usage counts are deleted after about 40 days, and a key identifier the app no longer uses is deleted after about 13 months. No Apple ID or personal identity is involved.</p>
+  </section>
+
+  <section>
     <h2>Data retention</h2>
     <ul>
       <li><strong>On-device data:</strong> remains on your device until you delete it, uninstall the app, or clear the relevant browser/app storage.</li>
       <li><strong>Trip requests processed by the backend:</strong> are processed to generate results and may appear in operational logs or reliability systems for debugging, abuse prevention, security, and service operation.</li>
       <li><strong>Shared trip links:</strong> the stored copy stops being available 7 days after the trip ends, or as soon as you stop sharing. Expired and stopped copies can remain in our database until a later cleanup removes them; they are never shown again.</li>
+      <li><strong>Usage counts for free-use limits:</strong> deleted after about 40 days; see App verification and free-use limits above.</li>
       <li><strong>Authenticated web profile data:</strong> if you use authenticated profile features, profile data and feedback remain until you delete them or request deletion.</li>
       <li><strong>Support messages:</strong> are retained as needed to respond to the request, maintain records, and comply with legal obligations.</li>
     </ul>
