@@ -152,6 +152,7 @@ test("an IP without device headers gets 5 plans a day, then a 429 in the standar
     resetAt: new Date(Date.UTC(new Date(T0).getUTCFullYear(), new Date(T0).getUTCMonth(), new Date(T0).getUTCDate() + 1)).toISOString(),
     retryable: false,
     category: "quota",
+    quota: "plan",
     requestId: "req-1",
   });
   assert.ok(Number(res.headers["retry-after"]) > 0);

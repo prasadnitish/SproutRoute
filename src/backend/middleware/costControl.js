@@ -254,7 +254,7 @@ export function createCostControl({
     const category = KINDS[kind];
     const noun = NOUNS[category];
     const quota = (code, limit, resetAt, sentence) => ({
-      status: 429, resetAt, body: { code, message: sentence, limit, resetAt, retryable: false, category: "quota" },
+      status: 429, resetAt, body: { code, message: sentence, limit, resetAt, retryable: false, category: "quota", quota: category },
     });
     if (deniedRoles.has("device-month")) {
       const limit = config.limits.device[category].month;

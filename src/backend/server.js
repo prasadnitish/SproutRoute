@@ -789,7 +789,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/api/trip-plan", aiLimiter, async (req, res) => {
+  app.post("/api/trip-plan", aiLimiter, meter("plan"), async (req, res) => {
     // Generates itinerary + weather context; activities are optional at this stage.
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1457,7 +1457,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/plan
-  app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
     const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -2071,7 +2071,7 @@ export function createApp(deps = {}) {
   // Regenerates ONLY the trip itinerary (no geocoding or weather fetch).
   // Used when the user customizes activities after the initial plan is generated.
   // Requires: destination, startDate, endDate, activities, children, weather (cached).
-  app.post("/api/v1/trip/replan", optionalAuth, aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/replan", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
     const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
