@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react';
 import ResultsScreen from './ResultsScreen.jsx';
 import { getTripShare, revokeTripShare } from '../services/api.js';
 import { loadJSON } from '../utils/storage.js';
-import { SHARE_PRIVACY_NOTICE, shareOwnerKey, forgetShareOwner, formatShareExpiry } from '../utils/tripShare.js';
+import { SHARE_PRIVACY_NOTICE, shareOwnerKey, forgetShareOwner, formatShareExpiry, APP_STORE_URL, planYourOwnHref } from '../utils/tripShare.js';
+
+function GetTheApp() {
+  return <section aria-label="Get SproutRoute" className="mt-3 flex flex-col gap-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <p className="text-sm text-meadow-900">Planned with SproutRoute, a free family trip planner for iPhone.</p>
+    <a href={APP_STORE_URL} className="inline-flex shrink-0 items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">Get it on the App Store</a>
+  </section>;
+}
 
 export default function SharedTripScreen() {
   const [shared, setShared] = useState(null);
@@ -41,7 +48,7 @@ export default function SharedTripScreen() {
   return <div className="min-h-screen bg-[#f9fafb] font-body">
     <nav className="border-b border-gray-200 bg-white px-4 py-3"><div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
       <a href="/" className="font-bold text-meadow-700">SproutRoute</a>
-      <a href="/" className="text-sm font-semibold text-meadow-700 underline">Plan your own trip</a>
+      <a href={planYourOwnHref()} className="text-sm font-semibold text-meadow-700 underline">Plan your own trip</a>
     </div></nav>
     <main className="mx-auto max-w-5xl">
       <section className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -51,7 +58,7 @@ export default function SharedTripScreen() {
       </section>
       {error && <p role="alert" className="m-4 rounded-xl border border-red-200 bg-red-50 p-4 text-red-900">{error}</p>}
       {!shared && !error && <p role="status" className="p-6 text-gray-600">Opening shared itinerary…</p>}
-      {shared && <ResultsScreen readOnly tripData={shared.snapshot.tripData} parsedInput={shared.snapshot.tripData.parsed} progress={{ itinerary: 'done', weather: 'done' }} steps={[]} />}
+      {shared && <ResultsScreen readOnly belowHeader={<GetTheApp />} tripData={shared.snapshot.tripData} parsedInput={shared.snapshot.tripData.parsed} packingList={shared.snapshot.tripData.packingList || null} progress={{ itinerary: 'done', weather: 'done' }} steps={[]} />}
     </main>
   </div>;
 }
