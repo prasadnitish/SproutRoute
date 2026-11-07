@@ -108,6 +108,45 @@ Limits: the rule against invented venues is in the prompt and measured, not enfo
 row is flagged `grounded: false` and kept. Meals are still chosen by the model. Hours are the weekly pattern
 Google returns, not holiday exceptions.
 
+## Trend layer (Part C)
+
+`scripts/run-trend-job.ts` scores which attractions are being posted about now. Code and migration 031 are in
+place; nothing has run against production.
+
+1. Apply `20261029_031_trend_layer.sql` (adds `city_seeds`, `trend_posts`, and two `refresh_log` change types).
+2. Add seeds for a city. A seed is an Instagram location id or a hashtag. Example for Seattle:
+
+   ```sql
+   insert into city_seeds (city_id, kind, value, label)
+   select id, 'location', v.value, v.label
+   from cities, (values ('141795792557', 'Seattle Aquarium'), ('86493431461', 'Pike Place Market'), ('88603851976', 'Space Needle')) as v(value, label)
+   where city_name = 'Seattle' and country_code = 'US';
+   ```
+3. Set `TREND_PROVIDER` (`apify` or `hikerapi`) with its key, and `TREND_AUTHOR_SALT` (any private random string).
+4. Dry run, then apply:
+
+   ```bash
+   railway run --service SproutRoute -- node scripts/run-trend-job.ts --city Seattle
+   railway run --service SproutRoute -- node scripts/run-trend-job.ts --city Seattle --apply
+   ```
+5. Weekly cron: `node scripts/run-trend-job.ts --apply`.
+
+What it does: fetches the last 7 days of posts per seed; drops giveaway, ad and real-estate posts; groups posts
+by location (captions are used only for posts with no location); asks Claude Haiku 5.5 which venues a family
+could visit; resolves new venues through Google Places; links them to an existing row by place id or adds a
+`source_type = 'trending'` row; stores the post link, time, counts, an HMAC of the author and the place (never
+captions or handles); and writes `trend_score` and `trend_updated_at`. A venue with no new posts loses half its
+score per whole week since `trend_decayed_at` (the decay checkpoint). `trend_updated_at` stays the date of the last
+real observation, so decay cannot make old activity look fresh, and a venue is not marked trending after 14 days
+(`isTrending`). If any
+fetch or the classifier fails for a city, that city's scores are left alone that week.
+
+Re-running with the same data changes nothing (posts keyed by link, venues by place id, mapped venues are not
+looked up or classified again, decay is measured from when the score was set). At most 20 new venues are
+resolved per city per run, so Google cost is bounded at about $0.04 per new venue.
+
+HikerAPI's location endpoint was verified live on 2026-10-28 (see `docs/trend-providers.md`); its hashtag endpoint was not.
+
 ## Not done yet
 
-- Part C: trending layer.
+- Trend seeds for any city, and a first production run.

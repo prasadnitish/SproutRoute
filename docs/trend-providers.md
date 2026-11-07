@@ -33,9 +33,29 @@ So Apify is not meaningfully more expensive at this scale. The difference only m
 - Scoring (`scoring.js`): velocity `(likes + 2*comments + views/50) / hours since post`, weighted by distinct
   authors and week-over-week change, halved each week without new posts.
 
-**Unverified until the first live call.** The HikerAPI paths and field names come from its MCP tool names and the
-Instagram-client convention, because its Swagger page could not be read. The adapter accepts several response
+**Verified on 2026-10-28 for locations.** The HikerAPI paths and field names came from its MCP tool names and the
+Instagram-client convention because its Swagger page could not be read; the first live location call matched them.
+The hashtag endpoint is still unverified. The adapter accepts several response
 shapes, and `--save-raw` keeps every raw response so the mapping can be corrected from real data.
+
+## Measured on 2026-10-28 (3 Seattle places, limit 50, last 7 days)
+
+| Place | Provider | Posts | Newest | Median age | Views | Cost |
+|---|---|---|---|---|---|---|
+| Seattle Aquarium | Apify | 50 | 0.4 h | 62 h | none | $0.025 |
+| Seattle Aquarium | HikerAPI | 50 | 0.4 h | 62 h | yes | $0.0006 |
+| Pike Place Market | Apify | 50 | 0 h | 8.8 h | none | $0.025 |
+| Pike Place Market | HikerAPI | 50 | 0 h | 8.8 h | yes | $0.0006 |
+| Space Needle | Apify | 50 | 0.3 h | 35 h | none | $0.025 |
+| Space Needle | HikerAPI | 50 | 0.3 h | 35 h | yes | $0.0006 |
+
+- The HikerAPI location endpoint, header and field mapping worked on the first live call: one request returned 50
+  posts with time, counts, views, author and location. The two providers returned the same posts (overlap 100%,
+  100% and 96%). The hashtag endpoint was not tested.
+- HikerAPI is about 40 times cheaper per call and the only one with view counts. Use it as `TREND_PROVIDER`.
+- **A 50-post limit is not a week for busy places.** At Pike Place Market the median post is under 9 hours old, so
+  50 posts cover about a day. The job now asks for up to 200 posts per seed within 7 days; HikerAPI pages until it
+  reaches the window or the limit.
 
 ## To run the test
 
