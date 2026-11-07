@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createApp } from "../../src/backend/server.js";
+import { createCostControl, readCostControlConfig } from "../../src/backend/middleware/costControl.js";
 import { daysFromNow } from "../helpers/testDates.js";
 
 const ORIGINAL_API_KEY = process.env.ANTHROPIC_API_KEY;
@@ -282,7 +283,9 @@ test("POST /api/generate uses the deterministic packing generator by default", a
 
 test("AI routes allow 50 requests per hour from one IP", async () => {
   process.env.ANTHROPIC_API_KEY = "test-key";
-  const app = createApp({ enableRequestLogging: false });
+  // The persistent daily quotas (20 parse-input calls per IP) would answer first; this test is about the burst limiter.
+  const costControl = createCostControl({ config: { ...readCostControlConfig({}), enabled: false } });
+  const app = createApp({ enableRequestLogging: false, costControl });
   const server = await listen(app);
 
   try {

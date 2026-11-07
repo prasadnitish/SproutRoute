@@ -145,6 +145,11 @@ export function createAiAlerts({
       await send({ kind: "http_5xx", text: `${errorTimes.length} server errors in the last 5 minutes, latest on ${path}. Search the logs for level "error".` });
     },
 
+    // Other once-per-condition alerts (the daily spend cap in middleware/costControl.js). Callers dedupe.
+    async notify({ kind, text }) {
+      await send({ kind, text });
+    },
+
     // Used by scripts/send-test-alert.mjs to prove the email path end to end.
     async sendTest() {
       if (!emailConfigured()) return { sent: false, reason: "RESEND_API_KEY and ALERT_EMAIL_TO must both be set" };

@@ -55,6 +55,7 @@ import { fetchPlacePhoto, readBoundedResponseBody } from "./services/photoProxy.
 import { saveTripFeedback } from "./services/feedbackStore.js";
 import { createTripShareStore } from "./services/tripShareStore.js";
 import { mountTripShareRoutes } from "./routes/tripShares.js";
+import { createCostControl } from "./middleware/costControl.js";
 
 const parseInput = tracing.wrap('tool.parseInput', raw_parseInput);
 
@@ -420,6 +421,7 @@ export function createApp(deps = {}) {
     attractionMemoryService = createAttractionMemoryService(),
     groupTripStore = createGroupTripStore(),
     tripShareStore = createTripShareStore(),
+    costControl = createCostControl(),
     getSupabaseAdminFn = getSupabaseAdmin,
     healthTimeoutMs = 2000,
     enableRequestLogging = process.env.NODE_ENV !== "test",
@@ -486,7 +488,8 @@ export function createApp(deps = {}) {
 
   // Enforce reasonable request body size limits while allowing multi-city route review payloads.
   app.use('/api/v1/trip/shares', express.json({ limit: '160kb' }));
-  app.use(express.json({ limit: "64kb" }));
+  // Keep the exact body bytes: App Attest assertions on metered routes sign a hash of them.
+  app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ limit: "64kb", extended: false }));
   // Opt-in eval traces for synthetic golden-set runs (needs the parsed body).
   app.use(evalCapture.middleware);
@@ -519,7 +522,8 @@ export function createApp(deps = {}) {
       const ms = Date.now() - start;
       log.info("req:end", { reqId, method: req.method, path: req.path, status: res.statusCode, ms });
       metrics.recordRequest({ method: req.method, path: req.path, status: res.statusCode, ms, reqId });
-      aiAlerts.recordResponse({ status: res.statusCode, path: req.route?.path ?? req.path });
+      // A 503 from the daily spend cap is intended, not a server error.
+      if (!res.locals.costControlRejected) aiAlerts.recordResponse({ status: res.statusCode, path: req.route?.path ?? req.path });
     });
     requestContext.run({ reqId }, next);
   });
@@ -604,6 +608,18 @@ export function createApp(deps = {}) {
   }
 
   mountTripShareRoutes(app, { store: tripShareStore, createLimiter: groupTripCreateLimiter, readLimiter: apiLimiter });
+
+  // App Attest registration: an app install asks for a challenge and attests its key once.
+  const deviceLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { code: "RATE_LIMITED", message: "Too many requests. Please try again in 15 minutes.", category: "rate_limit", retryable: true },
+  });
+  costControl.mountDeviceRoutes(app, { limiter: deviceLimiter });
+  // Persistent per-device / per-IP quotas and the daily spend cap, after the burst limiters.
+  const meter = costControl.meter;
   app.use('/s', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -1028,7 +1044,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/safety/travel-tips — AI-generated travel safety for any destination
-  app.post("/api/safety/travel-tips", aiLimiter, async (req, res) => {
+  app.post("/api/safety/travel-tips", aiLimiter, meter("tips"), async (req, res) => {
     try {
       const destination = sanitizeString(req.body?.destination || "", 120);
       // Sanitize childrenAges to prevent prompt injection (only allow numbers 0-18)
@@ -1560,7 +1576,7 @@ export function createApp(deps = {}) {
   // POST /api/v1/trip/bundle
   // Single endpoint: geocode once → weather once → trip plan + packing list in parallel.
   // Eliminates redundant geocoding + weather round-trip, runs AI calls concurrently.
-  app.post("/api/v1/trip/bundle", optionalAuth, aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/bundle", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
     const requestId = req.reqId || crypto.randomUUID();
     const timings = {};
     try {
@@ -1712,7 +1728,7 @@ export function createApp(deps = {}) {
   // Events: destination → weather → itinerary-chunk → done
   // Packing is loaded after the itinerary so the first useful result is not blocked.
   // No batch enrichment — frontend enriches on-demand via usePlacesEnrich.
-  app.post("/api/v1/trip/stream", optionalAuth, aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/stream", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -2156,7 +2172,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/packing
-  app.post("/api/v1/trip/packing", optionalAuth, aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/packing", optionalAuth, aiLimiter, meter("packing"), async (req, res) => {
     const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -2429,7 +2445,7 @@ export function createApp(deps = {}) {
   });
 
   // ─── Parse natural language trip input ───
-  app.post("/api/v1/trip/parse-input", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/parse-input", aiLimiter, meter("parse"), async (req, res) => {
     const t0 = Date.now();
     const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
     try {
@@ -2497,7 +2513,7 @@ export function createApp(deps = {}) {
   });
 
   // ─── Enrich activity with Google Places data ───
-  app.post("/api/v1/places/enrich", apiLimiter, async (req, res) => {
+  app.post("/api/v1/places/enrich", apiLimiter, meter("places"), async (req, res) => {
     try {
       const activityName = sanitizeString(req.body?.activityName || "", 100);
       const enrichDest = sanitizeString(req.body?.destination || "", 120);
@@ -2515,7 +2531,7 @@ export function createApp(deps = {}) {
   });
 
   // ─── Proxy Google Places photo (keeps API key server-side) ───
-  app.get("/api/v1/places/photo", apiLimiter, async (req, res) => {
+  app.get("/api/v1/places/photo", apiLimiter, meter("photo"), async (req, res) => {
     try {
       const ref = req.query.ref;
       const apiKey = process.env.GOOGLE_PLACES_API_KEY;
