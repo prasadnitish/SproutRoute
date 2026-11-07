@@ -154,7 +154,7 @@ function PlannerApp() {
         onClose={() => setShowImport(false)}
         onSaved={(profile) => setSavedProfile(profile)}
       />
-      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
+      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} packingList={trip.packingList} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
       <AnalyticsConsent />
     </div>
   );

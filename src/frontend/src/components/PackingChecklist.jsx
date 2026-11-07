@@ -3,6 +3,8 @@
 // - Persists progress to localStorage across refreshes.
 // - Uses content-hash item IDs so check state survives list regeneration.
 // - Lets users add custom items per category (stored in localStorage).
+// - readOnly (shared links): checks live only in this page, no custom items,
+//   and the viewer's own saved checks are left untouched.
 import { useState, useEffect, useMemo } from "react";
 import {
   filterCheckedItems,
@@ -44,10 +46,10 @@ function ShopPanel({ shopLinks }) {
   );
 }
 
-export default function PackingChecklist({ packingList, onUpdate }) {
+export default function PackingChecklist({ packingList, onUpdate, readOnly = false }) {
   const [checkedItems, setCheckedItems] = useState(new Set());
   const [collapsedCategories, setCollapsedCategories] = useState(() => new Set());
-  const [customItems, setCustomItems] = useState(() => loadCustomItems());
+  const [customItems, setCustomItems] = useState(() => (readOnly ? {} : loadCustomItems()));
   const [addInputs, setAddInputs] = useState({});
   const [expandedShop, setExpandedShop] = useState(null);
   const [initializedCollapse, setInitializedCollapse] = useState(false);
@@ -80,6 +82,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
 
   // Load saved checks
   useEffect(() => {
+    if (readOnly) return;
     const saved = localStorage.getItem("sproutroute_checked");
     if (saved) {
       try {
@@ -90,7 +93,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
         console.error("Failed to load checked items:", err);
       }
     }
-  }, [validItemIds]);
+  }, [validItemIds, readOnly]);
 
   // F8: auto-collapse a category when every item in it has been checked off
   useEffect(() => {
@@ -123,7 +126,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
       setExpandedShop(null);
     }
     setCheckedItems(newChecked);
-    localStorage.setItem("sproutroute_checked", JSON.stringify([...newChecked]));
+    if (!readOnly) localStorage.setItem("sproutroute_checked", JSON.stringify([...newChecked]));
     if (onUpdate) onUpdate(newChecked);
   };
 
@@ -356,7 +359,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                     );
                   })}
 
-                  <div className="flex gap-2 pt-2 print:hidden">
+                  {!readOnly && <div className="flex gap-2 pt-2 print:hidden">
                     <input
                       type="text"
                       value={addInputs[category.name] || ""}
@@ -376,7 +379,7 @@ export default function PackingChecklist({ packingList, onUpdate }) {
                     >
                       + Add
                     </button>
-                  </div>
+                  </div>}
                 </div>
               )}
             </div>

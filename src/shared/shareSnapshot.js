@@ -7,6 +7,7 @@ const STOP = ['id', 'name', 'displayName', 'countryCode', 'regionCode', 'lat', '
 const WEATHER = ['date', 'name', 'high', 'low', 'temp', 'condition', 'precipitation', 'precipitationChance', 'icon', 'unit'];
 const ROUTE_META = ['orderedBy', 'mappedStopCount', 'totalDistanceMiles', 'totalTravelMinutes', 'inputDistanceMiles', 'optimizedDistanceMiles'];
 const MAX_BYTES = 128 * 1024;
+const PACKING_LIMITS = { categories: 30, items: 100, chars: 120 };
 
 function pick(value, keys) {
   const out = {};
@@ -53,6 +54,22 @@ function weather(value) {
   return { ...pick(value, ['summary', 'source', 'unitSystem']), forecast: list(Array.isArray(value) ? value : value?.forecast, item => pick(item, WEATHER)) };
 }
 
+function packingText(value) {
+  return typeof value === 'string' ? value.trim().slice(0, PACKING_LIMITS.chars) : '';
+}
+
+// Names and quantities only: reasons, sources, shop links and check marks stay private.
+function packingList(value) {
+  if (!Array.isArray(value?.categories)) return null;
+  const categories = value.categories.slice(0, PACKING_LIMITS.categories).map(category => ({
+    name: packingText(category?.name),
+    items: (Array.isArray(category?.items) ? category.items : []).slice(0, PACKING_LIMITS.items)
+      .map(item => ({ name: packingText(item?.name), quantity: packingText(item?.quantity) }))
+      .filter(item => item.name),
+  })).filter(category => category.name && category.items.length);
+  return categories.length ? { categories } : null;
+}
+
 export function buildSharedTripSnapshot(data) {
   const plan = data?.tripPlan || {};
   const scheduled = list(data?.scheduledItinerary, day);
@@ -76,6 +93,8 @@ export function buildSharedTripSnapshot(data) {
     };
     tripData.stopWeather = Object.fromEntries(tripData.routePlan.stops.map(stop => [stop.id, weather(data?.stopWeather?.[stop.id])]));
   }
+  const packing = packingList(data?.packingList);
+  if (packing) tripData.packingList = packing;
   const snapshot = { schemaVersion: 1, tripData };
   if (new TextEncoder().encode(JSON.stringify(snapshot)).length > MAX_BYTES) throw Object.assign(new Error('This itinerary is too large to share.'), { code: 'SHARE_INVALID' });
   return snapshot;
