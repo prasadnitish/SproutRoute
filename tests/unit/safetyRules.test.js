@@ -81,6 +81,21 @@ test("getCarSeatGuidance falls back to age-based status when metrics are missing
   );
 });
 
+test("getCarSeatGuidance names every stage an age fits when weight and height are missing", async () => {
+  // California's harness stage (24-95 months) overlaps its booster stage (48+ months), so a
+  // 7-year-old with no weight could be in either. Picking the first match said "harness" only.
+  const result = await getCarSeatGuidance({
+    destination: "San Diego, California",
+    children: [{ id: "child-1", age: 7 }],
+  });
+
+  const row = result.results[0];
+  assert.equal(row.status, "Needs review");
+  assert.equal(row.requiredRestraint, "forward_facing_harness");
+  assert.equal(row.requiredRestraintLabel, "Forward-facing seat with harness or booster seat, depending on weight and height");
+  assert.match(row.rationale, /weight\/height details are incomplete/);
+});
+
 test("getCarSeatGuidance can use AI fallback for unsupported jurisdictions", async () => {
   // Use a fictitious jurisdiction code "XX" which is not in CAR_SEAT_RULES,
   // so the AI research fallback path is exercised.

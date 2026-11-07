@@ -177,14 +177,16 @@ function extractPrecipitationChance(forecast) {
 }
 
 // Creates a compact summary sentence for fast UI reading and AI prompt context.
-function generateWeatherSummary(forecast) {
+export function generateWeatherSummary(forecast) {
   if (!forecast || forecast.length === 0) {
     return "Weather data unavailable";
   }
 
-  const temps = forecast.map((f) => f.high).filter(Boolean);
+  const temps = forecast.map((f) => f.high).filter(Number.isFinite);
   if (temps.length === 0) return "Weather data unavailable";
-  const minTemp = Math.min(...temps);
+  // The low end comes from daily lows; using highs for both ends read "between 62°F and 62°F".
+  const lows = forecast.map((f) => f.low).filter(Number.isFinite);
+  const minTemp = Math.min(...(lows.length > 0 ? lows : temps));
   const maxTemp = Math.max(...temps);
 
   const avgPrecip =

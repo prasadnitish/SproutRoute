@@ -162,13 +162,16 @@ export async function getVisualCrossingForecast(lat, lon, options = {}) {
 /**
  * Build a compact summary sentence from the daily forecast array.
  */
-function generateVcSummary(forecast) {
+export function generateVcSummary(forecast) {
   if (!forecast || forecast.length === 0) {
     return "Weather data unavailable";
   }
 
-  const temps = forecast.map((f) => f.high).filter(Boolean);
-  const minTemp = Math.min(...temps);
+  const temps = forecast.map((f) => f.high).filter(Number.isFinite);
+  if (temps.length === 0) return "Weather data unavailable";
+  // The low end comes from daily lows; using highs for both ends read "between 62°F and 62°F".
+  const lows = forecast.map((f) => f.low).filter(Number.isFinite);
+  const minTemp = Math.min(...(lows.length > 0 ? lows : temps));
   const maxTemp = Math.max(...temps);
 
   const avgPrecip =
