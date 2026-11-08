@@ -78,6 +78,8 @@ export async function refreshAttractions({
     .from("city_attractions")
     .select("id, canonical_name, google_place_id, status, rating, last_verified_at, family_fit_json, cities(city_name, display_name, lat, lon)");
   if (cityId) query = query.eq("city_id", cityId);
+  // Curated rows placed through Wikidata keep their own coordinates; only rows tied to Google are re-checked there.
+  query = query.or("google_place_id.not.is.null,wikidata_id.is.null");
   const { data, error } = await query
     .order("last_verified_at", { ascending: true, nullsFirst: true })
     .limit(limit);

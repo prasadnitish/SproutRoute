@@ -31,7 +31,7 @@ function fakeAdmin(rows, { failUpdateFor = new Set() } = {}) {
       if (table === "city_attractions") {
         return {
           select() {
-            const q = { eq(col, value) { state.filter = { col, value }; return q; }, order() { return q; }, limit(n) { state.selects.push(n); return Promise.resolve({ data: [...state.rows].sort((a, b) => String(a.last_verified_at ?? "").localeCompare(String(b.last_verified_at ?? ""))).filter((r) => !state.filter || r[state.filter.col] === state.filter.value).slice(0, n), error: null }); } };
+            const q = { eq(col, value) { state.filter = { col, value }; return q; }, or(expr) { state.or = expr; return q; }, order() { return q; }, limit(n) { state.selects.push(n); return Promise.resolve({ data: [...state.rows].sort((a, b) => String(a.last_verified_at ?? "").localeCompare(String(b.last_verified_at ?? ""))).filter((r) => !state.filter || r[state.filter.col] === state.filter.value).filter((r) => !state.or || r.google_place_id != null || r.wikidata_id == null).slice(0, n), error: null }); } };
             return q;
           },
           update(fields) {
@@ -188,6 +188,13 @@ test("a refresh can be limited to one city", async () => {
   await run(admin, { cityId: "seattle", resolveFn: async () => { seen.push(1); return { status: "error" }; } });
   assert.equal(seen.length, 1);
   assert.deepEqual(admin.state.filter, { col: "city_id", value: "seattle" });
+});
+
+test("curated rows placed through Wikidata are never sent to Google Places", async () => {
+  const admin = fakeAdmin([row({ id: "g1" }), row({ id: "w1", google_place_id: null, wikidata_id: "Q1" }), row({ id: "m1", google_place_id: null })]);
+  const seen = [];
+  await run(admin, { resolveFn: async (target) => { seen.push(target); return { status: "error" }; } });
+  assert.equal(seen.length, 2, "the Google row and the unplaced model row are checked; the Wikidata row is not");
 });
 
 test("a corrected place id is written and the replacement is logged", async () => {
