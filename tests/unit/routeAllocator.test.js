@@ -88,3 +88,25 @@ test("buildRouteStopId creates stable safe identifiers", () => {
   assert.equal(buildRouteStopId("Sao Paulo, Brazil", 0), "sao-paulo-brazil");
   assert.equal(buildRouteStopId("", 2), "stop-3");
 });
+
+test("allocateRoute keeps per-city day requests when they add up to the trip length", () => {
+  // "4 days in Orlando and 3 days in Miami" from Dec 22: 7 days, 6 nights. The last city gives up
+  // the extra night, so Orlando keeps Dec 22-25 and Miami gets Dec 26-28.
+  const route = allocateRoute({
+    tripShape: "multi_stop",
+    destination: "Orlando and Miami",
+    startDate: "2026-12-22",
+    endDate: "2026-12-28",
+    childrenAges: [6],
+    stops: [
+      { name: "Orlando, FL", role: "must_visit", requestedNights: 4 },
+      { name: "Miami, FL", role: "must_visit", requestedNights: 3 },
+    ],
+  });
+
+  assert.deepEqual(route.stops.map((stop) => stop.nights), [4, 2]);
+  assert.equal(route.stops[0].arrivalDate, "2026-12-22");
+  assert.equal(route.stops[0].departureDate, "2026-12-26");
+  assert.equal(route.stops[1].arrivalDate, "2026-12-26");
+  assert.equal(route.stops[1].departureDate, "2026-12-28");
+});

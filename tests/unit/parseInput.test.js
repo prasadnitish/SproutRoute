@@ -366,4 +366,37 @@ describe("parseInput", () => {
     assert.equal(result.startDate, "2026-06-01");
     assert.equal(result.endDate, "2026-06-05");
   });
+
+  const twoCityAI = (endDate) => async () => JSON.stringify({
+    destination: "Orlando, FL and Miami, FL, USA",
+    suggestedDestinations: [],
+    startDate: "2026-12-22",
+    endDate,
+    adults: 2,
+    childrenAges: [6],
+    tripShape: "multi_stop",
+    stops: [
+      { name: "Orlando, FL", role: "must_visit", requestedNights: 4 },
+      { name: "Miami, FL", role: "must_visit", requestedNights: 3 },
+    ],
+    countryTour: null,
+  });
+
+  it("adds up the days asked for in each city", async () => {
+    const text = "4 days in Orlando and 3 days in Miami from dec 22 onwards. 2 adults and one child 6 years old";
+    // Whatever end date the model returns, the trip is 4 + 3 = 7 days: Dec 22 to Dec 28.
+    for (const modelEnd of ["2026-12-25", "2026-12-28", "2026-12-29"]) {
+      const result = await parseInput(text, { clientDate: "2026-11-07", callAI: twoCityAI(modelEnd) });
+      assert.equal(result.startDate, "2026-12-22");
+      assert.equal(result.endDate, "2026-12-28", `model end ${modelEnd}`);
+    }
+  });
+
+  it("counts a week alongside days in another city", async () => {
+    const result = await parseInput("a week in Orlando and 3 days in Miami from dec 22", {
+      clientDate: "2026-11-07",
+      callAI: twoCityAI("2026-12-24"),
+    });
+    assert.equal(result.endDate, "2026-12-31");
+  });
 });

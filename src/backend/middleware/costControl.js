@@ -304,6 +304,11 @@ export function createCostControl({
           cacheDevice(identity.keyId, { ...identity.device, signCount: identity.signCount });
         }
         req.costControl = { identity: identity.type, reason: identity.reason, degraded: Boolean(result.degraded) };
+        if (identity.reason) {
+          logger.warn("cost-control:device-fallback", { kind, reason: identity.reason });
+        } else if (identity.type === "ip" && /^SproutRoute-iOS\//.test(req.get("user-agent") || "")) {
+          logger.info("cost-control:ios-unsigned", { kind });
+        }
         checkSpend(items, result.rows, t);
         rejection = denial(items, result.rows, kind, t);
         if (rejection) {

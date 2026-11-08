@@ -190,6 +190,18 @@ function extractRequestedDayCount(text) {
     new RegExp(`(?:^|\\b)${numberPattern}[-\\s]*day\\s+(?:trip|vacation|visit|getaway|holiday)\\b`, "i"),
   ];
 
+  // "4 days in Orlando and 3 days in Miami" asks for 7 days, not the first number.
+  const segment = new RegExp(`(?:^|\\b)(a|${numberPattern})[-\\s]+(days?|weeks?)\\s+(?:in|at|around|through)\\b`, "gi");
+  const segmentDays = [...input.matchAll(segment)].map((match) => {
+    const unit = match[3].startsWith("week") ? 7 : 1;
+    const count = match[1] === "a" ? (unit === 7 ? 1 : null) : parseDayCountToken(match[1]);
+    return count ? count * unit : null;
+  });
+  if (segmentDays.length > 1 && segmentDays.every(Boolean)) {
+    const total = segmentDays.reduce((sum, days) => sum + days, 0);
+    if (total <= 21) return total;
+  }
+
   for (const pattern of patterns) {
     const match = input.match(pattern);
     const count = parseDayCountToken(match?.[1]);
