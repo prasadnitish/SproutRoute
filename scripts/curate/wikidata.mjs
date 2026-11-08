@@ -48,10 +48,26 @@ const coord = (e) => {
 };
 const names = (e, hit) => [hit.label, ...(hit.aliases ?? []), e?.labels?.en?.value, ...((e?.aliases?.en ?? []).map((a) => a.value))].filter(Boolean);
 
+// Territories that Wikidata files under a parent country.
+const PARENT = { BM: "GB", BQ: "NL", CW: "NL", SX: "NL", AW: "NL", HK: "CN", MO: "CN", PR: "US", VI: "US", GU: "US", KY: "GB", TC: "GB", VG: "GB", GP: "FR", MQ: "FR", RE: "FR", PF: "FR", NC: "FR" };
+const isoCache = {};
+async function isoOf(countryId) {
+  if (!(countryId in isoCache)) isoCache[countryId] = (await entities([countryId]))[countryId]?.claims?.P297?.[0]?.mainsnak?.datavalue?.value ?? null;
+  return isoCache[countryId];
+}
+// The first hit with coordinates that lies in the destination's country (Bruges, Belgium, not Bruges, Gironde).
 async function center(dest) {
+  const want = new Set([dest.country_code, PARENT[dest.country_code]].filter(Boolean));
   for (const hit of await search(dest.destination)) {
-    const c = coord((await entities([hit.id]))[hit.id]);
-    if (c) return { ...c, id: hit.id };
+    const e = (await entities([hit.id]))[hit.id];
+    const c = coord(e);
+    if (!c) continue;
+    const countries = (e?.claims?.P17 ?? []).map((s) => s.mainsnak?.datavalue?.value?.id).filter(Boolean);
+    if (dest.country_code && countries.length) {
+      const isos = await Promise.all(countries.map(isoOf));
+      if (!isos.some((x) => want.has(x))) continue;
+    }
+    return { ...c, id: hit.id };
   }
   return null;
 }

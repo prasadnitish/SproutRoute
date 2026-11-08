@@ -82,6 +82,7 @@ for (const a of attractions) (byCity.get(a.city_id) ?? byCity.set(a.city_id, [])
 const stats = { citiesMatched: 0, citiesNew: 0, citiesSkipped: [], inserts: 0, insertsWithCoords: 0, updates: 0, updatesGainingCoords: 0,
   closedSkipped: 0, retired: 0, renamed: 0, paused: 0 };
 const cityInserts = [], cityUpdates = [], rowInserts = [], rowUpdates = [];
+const taken = new Set();
 
 for (const file of readdirSync(here("./results/"))) {
   const slug = file.slice(0, -5);
@@ -134,7 +135,11 @@ for (const file of readdirSync(here("./results/"))) {
     if (name !== place.canonical_name) stats.renamed += 1;
     const paused = checked && verdict.status === "closed_temporarily";
     if (paused) stats.paused += 1;
-    const geo = coordsByName.get(place.canonical_name);
+    // Places matched without a city centre had no distance limit; drop any that sit far from the city.
+    const found = coordsByName.get(place.canonical_name);
+    const tooFar = found && km(center, found) > Math.max(60, (place.km_from_center || 0) * 1.6 + 25);
+    if (tooFar) stats.farCoordsDropped = (stats.farCoordsDropped ?? 0) + 1;
+    const geo = tooFar ? null : found;
     const notes = [verdict?.note, place.hours_pattern && `Usual hours: ${place.hours_pattern}`].filter(Boolean).join(" ");
     const curated = {
       wikidata_id: geo?.wikidata_id ?? null, official_url: verdict?.official_url || place.official_url || null, area: place.area || null,
@@ -157,6 +162,12 @@ for (const file of readdirSync(here("./results/"))) {
       stats.updates += 1;
       continue;
     }
+    // A new row without Wikidata coordinates can't be planned, and the refresh job would send it to Google. Keep it in the files only.
+    if (!geo) { stats.insertsWithoutCoordsSkipped = (stats.insertsWithoutCoordsSkipped ?? 0) + 1; continue; }
+    // (city_id, canonical_name) is unique; skip repeats within the list and clashes with existing rows.
+    const key = `${city.id}|${name}`;
+    if (taken.has(key) || existing.some((r) => r.canonical_name === name)) { stats.duplicatesSkipped = (stats.duplicatesSkipped ?? 0) + 1; continue; }
+    taken.add(key);
     rowInserts.push({
       city_id: city.id, canonical_name: name, short_summary: place.short_summary, category: CATEGORY[place.category] ?? "general",
       subcategories_json: [place.category], age_bands_json: ageBands(place.age_bands), indoor_outdoor: IO[place.indoor_outdoor] ?? "both",
@@ -175,7 +186,7 @@ for (const file of readdirSync(here("./results/"))) {
 }
 
 console.log(JSON.stringify({ apply: APPLY, ...stats, citiesSkipped: stats.citiesSkipped.length, skippedSample: stats.citiesSkipped.slice(0, 10) }, null, 2));
-writeFileSync(here("./load-preview.json"), JSON.stringify({ cityInserts: cityInserts.slice(0, 20), rowInserts: rowInserts.slice(0, 20), rowUpdates: rowUpdates.slice(0, 20) }, null, 2));
+writeFileSync(here("./load-preview.json"), JSON.stringify({ cityInserts: cityInserts.map(({ id, city_name, display_name, country_code, lat, lon }) => ({ id, city_name, display_name, country_code, lat, lon })), rowInserts: rowInserts.slice(0, 20), rowUpdates: rowUpdates.slice(0, 20) }, null, 2));
 
 if (APPLY) {
   const chunk = (xs, n) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
