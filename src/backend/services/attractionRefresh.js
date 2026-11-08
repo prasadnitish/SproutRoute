@@ -115,7 +115,7 @@ export async function refreshAttractions({
           priceLevel: result.place.priceLevel,
         });
         if (fitted.ok) {
-          Object.assign(plan.fields, fitToRowUpdate(fitted.fit, { model: FAMILY_FIT_MODEL, now: nowIso }));
+          Object.assign(plan.fields, fitToRowUpdate(fitted.fit, { model: fitted.model || FAMILY_FIT_MODEL, engine: fitted.engine || "haiku", now: nowIso }));
           summary.fitDone += 1;
         } else {
           summary.fitFailed += 1;

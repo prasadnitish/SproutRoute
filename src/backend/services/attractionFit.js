@@ -6,9 +6,12 @@
  * is given only facts that came from Google, never asked for hours or ratings.
  */
 import { callModel } from "../utils/aiClient.js";
+import { decideFamilyFit } from "./familyFitDecision.js";
 
 export const FAMILY_FIT_VERSION = "family-fit-v1";
 export const FAMILY_FIT_MODEL = process.env.ATTRACTION_FIT_MODEL || "claude-haiku-5-5";
+/** "haiku" (default), "jev" or "openai". Decision engines fall back to Haiku when unsure or failing. */
+export const FAMILY_FIT_ENGINE = process.env.ATTRACTION_FIT_ENGINE || "haiku";
 
 const AGE_BANDS = ["infant", "toddler", "preschool", "elementary", "tween", "teen"];
 const INDOOR_OUTDOOR = ["indoor", "outdoor", "both"];
@@ -59,7 +62,8 @@ function score(value, key) {
 
 function validate(raw) {
   if (!raw || typeof raw !== "object") throw new Error("reply was not an object");
-  if (!Array.isArray(raw.ageBands) || !raw.ageBands.length || raw.ageBands.some((b) => !AGE_BANDS.includes(b))) {
+  // An adults-only venue suits no child age, so an empty list is the right answer there.
+  if (!Array.isArray(raw.ageBands) || (!raw.ageBands.length && raw.adultsOnly !== true) || raw.ageBands.some((b) => !AGE_BANDS.includes(b))) {
     throw new Error("ageBands has an unknown value");
   }
   if (!INDOOR_OUTDOOR.includes(raw.indoorOutdoor)) throw new Error("indoorOutdoor has an unknown value");
@@ -83,8 +87,19 @@ function validate(raw) {
   };
 }
 
-/** @returns {Promise<{ok: true, fit: object, usage?: object} | {ok: false, error: string}>} */
-export async function assessFamilyFit(place, { callModelFn = callModel, model = FAMILY_FIT_MODEL } = {}) {
+/** @returns {Promise<{ok: true, fit: object, engine: string, usage?: object, decision?: object} | {ok: false, error: string}>} */
+export async function assessFamilyFit(place, { callModelFn = callModel, model = FAMILY_FIT_MODEL, engine = FAMILY_FIT_ENGINE, decideFn = decideFamilyFit } = {}) {
+  let decision = null;
+  if (engine !== "haiku") {
+    decision = await decideFn(place, { engine });
+    if (decision.ok && !decision.escalate) return { ok: true, fit: decision.fit, engine: decision.engine, model: decision.model, decision };
+  }
+  const haiku = await assessWithHaiku(place, { callModelFn, model });
+  if (!decision) return haiku;
+  return { ...haiku, escalatedFrom: engine, decision };
+}
+
+async function assessWithHaiku(place, { callModelFn, model }) {
   try {
     const response = await callModelFn({
       system: SYSTEM,
@@ -95,7 +110,7 @@ export async function assessFamilyFit(place, { callModelFn = callModel, model = 
       maxTokens: 1500,
       caller: "attractionFit",
     });
-    return { ok: true, fit: validate(extractJson(response.responseText)), usage: response.aiUsage };
+    return { ok: true, fit: validate(extractJson(response.responseText)), engine: "haiku", model, usage: response.aiUsage };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -110,7 +125,7 @@ function durationBucket(minutes) {
 }
 
 /** The city_attractions columns a family-fit assessment fills in. */
-export function fitToRowUpdate(fit, { model = FAMILY_FIT_MODEL, now = new Date().toISOString() } = {}) {
+export function fitToRowUpdate(fit, { model = FAMILY_FIT_MODEL, engine = "haiku", now = new Date().toISOString() } = {}) {
   return {
     kid_appeal_score: fit.kidAppeal,
     parent_appeal_score: fit.parentAppeal,
@@ -122,6 +137,7 @@ export function fitToRowUpdate(fit, { model = FAMILY_FIT_MODEL, now = new Date()
     family_fit_json: {
       version: FAMILY_FIT_VERSION,
       model,
+      engine,
       assessedAt: now,
       typicalDurationMinutes: fit.typicalDurationMinutes,
       category: fit.category,
