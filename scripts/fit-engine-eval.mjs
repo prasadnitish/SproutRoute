@@ -9,7 +9,7 @@
 //
 // Labels come from the search that found each place ("nightclub" means adults only); nobody has checked them.
 import { readFileSync, writeFileSync } from "node:fs";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "../src/backend/utils/supabaseClient.js";
 import { SEARCH_MASK } from "../src/backend/services/placesGrounding.js";
 import { assessFamilyFit, FAMILY_FIT_MODEL } from "../src/backend/services/attractionFit.js";
 import { decideFamilyFit } from "../src/backend/services/familyFitDecision.js";
@@ -53,7 +53,7 @@ async function collect() {
     }
   }
   // Family attractions already in the database: neither flag applies.
-  const admin = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
+  const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("city_attractions")
     .select("canonical_name, place_types, price_level, cities(display_name, city_name)")
