@@ -1855,6 +1855,17 @@ export function createApp(deps = {}) {
           getWeatherForecastFn,
           generateTripPlanChunkedFn,
           scheduleItineraryFn: scheduleItinerary,
+          loadStopAttractionsFn: ({ stop, coords, planningEndDate }) => loadCachedAttractionsForTrip(attractionMemoryService, {
+            destination: stop.name,
+            startDate: stop.arrivalDate,
+            endDate: planningEndDate,
+            coords: { ...coords, displayName: coords.displayName || stop.name },
+            countryCode: coords.countryCode || stop.countryCode || "US",
+            children,
+            activities: safeActivities,
+            pets,
+            planningContext,
+          }),
           shouldAbort: isClientClosed,
           signal: streamAbort.signal,
           onEvent: (event, payload) => {

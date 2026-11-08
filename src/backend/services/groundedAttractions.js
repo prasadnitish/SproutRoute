@@ -110,6 +110,8 @@ function photoUrl(photoRef) {
  * many activities came from the database. An activity that matches nothing is marked grounded: false.
  * @returns {{tripPlan: object, stats: {total: number, matched: number, ratio: number, unmatched: string[]} | null}}
  */
+const coordinate = (value) => (value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value));
+
 export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() } = {}) {
   const activities = tripPlan?.suggestedActivities;
   if (!Array.isArray(activities) || !activities.length || !candidates?.length) return { tripPlan, stats: null };
@@ -126,6 +128,8 @@ export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() }
       ...activity,
       grounded: true,
       placeId: match.google_place_id,
+      lat: coordinate(match.lat) ?? activity.lat ?? null,
+      lon: coordinate(match.lon) ?? activity.lon ?? null,
       rating: match.rating == null ? null : Number(match.rating),
       ratingCount: match.rating_count ?? null,
       priceLevel: match.price_level ?? null,

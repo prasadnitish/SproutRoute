@@ -97,6 +97,8 @@ test("grounding is attached to matching activities and the share of database-sou
   const [aquarium, market, secret] = tripPlan.suggestedActivities;
   assert.equal(aquarium.grounded, true);
   assert.equal(aquarium.placeId, "p1");
+  assert.deepEqual([aquarium.lat, aquarium.lon], [47.6, -122.3], "the map pins grounded stops without a search");
+  assert.equal(secret.lat, undefined);
   assert.equal(aquarium.rating, 4.6);
   assert.equal(aquarium.trending, false);
   assert.equal(market.trending, true);
