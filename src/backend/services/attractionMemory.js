@@ -375,6 +375,7 @@ export function rankCandidateAttractions(attractions, context = {}) {
       score += recencyScore(attraction.last_seen_at || attraction.updated_at);
       score += Math.min(Number(attraction.times_seen || 0), 5);
       score += popularityScore(attraction);
+      if (attraction.must_do) score += 4;
       score += keywordScore(attraction, requestedActivities);
       score += phraseMatchScore(attraction, tripGoals, 2);
       score += phraseMatchScore(attraction, mustHaves, 4);
@@ -430,12 +431,15 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
       const whatItIs = firstNonEmpty(attraction.what_it_is, attraction.whatItIs, attraction.short_summary, attraction.shortSummary);
       const whyRecommended = firstNonEmpty(attraction.why_recommended, attraction.whyRecommended);
       const timingTip = firstNonEmpty(attraction.timing_tip, attraction.timingTip);
+      const hoursPattern = firstNonEmpty(attraction.hours_pattern, attraction.hoursPattern);
+      const seasonal = firstNonEmpty(attraction.seasonal_note, attraction.seasonalNote);
       const verification = firstNonEmpty(attraction.verification_status, attraction.verificationStatus, "unverified");
       const typicalMinutes = Number(attraction.family_fit_json?.typicalDurationMinutes) || 0;
 
       if (compact) {
         const compactParts = [
           `${name} | ${category}`,
+          attraction.must_do && "must-do",
           area && `area: ${area}`,
           indoorOutdoor && `mode: ${indoorOutdoor}`,
           typicalMinutes ? `duration: ~${typicalMinutes} min` : durationBucket && `duration: ${durationBucket}`,
@@ -450,6 +454,8 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
         whatItIs && `what it is: ${whatItIs}`,
         whyRecommended && `why it fits: ${whyRecommended}`,
         timingTip && `timing: ${timingTip}`,
+        hoursPattern && `usual hours: ${hoursPattern}`,
+        seasonal && `seasonal: ${seasonal}`,
         `status: ${verification}`,
       ].filter(Boolean);
 
@@ -487,6 +493,16 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
     .limit(1);
 
   let { data, error } = await query;
+  if (error) throw error;
+  if (data?.length) return data[0];
+
+  // Curated cities carry the other names people type ("Roma", "NYC"), lowercased.
+  ({ data, error } = await admin
+    .from("cities")
+    .select("id, city_name, display_name, country_code, region_code, lat, lon")
+    .eq("country_code", countryCode)
+    .contains("aliases", [identity.cityName.toLowerCase()])
+    .limit(1));
   if (error) throw error;
   if (data?.length) return data[0];
 
@@ -577,14 +593,15 @@ async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
   const safeIds = toArray(cityIds).filter(Boolean);
   if (safeIds.length === 0) return [];
 
-  // Only rows Google confirmed (place id, coordinates) and the refresh job has not retired are planned from.
-  // Rows a model wrote and nothing verified are excluded by isGroundedRow, whatever their other columns say.
+  // Only real places with coordinates are planned from: confirmed by Google (place id) or curated rows matched on
+  // Wikidata. Rows a model wrote and nothing verified are excluded by isGroundedRow, whatever their other columns say.
   const { data, error } = await admin
     .from("city_attractions")
     .select("*")
     .in("city_id", safeIds)
     .eq("status", "active")
-    .not("google_place_id", "is", null)
+    .or("google_place_id.not.is.null,wikidata_id.not.is.null")
+    .order("must_do", { ascending: false })
     .order("rating_count", { ascending: false, nullsFirst: false })
     .limit(limit);
 

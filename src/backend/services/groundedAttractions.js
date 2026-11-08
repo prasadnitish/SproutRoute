@@ -13,7 +13,8 @@ const DAY_ABBREVIATIONS = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thu
 export function isGroundedRow(row) {
   if (!row) return false;
   if (row.status !== "active") return false;
-  if (!row.google_place_id || !Number.isFinite(row.lat) || !Number.isFinite(row.lon)) return false;
+  // A real place with coordinates: confirmed by Google (place id) or matched on Wikidata (curated rows).
+  if ((!row.google_place_id && !row.wikidata_id) || !Number.isFinite(row.lat) || !Number.isFinite(row.lon)) return false;
   if (String(row.verification_status || "").toLowerCase() === "rejected") return false;
   if (row.business_status === "CLOSED_PERMANENTLY") return false;
   if (row.family_fit_json?.adultsOnly) return false;
@@ -127,7 +128,7 @@ export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() }
     return {
       ...activity,
       grounded: true,
-      placeId: match.google_place_id,
+      placeId: match.google_place_id ?? null,
       lat: coordinate(match.lat) ?? activity.lat ?? null,
       lon: coordinate(match.lon) ?? activity.lon ?? null,
       rating: match.rating == null ? null : Number(match.rating),

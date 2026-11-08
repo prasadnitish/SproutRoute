@@ -25,6 +25,8 @@ function fakeAdmin(state) {
       in(c, vs) { filters.push((r) => vs.includes(r[c])); return api; },
       ilike(c, v) { const n = String(v).replace(/%/g, "").toLowerCase(); filters.push((r) => String(r[c] || "").toLowerCase() === n); return api; },
       order() { return api; },
+      or(expr) { const cs = String(expr).split(",").map((p) => p.split(".")[0]); filters.push((r) => cs.some((c) => r[c] != null)); return api; },
+      contains(c, vs) { filters.push((r) => vs.every((v) => (r[c] || []).includes(v))); return api; },
       limit() { return api; },
       then(resolve, reject) {
         const source = table === "cities" ? state.cities : table === "city_attractions" ? state.attractions : state.verification || [];
@@ -174,4 +176,26 @@ test("rows grounded in place by the fill count as a successful fill", async () =
   const state = { cities: [SEATTLE], attractions: [] };
   const fillCity = async () => { for (let i = 0; i < 9; i += 1) state.attractions.push(row(`Grounded ${i}`)); return { status: "filled", inserted: 0, grounded: 9 }; };
   assert.equal((await ask(service(state, fillCity))).length, 8);
+});
+
+test("curated rows matched on Wikidata are planned without a Google fill, and must-do places come first", async () => {
+  const curated = (name, over = {}) => row(name, { google_place_id: null, wikidata_id: `Q${seq}`, source_type: "curated", rating: null, rating_count: null, ...over });
+  const state = { cities: [SEATTLE], attractions: [
+    ...Array.from({ length: 10 }, (_, i) => curated(`Curated ${i}`)),
+    curated("Space Needle", { must_do: true }),
+    curated("No Coordinates", { lat: null, lon: null }),
+  ] };
+  const names = (await ask(service(state, noFill), { maxResults: 4 })).map((r) => r.canonical_name);
+  assert.ok(names.includes("Space Needle"), "a must-do place outranks the rest");
+  assert.ok(!names.includes("No Coordinates"), "a curated row without coordinates is not planned");
+});
+
+test("a city stored under another name is found through its aliases", async () => {
+  const ROME = { id: "city-rome", city_name: "Rome", display_name: "Rome, Italy", country_code: "IT", region_code: "", lat: 41.9, lon: 12.5, aliases: ["roma"] };
+  const state = { cities: [ROME], attractions: Array.from({ length: 10 }, (_, i) => row(`Roman Place ${i}`, { city_id: "city-rome" })) };
+  const names = (await service(state, noFill).getPlanningCandidates({
+    destination: "Roma", coords: { displayName: "Roma", countryCode: "IT", lat: 41.9, lon: 12.5 }, countryCode: "IT", maxResults: 5,
+  })).map((r) => r.canonical_name);
+  assert.equal(names.length, 5);
+  assert.ok(names.every((n) => n.startsWith("Roman Place")));
 });

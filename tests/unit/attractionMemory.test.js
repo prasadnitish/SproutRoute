@@ -325,6 +325,15 @@ test("persistTripAttractions stores place identity and verification cache entrie
         ctx.filters.push((row) => String(row[column] || "").toLowerCase().includes(needle));
         return api;
       },
+      or(expr) {
+        const columns = String(expr).split(",").map((part) => part.split(".")[0]);
+        ctx.filters.push((row) => columns.some((column) => row[column] != null));
+        return api;
+      },
+      contains(column, values) {
+        ctx.filters.push((row) => values.every((value) => (row[column] || []).includes(value)));
+        return api;
+      },
       limit() {
         return api;
       },
@@ -552,6 +561,15 @@ test("getPlanningCandidates uses region attraction pools for broad destinations 
         ctx.filters.push((row) => row[column] !== value);
         return api;
       },
+      or(expr) {
+        const columns = String(expr).split(",").map((part) => part.split(".")[0]);
+        ctx.filters.push((row) => columns.some((column) => row[column] != null));
+        return api;
+      },
+      contains(column, values) {
+        ctx.filters.push((row) => values.every((value) => (row[column] || []).includes(value)));
+        return api;
+      },
       limit() { return api; },
       order() { return api; },
       then(resolve, reject) {
@@ -719,6 +737,15 @@ test("getPlanningCandidates supplements a thin city cache with nearby regional c
         ctx.filters.push((row) => row[column] !== value);
         return api;
       },
+      or(expr) {
+        const columns = String(expr).split(",").map((part) => part.split(".")[0]);
+        ctx.filters.push((row) => columns.some((column) => row[column] != null));
+        return api;
+      },
+      contains(column, values) {
+        ctx.filters.push((row) => values.every((value) => (row[column] || []).includes(value)));
+        return api;
+      },
       limit() { return api; },
       order() { return api; },
       then(resolve, reject) {
@@ -814,6 +841,15 @@ test("backfillCityAttractions resolves missing place ids for legacy rows", async
       },
       neq(column, value) {
         ctx.filters.push((row) => row[column] !== value);
+        return api;
+      },
+      or(expr) {
+        const columns = String(expr).split(",").map((part) => part.split(".")[0]);
+        ctx.filters.push((row) => columns.some((column) => row[column] != null));
+        return api;
+      },
+      contains(column, values) {
+        ctx.filters.push((row) => values.every((value) => (row[column] || []).includes(value)));
         return api;
       },
       limit() {
@@ -946,6 +982,15 @@ test("refreshStaleCandidates refreshes stale candidates without blocking", async
       eq(col, val) { ctx.filters.push((r) => r[col] === val); return api; },
       in(col, vals) { ctx.filters.push((r) => vals.includes(r[col])); return api; },
       order() { return api; },
+      or(expr) {
+        const columns = String(expr).split(",").map((part) => part.split(".")[0]);
+        ctx.filters.push((row) => columns.some((column) => row[column] != null));
+        return api;
+      },
+      contains(column, values) {
+        ctx.filters.push((row) => values.every((value) => (row[column] || []).includes(value)));
+        return api;
+      },
       limit() { return api; },
       then(resolve, reject) {
         const source = table === "city_attractions" ? state.attractions : state.verification;
@@ -1056,6 +1101,15 @@ function makePersistFakeAdmin({ cities = [], attractions = [] } = {}) {
       ilike(column, value) {
         const needle = String(value).replace(/%/g, "").toLowerCase();
         filters.push((row) => String(row[column] || "").toLowerCase() === needle);
+        return api;
+      },
+      or(expr) {
+        const columns = String(expr).split(",").map((part) => part.split(".")[0]);
+        filters.push((row) => columns.some((column) => row[column] != null));
+        return api;
+      },
+      contains(column, values) {
+        filters.push((row) => values.every((value) => (row[column] || []).includes(value)));
         return api;
       },
       limit() { return api; },
