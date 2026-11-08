@@ -25,10 +25,10 @@ function rejects(fn, reason) {
   assert.throws(fn, (err) => err instanceof AttestError && err.reason === reason, `expected ${reason}`);
 }
 
-export function makeAssertion({ privateKey, counter, clientData, appId = DEFAULT_APP_ID }) {
+export function makeAssertion({ privateKey, counter, clientData, appId = DEFAULT_APP_ID, flags = 0x01 }) {
   const counterBytes = Buffer.alloc(4);
   counterBytes.writeUInt32BE(counter);
-  const authenticatorData = Buffer.concat([sha256(appId), Buffer.from([0x01]), counterBytes]);
+  const authenticatorData = Buffer.concat([sha256(appId), Buffer.from([flags]), counterBytes]);
   const nonce = sha256(Buffer.concat([authenticatorData, sha256(Buffer.from(clientData, "utf8"))]));
   const signature = crypto.sign("sha256", nonce, privateKey);
   return encodeCbor({ signature, authenticatorData }).toString("base64");
@@ -91,6 +91,17 @@ test("an assertion signed by the stored key verifies and reports its counter", (
   const clientData = assertionClientData({ method: "POST", path: "/api/v1/trip/bundle", time: "1762500000000", rawBody: Buffer.from("{}") });
   const assertion = makeAssertion({ privateKey, counter: 1, clientData });
   assert.deepEqual(verifyAssertion({ assertion, clientData, publicKeyPem, previousCounter: 0 }), { counter: 1, validationCategory: null });
+});
+
+test("a device assertion verifies when its flags carry the attested-credential bit", () => {
+  // Real iPhones send 37 bytes of authenticator data with flag 0x40 set, but no credential data after it.
+  const { privateKey, publicKey } = crypto.generateKeyPairSync("ec", { namedCurve: "P-256" });
+  const publicKeyPem = publicKey.export({ type: "spki", format: "pem" });
+  const clientData = assertionClientData({ method: "POST", path: "/api/v1/trip/stream", time: "1762500000000", rawBody: Buffer.from("{}") });
+  for (const flags of [0x40, 0x41, 0xc0]) {
+    const assertion = makeAssertion({ privateKey, counter: 2, clientData, flags });
+    assert.equal(verifyAssertion({ assertion, clientData, publicKeyPem, previousCounter: 1 }).counter, 2);
+  }
 });
 
 test("an assertion is rejected when the body, key, App ID or counter is wrong", () => {

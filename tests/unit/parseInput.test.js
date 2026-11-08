@@ -392,6 +392,19 @@ describe("parseInput", () => {
     }
   });
 
+  it("never cuts a multi-city trip shorter than the stays asked for, whatever the wording", async () => {
+    const texts = [
+      "Orlando for 4 days and then Miami for 3 days starting December 22, 2 adults and a 6 year old",
+      "4 nights in Orlando and 3 nights in Miami from dec 22",
+      "Orlando 4 days, Miami 3 days, leaving Dec 22. Family of three with a six year old.",
+      "Plan a 4 day trip to Orlando and add 3 days in Miami from dec 22",
+    ];
+    for (const text of texts) {
+      const result = await parseInput(text, { clientDate: "2026-11-07", callAI: twoCityAI("2026-12-25") });
+      assert.equal(result.endDate, "2026-12-28", text);
+    }
+  });
+
   it("counts a week alongside days in another city", async () => {
     const result = await parseInput("a week in Orlando and 3 days in Miami from dec 22", {
       clientDate: "2026-11-07",

@@ -140,6 +140,21 @@ export function parseAuthData(buf) {
   return out;
 }
 
+// An assertion carries only the 37-byte header. iPhones still set the attested-credential flag (0x40)
+// with no credential data after it, so the full parser above would reject every real assertion.
+function parseAssertionAuthData(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 37) fail("authdata-short");
+  const out = { rpIdHash: buf.subarray(0, 32), flags: buf[32], counter: buf.readUInt32BE(33) };
+  if (out.flags & FLAG_EXTENSIONS && buf.length > 37) {
+    try {
+      out.extensions = decodeCbor(buf, 37).value;
+    } catch {
+      // The signature already covers these bytes; an unreadable extension is not a reason to reject.
+    }
+  }
+  return out;
+}
+
 // Apple documents an apple_validation_category_01 (assertion docs: validationCategory) value in the
 // extensions dictionary. It is reported, not enforced, until real-device values have been observed.
 function validationCategory(auth) {
@@ -342,7 +357,7 @@ export function verifyAssertion({ assertion, clientData, publicKeyPem, appId = D
   }
   if (!valid) fail("signature-invalid");
 
-  const auth = parseAuthData(authenticatorData);
+  const auth = parseAssertionAuthData(authenticatorData);
   if (!auth.rpIdHash.equals(sha256(appId))) fail("rp-id-mismatch");
   if (!(auth.counter > previousCounter)) fail("counter-replay");
   return { counter: auth.counter, validationCategory: validationCategory(auth) };

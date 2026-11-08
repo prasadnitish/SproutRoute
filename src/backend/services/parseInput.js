@@ -427,6 +427,18 @@ export async function parseInput(text, deps = {}) {
     stops = buildCountryTourStops(countryIntent);
   }
 
+  // The per-stop stays the model read ("Orlando for 4 days, Miami for 3") set a floor on the trip
+  // length, however they were worded. Without it a too-short end date drops part of the route.
+  if (stops.length > 1 && stops.every((stop) => stop.requestedNights)) {
+    const requestedDays = stops.reduce((sum, stop) => sum + stop.requestedNights, 0);
+    const start = new Date(startDate);
+    const currentDays = Math.round((new Date(endDate).getTime() - start.getTime()) / 86400000) + 1;
+    if (Number.isFinite(currentDays) && requestedDays <= 21 && currentDays < requestedDays) {
+      start.setDate(start.getDate() + requestedDays - 1);
+      endDate = fmt(start);
+    }
+  }
+
   // Country routes can include valid stops while the model leaves destination
   // null. Preserve the route and satisfy the shared planning API contract.
   if (!destination && tripShape === "country_tour" && countryTour) {
