@@ -1,0 +1,53 @@
+[
+  {
+    "engine": "haiku",
+    "model": "claude-haiku-5-5",
+    "answered": "303/303",
+    "adultsOnly accuracy": "95.4%",
+    "adultsOnly caught": "84/97",
+    "adultsOnly false alarms": 1,
+    "fineDining accuracy": "97.7%",
+    "fineDining caught": "30/36",
+    "fineDining false alarms": 1,
+    "median ms": 1140,
+    "p95 ms": 1933,
+    "mean input tokens": 461,
+    "USD per 1,000 places": "0.1372"
+  },
+  {
+    "engine": "jev",
+    "model": "jev-1.14.0",
+    "answered": "303/303",
+    "adultsOnly accuracy": "95.0%",
+    "adultsOnly caught": "83/97",
+    "adultsOnly false alarms": 1,
+    "fineDining accuracy": "98.0%",
+    "fineDining caught": "30/36",
+    "fineDining false alarms": 0,
+    "sure (no Haiku fallback)": "79.5%",
+    "wrong when sure": 2,
+    "same category as Haiku": "80.5%",
+    "median ms": 69,
+    "p95 ms": 106,
+    "mean input tokens": 1624,
+    "USD per 1,000 places": "0.0682"
+  },
+  {
+    "engine": "openai",
+    "model": "gpt-6-luna",
+    "answered": "303/303",
+    "adultsOnly accuracy": "95.7%",
+    "adultsOnly caught": "85/97",
+    "adultsOnly false alarms": 1,
+    "fineDining accuracy": "99.7%",
+    "fineDining caught": "35/36",
+    "fineDining false alarms": 0,
+    "sure (no Haiku fallback)": "84.8%",
+    "wrong when sure": 7,
+    "same category as Haiku": "73.9%",
+    "median ms": 215,
+    "p95 ms": 490,
+    "mean input tokens": 2655,
+    "USD per 1,000 places": "0.2655"
+  }
+]
