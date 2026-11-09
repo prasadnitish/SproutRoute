@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { daysFromNow } from "../helpers/testDates.js";
 
 // The logger is silent under NODE_ENV=test, which CI sets, and these tests read what it writes. Clear the
 // variable before any app module loads; each test file runs in its own process, so nothing else is affected.
@@ -110,7 +111,7 @@ test("a stream chunk the scheduler cannot handle is logged with the request id a
         const res = await fetch(base + "/api/v1/trip/stream", {
           method: "POST",
           headers: { "content-type": "application/json", accept: "text/event-stream" },
-          body: JSON.stringify({ destination: "Lisbon, Portugal", startDate: "2026-11-01", endDate: "2026-11-03", activities: ["museums"], adults: 2, childrenAges: [] }),
+          body: JSON.stringify({ destination: "Lisbon, Portugal", startDate: daysFromNow(30), endDate: daysFromNow(32), activities: ["museums"], adults: 2, childrenAges: [] }),
         });
         return { status: res.status, text: await res.text() };
       },
@@ -250,7 +251,7 @@ const streamTrip = async (base) => {
   const res = await fetch(base + "/api/v1/trip/stream", {
     method: "POST",
     headers: { "content-type": "application/json", accept: "text/event-stream" },
-    body: JSON.stringify({ destination: "Lisbon, Portugal", startDate: "2026-11-01", endDate: "2026-11-03", activities: ["museums"], adults: 2, childrenAges: [] }),
+    body: JSON.stringify({ destination: "Lisbon, Portugal", startDate: daysFromNow(30), endDate: daysFromNow(32), activities: ["museums"], adults: 2, childrenAges: [] }),
   });
   await res.text();
   return res.headers.get("x-request-id");
