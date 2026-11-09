@@ -56,16 +56,14 @@ const run = (admin, over = {}) => refreshAttractions({
   resolveFn: async () => ({ status: "matched", place: place() }), ...over,
 });
 
-test("a matched row gets its Places facts, a verified timestamp and stays active", async () => {
+test("a matched row keeps only the place id and coordinates from Google, a verified timestamp and stays active", async () => {
   const admin = fakeAdmin([row()]);
   const summary = await run(admin, { apply: true });
   const fields = admin.state.updates[0].fields;
   assert.equal(fields.google_place_id, "p1");
-  assert.equal(fields.rating, 4.6);
-  assert.equal(fields.rating_count, 21000);
-  assert.equal(fields.price_level, 2);
+  for (const key of ["rating", "rating_count", "price_level", "business_status", "opening_hours", "photo_ref", "place_types"]) assert.ok(!(key in fields), key);
+  assert.equal(fields.lat, 47.6);
   assert.equal(fields.status, "active");
-  assert.equal(fields.business_status, "OPERATIONAL");
   assert.equal(fields.verification_status, "verified");
   assert.equal(fields.last_verified_at, new Date(NOW).toISOString());
   assert.equal(summary.matched, 1);
@@ -95,15 +93,11 @@ test("a request error leaves the row untouched and writes nothing", async () => 
   assert.equal(summary.errors, 1);
 });
 
-test("a rating that moves by more than 0.3 is logged, a smaller move is not", async () => {
-  const big = fakeAdmin([row({ google_place_id: "p1", rating: 4.1 })]);
-  await run(big, { apply: true });
-  assert.deepEqual(big.state.logs.map((l) => l.change_type), ["rating_change"]);
-  assert.deepEqual(big.state.logs[0].detail, { from: 4.1, to: 4.6 });
-
-  const small = fakeAdmin([row({ google_place_id: "p1", rating: 4.4 })]);
-  await run(small, { apply: true });
-  assert.equal(small.state.logs.length, 0);
+test("ratings are not stored, so a rating move is not logged; Wikidata coordinates are not overwritten", async () => {
+  const admin = fakeAdmin([row({ google_place_id: "p1", rating: 4.1, wikidata_id: "Q1" })]);
+  await run(admin, { apply: true });
+  assert.equal(admin.state.logs.length, 0);
+  assert.ok(!("lat" in admin.state.updates[0].fields), "Wikidata coordinates stay");
 });
 
 test("a closed row that comes back is reopened and logged", async () => {

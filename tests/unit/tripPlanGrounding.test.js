@@ -22,11 +22,10 @@ const candidates = SEATTLE_NAMES.map((name, i) => ({
 const prompt = () => buildTripPlanPrompt("Seattle, WA", "2026-06-01", "2026-06-02", ["parks"], [{ age: 5 }], { summary: "", forecast: [] }, { cachedAttractions: candidates });
 const promptText = () => { const p = prompt(); return `${p.system}\n${p.user}`; };
 
-test("the shortlist shows rating, price, hours, duration and trending so the model can plan around them", () => {
+test("the shortlist shows duration and trending, and no Google ratings, prices or hours", () => {
   const text = promptText();
-  assert.match(text, /Seattle Aquarium[^\n]*rating: 4\.6/);
-  assert.match(text, /Pike Place Market[^\n]*price: \$\$/);
-  assert.match(text, /Seattle Aquarium[^\n]*hours: [^\n]*closed Mon/);
+  assert.doesNotMatch(text, /rating: 4\.6/);
+  assert.doesNotMatch(text, /price: \$\$/);
   assert.match(text, /Woodland Park Zoo[^\n]*~180 min/);
   assert.match(text, /Space Needle[^\n]*trending/);
   assert.doesNotMatch(text, /Pike Place Market[^\n]*trending/);
@@ -66,7 +65,7 @@ function mocks(text) {
   };
 }
 
-test("a generated Seattle plan is at least 80% database-sourced, and each stop carries rating, photo and trending", async () => {
+test("a generated Seattle plan is at least 80% database-sourced, and each stop carries trending but no Google rating or photo", async () => {
   delete process.env.AI_PROVIDER;
   const names = [...SEATTLE_NAMES.slice(0, 9), "Secret Rooftop Cocktail Lounge"];
   const plan = await generateTripPlan(
@@ -79,8 +78,8 @@ test("a generated Seattle plan is at least 80% database-sourced, and each stop c
   const needle = plan.suggestedActivities.find((a) => a.name === "Space Needle");
   assert.equal(needle.grounded, true);
   assert.equal(needle.trending, true);
-  assert.equal(needle.rating, 4.6);
-  assert.match(needle.photoUrl, /^\/api\/v1\/places\/photo\?ref=/);
+  assert.equal(needle.rating, undefined);
+  assert.equal(needle.photoUrl, undefined);
   assert.equal(plan.suggestedActivities.find((a) => a.name === "Secret Rooftop Cocktail Lounge").grounded, false);
 });
 

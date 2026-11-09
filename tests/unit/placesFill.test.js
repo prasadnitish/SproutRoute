@@ -62,10 +62,9 @@ test("good family places are stored as grounded rows from Google", async () => {
   assert.equal(row.source_type, "places");
   assert.equal(row.verification_status, "verified");
   assert.equal(row.status, "active");
-  assert.equal(row.rating, 4.6);
-  assert.equal(row.rating_count, 5000);
+  assert.equal(row.rating, undefined, "only the place id and coordinates are stored from Google");
   assert.equal(row.category, "wildlife");
-  assert.equal(row.photo_ref, "places/p1/photos/p");
+  assert.equal(row.photo_ref, undefined);
   assert.equal(row.last_verified_at, NOW);
   assert.equal(row.family_fit_json, undefined, "family fit is judged later by the refresh job");
 });
@@ -144,7 +143,7 @@ test("an older row with the same name and no place id is grounded in place inste
   assert.equal(admin.updated.length, 1);
   assert.equal(admin.updated[0].id, "old-1");
   assert.equal(admin.updated[0].patch.google_place_id, "p1");
-  assert.equal(admin.updated[0].patch.rating, 4.6);
+  assert.equal(admin.updated[0].patch.rating, undefined);
   assert.equal(admin.updated[0].patch.status, "active");
   assert.equal(result.status, "filled");
   assert.equal(result.inserted, 1);

@@ -46,6 +46,7 @@ import { createErrorHandler } from "./utils/errorHandler.js";
 import { installProcessHandlers, installShutdownHandler } from "./utils/processHandlers.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
+import { scheduleGoogleRetention } from "./services/googleRetention.js";
 // NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
 import { metrics } from "./services/metrics.js";
 import { aiAlerts } from "./services/aiAlerts.js";
@@ -3003,6 +3004,7 @@ export function startServer(port, deps = {}) {
     }
   });
   installShutdownHandler({ server, flush: () => evalCapture.shutdown() });
+  if (process.env.GOOGLE_RETENTION_DISABLED !== "true") scheduleGoogleRetention(() => { try { return getSupabaseAdmin(); } catch { return null; } });
   return { app, server };
 }
 

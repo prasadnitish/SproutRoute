@@ -57,10 +57,10 @@ test("only grounded, active rows reach the planner: closed, unmatched and model-
   for (const bad of ["Old Closed Museum", "Model Invention", "Closed For Good"]) assert.ok(!names.includes(bad), `${bad} must not be planned`);
 });
 
-test("rows are ranked so heavily reviewed places come before barely reviewed ones", async () => {
+test("rows are ranked by our own signals (must-do, kid appeal, times picked), not Google ratings", async () => {
   const state = { cities: [SEATTLE], attractions: [
-    ...Array.from({ length: 9 }, (_, i) => row(`Filler ${i}`, { rating_count: 300 })),
-    row("Tiny Gallery", { rating_count: 120, rating: 4.1 }), row("Pike Place Market", { rating_count: 90000, rating: 4.7 }),
+    ...Array.from({ length: 9 }, (_, i) => row(`Filler ${i}`, { kid_appeal_score: 5, times_seen: 3 })),
+    row("Tiny Gallery", { kid_appeal_score: 2, rating_count: 900000, rating: 5 }), row("Pike Place Market", { must_do: true, kid_appeal_score: 8, times_seen: 40 }),
   ] };
   const names = (await ask(service(state, noFill), { maxResults: 4 })).map((r) => r.canonical_name);
   assert.ok(names.includes("Pike Place Market"));

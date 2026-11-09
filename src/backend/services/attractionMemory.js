@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination } from "./inputSafety.js";
-import { isGroundedRow, excludeForTravelers, ensureTrendingSlots, summarizeHours, isTrending } from "./groundedAttractions.js";
+import { isGroundedRow, excludeForTravelers, ensureTrendingSlots, isTrending } from "./groundedAttractions.js";
 import { fillCityFromPlaces } from "./placesFill.js";
 import { enrichActivity } from "./placesEnrich.js";
 
@@ -124,13 +124,15 @@ function keywordScore(attraction, requestedActivities = []) {
   }, 0);
 }
 
-/** Review volume (up to 5 points) and rating above 4.0 (up to 2): proven places beat barely reviewed ones. */
+/**
+ * Our own signals only (Google ratings may not be stored): a curated must-do (3 points), kid appeal from the
+ * family-fit judgment (up to 2) and how often plans have picked the place (up to 2).
+ */
 function popularityScore(attraction) {
-  const count = Number(attraction.rating_count);
-  const rating = Number(attraction.rating);
-  const volume = Number.isFinite(count) && count > 0 ? Math.min(Math.log10(1 + count), 5) : 0;
-  const quality = Number.isFinite(rating) ? Math.max(0, Math.min(rating - 4, 1)) * 2 : 0;
-  return volume + quality;
+  const mustDo = attraction.must_do ? 3 : 0;
+  const kid = Number(attraction.kid_appeal_score);
+  const seen = Number(attraction.times_seen);
+  return mustDo + (Number.isFinite(kid) ? Math.max(0, Math.min(kid, 10)) / 5 : 0) + (Number.isFinite(seen) && seen > 0 ? Math.min(Math.log10(1 + seen), 2) : 0);
 }
 
 function textSignals(attraction) {
@@ -405,18 +407,9 @@ export function rankCandidateAttractions(attractions, context = {}) {
   return selectDiverseAttractions(candidatePool, maxResults);
 }
 
-/** Google-sourced facts the model plans around: rating, price, hours and whether the place is trending now. */
+/** Facts the model plans around beyond the description. Google ratings, prices and hours are not stored. */
 function groundedFacts(attraction) {
-  const rating = Number(attraction.rating);
-  const count = Number(attraction.rating_count);
-  const price = attraction.price_level;
-  const hours = summarizeHours(attraction.opening_hours);
-  return [
-    Number.isFinite(rating) && rating > 0 && `rating: ${rating}${Number.isFinite(count) && count > 0 ? ` (${count.toLocaleString("en-US")})` : ""}`,
-    Number.isInteger(price) && `price: ${price === 0 ? "free" : "$".repeat(price)}`,
-    hours && `hours: ${hours}`,
-    isTrending(attraction) && "trending",
-  ];
+  return [isTrending(attraction) && "trending"];
 }
 
 export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compact = false } = {}) {
@@ -602,7 +595,7 @@ async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
     .eq("status", "active")
     .or("google_place_id.not.is.null,wikidata_id.not.is.null")
     .order("must_do", { ascending: false })
-    .order("rating_count", { ascending: false, nullsFirst: false })
+    .order("kid_appeal_score", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (error) throw error;
@@ -629,15 +622,11 @@ function buildStoredAttraction(activity) {
   };
 }
 
+// Only the place id may be kept from Google; the rest of the lookup is used live and dropped.
 function buildVerifiedPayload(activity, place) {
   return {
     attractionName: firstNonEmpty(activity.name),
-    resolvedName: firstNonEmpty(place?.name),
     placeId: firstNonEmpty(place?.placeId),
-    address: firstNonEmpty(place?.address),
-    mapsUrl: firstNonEmpty(place?.mapsUrl),
-    rating: place?.rating ?? null,
-    userRatingsTotal: place?.userRatingsTotal ?? null,
   };
 }
 
@@ -709,11 +698,9 @@ async function resolveStoredAttraction(activity, destination, resolvePlaceIdenti
 
   return {
     ...stored,
-    canonical_name: firstNonEmpty(place.name, stored.canonical_name),
     google_place_id: place.placeId,
     verification_status: "verified",
     last_verified_at: new Date().toISOString(),
-    short_summary: firstNonEmpty(stored.short_summary, place.address),
     _resolvedPlace: place,
   };
 }
@@ -831,15 +818,7 @@ export async function refreshStaleCandidates(admin, candidates, destination, res
           .insert({
             attraction_id: candidate.id,
             provider: "google_places_identity",
-            verification_payload_json: {
-              attractionName: candidate.canonical_name,
-              resolvedName: firstNonEmpty(place.name),
-              placeId: firstNonEmpty(place.placeId),
-              address: firstNonEmpty(place.address),
-              mapsUrl: firstNonEmpty(place.mapsUrl),
-              rating: place.rating ?? null,
-              userRatingsTotal: place.userRatingsTotal ?? null,
-            },
+            verification_payload_json: { attractionName: candidate.canonical_name, placeId: firstNonEmpty(place.placeId) },
             verified_at: now.toISOString(),
             expires_at: expiresAt.toISOString(),
           });

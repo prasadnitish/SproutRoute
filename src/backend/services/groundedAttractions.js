@@ -102,9 +102,6 @@ function matchCandidate(name, candidates) {
     .sort((a, b) => b.score - a.score)[0]?.row;
 }
 
-function photoUrl(photoRef) {
-  return photoRef ? `/api/v1/places/photo?ref=${encodeURIComponent(photoRef)}` : null;
-}
 
 /**
  * Attach rating, photo, price and a trending flag to the activities that match a candidate, and report how
@@ -125,16 +122,15 @@ export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() }
       unmatched.push(name);
       return { ...activity, grounded: false, trending: false };
     }
+    // Places content must not be shown on a non-Google map (Service Specific Terms 14.2), and the apps use Apple
+    // Maps and Leaflet, so only Wikidata coordinates go out. Google-only places reach the apps without coordinates.
+    const shareable = Boolean(match.wikidata_id);
     return {
       ...activity,
       grounded: true,
       placeId: match.google_place_id ?? null,
-      lat: coordinate(match.lat) ?? activity.lat ?? null,
-      lon: coordinate(match.lon) ?? activity.lon ?? null,
-      rating: match.rating == null ? null : Number(match.rating),
-      ratingCount: match.rating_count ?? null,
-      priceLevel: match.price_level ?? null,
-      photoUrl: photoUrl(match.photo_ref),
+      lat: shareable ? coordinate(match.lat) : null,
+      lon: shareable ? coordinate(match.lon) : null,
       trending: isTrending(match, now),
     };
   });

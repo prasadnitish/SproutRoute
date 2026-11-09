@@ -97,17 +97,21 @@ test("grounding is attached to matching activities and the share of database-sou
   const [aquarium, market, secret] = tripPlan.suggestedActivities;
   assert.equal(aquarium.grounded, true);
   assert.equal(aquarium.placeId, "p1");
-  assert.deepEqual([aquarium.lat, aquarium.lon], [47.6, -122.3], "the map pins grounded stops without a search");
+  assert.deepEqual([aquarium.lat, aquarium.lon], [null, null], "Google coordinates never reach a non-Google map");
   assert.equal(secret.lat, undefined);
-  assert.equal(aquarium.rating, 4.6);
+  assert.equal(aquarium.rating, undefined, "Google ratings are not stored or sent");
   assert.equal(aquarium.trending, false);
   assert.equal(market.trending, true);
-  assert.equal(market.priceLevel, 2);
-  assert.equal(market.photoUrl, "/api/v1/places/photo?ref=places%2Fp2%2Fphotos%2Fxyz");
+  assert.equal(market.photoUrl, undefined);
   assert.equal(secret.grounded, false);
   assert.equal(secret.trending, false);
   assert.deepEqual(stats, { total: 3, matched: 2, ratio: 2 / 3, unmatched: ["Secret Rooftop"] });
   assert.equal(plan.suggestedActivities[0].grounded, undefined, "the input plan is not mutated");
+});
+
+test("Wikidata coordinates (CC0) are sent to the apps", () => {
+  const { tripPlan } = attachGroundingToPlan({ suggestedActivities: [{ id: "a1", name: "Seattle Aquarium" }] }, [row({ canonical_name: "Seattle Aquarium", wikidata_id: "Q1", lat: 47.6, lon: -122.3 })], { now: NOW });
+  assert.deepEqual([tripPlan.suggestedActivities[0].lat, tripPlan.suggestedActivities[0].lon], [47.6, -122.3]);
 });
 
 test("with no candidates the plan is returned untouched and nothing is reported as ungrounded", () => {
