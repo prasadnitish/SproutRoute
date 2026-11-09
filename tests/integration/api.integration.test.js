@@ -736,8 +736,8 @@ test("POST /api/v1/trip/stream accepts prefetched multi-stop attraction payloads
     }));
     const payload = {
       destination: "Japan",
-      startDate: "2026-11-01",
-      endDate: "2026-11-08",
+      startDate: daysFromNow(30),
+      endDate: daysFromNow(37),
       activities: ["international"],
       adults: 2,
       childrenAges: [],
