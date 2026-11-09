@@ -21,7 +21,7 @@ const CATEGORIES = [
 ];
 
 const SYSTEM = `You judge how well a place suits a family trip with children.
-You are given facts about one place from Google Maps. Use only those facts and general knowledge of the place type.
+You are given facts about one place. Use only those facts and general knowledge of the place type.
 Do not state opening hours, ticket prices, ratings or addresses, and do not invent details.
 Reply with one JSON object and nothing else, with exactly these keys:
 kidAppeal (integer 1-10), parentAppeal (integer 1-10),
@@ -39,6 +39,7 @@ function userPrompt(place) {
     place.primaryType && `Main type: ${place.primaryType}`,
     place.types?.length && `All types: ${place.types.join(", ")}`,
     Number.isFinite(place.priceLevel) && `Price level (0 free to 4 very expensive): ${place.priceLevel}`,
+    place.description && `About: ${String(place.description).slice(0, 400)}`,
   ].filter(Boolean);
   return lines.join("\n");
 }

@@ -122,6 +122,7 @@ function placeState(place) {
     ...(place.primaryType && { mainType: place.primaryType }),
     ...(place.types?.length && { googleTypes: place.types }),
     ...(Number.isFinite(place.priceLevel) && { priceLevel0to4: place.priceLevel }),
+    ...(place.description && { description: String(place.description).slice(0, 400) }),
   };
 }
 
@@ -138,7 +139,7 @@ export function toJevRequest(place, { model = ENGINES.jev.model } = {}) {
 export function toOpenAIRequest(place, { model = ENGINES.openai.model } = {}) {
   return {
     model,
-    input: `Facts about one place from Google Maps:\n${JSON.stringify(placeState(place))}`,
+    input: `Facts about one place:\n${JSON.stringify(placeState(place))}`,
     questions: FIT_QUESTIONS.map((q) => {
       if (q.type === "noul") return { type: "predicate", name: q.name, instructions: q.instructions };
       if (q.type === "choice") {
