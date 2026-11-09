@@ -1,0 +1,32 @@
+{
+  "engine": "jev",
+  "places": 10368,
+  "judged": 10367,
+  "byEngine": {
+    "jev": 10316,
+    "haiku": 51
+  },
+  "escalated": 51,
+  "failed": 1,
+  "written": 10367,
+  "writeErrors": 0,
+  "adultsOnly": 15,
+  "fineDining": 0,
+  "decisionUsd": 0.6993,
+  "haikuUsd": 0.0101,
+  "startedAt": "2026-11-09T01:31:11.850Z",
+  "wallClockSeconds": 278,
+  "concurrency": 8,
+  "decisionMedianMs": 68,
+  "decisionP95Ms": 118,
+  "perPlaceMedianMs": 68,
+  "perPlaceP95Ms": 122,
+  "failures": [
+    {
+      "id": "31808e55-c87f-4289-8ac7-dbcf9fbbe128",
+      "name": "Mansión Xanadú",
+      "error": "reply had no JSON object"
+    }
+  ],
+  "finishedAt": "2026-11-09T01:35:49.504Z"
+}

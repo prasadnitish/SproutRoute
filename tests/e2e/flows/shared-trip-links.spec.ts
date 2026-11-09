@@ -8,7 +8,7 @@ const createdAt = new Date().toISOString();
 const expiresAt = new Date(Date.parse(createdAt) + 7 * 24 * 60 * 60 * 1000).toISOString();
 const snapshot = { schemaVersion: 1, tripData: { ...MOCK_TRIP_PLAN, parsed: { destination: 'Maui, Hawaii', startDate: '2026-04-12', endDate: '2026-04-19' } } };
 
-test('creating a link shows public-access disclosure and seven-day expiry', async ({ page }) => {
+test('creating a link shows public-access disclosure and expiry', async ({ page }) => {
   await mockAllApis(page);
   await page.route('**/api/v1/trip/shares', async route => {
     const request = route.request();
@@ -22,7 +22,7 @@ test('creating a link shows public-access disclosure and seven-day expiry', asyn
   await page.getByRole('button', { name: 'Share trip summary' }).click();
   await expect(page.getByText(/Public link: anyone with the link/)).toBeVisible();
   await expect(page.getByText(/original prompt and imported profile are not shared/)).toBeVisible();
-  await page.getByRole('button', { name: 'Create 7-day link' }).click();
+  await page.getByRole('button', { name: 'Create trip link' }).click();
   await expect(page.getByLabel('Trip link', { exact: true })).toHaveValue(new RegExp(`/s#${token}$`));
   await expect(page.getByText(/^Expires /)).toContainText(new Date(expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
   await expect(page.getByRole('button', { name: 'Stop sharing' })).toBeVisible();
@@ -48,6 +48,32 @@ test('shared URL renders the same itinerary with zero generation or enrichment r
   expect(unexpected).toEqual([]);
 });
 
+test('shared URL invites viewers to get the app and shows a read-only packing list', async ({ page }) => {
+  const writes: string[] = [];
+  page.on('request', request => { if (request.method() !== 'GET') writes.push(`${request.method()} ${request.url()}`); });
+  const packingList = { categories: [{ name: 'Clothes', items: [{ name: 'Rain jacket', quantity: '2' }, { name: 'Sun hat', quantity: '3' }] }] };
+  await page.route('**/api/v1/trip/shares/view', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ snapshot: { ...snapshot, tripData: { ...snapshot.tripData, packingList } }, createdAt, expiresAt }) }));
+  await page.goto(`/s#${token}`);
+  await expect(page.getByText('Planned with SproutRoute, a free family trip planner for iPhone.')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Get it on the App Store' })).toHaveAttribute('href', 'https://apps.apple.com/app/id6759532704');
+  await expect(page.getByRole('link', { name: 'Plan your own trip' })).toHaveAttribute('href', '/');
+  await expect(page.getByRole('button', { name: /Safety/ })).toHaveCount(0);
+  await page.getByRole('button', { name: /Pack/ }).click();
+  await expect(page.getByText('Rain jacket')).toBeVisible();
+  await page.getByRole('checkbox').first().check();
+  await expect(page.getByText('1 of 2 items packed')).toBeVisible();
+  await expect(page.getByPlaceholder(/Add item to/)).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('sproutroute_checked'))).toBeNull();
+  expect(writes).toEqual([]);
+});
+
+test('shared URL without a packing list keeps the Pack tab hidden', async ({ page }) => {
+  await page.route('**/api/v1/trip/shares/view', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ snapshot, createdAt, expiresAt }) }));
+  await page.goto(`/s#${token}`);
+  await expect(page.getByRole('heading', { name: 'Maui, Hawaii', level: 2 })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Pack/ })).toHaveCount(0);
+});
+
 test('an expired shared link shows a clear state without regenerating', async ({ page }) => {
   await page.route('**/api/v1/trip/shares/view', route => route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ code: 'SHARE_UNAVAILABLE', message: 'This trip link has expired, was stopped, or is unavailable.' }) }));
   await page.goto(`/s#${token}`);
@@ -60,7 +86,7 @@ test('link storage failure preserves summary copying and shows an error', async 
   await page.route('**/api/v1/trip/shares', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Trip links are temporarily unavailable. You can still copy the summary.' }) }));
   await goToResults(page);
   await page.getByRole('button', { name: 'Share trip summary' }).click();
-  await page.getByRole('button', { name: 'Create 7-day link' }).click();
+  await page.getByRole('button', { name: 'Create trip link' }).click();
   await expect(page.getByRole('status')).toContainText('temporarily unavailable');
   await expect(page.getByRole('button', { name: 'Copy summary', exact: true })).toBeEnabled();
 });
@@ -75,7 +101,7 @@ test('creator can stop a link and its owner credential is not in the shared URL'
   });
   await goToResults(page);
   await page.getByRole('button', { name: 'Share trip summary' }).click();
-  await page.getByRole('button', { name: 'Create 7-day link' }).click();
+  await page.getByRole('button', { name: 'Create trip link' }).click();
   await expect(page.getByLabel('Trip link', { exact: true })).not.toHaveValue(new RegExp(ownerToken));
   await page.getByRole('button', { name: 'Stop sharing' }).click();
   await expect(page.getByRole('status')).toHaveText('Sharing stopped. The old link no longer opens this trip.');

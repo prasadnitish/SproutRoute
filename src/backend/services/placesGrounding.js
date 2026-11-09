@@ -140,19 +140,16 @@ export async function resolvePlace(target, { fetchFn = globalThis.fetch, apiKey 
   return { status: "matched", place: normalize(nearby[0].place) };
 }
 
-/** The city_attractions columns a normalized place fills in. */
-export function placeRowFields(place, { status = "active", nowIso } = {}) {
+/**
+ * The city_attractions columns a normalized place fills in.
+ * Google Maps Platform terms allow storing the place id indefinitely and Places coordinates for at most 30 days
+ * (Service Specific Terms 3 and 14.3); nothing else from Google is stored. Rows with Wikidata coordinates keep
+ * them (`keepCoords`), and purgeExpiredGoogleContent clears Google coordinates once they are 30 days old.
+ */
+export function placeRowFields(place, { status = "active", nowIso, keepCoords = false } = {}) {
   return {
     google_place_id: place.placeId,
-    lat: place.lat,
-    lon: place.lon,
-    rating: place.rating,
-    rating_count: place.ratingCount,
-    price_level: place.priceLevel,
-    opening_hours: place.openingHours,
-    photo_ref: place.photoRef,
-    business_status: place.businessStatus,
-    place_types: place.types,
+    ...(keepCoords ? {} : { lat: place.lat, lon: place.lon }),
     status,
     last_verified_at: nowIso,
     updated_at: nowIso,

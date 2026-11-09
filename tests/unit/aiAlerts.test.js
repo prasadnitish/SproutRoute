@@ -120,3 +120,139 @@ test("settings are read when an alert fires, so a .env loaded after import still
     }
   }
 });
+
+const MIN = 60_000;
+const fail = (alerts, path = "/api/v1/trip/plan") => alerts.recordResponse({ status: 500, path });
+
+test("fewer than five server errors in five minutes sends nothing", async () => {
+  const { alerts, posts } = setup();
+  for (let i = 0; i < 4; i++) await fail(alerts);
+  assert.equal(posts.length, 0);
+});
+
+test("five server errors within five minutes send one alert naming the count and the latest path", async () => {
+  const { alerts, posts, advance } = setup();
+  for (let i = 0; i < 4; i++) { await fail(alerts); advance(30_000); }
+  await fail(alerts, "/api/v1/trip/stream");
+  await fail(alerts);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].body.kind, "http_5xx");
+  assert.match(posts[0].body.text, /5 server errors in the last 5 minutes/);
+  assert.match(posts[0].body.text, /\/api\/v1\/trip\/stream/);
+});
+
+test("server errors spread out beyond the window never alert", async () => {
+  const { alerts, posts, advance } = setup();
+  for (let i = 0; i < 8; i++) { await fail(alerts); advance(2 * MIN); }
+  assert.equal(posts.length, 0);
+});
+
+test("responses below 500 are ignored", async () => {
+  const { alerts, posts } = setup();
+  for (let i = 0; i < 20; i++) await alerts.recordResponse({ status: i % 2 ? 404 : 429, path: "/api/x" });
+  assert.equal(posts.length, 0);
+});
+
+test("a continuing outage alerts once per cooldown, then again after it", async () => {
+  const { alerts, posts, advance } = setup();
+  for (let i = 0; i < 12; i++) await fail(alerts);
+  assert.equal(posts.length, 1);
+  advance(31 * MIN);
+  for (let i = 0; i < 5; i++) await fail(alerts);
+  assert.equal(posts.length, 2);
+});
+
+function emailSetup(overrides = {}) {
+  const calls = [];
+  const warnings = [];
+  const alerts = createAiAlerts({
+    webhookUrl: "",
+    dailyLimitUsd: 5,
+    resendApiKey: "re_test_key",
+    emailTo: "owner@example.com",
+    fetchFn: async (url, init) => { calls.push({ url, headers: init.headers, body: JSON.parse(init.body) }); return { ok: true }; },
+    now: () => Date.parse("2026-10-23T10:00:00Z"),
+    logger: { ...silent, warn: (msg, meta) => warnings.push({ msg, meta }) },
+    ...overrides,
+  });
+  return { alerts, calls, warnings };
+}
+
+test("an alert is emailed through Resend when a key and recipient are configured", async () => {
+  const { alerts, calls } = emailSetup();
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://api.resend.com/emails");
+  assert.equal(calls[0].headers.authorization, "Bearer re_test_key");
+  assert.deepEqual(calls[0].body.to, ["owner@example.com"]);
+  assert.match(calls[0].body.from, /onboarding@resend\.dev/);
+  assert.match(calls[0].body.subject, /SproutRoute alert/);
+  assert.match(calls[0].body.text, /\$6\.00/);
+});
+
+test("no email is sent unless both the key and the recipient are set", async () => {
+  const noKey = emailSetup({ resendApiKey: "" });
+  await noKey.alerts.recordSpend(6);
+  const noRecipient = emailSetup({ emailTo: "" });
+  await noRecipient.alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(noKey.calls.length, 0);
+  assert.equal(noRecipient.calls.length, 0);
+  assert.equal(noKey.alerts.snapshot().emailConfigured, false);
+});
+
+test("the webhook and the email both fire for one alert", async () => {
+  const { alerts, calls } = emailSetup({ webhookUrl: "https://hooks.example/alert" });
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls.map((c) => c.url).sort(), ["https://api.resend.com/emails", "https://hooks.example/alert"]);
+});
+
+test("a failed email is logged and never throws into the request", async () => {
+  const { alerts, warnings } = emailSetup({ fetchFn: async () => { throw new Error("network down"); } });
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(warnings[0].msg, "ai:alert-email-failed");
+  assert.equal(warnings[0].meta.error, "network down");
+});
+
+test("a Resend rejection is logged with its status so a bad key is visible", async () => {
+  const { alerts, warnings } = emailSetup({ fetchFn: async () => ({ ok: false, status: 403 }) });
+  await alerts.recordSpend(6);
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(warnings[0].msg, "ai:alert-email-failed");
+  assert.equal(warnings[0].meta.status, 403);
+});
+
+test("sendTest emails a test message and reports that it was delivered", async () => {
+  const { alerts, calls } = emailSetup();
+  const result = await alerts.sendTest();
+
+  assert.deepEqual(result, { sent: true });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].body.text, /test alert/i);
+});
+
+test("sendTest says why nothing was sent when email is not configured", async () => {
+  const { alerts, calls } = emailSetup({ resendApiKey: "" });
+  const result = await alerts.sendTest();
+
+  assert.equal(result.sent, false);
+  assert.match(result.reason, /RESEND_API_KEY/);
+  assert.equal(calls.length, 0);
+});
+
+test("sendTest reports Resend's status when the send is rejected, without echoing the key", async () => {
+  const { alerts } = emailSetup({ fetchFn: async () => ({ ok: false, status: 403 }) });
+  const result = await alerts.sendTest();
+
+  assert.equal(result.sent, false);
+  assert.match(result.reason, /403/);
+  assert.doesNotMatch(JSON.stringify(result), /re_test_key/);
+});

@@ -6,7 +6,7 @@ import { createTripShare, revokeTripShare } from '../services/api.js';
 import { saveJSON } from '../utils/storage.js';
 import { SHARE_PRIVACY_NOTICE, shareOwnerKey, forgetShareOwner, formatShareExpiry } from '../utils/tripShare.js';
 
-export default function ShareTripDialog({ isOpen, onClose, tripData, canCreateLink = false }) {
+export default function ShareTripDialog({ isOpen, onClose, tripData, packingList = null, canCreateLink = false }) {
   const dialogRef = useRef(null);
   const summaryRef = useRef(null);
   const linkRef = useRef(null);
@@ -20,11 +20,11 @@ export default function ShareTripDialog({ isOpen, onClose, tripData, canCreateLi
     setBusy(true);
     setStatus('Creating your trip link…');
     try {
-      const created = await createTripShare(buildSharedTripSnapshot(tripData).tripData);
+      const created = await createTripShare(buildSharedTripSnapshot({ ...tripData, packingList }).tripData);
       setShare(created);
       saveJSON(shareOwnerKey(created.token), { ownerToken: created.ownerToken }, Math.max(1, Date.parse(created.expiresAt) - Date.now()));
-      setStatus('Trip link ready. It expires 7 days after creation.');
-      analytics.featureUsed('trip_link_created', { expires_in_days: 7 });
+      setStatus('Trip link ready.');
+      analytics.featureUsed('trip_link_created', { expires_in_days: Math.round((Date.parse(created.expiresAt) - Date.now()) / 86400000) });
     } catch (error) { setStatus(error.message || 'Could not create a trip link. You can still copy the summary.'); }
     finally { setBusy(false); }
   }
@@ -108,7 +108,7 @@ export default function ShareTripDialog({ isOpen, onClose, tripData, canCreateLi
       <p id="share-trip-description" className="mt-2 text-sm text-gray-600">Create a link to this exact itinerary, or copy a text summary.</p>
       <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
         <p className="font-semibold">{SHARE_PRIVACY_NOTICE}</p>
-        <p className="mt-1">Links expire 7 days after creation. Includes itinerary, route, dates and weather.</p>
+        <p className="mt-1">The link stops working 7 days after the trip ends. It includes the itinerary, route, dates, weather and packing list.</p>
       </div>
       {share ? <div className="mt-3 space-y-2 ph-no-capture">
         <label htmlFor="trip-share-link" className="text-sm font-semibold text-gray-700">Trip link</label>
@@ -119,7 +119,7 @@ export default function ShareTripDialog({ isOpen, onClose, tripData, canCreateLi
           <button type="button" disabled={busy} onClick={stopSharing} className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50">Stop sharing</button>
         </div>
       </div> : <div className="mt-3">
-        <button type="button" disabled={busy || !canCreateLink} onClick={createLink} className="rounded-lg bg-meadow-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Create 7-day link</button>
+        <button type="button" disabled={busy || !canCreateLink} onClick={createLink} className="rounded-lg bg-meadow-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Create trip link</button>
         {!canCreateLink && <p className="mt-1 text-xs text-gray-600">Your link will be available once the itinerary finishes loading.</p>}
       </div>}
       <p role="status" aria-live="polite" className="my-3 min-h-5 text-sm font-medium text-meadow-800">{status}</p>

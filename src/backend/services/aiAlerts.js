@@ -7,6 +7,8 @@
  *
  * Env: AI_DAILY_SPEND_ALERT_USD (default 5), AI_ALERT_WEBHOOK_URL (optional, any URL that accepts a
  * JSON POST with "text" and "content", which covers Slack and Discord). Alerts are always logged.
+ * Email: RESEND_API_KEY and ALERT_EMAIL_TO (optional ALERT_EMAIL_FROM). Without a verified Resend domain,
+ * the default onboarding@resend.dev sender can only deliver to the Resend account owner's own address.
  */
 import { log } from "../utils/logger.js";
 
@@ -15,23 +17,34 @@ const MAX_RECENT = 20;
 const dayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
 
 const WEBHOOK_TIMEOUT_MS = 3000;
+const HTTP_5XX_WINDOW_MS = 5 * 60 * 1000;
+const HTTP_5XX_COOLDOWN_MS = 30 * 60 * 1000;
 
 export function createAiAlerts({
   webhookUrl: webhookOverride,
   dailyLimitUsd: limitOverride,
+  resendApiKey: keyOverride,
+  emailTo: toOverride,
   fetchFn = globalThis.fetch,
   now = Date.now,
   logger = log,
 } = {}) {
   // Read at use, not at import: server.js loads .env after its imports are evaluated.
   const webhookUrl = () => webhookOverride ?? process.env.AI_ALERT_WEBHOOK_URL ?? "";
+  const resendApiKey = () => keyOverride ?? process.env.RESEND_API_KEY ?? "";
+  const emailTo = () => toOverride ?? process.env.ALERT_EMAIL_TO ?? "";
+  const emailFrom = () => process.env.ALERT_EMAIL_FROM || "SproutRoute Alerts <onboarding@resend.dev>";
+  const emailConfigured = () => Boolean(resendApiKey() && emailTo());
   const dailyLimitUsd = () => limitOverride ?? (Number(process.env.AI_DAILY_SPEND_ALERT_USD) || 5);
+  const http5xxThreshold = () => Number(process.env.HTTP_5XX_ALERT_THRESHOLD) || 5;
 
   let day = dayKey(now());
   let spendUsd = 0;
   let unpriced = 0;
   let spendAlerted = false;
   const lastFailureAlert = new Map();
+  const errorTimes = [];
+  let lastHttpAlert;
   const recent = [];
 
   function rollDay() {
@@ -56,6 +69,33 @@ export function createAiAlerts({
       .catch((error) => logger.warn("ai:alert-webhook-failed", { error: error.message }));
   }
 
+  // Resolves to { ok: true } or { ok: false, reason }; callers that fire and forget can ignore it.
+  function deliverEmail(alert) {
+    return Promise.resolve()
+      .then(() => fetchFn("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${resendApiKey()}` },
+        body: JSON.stringify({
+          from: emailFrom(),
+          to: [emailTo()],
+          subject: `SproutRoute alert: ${alert.kind}`,
+          text: alert.text,
+        }),
+        signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+      }))
+      .then((res) => {
+        if (res && res.ok === false) {
+          logger.warn("ai:alert-email-failed", { status: res.status });
+          return { ok: false, reason: `Resend answered ${res.status}` };
+        }
+        return { ok: true };
+      })
+      .catch((error) => {
+        logger.warn("ai:alert-email-failed", { error: error.message });
+        return { ok: false, reason: error.message };
+      });
+  }
+
   async function send(alert) {
     const entry = { ...alert, at: new Date(now()).toISOString() };
     recent.push(entry);
@@ -63,6 +103,7 @@ export function createAiAlerts({
     logger.error("ai:alert", entry);
     const url = webhookUrl();
     if (url && fetchFn) deliver(url, alert);
+    if (emailConfigured() && fetchFn) deliverEmail(alert);
   }
 
   return {
@@ -92,6 +133,30 @@ export function createAiAlerts({
       await send({ kind: `provider_${kind}`, provider, text: `the ${provider} account ${reason}. Requests are falling back to other providers.` });
     },
 
+    // Server errors in a short window: the failure that used to be found by a user.
+    async recordResponse({ status, path }) {
+      if (!(status >= 500)) return;
+      const t = now();
+      errorTimes.push(t);
+      while (t - errorTimes[0] > HTTP_5XX_WINDOW_MS) errorTimes.shift();
+      if (errorTimes.length < http5xxThreshold()) return;
+      if (lastHttpAlert !== undefined && t - lastHttpAlert < HTTP_5XX_COOLDOWN_MS) return;
+      lastHttpAlert = t;
+      await send({ kind: "http_5xx", text: `${errorTimes.length} server errors in the last 5 minutes, latest on ${path}. Search the logs for level "error".` });
+    },
+
+    // Other once-per-condition alerts (the daily spend cap in middleware/costControl.js). Callers dedupe.
+    async notify({ kind, text }) {
+      await send({ kind, text });
+    },
+
+    // Used by scripts/send-test-alert.mjs to prove the email path end to end.
+    async sendTest() {
+      if (!emailConfigured()) return { sent: false, reason: "RESEND_API_KEY and ALERT_EMAIL_TO must both be set" };
+      const result = await deliverEmail({ kind: "test", text: "This is a test alert from SproutRoute. If you can read this, email alerts work." });
+      return result.ok ? { sent: true } : { sent: false, reason: result.reason };
+    },
+
     snapshot() {
       rollDay();
       return {
@@ -100,6 +165,7 @@ export function createAiAlerts({
         dailyLimitUsd: dailyLimitUsd(),
         unpricedCallsToday: unpriced,
         webhookConfigured: Boolean(webhookUrl()),
+        emailConfigured: emailConfigured(),
         recentAlerts: [...recent],
       };
     },

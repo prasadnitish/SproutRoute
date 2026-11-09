@@ -63,7 +63,7 @@ describe("enrichActivity", () => {
     assert.equal(result, null);
   });
 
-  it("returns cached result on second call", async () => {
+  it("does not cache Google content between calls", async () => {
     process.env.GOOGLE_PLACES_API_KEY = "test-key";
     let callCount = 0;
     global.fetch = async () => {
@@ -81,6 +81,6 @@ describe("enrichActivity", () => {
     };
     await enrichActivity("Test Place", "City");
     await enrichActivity("Test Place", "City");
-    assert.equal(callCount, 1);
+    assert.equal(callCount, 2);
   });
 });

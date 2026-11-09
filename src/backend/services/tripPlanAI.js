@@ -827,6 +827,13 @@ export async function generateTripPlanChunked(tripData, weather, onChunk, deps =
       endDate: chunk.endDate,
     };
 
+    const totalDays = inclusiveDayCount(tripData.startDate, tripData.endDate);
+    // The client shows chunk 1's overview for the whole trip, so chunk 1 must know the full length.
+    if (chunk.chunkIndex === 0) {
+      const chunkDays = inclusiveDayCount(chunk.startDate, chunk.endDate);
+      chunkData._continuationContext = `This is days 1-${chunkDays} of a ${totalDays}-day trip (${tripData.startDate} to ${tripData.endDate}); the remaining days are planned separately. Write the overview for the whole ${totalDays}-day trip, not just these days.`;
+    }
+
     // For chunk 2+, add continuation context
     if (chunk.chunkIndex > 0 && chunkResults.length > 0) {
       const prevDays = chunkResults.flatMap(r => r.dailyItinerary || []);
@@ -1107,7 +1114,7 @@ ${Array.isArray(cachedAttractions) && cachedAttractions.length > 0 ? `
 - Verified attraction candidates already provided in the system shortlist: ${cachedAttractions.length}` : ""}
 
 **Weather Forecast:**
-${continuationContext ? `Previous itinerary context: ${continuationContext}\n` : ""}
+${continuationContext ? `Itinerary context: ${continuationContext}\n` : ""}
 ${weatherForecast.summary}
 
 ${weatherForecast.forecast

@@ -37,7 +37,7 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │  │                                                              │ │
 │  │  Hooks:                                                      │ │
 │  │    useTrip.js         ← ORCHESTRATOR: parse → stream → bg    │ │
-│  │    useGeolocation.js  ← GPS first, IP fallback               │ │
+│  │    useGeolocation.js  ← browser geolocation only             │ │
 │  │    usePlacesEnrich.js ← on-demand Places enrichment          │ │
 │  │                                                              │ │
 │  │  Mosaic Tiles:                                               │ │
@@ -65,7 +65,6 @@ SproutRoute is an **AI-powered family trip planner** that generates personalized
 │    POST /api/safety/car-seat-check      (car seat guidance)       │
 │    POST /api/v1/safety/pet-travel-check (airline + entry reqs)   │
 │    POST /api/v1/places/enrich           (lazy activity enrichment)│
-│    GET  /api/v1/geo/detect              (IP fallback location)    │
 │    POST /api/v1/attractions/rank      (attraction shortlist)      │
 │    GET  /api/v1/ops/metrics           (ops dashboard data)        │
 │                                                                   │
@@ -292,7 +291,6 @@ User mentions pets in free-text input
 | POST | `/api/safety/travel-tips` | travelSafety.js + travelAdvisory.js | AI safety tips |
 | POST | `/api/v1/safety/pet-travel-check` | petSafety.js | Airline + entry requirements |
 | POST | `/api/v1/places/enrich` | placesEnrich.js | Lazy itinerary activity enrichment |
-| GET | `/api/v1/geo/detect` | inline proxy logic | IP-based location fallback |
 
 ### Attraction Intelligence Routes
 

@@ -13,7 +13,8 @@ const DAY_ABBREVIATIONS = { monday: "Mon", tuesday: "Tue", wednesday: "Wed", thu
 export function isGroundedRow(row) {
   if (!row) return false;
   if (row.status !== "active") return false;
-  if (!row.google_place_id || !Number.isFinite(row.lat) || !Number.isFinite(row.lon)) return false;
+  // A real place with coordinates: confirmed by Google (place id) or matched on Wikidata (curated rows).
+  if ((!row.google_place_id && !row.wikidata_id) || !Number.isFinite(row.lat) || !Number.isFinite(row.lon)) return false;
   if (String(row.verification_status || "").toLowerCase() === "rejected") return false;
   if (row.business_status === "CLOSED_PERMANENTLY") return false;
   if (row.family_fit_json?.adultsOnly) return false;
@@ -101,15 +102,14 @@ function matchCandidate(name, candidates) {
     .sort((a, b) => b.score - a.score)[0]?.row;
 }
 
-function photoUrl(photoRef) {
-  return photoRef ? `/api/v1/places/photo?ref=${encodeURIComponent(photoRef)}` : null;
-}
 
 /**
  * Attach rating, photo, price and a trending flag to the activities that match a candidate, and report how
  * many activities came from the database. An activity that matches nothing is marked grounded: false.
  * @returns {{tripPlan: object, stats: {total: number, matched: number, ratio: number, unmatched: string[]} | null}}
  */
+const coordinate = (value) => (value == null || value === "" || !Number.isFinite(Number(value)) ? null : Number(value));
+
 export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() } = {}) {
   const activities = tripPlan?.suggestedActivities;
   if (!Array.isArray(activities) || !activities.length || !candidates?.length) return { tripPlan, stats: null };
@@ -122,14 +122,15 @@ export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() }
       unmatched.push(name);
       return { ...activity, grounded: false, trending: false };
     }
+    // Places content must not be shown on a non-Google map (Service Specific Terms 14.2), and the apps use Apple
+    // Maps and Leaflet, so only Wikidata coordinates go out. Google-only places reach the apps without coordinates.
+    const shareable = Boolean(match.wikidata_id);
     return {
       ...activity,
       grounded: true,
-      placeId: match.google_place_id,
-      rating: match.rating == null ? null : Number(match.rating),
-      ratingCount: match.rating_count ?? null,
-      priceLevel: match.price_level ?? null,
-      photoUrl: photoUrl(match.photo_ref),
+      placeId: match.google_place_id ?? null,
+      lat: shareable ? coordinate(match.lat) : null,
+      lon: shareable ? coordinate(match.lon) : null,
       trending: isTrending(match, now),
     };
   });

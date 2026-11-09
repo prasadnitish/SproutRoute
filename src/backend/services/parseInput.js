@@ -168,9 +168,9 @@ function normalizeCountryTour(value) {
 
 function defaultDates() {
   const start = new Date();
-  start.setDate(start.getDate() + 14);
+  start.setUTCDate(start.getUTCDate() + 14);
   const end = new Date(start);
-  end.setDate(end.getDate() + 4);
+  end.setUTCDate(end.getUTCDate() + 4);
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 
@@ -189,6 +189,18 @@ function extractRequestedDayCount(text) {
     new RegExp(`\\b(?:for|over|spend|spending|take|taking|plan|planning)\\s+(?:a\\s+)?${numberPattern}[-\\s]+days?\\b`, "i"),
     new RegExp(`(?:^|\\b)${numberPattern}[-\\s]*day\\s+(?:trip|vacation|visit|getaway|holiday)\\b`, "i"),
   ];
+
+  // "4 days in Orlando and 3 days in Miami" asks for 7 days, not the first number.
+  const segment = new RegExp(`(?:^|\\b)(a|${numberPattern})[-\\s]+(days?|weeks?)\\s+(?:in|at|around|through)\\b`, "gi");
+  const segmentDays = [...input.matchAll(segment)].map((match) => {
+    const unit = match[3].startsWith("week") ? 7 : 1;
+    const count = match[1] === "a" ? (unit === 7 ? 1 : null) : parseDayCountToken(match[1]);
+    return count ? count * unit : null;
+  });
+  if (segmentDays.length > 1 && segmentDays.every(Boolean)) {
+    const total = segmentDays.reduce((sum, days) => sum + days, 0);
+    if (total <= 21) return total;
+  }
 
   for (const pattern of patterns) {
     const match = input.match(pattern);
@@ -212,8 +224,9 @@ function normalizeEndDateForRequestedDays(text, startDate, endDate) {
   const currentInclusiveDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
   if (currentInclusiveDays === requestedDayCount) return endDate;
 
+  // Calendar arithmetic in UTC: local-time days shift by one when the server's clocks change inside the trip.
   const normalizedEnd = new Date(start);
-  normalizedEnd.setDate(normalizedEnd.getDate() + requestedDayCount - 1);
+  normalizedEnd.setUTCDate(normalizedEnd.getUTCDate() + requestedDayCount - 1);
   return fmt(normalizedEnd);
 }
 
@@ -413,6 +426,18 @@ export async function parseInput(text, deps = {}) {
       suggestedStopCount: countryIntent.stops.length,
     };
     stops = buildCountryTourStops(countryIntent);
+  }
+
+  // The per-stop stays the model read ("Orlando for 4 days, Miami for 3") set a floor on the trip
+  // length, however they were worded. Without it a too-short end date drops part of the route.
+  if (stops.length > 1 && stops.every((stop) => stop.requestedNights)) {
+    const requestedDays = stops.reduce((sum, stop) => sum + stop.requestedNights, 0);
+    const start = new Date(startDate);
+    const currentDays = Math.round((new Date(endDate).getTime() - start.getTime()) / 86400000) + 1;
+    if (Number.isFinite(currentDays) && requestedDays <= 21 && currentDays < requestedDays) {
+      start.setUTCDate(start.getUTCDate() + requestedDays - 1);
+      endDate = fmt(start);
+    }
   }
 
   // Country routes can include valid stops while the model leaves destination

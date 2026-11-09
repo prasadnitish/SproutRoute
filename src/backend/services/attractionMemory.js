@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
 import { log } from "../utils/logger.js";
 import { sanitizeDestination } from "./inputSafety.js";
-import { isGroundedRow, excludeForTravelers, ensureTrendingSlots, summarizeHours, isTrending } from "./groundedAttractions.js";
+import { isGroundedRow, excludeForTravelers, ensureTrendingSlots, isTrending } from "./groundedAttractions.js";
 import { fillCityFromPlaces } from "./placesFill.js";
 import { enrichActivity } from "./placesEnrich.js";
 
@@ -39,13 +39,17 @@ function firstNonEmpty(...values) {
   return "";
 }
 
-function deriveCityIdentity(destination, coords = {}) {
-  const displayName = sanitizeDestination(coords.displayName || destination || "");
-  const parts = displayName.split(",").map((part) => part.trim()).filter(Boolean);
-  const cityName = sanitizeDestination(parts[0] || destination || "").slice(0, 80);
+// The city is named after what the traveler asked for. The geocoder's label is used only when its first part is
+// the same place: a geocoder hit on a building ("Government Hospital, Diu, ...") must not name a city.
+export function deriveCityIdentity(destination, coords = {}) {
+  const split = (text) => sanitizeDestination(text || "").split(",").map((part) => part.trim()).filter(Boolean);
+  const requested = split(destination);
+  const geocoded = split(coords.displayName);
+  const cityName = (requested[0] || geocoded[0] || "").slice(0, 80);
+  const geocoderAgrees = geocoded.length > 0 && normalizeName(geocoded[0]) === normalizeName(cityName);
   return {
     cityName,
-    displayName: displayName || cityName,
+    displayName: (geocoderAgrees ? geocoded : requested).join(", ") || cityName,
   };
 }
 
@@ -124,13 +128,15 @@ function keywordScore(attraction, requestedActivities = []) {
   }, 0);
 }
 
-/** Review volume (up to 5 points) and rating above 4.0 (up to 2): proven places beat barely reviewed ones. */
+/**
+ * Our own signals only (Google ratings may not be stored): a curated must-do (3 points), kid appeal from the
+ * family-fit judgment (up to 2) and how often plans have picked the place (up to 2).
+ */
 function popularityScore(attraction) {
-  const count = Number(attraction.rating_count);
-  const rating = Number(attraction.rating);
-  const volume = Number.isFinite(count) && count > 0 ? Math.min(Math.log10(1 + count), 5) : 0;
-  const quality = Number.isFinite(rating) ? Math.max(0, Math.min(rating - 4, 1)) * 2 : 0;
-  return volume + quality;
+  const mustDo = attraction.must_do ? 3 : 0;
+  const kid = Number(attraction.kid_appeal_score);
+  const seen = Number(attraction.times_seen);
+  return mustDo + (Number.isFinite(kid) ? Math.max(0, Math.min(kid, 10)) / 5 : 0) + (Number.isFinite(seen) && seen > 0 ? Math.min(Math.log10(1 + seen), 2) : 0);
 }
 
 function textSignals(attraction) {
@@ -375,6 +381,7 @@ export function rankCandidateAttractions(attractions, context = {}) {
       score += recencyScore(attraction.last_seen_at || attraction.updated_at);
       score += Math.min(Number(attraction.times_seen || 0), 5);
       score += popularityScore(attraction);
+      if (attraction.must_do) score += 4;
       score += keywordScore(attraction, requestedActivities);
       score += phraseMatchScore(attraction, tripGoals, 2);
       score += phraseMatchScore(attraction, mustHaves, 4);
@@ -404,18 +411,9 @@ export function rankCandidateAttractions(attractions, context = {}) {
   return selectDiverseAttractions(candidatePool, maxResults);
 }
 
-/** Google-sourced facts the model plans around: rating, price, hours and whether the place is trending now. */
+/** Facts the model plans around beyond the description. Google ratings, prices and hours are not stored. */
 function groundedFacts(attraction) {
-  const rating = Number(attraction.rating);
-  const count = Number(attraction.rating_count);
-  const price = attraction.price_level;
-  const hours = summarizeHours(attraction.opening_hours);
-  return [
-    Number.isFinite(rating) && rating > 0 && `rating: ${rating}${Number.isFinite(count) && count > 0 ? ` (${count.toLocaleString("en-US")})` : ""}`,
-    Number.isInteger(price) && `price: ${price === 0 ? "free" : "$".repeat(price)}`,
-    hours && `hours: ${hours}`,
-    isTrending(attraction) && "trending",
-  ];
+  return [isTrending(attraction) && "trending"];
 }
 
 export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compact = false } = {}) {
@@ -430,12 +428,15 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
       const whatItIs = firstNonEmpty(attraction.what_it_is, attraction.whatItIs, attraction.short_summary, attraction.shortSummary);
       const whyRecommended = firstNonEmpty(attraction.why_recommended, attraction.whyRecommended);
       const timingTip = firstNonEmpty(attraction.timing_tip, attraction.timingTip);
+      const hoursPattern = firstNonEmpty(attraction.hours_pattern, attraction.hoursPattern);
+      const seasonal = firstNonEmpty(attraction.seasonal_note, attraction.seasonalNote);
       const verification = firstNonEmpty(attraction.verification_status, attraction.verificationStatus, "unverified");
       const typicalMinutes = Number(attraction.family_fit_json?.typicalDurationMinutes) || 0;
 
       if (compact) {
         const compactParts = [
           `${name} | ${category}`,
+          attraction.must_do && "must-do",
           area && `area: ${area}`,
           indoorOutdoor && `mode: ${indoorOutdoor}`,
           typicalMinutes ? `duration: ~${typicalMinutes} min` : durationBucket && `duration: ${durationBucket}`,
@@ -450,6 +451,8 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
         whatItIs && `what it is: ${whatItIs}`,
         whyRecommended && `why it fits: ${whyRecommended}`,
         timingTip && `timing: ${timingTip}`,
+        hoursPattern && `usual hours: ${hoursPattern}`,
+        seasonal && `seasonal: ${seasonal}`,
         `status: ${verification}`,
       ].filter(Boolean);
 
@@ -457,6 +460,22 @@ export function buildCachedAttractionsSummary(attractions, { maxItems = 6, compa
     });
 
   return lines.join("\n");
+}
+
+const ISO_COUNTRY_CODE = /^[A-Z]{2}$/;
+const ISO_REGION_CODE = /^[A-Z0-9]{1,3}$/;
+
+// Rows in cities are shared reference data. Only create one from a geocoded point (real, non-zero
+// coordinates) with ISO-shaped codes; anything else is not trusted.
+function canCreateCity(countryCode, coords = {}) {
+  const lat = Number(coords.lat);
+  const lon = Number(coords.lon);
+  return (
+    ISO_COUNTRY_CODE.test(countryCode) &&
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 && Math.abs(lon) <= 180 &&
+    !(lat === 0 && lon === 0)
+  );
 }
 
 async function resolveCityRecord(admin, destination, coords = {}, countryCode = "US", { createIfMissing = false } = {}) {
@@ -474,15 +493,25 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
   if (error) throw error;
   if (data?.length) return data[0];
 
-  if (!createIfMissing) return null;
+  // Curated cities carry the other names people type ("Roma", "NYC"), lowercased.
+  ({ data, error } = await admin
+    .from("cities")
+    .select("id, city_name, display_name, country_code, region_code, lat, lon")
+    .eq("country_code", countryCode)
+    .contains("aliases", [identity.cityName.toLowerCase()])
+    .limit(1));
+  if (error) throw error;
+  if (data?.length) return data[0];
+
+  if (!createIfMissing || !canCreateCity(countryCode, coords)) return null;
 
   const insertPayload = {
     country_code: countryCode,
-    region_code: coords.regionCode || "",
+    region_code: ISO_REGION_CODE.test(coords.regionCode || "") ? coords.regionCode : "",
     city_name: identity.cityName,
     display_name: identity.displayName,
-    lat: Number(coords.lat) || 0,
-    lon: Number(coords.lon) || 0,
+    lat: Number(coords.lat),
+    lon: Number(coords.lon),
     priority_tier: "tier3",
   };
 
@@ -561,15 +590,16 @@ async function fetchAttractionsForCityIds(admin, cityIds, limit = 50) {
   const safeIds = toArray(cityIds).filter(Boolean);
   if (safeIds.length === 0) return [];
 
-  // Only rows Google confirmed (place id, coordinates) and the refresh job has not retired are planned from.
-  // Rows a model wrote and nothing verified are excluded by isGroundedRow, whatever their other columns say.
+  // Only real places with coordinates are planned from: confirmed by Google (place id) or curated rows matched on
+  // Wikidata. Rows a model wrote and nothing verified are excluded by isGroundedRow, whatever their other columns say.
   const { data, error } = await admin
     .from("city_attractions")
     .select("*")
     .in("city_id", safeIds)
     .eq("status", "active")
-    .not("google_place_id", "is", null)
-    .order("rating_count", { ascending: false, nullsFirst: false })
+    .or("google_place_id.not.is.null,wikidata_id.not.is.null")
+    .order("must_do", { ascending: false })
+    .order("kid_appeal_score", { ascending: false, nullsFirst: false })
     .limit(limit);
 
   if (error) throw error;
@@ -596,15 +626,11 @@ function buildStoredAttraction(activity) {
   };
 }
 
+// Only the place id may be kept from Google; the rest of the lookup is used live and dropped.
 function buildVerifiedPayload(activity, place) {
   return {
     attractionName: firstNonEmpty(activity.name),
-    resolvedName: firstNonEmpty(place?.name),
     placeId: firstNonEmpty(place?.placeId),
-    address: firstNonEmpty(place?.address),
-    mapsUrl: firstNonEmpty(place?.mapsUrl),
-    rating: place?.rating ?? null,
-    userRatingsTotal: place?.userRatingsTotal ?? null,
   };
 }
 
@@ -676,14 +702,15 @@ async function resolveStoredAttraction(activity, destination, resolvePlaceIdenti
 
   return {
     ...stored,
-    canonical_name: firstNonEmpty(place.name, stored.canonical_name),
     google_place_id: place.placeId,
     verification_status: "verified",
     last_verified_at: new Date().toISOString(),
-    short_summary: firstNonEmpty(stored.short_summary, place.address),
     _resolvedPlace: place,
   };
 }
+
+// Rows an operator verified or rejected keep their content; live model output only bumps the seen counters.
+const PROTECTED_STATUSES = new Set(["verified", "rejected"]);
 
 async function persistOneAttraction(admin, cityId, destination, activity, resolvePlaceIdentity) {
   const now = new Date().toISOString();
@@ -693,13 +720,10 @@ async function persistOneAttraction(admin, cityId, destination, activity, resolv
   const existing = findExistingAttraction(existingRows, stored);
 
   if (existing?.id) {
-    const preservesTrustedContent =
-      existing.verification_status === "verified" && stored.verification_status !== "verified";
-    const update = preservesTrustedContent
+    const update = PROTECTED_STATUSES.has(existing.verification_status)
       ? {
         times_seen: Number(existing.times_seen || 0) + 1,
         last_seen_at: now,
-        updated_at: now,
       }
       : {
         ...stored,
@@ -798,15 +822,7 @@ export async function refreshStaleCandidates(admin, candidates, destination, res
           .insert({
             attraction_id: candidate.id,
             provider: "google_places_identity",
-            verification_payload_json: {
-              attractionName: candidate.canonical_name,
-              resolvedName: firstNonEmpty(place.name),
-              placeId: firstNonEmpty(place.placeId),
-              address: firstNonEmpty(place.address),
-              mapsUrl: firstNonEmpty(place.mapsUrl),
-              rating: place.rating ?? null,
-              userRatingsTotal: place.userRatingsTotal ?? null,
-            },
+            verification_payload_json: { attractionName: candidate.canonical_name, placeId: firstNonEmpty(place.placeId) },
             verified_at: now.toISOString(),
             expires_at: expiresAt.toISOString(),
           });

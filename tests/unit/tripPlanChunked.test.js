@@ -199,3 +199,20 @@ test("later batches include previously planned attractions in the actual model p
   const prompt=buildTripPlanPrompt("Florida","2026-12-23","2026-12-25",[],[],{summary:"Mild",forecast:[]},{continuationContext:"Activities already suggested: Magic Kingdom. Avoid repeats."});
   assert.match(prompt.user,/Activities already suggested: Magic Kingdom/);
 });
+
+test("the first batch of a long trip is told the full length, so its overview covers every day", async () => {
+  const calls = [];
+  await generateTripPlanChunked(
+    {destination:"San Diego, CA", startDate:"2026-12-18", endDate:"2026-12-22"},
+    {forecast:[]},
+    () => {},
+    {generateTripPlanFn: async (input) => {
+      calls.push(input);
+      const days = (Date.parse(input.endDate)-Date.parse(input.startDate))/86400000+1;
+      return makeChunkResult(days, 0);
+    }},
+  );
+  assert.equal(calls.length, 2);
+  assert.match(calls[0]._continuationContext, /days 1-3 of a 5-day trip/);
+  assert.match(calls[0]._continuationContext, /overview.*whole 5-day trip/i);
+});

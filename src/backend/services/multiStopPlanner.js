@@ -1,4 +1,5 @@
 import { scheduleItinerary } from "./itineraryScheduler.js";
+import { log, errorFields } from "../utils/logger.js";
 
 function parseIsoDate(value) {
   const date = new Date(`${value}T00:00:00Z`);
@@ -106,6 +107,7 @@ export async function planRouteStops({
   getWeatherForecastFn,
   generateTripPlanChunkedFn,
   scheduleItineraryFn = scheduleItinerary,
+  loadStopAttractionsFn = null,
   onEvent = () => {},
   shouldAbort = () => false,
   signal,
@@ -144,13 +146,25 @@ export async function planRouteStops({
     stopWeather[stop.id] = weather;
     onEvent("stop-weather", { stop: enrichedStop, weather });
 
+    // Verified places (with coordinates) for this city: the client's prefetch when it sent one, otherwise
+    // the same attraction memory a single-city plan uses. Without them activities have no map location.
+    let cachedAttractions = baseTrip?.cachedAttractionsByStopId?.[stop.id] || [];
+    if (cachedAttractions.length === 0 && loadStopAttractionsFn) {
+      try {
+        cachedAttractions = (await loadStopAttractionsFn({ stop: enrichedStop, coords, planningEndDate })) || [];
+      } catch (error) {
+        log.warn("multi-stop:attractions-failed", { stopId: stop.id, ...errorFields(error) });
+        cachedAttractions = [];
+      }
+    }
+
     const tripInput = {
       ...baseTrip,
       destination: stop.name,
       startDate: stop.arrivalDate,
       endDate: planningEndDate,
       countryCode: coords.countryCode || stop.countryCode || "US",
-      cachedAttractions: baseTrip?.cachedAttractionsByStopId?.[stop.id] || [],
+      cachedAttractions,
       routePlan,
       routeStop: enrichedStop,
       dayOffset: Math.max(0, (stop.dayStart || 1) - 1),
@@ -170,7 +184,9 @@ export async function planRouteStops({
             routePlan,
             routeStop: enrichedStop,
           });
-        } catch { /* non-fatal */ }
+        } catch (scheduleErr) {
+          log.warn("multi-stop:schedule-failed", { chunk: meta?.chunk, ...errorFields(scheduleErr) });
+        }
         const localDayOffset = meta?.dayOffset || 0;
         const normalizedChunk = normalizeStopTripPlan(enrichedStop, chunkResult, localDayOffset);
         onEvent("stop-itinerary", {

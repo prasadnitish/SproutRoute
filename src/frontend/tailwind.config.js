@@ -4,9 +4,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Inter"', 'sans-serif'],
-        display: ['"Space Grotesk"', 'sans-serif'],
-        body: ['"Inter"', 'sans-serif'],
+        sans: ['"Inter Variable"', 'Inter', 'sans-serif'],
+        display: ['"Space Grotesk Variable"', '"Space Grotesk"', 'sans-serif'],
+        body: ['"Inter Variable"', 'Inter', 'sans-serif'],
       },
       colors: {
         // Primary — Fresh Meadow greens (new primary scale)

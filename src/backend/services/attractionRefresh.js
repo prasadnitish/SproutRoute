@@ -11,7 +11,6 @@ import { randomUUID } from "node:crypto";
 import { resolvePlace, statusForPlace, placeRowFields } from "./placesGrounding.js";
 import { assessFamilyFit, fitToRowUpdate, FAMILY_FIT_VERSION, FAMILY_FIT_MODEL } from "./attractionFit.js";
 
-const RATING_MOVE = 0.3;
 const CONCURRENCY = 4;
 const DEFAULT_MAX_KM = 150;
 // Country- and state-sized "cities": their attractions sit hundreds of kilometres from the centre point.
@@ -34,7 +33,7 @@ function targetFor(row) {
 }
 
 function planMatched(row, place, status, nowIso) {
-  const fields = placeRowFields(place, { status, nowIso });
+  const fields = placeRowFields(place, { status, nowIso, keepCoords: Boolean(row.wikidata_id) });
   const logs = [];
   if (!row.google_place_id) logs.push({ change_type: "matched", detail: { placeId: place.placeId } });
   else if (row.google_place_id !== place.placeId) {
@@ -44,9 +43,6 @@ function planMatched(row, place, status, nowIso) {
     logs.push({ change_type: "closed", detail: { businessStatus: place.businessStatus } });
   }
   if (row.status === "closed_unverified" && status === "active") logs.push({ change_type: "reopened", detail: {} });
-  if (Number.isFinite(row.rating) && Number.isFinite(place.rating) && Math.abs(place.rating - row.rating) > RATING_MOVE + 1e-9) {
-    logs.push({ change_type: "rating_change", detail: { from: Number(row.rating), to: place.rating } });
-  }
   return { fields, logs };
 }
 
@@ -76,8 +72,10 @@ export async function refreshAttractions({
 
   let query = admin
     .from("city_attractions")
-    .select("id, canonical_name, google_place_id, status, rating, last_verified_at, family_fit_json, cities(city_name, display_name, lat, lon)");
+    .select("id, canonical_name, google_place_id, wikidata_id, status, last_verified_at, family_fit_json, cities(city_name, display_name, lat, lon)");
   if (cityId) query = query.eq("city_id", cityId);
+  // Curated rows placed through Wikidata keep their own coordinates; only rows tied to Google are re-checked there.
+  query = query.or("google_place_id.not.is.null,wikidata_id.is.null");
   const { data, error } = await query
     .order("last_verified_at", { ascending: true, nullsFirst: true })
     .limit(limit);
@@ -113,7 +111,7 @@ export async function refreshAttractions({
           priceLevel: result.place.priceLevel,
         });
         if (fitted.ok) {
-          Object.assign(plan.fields, fitToRowUpdate(fitted.fit, { model: FAMILY_FIT_MODEL, now: nowIso }));
+          Object.assign(plan.fields, fitToRowUpdate(fitted.fit, { model: fitted.model || FAMILY_FIT_MODEL, engine: fitted.engine || "haiku", now: nowIso }));
           summary.fitDone += 1;
         } else {
           summary.fitFailed += 1;

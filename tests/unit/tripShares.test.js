@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildSharedTripSnapshot } from '../../src/shared/shareSnapshot.js';
-import { createTripShareStore, SHARE_TTL_MS } from '../../src/backend/services/tripShareStore.js';
+import { createTripShareStore, shareExpiryMs, SHARE_TTL_MS, SHARE_MAX_TTL_MS } from '../../src/backend/services/tripShareStore.js';
 
 export const sampleTrip = {
   trip: { destination: 'Florida', startDate: '2026-12-20', endDate: '2026-12-27', duration: 8, lat: 28, lon: -81, children: [{ name: 'PRIVATE CHILD', age: 6 }], savedProfile: { secret: 'PRIVATE PROFILE' } },
@@ -74,11 +74,14 @@ test('empty or oversized snapshots are rejected', () => {
   assert.throws(() => buildSharedTripSnapshot(data), /too large/i);
 });
 
-test('expiry is exactly seven days and is enforced at the boundary on reads', async () => {
+test('without an end date, expiry is exactly seven days and is enforced at the boundary on reads', async () => {
   let now = Date.parse('2026-10-07T20:00:00Z');
   const repository = memoryRepository();
   const store = createTripShareStore({ repository, now: () => now });
-  const share = await store.create(sampleTrip);
+  const undated = structuredClone(sampleTrip);
+  delete undated.trip.endDate;
+  delete undated.parsed.endDate;
+  const share = await store.create(undated);
   assert.equal(Date.parse(share.expiresAt) - now, 7 * 24 * 60 * 60 * 1000);
   assert.equal(SHARE_TTL_MS, 604800000);
   const stored = [...repository.rows.values()][0];
@@ -107,4 +110,66 @@ test('invalid and unknown tokens return no itinerary data', async () => {
   for (const token of ['', 'abc', '../private', 'a'.repeat(43)]) {
     await assert.rejects(store.read(token), error => error.code === 'SHARE_UNAVAILABLE');
   }
+});
+
+const DAY = 24 * 60 * 60 * 1000;
+const created = Date.parse('2026-10-07T20:00:00Z');
+const withEnd = (endDate, where = 'trip') => ({ tripData: { [where]: { endDate } } });
+
+test('a link lasts until the end of the seventh day after the trip ends', async () => {
+  assert.equal(new Date(shareExpiryMs(withEnd('2026-12-27'), created)).toISOString(), '2027-01-04T00:00:00.000Z');
+  assert.equal(new Date(shareExpiryMs(withEnd('2026-12-27', 'parsed'), created)).toISOString(), '2027-01-04T00:00:00.000Z');
+  const store = createTripShareStore({ repository: memoryRepository(), now: () => created });
+  assert.equal((await store.create(sampleTrip)).expiresAt, '2027-01-04T00:00:00.000Z');
+});
+
+test('link lifetime is at least seven days and at most 400 days from creation', () => {
+  assert.equal(shareExpiryMs(withEnd('2026-10-01'), created), created + SHARE_TTL_MS);
+  assert.equal(shareExpiryMs(withEnd('2026-10-05'), created), created + SHARE_TTL_MS);
+  assert.equal(new Date(shareExpiryMs(withEnd('2026-10-07'), created)).toISOString(), '2026-10-15T00:00:00.000Z');
+  assert.equal(shareExpiryMs(withEnd('2029-01-01'), created), created + SHARE_MAX_TTL_MS);
+  assert.equal(SHARE_MAX_TTL_MS, 400 * DAY);
+});
+
+test('missing or invalid end dates fall back to seven days', () => {
+  for (const endDate of [undefined, null, '', 20261227, '2026-12-7', '2026-02-30', '2026-13-01', '0050-01-01', '2026-12-27T00:00:00Z', 'Dec 27, 2026', ' 2026-12-27']) {
+    assert.equal(shareExpiryMs(withEnd(endDate), created), created + SHARE_TTL_MS, String(endDate));
+  }
+  assert.equal(shareExpiryMs(null, created), created + SHARE_TTL_MS);
+});
+
+test('packing list is shared as category and item names with quantities only', () => {
+  const data = structuredClone(sampleTrip);
+  data.packingList = { profile: 'PRIVATE PROFILE', checked: ['PRIVATE CHECK'], categories: [
+    { name: 'Clothes', reason: 'PRIVATE REASON', items: [
+      { name: 'Rain jacket', quantity: '2', reason: 'PRIVATE REASON', source: 'PRIVATE SOURCE', shopLinks: [{ store: 'Amazon', url: 'https://PRIVATE.example' }], checked: true },
+      { name: { rawInput: 'PRIVATE PROMPT' }, quantity: '1' },
+      { name: 'Socks', quantity: 3 },
+    ] },
+    { name: 'Empty', items: [] },
+    { name: 42, items: [{ name: 'Hat', quantity: '1' }] },
+  ] };
+  const { packingList } = buildSharedTripSnapshot(data).tripData;
+  assert.deepEqual(packingList, { categories: [{ name: 'Clothes', items: [{ name: 'Rain jacket', quantity: '2' }, { name: 'Socks', quantity: '' }] }] });
+  assert.equal(JSON.stringify(buildSharedTripSnapshot(data)).includes('PRIVATE'), false);
+});
+
+test('packing list is optional and capped at 30 categories, 100 items and 120 characters', () => {
+  assert.equal('packingList' in buildSharedTripSnapshot(sampleTrip).tripData, false);
+  assert.equal('packingList' in buildSharedTripSnapshot({ ...sampleTrip, packingList: { categories: 'none' } }).tripData, false);
+  const long = 'x'.repeat(200);
+  const data = { ...sampleTrip, packingList: { categories: Array.from({ length: 40 }, (_, c) => ({
+    name: `${c}${long}`,
+    items: Array.from({ length: 150 }, (_, i) => ({ name: `${i}${long}`, quantity: long })),
+  })) } };
+  assert.throws(() => buildSharedTripSnapshot(data), /too large/i);
+  data.packingList.categories = data.packingList.categories.slice(0, 2);
+  const { categories } = buildSharedTripSnapshot(data).tripData.packingList;
+  assert.equal(categories.length, 2);
+  assert.equal(categories[0].items.length, 100);
+  assert.equal(categories[0].name.length, 120);
+  assert.equal(categories[0].items[0].name.length, 120);
+  assert.equal(categories[0].items[0].quantity.length, 120);
+  const many = { ...sampleTrip, packingList: { categories: Array.from({ length: 40 }, (_, c) => ({ name: `Cat ${c}`, items: [{ name: 'Item', quantity: '1' }] })) } };
+  assert.equal(buildSharedTripSnapshot(many).tripData.packingList.categories.length, 30);
 });

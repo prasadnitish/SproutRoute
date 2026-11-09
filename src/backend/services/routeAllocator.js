@@ -205,6 +205,19 @@ function allocateNights(stops, startDate, endDate, options = {}) {
   const totalNights = Math.max(1, totalDays - 1);
   const requestedTotal = stops.reduce((sum, stop) => sum + (stop.requestedNights || 0), 0);
 
+  // People usually ask in days ("4 days in Orlando and 3 in Miami"), which is one more than the
+  // nights available. Keep the earlier requests and trim the later stops, never below one night.
+  if (requestedTotal > totalNights && requestedTotal - totalNights < stops.length && stops.every((stop) => stop.requestedNights)) {
+    const base = stops.map((stop) => stop.requestedNights);
+    let excess = requestedTotal - totalNights;
+    for (let i = base.length - 1; i >= 0 && excess > 0; i -= 1) {
+      const cut = Math.min(excess, base[i] - 1);
+      base[i] -= cut;
+      excess -= cut;
+    }
+    if (excess === 0) return base;
+  }
+
   if (requestedTotal > 0 && requestedTotal <= totalNights) {
     const base = stops.map((stop) => stop.requestedNights || 1);
     let remaining = totalNights - base.reduce((sum, n) => sum + n, 0);

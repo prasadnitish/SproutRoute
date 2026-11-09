@@ -54,7 +54,7 @@ test("terms and safety disclosures position guidance as informational, not legal
   assert.match(safety, /WeatherKit/i);
 });
 
-test("support page provides reviewer-visible contact and required public policy links", () => {
+test("support page provides contact and required public policy links", () => {
   const html = publicPage("support.html");
 
   assert.match(html, /Support/i);
@@ -64,15 +64,16 @@ test("support page provides reviewer-visible contact and required public policy 
   assert.match(html, /privacy-choices\.html/i);
 });
 
-test("privacy policy covers shared links, group trips, calendar, and says web sessions are not recorded", () => {
+test("privacy policy covers shared links, calendar, and says web sessions are not recorded", () => {
   const html = publicPage("privacy.html");
 
   assert.ok(!html.includes("Last updated: May 6, 2026"));
   assert.match(html, /Shared trip links/i);
-  assert.match(html, /expires after seven days/i);
-  assert.match(html, /Trip Hub group trips/i);
-  assert.match(html, /90 days/i);
-  assert.match(html, /removal can come later than 90 days/i);
+  assert.match(html, /packing list/i);
+  assert.match(html, /never includes your original prompt, imported profile, children's ages or pet details/i);
+  assert.match(html, /Anyone who has the link can view/i);
+  assert.match(html, /7 days after the trip ends/i);
+  assert.match(html, /Stop sharing/);
   assert.match(html, /write-only access/i);
   assert.match(html, /web app does not record sessions or screens/i);
   assert.match(html, /asked to agree before your trip text is first sent/i);
@@ -81,4 +82,30 @@ test("privacy policy covers shared links, group trips, calendar, and says web se
 
 test("privacy choices page says the web app does not record sessions", () => {
   assert.match(publicPage("privacy-choices.html"), /does not record sessions or screens/i);
+});
+
+test("public pages no longer describe Trip Hub, location sharing, or App Review", () => {
+  for (const page of ["privacy.html", "support.html", "terms.html", "privacy-choices.html"]) {
+    const html = publicPage(page);
+    assert.doesNotMatch(html, /Trip Hub|group trip|location sharing|shared location|App Review|reviewer/i, page);
+  }
+  for (const page of ["support.html", "privacy-choices.html"]) {
+    assert.match(publicPage(page), /Stop sharing/, page);
+  }
+});
+
+test("universal links no longer claim Trip Hub invite paths", () => {
+  const aasa = JSON.parse(publicPage(".well-known/apple-app-site-association"));
+  assert.deepEqual(aasa.applinks.details[0].components, []);
+});
+
+test("index.html has the Smart App Banner and absolute link-preview tags", () => {
+  const html = readFileSync(path.resolve("src/frontend/index.html"), "utf8");
+  assert.match(html, /<meta name="apple-itunes-app" content="app-id=6759532704"/);
+  assert.match(html, /<meta property="og:title" content="SproutRoute: family trip plans"/);
+  assert.match(html, /<meta property="og:image" content="https:\/\/www\.sproutroute\.app\/og-image\.png"/);
+  assert.match(html, /<meta name="twitter:card" content="summary_large_image"/);
+  const png = readFileSync(path.resolve("src/frontend/public/og-image.png"));
+  assert.equal(png.readUInt32BE(16), 1200);
+  assert.equal(png.readUInt32BE(20), 630);
 });

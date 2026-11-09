@@ -217,10 +217,19 @@ function evaluateChild(child, ruleSet) {
 
   if (ageOnlyCandidates.length > 0) {
     const fallbackRule = ageOnlyCandidates[0];
+    // Overlapping stages (for example harness and booster) cannot be told apart without
+    // weight and height, so name each one instead of presenting the first as the answer.
+    const stages = [...new Set(ageOnlyCandidates.map((rule) => rule.requiredRestraint))];
+    const label = stages.length > 1
+      ? `${stages.map((stage, index) => {
+          const text = toHumanRestraint(stage);
+          return index === 0 ? text : text.charAt(0).toLowerCase() + text.slice(1);
+        }).join(" or ")}, depending on weight and height`
+      : toHumanRestraint(fallbackRule.requiredRestraint);
     return {
       status: "Needs review",
       requiredRestraint: fallbackRule.requiredRestraint,
-      requiredRestraintLabel: toHumanRestraint(fallbackRule.requiredRestraint),
+      requiredRestraintLabel: label,
       seatPosition: fallbackRule.seatPosition,
       rationale:
         "Age matched but weight/height details are incomplete. Verify official rules before travel.",

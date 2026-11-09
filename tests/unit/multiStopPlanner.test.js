@@ -171,6 +171,66 @@ test("planRouteStops passes prefetched attraction candidates to the matching sto
   assert.deepEqual(seen.kyoto, cachedByStopId.kyoto);
 });
 
+test("planRouteStops loads verified places for a stop the client did not prefetch", async () => {
+  // Without these the model invents activity names with no coordinates, and the map has nothing to pin.
+  const seen = {};
+  const loaded = [];
+  const routePlan = {
+    tripShape: "multi_stop",
+    totalDays: 4,
+    stops: [
+      { id: "orlando", name: "Orlando, FL", arrivalDate: "2026-12-15", departureDate: "2026-12-17", nights: 2, dayStart: 1, dayEnd: 2, role: "must_visit" },
+      { id: "miami", name: "Miami, FL", arrivalDate: "2026-12-17", departureDate: "2026-12-18", nights: 1, dayStart: 3, dayEnd: 4, role: "must_visit" },
+    ],
+    transitLegs: [],
+    warnings: [],
+  };
+  const prefetched = { miami: [{ canonical_name: "Zoo Miami", lat: 25.6, lon: -80.4 }] };
+
+  await planRouteStops({
+    routePlan,
+    baseTrip: { activities: [], children: [{ age: 6 }], pets: [], cachedAttractionsByStopId: prefetched },
+    geocodeLocationFn: async (name) => ({ lat: name.startsWith("Orlando") ? 28.5 : 25.8, lon: -81, countryCode: "US" }),
+    getWeatherForecastFn: async () => ({ summary: "Clear", forecast: [] }),
+    loadStopAttractionsFn: async ({ stop, coords }) => {
+      loaded.push([stop.id, coords.lat]);
+      if (stop.id === "orlando") return [{ canonical_name: "Magic Kingdom Park", lat: 28.41, lon: -81.58 }];
+      throw new Error("should not load a prefetched stop");
+    },
+    generateTripPlanChunkedFn: async (tripInput) => {
+      seen[tripInput.routeStop.id] = tripInput.cachedAttractions.map((row) => row.canonical_name);
+      return { overview: "", suggestedActivities: [], dailyItinerary: [{ day: "Day 1", activities: [], notes: "" }], tips: [] };
+    },
+    scheduleItineraryFn: (plan) => plan.dailyItinerary,
+  });
+
+  assert.deepEqual(loaded, [["orlando", 28.5]]);
+  assert.deepEqual(seen.orlando, ["Magic Kingdom Park"]);
+  assert.deepEqual(seen.miami, ["Zoo Miami"]);
+});
+
+test("planRouteStops still plans a stop when loading its places fails", async () => {
+  const routePlan = {
+    tripShape: "multi_stop", totalDays: 2, transitLegs: [], warnings: [],
+    stops: [{ id: "orlando", name: "Orlando, FL", arrivalDate: "2026-12-15", departureDate: "2026-12-16", nights: 1, dayStart: 1, dayEnd: 2, role: "must_visit" }],
+  };
+  let planned = 0;
+  await planRouteStops({
+    routePlan,
+    baseTrip: { activities: [], children: [], pets: [] },
+    geocodeLocationFn: async () => ({ lat: 28.5, lon: -81, countryCode: "US" }),
+    getWeatherForecastFn: async () => ({ summary: "Clear", forecast: [] }),
+    loadStopAttractionsFn: async () => { throw new Error("database down"); },
+    generateTripPlanChunkedFn: async (tripInput) => {
+      planned += 1;
+      assert.deepEqual(tripInput.cachedAttractions, []);
+      return { overview: "", suggestedActivities: [], dailyItinerary: [{ day: "Day 1", activities: [], notes: "" }], tips: [] };
+    },
+    scheduleItineraryFn: (plan) => plan.dailyItinerary,
+  });
+  assert.equal(planned, 1);
+});
+
 test("planRouteStops passes route context into stop schedulers", async () => {
   const schedulerOptions = [];
   const routePlan = {

@@ -6,6 +6,10 @@ on:
     branches: ["**"]
   pull_request:
 
+# Least privilege: this job only reads the repository.
+permissions:
+  contents: read
+
 jobs:
   e2e:
     runs-on: ubuntu-latest

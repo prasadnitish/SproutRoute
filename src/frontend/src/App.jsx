@@ -9,6 +9,7 @@ import ProfileImportModal from "./components/ProfileImportModal.jsx";
 import ShareTripDialog from "./components/ShareTripDialog.jsx";
 import SharedTripScreen from "./screens/SharedTripScreen.jsx";
 import { Icon } from "./components/Icon.jsx";
+import AnalyticsConsent from "./components/AnalyticsConsent.jsx";
 
 function loadSavedProfile() {
   try {
@@ -24,7 +25,8 @@ export default function App() {
 }
 
 function PlannerApp() {
-  const geolocation = useGeolocation();
+  const geo = useGeolocation();
+  const geolocation = geo.location;
   const trip = useTrip();
   const { enrichedData, enrich } = usePlacesEnrich();
   const [showImport, setShowImport] = useState(false);
@@ -104,6 +106,7 @@ function PlannerApp() {
         {trip.screen === "input" && (
           <InputScreen
             savedProfile={savedProfile}
+            geo={geo}
             onSubmit={(arg) => {
               const text = typeof arg === "string" ? arg : arg?.text;
               const profileOverride = typeof arg === "object" ? arg?.savedProfile : null;
@@ -151,7 +154,8 @@ function PlannerApp() {
         onClose={() => setShowImport(false)}
         onSaved={(profile) => setSavedProfile(profile)}
       />
-      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
+      {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} packingList={trip.packingList} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
+      <AnalyticsConsent />
     </div>
   );
 }

@@ -737,3 +737,39 @@ test('Gemini 3.8 uses low thinking without unsupported sampling settings', async
  assert.equal(sent.generationConfig.temperature,undefined);
  assert.equal(sent.generationConfig.thinkingConfig.thinkingLevel,'low');
 });
+
+test("callModel falls back to OpenAI Terra when Anthropic fails, without a temperature Terra rejects", async () => {
+  delete process.env.AI_PROVIDER;
+  const saved = { a: process.env.ANTHROPIC_API_KEY, o: process.env.OPENAI_API_KEY, m: process.env.OPENAI_MODEL_ID };
+  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.OPENAI_API_KEY = "test-key";
+  delete process.env.OPENAI_MODEL_ID;
+
+  let sent;
+  const mockAnthropicClient = { messages: { create: async () => { throw new Error("credit balance is too low"); } } };
+  const mockOpenAIClient = {
+    chat: { completions: { create: async (body) => { sent = body; return { choices: [{ message: { content: "{\"ok\":true}" }, finish_reason: "stop" }], usage: { prompt_tokens: 10, completion_tokens: 5 } }; } } },
+  };
+
+  const result = await callModel({ system: "s", user: "u", caller: "parseInput" }, { anthropicClient: mockAnthropicClient, openaiClient: mockOpenAIClient });
+
+  assert.strictEqual(result.responseText, "{\"ok\":true}");
+  assert.strictEqual(sent.model, "gpt-6.1-terra");
+  assert.strictEqual(sent.reasoning_effort, "none");
+  assert.ok(!("temperature" in sent), "gpt-6 models accept only the default temperature");
+
+  for (const [k, v] of [["ANTHROPIC_API_KEY", saved.a], ["OPENAI_API_KEY", saved.o], ["OPENAI_MODEL_ID", saved.m]]) {
+    if (v !== undefined) process.env[k] = v; else delete process.env[k];
+  }
+});
+
+test("Luna keeps low reasoning effort when it is the OpenAI model", async () => {
+  let sent;
+  const mockOpenAIClient = { chat: { completions: { create: async (body) => { sent = body; return { choices: [{ message: { content: "{}" }, finish_reason: "stop" }], usage: {} }; } } } };
+  const saved = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "test-key";
+  await callModel({ system: "s", user: "u", provider: "openai", model: "gpt-6-luna" }, { openaiClient: mockOpenAIClient, anthropicClient: { messages: { create: async () => ({ content: [{ type: "text", text: "{}" }] }) } } });
+  assert.strictEqual(sent.reasoning_effort, "low");
+  assert.ok(!("temperature" in sent));
+  if (saved !== undefined) process.env.OPENAI_API_KEY = saved; else delete process.env.OPENAI_API_KEY;
+});

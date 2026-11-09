@@ -40,9 +40,13 @@ import {
 } from "./utils/sanitize.js";
 import { buildShopLinks } from "./utils/affiliateLinks.js";
 import { sanitizeDestination, sanitizeFoodPreferences, sanitizePets, sanitizeRouteIntent } from "./services/inputSafety.js";
-import { log } from "./utils/logger.js";
+import { log, errorFields, requestContext } from "./utils/logger.js";
+import { createClientIpMiddleware } from "./utils/clientIp.js";
+import { createErrorHandler } from "./utils/errorHandler.js";
+import { installProcessHandlers, installShutdownHandler } from "./utils/processHandlers.js";
 import { requireAuth, optionalAuth } from "./middleware/auth.js";
 import { getSupabaseAdmin, supabaseForUser } from "./utils/supabaseClient.js";
+import { scheduleGoogleRetention } from "./services/googleRetention.js";
 // NOTE: Only getSupabaseAdmin() (for admin ops) and supabaseForUser() (for user-scoped ops)
 import { metrics } from "./services/metrics.js";
 import { aiAlerts } from "./services/aiAlerts.js";
@@ -52,6 +56,7 @@ import { fetchPlacePhoto, readBoundedResponseBody } from "./services/photoProxy.
 import { saveTripFeedback } from "./services/feedbackStore.js";
 import { createTripShareStore } from "./services/tripShareStore.js";
 import { mountTripShareRoutes } from "./routes/tripShares.js";
+import { createCostControl } from "./middleware/costControl.js";
 
 const parseInput = tracing.wrap('tool.parseInput', raw_parseInput);
 
@@ -275,7 +280,7 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
   const tripDays = inclusiveDayCount(startDate, endDate);
   const maxResults = Math.min(36, Math.max(16, tripDays * 4 + 4));
 
-  return attractionMemoryService.getPlanningCandidates({
+  const candidates = await attractionMemoryService.getPlanningCandidates({
     destination,
     coords,
     countryCode,
@@ -291,6 +296,16 @@ async function loadCachedAttractionsForTrip(attractionMemoryService, {
     pets: pets || [],
     maxResults,
   });
+
+  // The retrieved set, names only, so a bad itinerary can be told apart: retrieval miss, noisy context, or corpus gap.
+  const list = Array.isArray(candidates) ? candidates : [];
+  log.info("attractions:candidates", {
+    destination,
+    requested: maxResults,
+    count: list.length,
+    candidates: list.slice(0, 20).map((c) => ({ name: c.canonical_name, category: c.category, status: c.verification_status })),
+  });
+  return candidates;
 }
 
 function persistTripAttractionsInBackground(attractionMemoryService, payload) {
@@ -365,6 +380,29 @@ function sanitizePrefetchedAttractionsByStopId(raw, allowedStopIds = []) {
   return result;
 }
 
+// Columns the anonymous city attractions route may return (llm_notes, confidence_score, times_seen,
+// last_seen_at, source_type and the like are internal).
+const PUBLIC_ATTRACTION_FIELDS = [
+  "id", "city_id", "canonical_name", "short_summary", "category", "subcategories_json",
+  "age_bands_json", "indoor_outdoor", "duration_bucket", "pace_fit", "crowd_level",
+  "budget_tier", "stroller_friendly", "rainy_day_fit", "parent_appeal_score",
+  "kid_appeal_score", "pet_friendly", "booking_needed", "google_place_id",
+  "last_verified_at", "verification_status",
+];
+const PUBLIC_VERIFICATION_STATUSES = ["verified", "unverified"];
+
+// Jurisdiction codes in request bodies are untrusted. Keep only ISO-shaped values so they cannot
+// reach shared tables (cities) as free text.
+function normalizeCountryCode(value, fallback = "US") {
+  const code = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : fallback;
+}
+
+function normalizeRegionCode(value) {
+  const code = String(value ?? "").trim().toUpperCase();
+  return /^[A-Z0-9]{1,3}$/.test(code) ? code : null;
+}
+
 export function createApp(deps = {}) {
   // App factory enables dependency injection for fast, isolated integration tests.
   const {
@@ -384,7 +422,9 @@ export function createApp(deps = {}) {
     attractionMemoryService = createAttractionMemoryService(),
     groupTripStore = createGroupTripStore(),
     tripShareStore = createTripShareStore(),
+    costControl = createCostControl(),
     getSupabaseAdminFn = getSupabaseAdmin,
+    healthTimeoutMs = 2000,
     enableRequestLogging = process.env.NODE_ENV !== "test",
   } = deps;
 
@@ -405,11 +445,22 @@ export function createApp(deps = {}) {
   const app = express();
   if (process.env.TRACING_ENABLED !== "false") app.use(tracing.middleware);
 
+  // One id per request, assigned before the body parser so parse failures carry it too.
+  // It is the tracer run id when tracing is on, so a log search and a trace lookup use the same value.
+  app.use((req, res, next) => {
+    if (!req.path.startsWith("/api")) return next();
+    req.reqId = String(res.getHeader("X-Trace-Id") || crypto.randomBytes(16).toString("hex"));
+    res.setHeader("X-Request-Id", req.reqId);
+    next();
+  });
+
   // Railway (and most PaaS) sit behind a load balancer that sets X-Forwarded-For.
   // Without trust proxy, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR.
   if (process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
   }
+  // Per-IP limits should count the visitor, not the Cloudflare server in front of us. See utils/clientIp.js.
+  app.use(createClientIpMiddleware());
 
   const devLog = (...args) => {
     if (process.env.NODE_ENV !== "production" && enableRequestLogging) {
@@ -438,7 +489,8 @@ export function createApp(deps = {}) {
 
   // Enforce reasonable request body size limits while allowing multi-city route review payloads.
   app.use('/api/v1/trip/shares', express.json({ limit: '160kb' }));
-  app.use(express.json({ limit: "64kb" }));
+  // Keep the exact body bytes: App Attest assertions on metered routes sign a hash of them.
+  app.use(express.json({ limit: "64kb", verify: (req, _res, buf) => { req.rawBody = buf; } }));
   app.use(express.urlencoded({ limit: "64kb", extended: false }));
   // Opt-in eval traces for synthetic golden-set runs (needs the parsed body).
   app.use(evalCapture.middleware);
@@ -450,7 +502,7 @@ export function createApp(deps = {}) {
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline' https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com; frame-src https://www.google.com https://maps.google.com; frame-ancestors 'none';",
+      "default-src 'self'; script-src 'self' 'unsafe-inline' https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self'; frame-src https://www.google.com https://maps.google.com; frame-ancestors 'none';",
     );
     if (process.env.NODE_ENV === "production") {
       res.setHeader(
@@ -465,15 +517,16 @@ export function createApp(deps = {}) {
   app.use((req, res, next) => {
     if (!req.path.startsWith("/api")) return next();
     const start = Date.now();
-    const reqId = crypto.randomUUID().slice(0, 8);
-    req.reqId = reqId;
+    const reqId = req.reqId;
     log.info("req:start", { reqId, method: req.method, path: req.path });
     res.on("finish", () => {
       const ms = Date.now() - start;
       log.info("req:end", { reqId, method: req.method, path: req.path, status: res.statusCode, ms });
       metrics.recordRequest({ method: req.method, path: req.path, status: res.statusCode, ms, reqId });
+      // A 503 from the daily spend cap is intended, not a server error.
+      if (!res.locals.costControlRejected) aiAlerts.recordResponse({ status: res.statusCode, path: req.route?.path ?? req.path });
     });
-    next();
+    requestContext.run({ reqId }, next);
   });
 
   // AI-intensive routes share a per-IP budget across parsing and generation.
@@ -512,6 +565,18 @@ export function createApp(deps = {}) {
     },
   });
 
+  // Counts failed ops-secret attempts per IP; successful requests are skipped. One instance is shared by
+  // POST /ops/session and the header/Bearer path on the ops APIs, so every way to guess OPS_SECRET draws
+  // on a single budget. Once an IP is over it, even the right secret gets 429 until the window ends.
+  const opsAttemptLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: "Too many failed attempts. Please try again in 15 minutes." },
+  });
+
   const groupTripCreateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 10,
@@ -544,6 +609,18 @@ export function createApp(deps = {}) {
   }
 
   mountTripShareRoutes(app, { store: tripShareStore, createLimiter: groupTripCreateLimiter, readLimiter: apiLimiter });
+
+  // App Attest registration: an app install asks for a challenge and attests its key once.
+  const deviceLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { code: "RATE_LIMITED", message: "Too many requests. Please try again in 15 minutes.", category: "rate_limit", retryable: true },
+  });
+  costControl.mountDeviceRoutes(app, { limiter: deviceLimiter });
+  // Persistent per-device / per-IP quotas and the daily spend cap, after the burst limiters.
+  const meter = costControl.meter;
   app.use('/s', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -557,6 +634,33 @@ export function createApp(deps = {}) {
       message: "SproutRoute API is running",
       timestamp: new Date().toISOString(),
     });
+  });
+
+  // Readiness: can we reach the database? Kept apart from /api/health so a database blip cannot fail a deploy healthcheck.
+  app.get("/api/health/ready", async (req, res) => {
+    let supabase = "ok";
+    let timer;
+    try {
+      const query = getSupabaseAdminFn().from("trip_metrics").select("req_id").limit(1);
+      const outcome = await Promise.race([
+        query,
+        new Promise((resolve) => { timer = setTimeout(() => resolve("timeout"), healthTimeoutMs); }),
+      ]);
+      if (outcome === "timeout") {
+        supabase = "timeout";
+        log.warn("health:ready-failed", { check: "supabase", error: `no answer within ${healthTimeoutMs}ms` });
+      } else if (outcome?.error) {
+        supabase = "error";
+        log.warn("health:ready-failed", { check: "supabase", error: outcome.error.message });
+      }
+    } catch (err) {
+      supabase = "error";
+      log.warn("health:ready-failed", { check: "supabase", ...errorFields(err) });
+    } finally {
+      clearTimeout(timer);
+    }
+    const ok = supabase === "ok";
+    res.status(ok ? 200 : 503).json({ status: ok ? "ok" : "degraded", checks: { supabase }, timestamp: new Date().toISOString() });
   });
 
   const OPS_SESSION_COOKIE = "sproutroute_ops_session";
@@ -621,9 +725,9 @@ export function createApp(deps = {}) {
     catch {res.status(400).json({error:'Invalid milestone evidence'});}
   });
 
-  app.get("/api/v1/ops/traces", opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health() }));
+  app.get("/api/v1/ops/traces", opsAttemptLimiter, opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health() }));
 
-  app.get("/api/v1/ops/metrics", opsGuard, async (req, res) => {
+  app.get("/api/v1/ops/metrics", opsAttemptLimiter, opsGuard, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
     try {
       const snapshot = await metrics.getSnapshot();
@@ -633,7 +737,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/ops/session", apiLimiter, (req, res) => {
+  app.post("/ops/session", apiLimiter, opsAttemptLimiter, (req, res) => {
     const secret = process.env.OPS_SECRET;
     if (!secret) return res.status(503).send("Ops dashboard not configured");
     if (!secureSecretMatches(req.body?.key, secret)) return res.status(403).send("Forbidden");
@@ -686,7 +790,7 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.post("/api/trip-plan", aiLimiter, async (req, res) => {
+  app.post("/api/trip-plan", aiLimiter, meter("plan"), async (req, res) => {
     // Generates itinerary + weather context; activities are optional at this stage.
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -740,7 +844,7 @@ export function createApp(deps = {}) {
       try {
         scheduledItinerary = scheduleItinerary(tripPlan, {}, startDate, { hasChildren: children.length > 0 });
       } catch (scheduleErr) {
-        devLog(`Schedule failed (non-blocking): ${scheduleErr.message}`);
+        log.warn("trip-plan:schedule-failed", { reqId: req.reqId, ...errorFields(scheduleErr) });
       }
 
       const tripDuration = inclusiveDayCount(startDate, endDate);
@@ -941,7 +1045,7 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/safety/travel-tips — AI-generated travel safety for any destination
-  app.post("/api/safety/travel-tips", aiLimiter, async (req, res) => {
+  app.post("/api/safety/travel-tips", aiLimiter, meter("tips"), async (req, res) => {
     try {
       const destination = sanitizeString(req.body?.destination || "", 120);
       // Sanitize childrenAges to prevent prompt injection (only allow numbers 0-18)
@@ -1017,7 +1121,7 @@ export function createApp(deps = {}) {
   }
 
   app.post("/api/v1/group-trips", optionalAuth, groupTripCreateLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.createTrip({
       ...(req.body || {}),
       ownerKey: groupTripOwnerKey(req),
@@ -1031,7 +1135,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/join", groupTripJoinLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.joinTrip(req.body || {});
 
     if (!result.ok) {
@@ -1048,7 +1152,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/items", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.addItem(req.body || {});
 
     if (!result.ok) {
@@ -1065,7 +1169,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/items/update", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.updateItem(req.body || {});
 
     if (!result.ok) {
@@ -1082,7 +1186,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/items/import-text", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.importItemsFromText(req.body || {});
 
     if (!result.ok) {
@@ -1099,7 +1203,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/decisions", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.createDecision(req.body || {});
 
     if (!result.ok) {
@@ -1116,7 +1220,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/decisions/vote", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.voteDecision(req.body || {});
 
     if (!result.ok) {
@@ -1133,7 +1237,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/expenses", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.createExpense(req.body || {});
 
     if (!result.ok) {
@@ -1150,7 +1254,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/location-sharing", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.setLocationSharing(req.body || {});
 
     if (!result.ok) {
@@ -1167,7 +1271,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/leave", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.leaveTrip(req.body || {});
     if (!result.ok) {
       return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
@@ -1176,7 +1280,7 @@ export function createApp(deps = {}) {
   });
 
   app.post("/api/v1/group-trips/invite/rotate", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const result = await groupTripStore.rotateInvite(req.body || {});
     if (!result.ok) {
       return groupTripError(res, groupTripStatus(result), requestId, result.errors.join(" "), result.errors);
@@ -1185,7 +1289,7 @@ export function createApp(deps = {}) {
   });
 
   app.get("/api/v1/group-trips/snapshot", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const participantAccessToken =
       req.get?.("x-group-trip-participant-token") ||
       req.headers?.["x-group-trip-participant-token"] ||
@@ -1221,7 +1325,7 @@ export function createApp(deps = {}) {
   // GET /api/v1/meta/capabilities
   // Returns feature flags, supported countries, weather providers, safety modes.
   app.get("/api/v1/meta/capabilities", (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     const client = req.query?.client || req.body?.client || "web";
 
     const payload = {
@@ -1267,7 +1371,7 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/trip/resolve
   app.post("/api/v1/trip/resolve", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const rawQuery = sanitizeString(req.body?.query || "", 120);
       if (!rawQuery) {
@@ -1283,7 +1387,7 @@ export function createApp(deps = {}) {
       const result = await resolveDestinationQueryFn(rawQuery);
       return res.json({ ...result, requestId });
     } catch (error) {
-      devLog("Error in /api/v1/trip/resolve:", error);
+      log.error("v1:trip-resolve-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "RESOLVE_FAILED",
         message: "Failed to resolve destination. Please try again.",
@@ -1354,8 +1458,8 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/plan
-  app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+  app.post("/api/v1/trip/plan", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
       const validationErrors = validateTripData(sanitizedData, { requireActivities: false });
@@ -1441,7 +1545,7 @@ export function createApp(deps = {}) {
         tripPlan,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/plan:", error);
+      log.error("v1:trip-plan-failed", { reqId: req.reqId, ...errorFields(error) });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -1473,8 +1577,8 @@ export function createApp(deps = {}) {
   // POST /api/v1/trip/bundle
   // Single endpoint: geocode once → weather once → trip plan + packing list in parallel.
   // Eliminates redundant geocoding + weather round-trip, runs AI calls concurrently.
-  app.post("/api/v1/trip/bundle", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+  app.post("/api/v1/trip/bundle", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
+    const requestId = req.reqId || crypto.randomUUID();
     const timings = {};
     try {
       const sanitizedData = sanitizeTripData(req.body);
@@ -1591,7 +1695,7 @@ export function createApp(deps = {}) {
         timings,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/bundle:", error);
+      log.error("v1:trip-bundle-failed", { reqId: req.reqId, ...errorFields(error) });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -1625,7 +1729,7 @@ export function createApp(deps = {}) {
   // Events: destination → weather → itinerary-chunk → done
   // Packing is loaded after the itinerary so the first useful result is not blocked.
   // No batch enrichment — frontend enriches on-demand via usePlacesEnrich.
-  app.post("/api/v1/trip/stream", optionalAuth, aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/stream", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -1752,6 +1856,17 @@ export function createApp(deps = {}) {
           getWeatherForecastFn,
           generateTripPlanChunkedFn,
           scheduleItineraryFn: scheduleItinerary,
+          loadStopAttractionsFn: ({ stop, coords, planningEndDate }) => loadCachedAttractionsForTrip(attractionMemoryService, {
+            destination: stop.name,
+            startDate: stop.arrivalDate,
+            endDate: planningEndDate,
+            coords: { ...coords, displayName: coords.displayName || stop.name },
+            countryCode: coords.countryCode || stop.countryCode || "US",
+            children,
+            activities: safeActivities,
+            pets,
+            planningContext,
+          }),
           shouldAbort: isClientClosed,
           signal: streamAbort.signal,
           onEvent: (event, payload) => {
@@ -1888,7 +2003,9 @@ export function createApp(deps = {}) {
             try {
               const chunkStartDate = chunks[meta.chunk - 1]?.startDate || startDate;
               scheduled = scheduleItinerary(chunkResult, {}, chunkStartDate, { hasChildren: children.length > 0 });
-            } catch { /* non-fatal */ }
+            } catch (scheduleErr) {
+              log.warn("stream:schedule-failed", { reqId, chunk: meta.chunk, ...errorFields(scheduleErr) });
+            }
 
             if (!send("itinerary-chunk", {
               tripPlan: chunkResult,
@@ -1966,8 +2083,8 @@ export function createApp(deps = {}) {
   // Regenerates ONLY the trip itinerary (no geocoding or weather fetch).
   // Used when the user customizes activities after the initial plan is generated.
   // Requires: destination, startDate, endDate, activities, children, weather (cached).
-  app.post("/api/v1/trip/replan", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+  app.post("/api/v1/trip/replan", optionalAuth, aiLimiter, meter("plan"), async (req, res) => {
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
       const validationErrors = validateTripData(sanitizedData, { requireActivities: true });
@@ -2007,6 +2124,8 @@ export function createApp(deps = {}) {
       };
 
       const foodPreferences = sanitizeFoodPreferences(req.body?.foodPreferences);
+      const countryCode = normalizeCountryCode(req.body?.countryCode);
+      const regionCode = normalizeRegionCode(req.body?.regionCode);
       const planningContext = await resolvePlanningContext(req, sanitizedData, foodPreferences);
       const cachedAttractions = await loadCachedAttractionsForTrip(attractionMemoryService, {
         destination,
@@ -2014,10 +2133,10 @@ export function createApp(deps = {}) {
         endDate,
         coords: {
           displayName: destination,
-          countryCode: req.body?.countryCode || "US",
-          regionCode: req.body?.regionCode || null,
+          countryCode,
+          regionCode,
         },
-        countryCode: req.body?.countryCode || "US",
+        countryCode,
         children,
         activities,
         pets,
@@ -2044,16 +2163,16 @@ export function createApp(deps = {}) {
         destination,
         coords: {
           displayName: destination,
-          countryCode: req.body?.countryCode || "US",
-          regionCode: req.body?.regionCode || null,
+          countryCode,
+          regionCode,
         },
-        countryCode: req.body?.countryCode || "US",
+        countryCode,
         tripPlan,
       });
 
       return res.json({ requestId, tripPlan });
     } catch (error) {
-      devLog("Error in /api/v1/trip/replan:", error);
+      log.error("v1:trip-replan-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "REPLAN_FAILED",
         message: "Failed to regenerate trip plan. Please try again.",
@@ -2065,8 +2184,8 @@ export function createApp(deps = {}) {
   });
 
   // POST /api/v1/trip/packing
-  app.post("/api/v1/trip/packing", optionalAuth, aiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+  app.post("/api/v1/trip/packing", optionalAuth, aiLimiter, meter("packing"), async (req, res) => {
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const sanitizedData = sanitizeTripData(req.body);
       const validationErrors = validateTripData(sanitizedData, { requireActivities: true });
@@ -2138,7 +2257,7 @@ export function createApp(deps = {}) {
         packingList,
       });
     } catch (error) {
-      devLog("Error in /api/v1/trip/packing:", error);
+      log.error("v1:trip-packing-failed", { reqId: req.reqId, ...errorFields(error) });
       if (error.message?.includes("Location not found") || error.message?.includes("geocode")) {
         return v1Error(res, 422, {
           code: "LOCATION_NOT_FOUND",
@@ -2169,7 +2288,7 @@ export function createApp(deps = {}) {
 
   // POST /api/v1/safety/car-seat-check
   app.post("/api/v1/safety/car-seat-check", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const destination = sanitizeString(req.body?.destination || "", 120);
       const jurisdictionCode = sanitizeString(req.body?.jurisdictionCode || "", 2).toUpperCase();
@@ -2205,7 +2324,7 @@ export function createApp(deps = {}) {
         lastReviewed: guidance.lastReviewed || new Date().toISOString().split("T")[0],
       });
     } catch (error) {
-      devLog("Error in /api/v1/safety/car-seat-check:", error);
+      log.error("v1:safety-car-seat-check-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "SAFETY_CHECK_FAILED",
         message: "Failed to retrieve car seat guidance. Please try again.",
@@ -2219,7 +2338,7 @@ export function createApp(deps = {}) {
   // POST /api/v1/safety/pet-travel-check
   // Returns airline eligibility + international entry requirements for traveling with pets.
   app.post("/api/v1/safety/pet-travel-check", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       // Validate and sanitize pets array
       const rawPets = req.body?.pets;
@@ -2264,7 +2383,7 @@ export function createApp(deps = {}) {
         ...guidance,
       });
     } catch (error) {
-      devLog("Error in /api/v1/safety/pet-travel-check:", error);
+      log.error("v1:safety-pet-travel-check-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "PET_SAFETY_FAILED",
         message: "Failed to retrieve pet travel guidance. Please try again.",
@@ -2278,7 +2397,7 @@ export function createApp(deps = {}) {
   // GET /api/v1/safety/travel-advisory/:countryCode
   // Returns US State Dept travel advisory for a country. Graceful: returns null if unavailable.
   app.get("/api/v1/safety/travel-advisory/:countryCode", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const countryCode = sanitizeString(req.params.countryCode || "", 3).toUpperCase();
       if (!countryCode || countryCode.length < 2) {
@@ -2294,7 +2413,7 @@ export function createApp(deps = {}) {
       const advisory = await getTravelAdvisoryFn(countryCode);
       return res.json({ requestId, advisory });
     } catch (error) {
-      devLog("Error in /api/v1/safety/travel-advisory:", error);
+      log.error("v1:safety-travel-advisory-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "ADVISORY_FAILED",
         message: "Failed to fetch travel advisory. Trip planning will continue without it.",
@@ -2308,7 +2427,7 @@ export function createApp(deps = {}) {
   // GET /api/v1/safety/neighborhood?lat=X&lon=Y
   // Returns Amadeus/GeoSure neighborhood safety scores. Graceful: returns null if unavailable.
   app.get("/api/v1/safety/neighborhood", apiLimiter, async (req, res) => {
-    const requestId = crypto.randomUUID();
+    const requestId = req.reqId || crypto.randomUUID();
     try {
       const lat = parseFloat(req.query?.lat);
       const lon = parseFloat(req.query?.lon);
@@ -2326,7 +2445,7 @@ export function createApp(deps = {}) {
       const safety = await getNeighborhoodSafetyFn(lat, lon);
       return res.json({ requestId, safety });
     } catch (error) {
-      devLog("Error in /api/v1/safety/neighborhood:", error);
+      log.error("v1:safety-neighborhood-failed", { reqId: req.reqId, ...errorFields(error) });
       return v1Error(res, 500, {
         code: "SAFETY_FAILED",
         message: "Failed to fetch neighborhood safety data.",
@@ -2338,7 +2457,7 @@ export function createApp(deps = {}) {
   });
 
   // ─── Parse natural language trip input ───
-  app.post("/api/v1/trip/parse-input", aiLimiter, async (req, res) => {
+  app.post("/api/v1/trip/parse-input", aiLimiter, meter("parse"), async (req, res) => {
     const t0 = Date.now();
     const reqId = req.reqId || crypto.randomUUID().slice(0, 8);
     try {
@@ -2381,7 +2500,9 @@ export function createApp(deps = {}) {
             detectedRegion = [addr.city || addr.town, addr.state].filter(Boolean).join(", ");
           }
           log.info("parse-input:geo", { reqId, ms: Date.now() - geoT0, region: detectedRegion });
-        } catch { /* silent — region is optional */ }
+        } catch (geoErr) {
+          log.warn("parse-input:geo-failed", { reqId, ...errorFields(geoErr) });
+        }
       }
       // Pass client's local date for timezone-correct relative date parsing
       const safeClientDate = /^\d{4}-\d{2}-\d{2}$/.test(clientDate) ? clientDate : null;
@@ -2404,7 +2525,7 @@ export function createApp(deps = {}) {
   });
 
   // ─── Enrich activity with Google Places data ───
-  app.post("/api/v1/places/enrich", apiLimiter, async (req, res) => {
+  app.post("/api/v1/places/enrich", apiLimiter, meter("places"), async (req, res) => {
     try {
       const activityName = sanitizeString(req.body?.activityName || "", 100);
       const enrichDest = sanitizeString(req.body?.destination || "", 120);
@@ -2422,7 +2543,7 @@ export function createApp(deps = {}) {
   });
 
   // ─── Proxy Google Places photo (keeps API key server-side) ───
-  app.get("/api/v1/places/photo", apiLimiter, async (req, res) => {
+  app.get("/api/v1/places/photo", apiLimiter, meter("photo"), async (req, res) => {
     try {
       const ref = req.query.ref;
       const apiKey = process.env.GOOGLE_PLACES_API_KEY;
@@ -2444,30 +2565,6 @@ export function createApp(deps = {}) {
       }
       log.error("photo proxy error", { error: err.message });
       res.status(500).send("Photo proxy error");
-    }
-  });
-
-  // ─── IP geolocation proxy (HTTPS — privacy-safe) ───
-  app.get("/api/v1/geo/detect", apiLimiter, async (req, res) => {
-    try {
-      const ip = req.headers["x-forwarded-for"]?.split(",")[0]?.trim() || req.ip;
-      // Validate IP format before external call
-      if (!/^[\d.:a-fA-F]+$/.test(ip)) {
-        return res.json({ lat: null, lon: null, region: null });
-      }
-      const geoRes = await tracedFetch(
-        `https://ipapi.co/${encodeURIComponent(ip)}/json/`,
-        { headers: { "User-Agent": "SproutRoute/1.0" }, signal: AbortSignal.timeout(3000) }
-      );
-      if (!geoRes.ok) return res.json({ lat: null, lon: null, region: null });
-      const data = await geoRes.json();
-      res.json({
-        lat: data.latitude || null,
-        lon: data.longitude || null,
-        region: [data.city, data.region].filter(Boolean).join(", ") || null,
-      });
-    } catch {
-      res.json({ lat: null, lon: null, region: null });
     }
   });
 
@@ -2831,16 +2928,23 @@ export function createApp(deps = {}) {
       if (!uuidRegex.test(req.params.cityId)) {
         return res.status(400).json({ error: "Invalid cityId format" });
       }
-      const admin = getSupabaseAdmin();
+      const admin = getSupabaseAdminFn();
+      // Anonymous route on a service-role client: allow-list the columns and hide rejected or stale
+      // rows. New table columns stay private until they are added to PUBLIC_ATTRACTION_FIELDS.
       const { data, error } = await admin
         .from("city_attractions")
-        .select("*, city_attraction_tags(*)")
+        .select(`${PUBLIC_ATTRACTION_FIELDS.join(", ")}, city_attraction_tags(tag, tag_group, weight)`)
         .eq("city_id", req.params.cityId)
+        .in("verification_status", PUBLIC_VERIFICATION_STATUSES)
         .order("kid_appeal_score", { ascending: false });
 
       if (error) throw error;
-      // Strip internal scoring/operational fields before returning
-      const publicAttractions = (data || []).map(({ llm_notes, confidence_score, times_seen, last_seen_at, source_type, why_recommended, timing_tip, ...pub }) => pub);
+      const publicAttractions = (data || [])
+        .filter((row) => PUBLIC_VERIFICATION_STATUSES.includes(row.verification_status))
+        .map((row) => ({
+          ...Object.fromEntries(PUBLIC_ATTRACTION_FIELDS.filter((field) => field in row).map((field) => [field, row[field]])),
+          city_attraction_tags: (row.city_attraction_tags || []).map(({ tag, tag_group, weight }) => ({ tag, tag_group, weight })),
+        }));
       res.json({ attractions: publicAttractions });
     } catch (err) {
       log.error("attractions:city-error", { error: err.message });
@@ -2880,6 +2984,8 @@ export function createApp(deps = {}) {
     });
   }
 
+  app.use(createErrorHandler());
+
   return app;
 }
 
@@ -2887,6 +2993,7 @@ export function startServer(port, deps = {}) {
   // Runtime entrypoint used by local dev/prod boot while reusing createApp().
   // Validate environment before attempting to start the app
   validateEnvironmentVariables();
+  installProcessHandlers();
 
   const app = createApp(deps);
   const PORT = Number(port ?? process.env.PORT ?? 8080);
@@ -2896,6 +3003,8 @@ export function startServer(port, deps = {}) {
       console.warn("⚠️  AMAZON_AFFILIATE_TAG not set — affiliate links will work but won't earn commission");
     }
   });
+  installShutdownHandler({ server, flush: () => evalCapture.shutdown() });
+  if (process.env.GOOGLE_RETENTION_DISABLED !== "true") scheduleGoogleRetention(() => { try { return getSupabaseAdmin(); } catch { return null; } });
   return { app, server };
 }
 

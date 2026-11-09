@@ -202,6 +202,7 @@ export default function ResultsScreen({
   progress,
   steps,
   readOnly = false,
+  belowHeader = null,
 }) {
   const [activeTab, setActiveTab] = useState("plan");
   const [selectedActivity, setSelectedActivity] = useState(null);
@@ -298,7 +299,7 @@ export default function ResultsScreen({
         className="flex gap-0 border-b border-gray-200 px-3 sm:px-4 sticky top-[57px] z-20 bg-[#f9fafb]/95 backdrop-blur-sm"
       >
         <TabButton id="plan" activeTab={activeTab} setActiveTab={setActiveTab} icon="calendar" label="Plan" />
-        {!readOnly && <TabButton id="pack" activeTab={activeTab} setActiveTab={setActiveTab} icon="bag" label="Pack" count={packCount} />}
+        {(!readOnly || packingList) && <TabButton id="pack" activeTab={activeTab} setActiveTab={setActiveTab} icon="bag" label="Pack" count={packCount} />}
         {!readOnly && <TabButton id="safety" activeTab={activeTab} setActiveTab={setActiveTab} icon="shield" label="Safety" count={safetyCount} />}
       </div>
 
@@ -312,6 +313,7 @@ export default function ResultsScreen({
             onEdit={readOnly ? undefined : onGoBack}
             hideTravelers={readOnly}
           />
+          {belowHeader}
 
           {!readOnly && <section className="mt-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4" aria-label="Safety for your trip" aria-live="polite">
             <div className="flex items-center justify-between gap-3">
@@ -391,7 +393,7 @@ export default function ResultsScreen({
       {activeTab === "pack" && (
         <div>
           {packingList ? (
-            <PackingChecklist packingList={packingList} />
+            <PackingChecklist packingList={packingList} readOnly={readOnly} />
           ) : packingError ? (
             <div className="p-8 text-center text-gray-500" role="alert">
               <div className="mx-auto w-10 h-10 flex items-center justify-center rounded-full bg-red-50 text-red-600 mb-3">

@@ -1,8 +1,6 @@
 import { tracedFetch } from './tracing.js';
 // src/backend/services/placesEnrich.js
-import { PlacesCache } from "../utils/placesCache.js";
 
-const cache = new PlacesCache({ maxSize: 500, ttlMs: 24 * 60 * 60 * 1000 });
 
 const FIELD_MASK = [
   "places.id", "places.displayName", "places.rating", "places.userRatingCount",
@@ -15,8 +13,7 @@ export async function enrichActivity(activityName, destination, category = "") {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return null;
 
-  const cached = cache.get(activityName, destination);
-  if (cached) return cached;
+  // Google content is used live and never cached (Service Specific Terms allow caching only ids and coordinates).
 
   try {
     const query = category
@@ -57,7 +54,6 @@ export async function enrichActivity(activityName, destination, category = "") {
       ),
     };
 
-    cache.set(activityName, destination, result);
     return result;
   } catch (err) {
     if (process.env.NODE_ENV !== "production") console.error("Places enrichment error:", err);
@@ -73,6 +69,5 @@ function parsePriceLevel(level) {
   return map[level] ?? null;
 }
 
-export function __resetCacheForTests() {
-  cache._map.clear();
-}
+/** Kept for tests written against the old cache; there is no cache to reset. */
+export function __resetCacheForTests() {}

@@ -31,7 +31,7 @@ function fakeAdmin(rows, { failUpdateFor = new Set() } = {}) {
       if (table === "city_attractions") {
         return {
           select() {
-            const q = { eq(col, value) { state.filter = { col, value }; return q; }, order() { return q; }, limit(n) { state.selects.push(n); return Promise.resolve({ data: [...state.rows].sort((a, b) => String(a.last_verified_at ?? "").localeCompare(String(b.last_verified_at ?? ""))).filter((r) => !state.filter || r[state.filter.col] === state.filter.value).slice(0, n), error: null }); } };
+            const q = { eq(col, value) { state.filter = { col, value }; return q; }, or(expr) { state.or = expr; return q; }, order() { return q; }, limit(n) { state.selects.push(n); return Promise.resolve({ data: [...state.rows].sort((a, b) => String(a.last_verified_at ?? "").localeCompare(String(b.last_verified_at ?? ""))).filter((r) => !state.filter || r[state.filter.col] === state.filter.value).filter((r) => !state.or || r.google_place_id != null || r.wikidata_id == null).slice(0, n), error: null }); } };
             return q;
           },
           update(fields) {
@@ -56,16 +56,14 @@ const run = (admin, over = {}) => refreshAttractions({
   resolveFn: async () => ({ status: "matched", place: place() }), ...over,
 });
 
-test("a matched row gets its Places facts, a verified timestamp and stays active", async () => {
+test("a matched row keeps only the place id and coordinates from Google, a verified timestamp and stays active", async () => {
   const admin = fakeAdmin([row()]);
   const summary = await run(admin, { apply: true });
   const fields = admin.state.updates[0].fields;
   assert.equal(fields.google_place_id, "p1");
-  assert.equal(fields.rating, 4.6);
-  assert.equal(fields.rating_count, 21000);
-  assert.equal(fields.price_level, 2);
+  for (const key of ["rating", "rating_count", "price_level", "business_status", "opening_hours", "photo_ref", "place_types"]) assert.ok(!(key in fields), key);
+  assert.equal(fields.lat, 47.6);
   assert.equal(fields.status, "active");
-  assert.equal(fields.business_status, "OPERATIONAL");
   assert.equal(fields.verification_status, "verified");
   assert.equal(fields.last_verified_at, new Date(NOW).toISOString());
   assert.equal(summary.matched, 1);
@@ -95,15 +93,11 @@ test("a request error leaves the row untouched and writes nothing", async () => 
   assert.equal(summary.errors, 1);
 });
 
-test("a rating that moves by more than 0.3 is logged, a smaller move is not", async () => {
-  const big = fakeAdmin([row({ google_place_id: "p1", rating: 4.1 })]);
-  await run(big, { apply: true });
-  assert.deepEqual(big.state.logs.map((l) => l.change_type), ["rating_change"]);
-  assert.deepEqual(big.state.logs[0].detail, { from: 4.1, to: 4.6 });
-
-  const small = fakeAdmin([row({ google_place_id: "p1", rating: 4.4 })]);
-  await run(small, { apply: true });
-  assert.equal(small.state.logs.length, 0);
+test("ratings are not stored, so a rating move is not logged; Wikidata coordinates are not overwritten", async () => {
+  const admin = fakeAdmin([row({ google_place_id: "p1", rating: 4.1, wikidata_id: "Q1" })]);
+  await run(admin, { apply: true });
+  assert.equal(admin.state.logs.length, 0);
+  assert.ok(!("lat" in admin.state.updates[0].fields), "Wikidata coordinates stay");
 });
 
 test("a closed row that comes back is reopened and logged", async () => {
@@ -188,6 +182,13 @@ test("a refresh can be limited to one city", async () => {
   await run(admin, { cityId: "seattle", resolveFn: async () => { seen.push(1); return { status: "error" }; } });
   assert.equal(seen.length, 1);
   assert.deepEqual(admin.state.filter, { col: "city_id", value: "seattle" });
+});
+
+test("curated rows placed through Wikidata are never sent to Google Places", async () => {
+  const admin = fakeAdmin([row({ id: "g1" }), row({ id: "w1", google_place_id: null, wikidata_id: "Q1" }), row({ id: "m1", google_place_id: null })]);
+  const seen = [];
+  await run(admin, { resolveFn: async (target) => { seen.push(target); return { status: "error" }; } });
+  assert.equal(seen.length, 2, "the Google row and the unplaced model row are checked; the Wikidata row is not");
 });
 
 test("a corrected place id is written and the replacement is logged", async () => {
