@@ -1,0 +1,13 @@
+{
+  "name": "gpt-5-4-nano",
+  "provider": "openai",
+  "model": "gpt-5.4-nano",
+  "price": {
+    "in": 0.2,
+    "out": 1.25
+  },
+  "note": "current parse model; newest nano",
+  "startedAt": "2026-10-28T06:10:58.758Z",
+  "finishedAt": "2026-10-28T06:17:56.133Z",
+  "runnerExit": 1
+}

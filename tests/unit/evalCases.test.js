@@ -55,3 +55,11 @@ test("case ids are unique and every case names its rubric lines", () => {
   assert.equal(new Set(CASES.map((c) => c.id)).size, CASES.length);
   for (const c of CASES) assert.ok(c.rubric.length > 0, c.id);
 });
+
+test("every parse case says what a correct parse contains, and the original ten cases are still there", () => {
+  const parses = CASES.filter((c) => c.kind === "parse");
+  assert.equal(parses.length, 10);
+  for (const c of parses) assert.ok(c.expect && Object.keys(c.expect).length > 0, c.id);
+  for (const id of ["parse-vegas-explicit", "parse-vague-beach-pet", "parse-tokyo-vegetarian", "trip-seattle-toddler-rain", "trip-nyc-two-kids"]) assert.ok(byId(id), id);
+  assert.equal(CASES.filter((c) => c.kind === "trip").length, 7);
+});
