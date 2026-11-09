@@ -40,7 +40,7 @@ import { estimateCostUsd, classifyProviderFailure } from "./aiCost.js";
 
 const ANTHROPIC_MODEL_ID = process.env.ANTHROPIC_MODEL_ID || "claude-haiku-4-5-20251001";
 const GEMINI_MODEL_ID = process.env.GOOGLE_GEMINI_MODEL || process.env.GEMINI_MODEL_ID || "gemini-2.5-flash";
-const OPENAI_MODEL_ID = process.env.OPENAI_MODEL_ID || "gpt-5.4-nano";
+const OPENAI_MODEL_ID = process.env.OPENAI_MODEL_ID || "gpt-6.1-terra";
 const DEEPSEEK_MODEL_ID = process.env.DEEPSEEK_MODEL_ID || "deepseek-chat";
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0;
@@ -201,14 +201,22 @@ async function callGemini(model, { system, user, maxTokens, temperature, modelId
 }
 
 /**
- * Call OpenAI (GPT-5.4 nano/mini) via OpenAI SDK.
+ * Call OpenAI (GPT-6.1 Terra by default, GPT-6 Luna for itineraries) via OpenAI SDK.
  * Uses native JSON mode + max_completion_tokens (not max_tokens).
  * Returns { responseText, stopReason }.
  */
+// GPT-6 family models accept only the default temperature. Terra (gpt-6.1-*) answers fast with no reasoning;
+// Luna keeps the low effort it was evaluated with in September.
+function openaiSampling(modelId, temperature) {
+  if (/^gpt-6\.1-/.test(modelId)) return { reasoning_effort: "none" };
+  if (/^gpt-6[-.]/.test(modelId)) return { reasoning_effort: "low" };
+  return { temperature };
+}
+
 async function callOpenAI(client, { system, user, maxTokens, temperature, modelId, signal, timeoutMs }) {
   const completion = await client.chat.completions.create({
     model: modelId,
-    ...(modelId.startsWith("gpt-6-") ? { reasoning_effort: "low" } : { temperature }),
+    ...openaiSampling(modelId, temperature),
     max_completion_tokens: maxTokens,
     response_format: { type: "json_object" },
     messages: [
@@ -357,6 +365,8 @@ export async function callModel(prompt, deps = {}) {
   if (provider === "gemini" && process.env.OPENAI_API_KEY) fallbackProviders.push("openai");
   if (provider === "openai" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
   if (provider === "gemini" && process.env.ANTHROPIC_API_KEY) fallbackProviders.push("anthropic");
+  // Anthropic-primary calls (parse, packing, tips, safety, family fit) had no backup before November 2026.
+  if (provider === "anthropic" && process.env.OPENAI_API_KEY) fallbackProviders.push("openai");
   // DeepSeek is never an automatic fallback: the privacy policy does not list it as a recipient of trip content.
 
   async function callWithRemainingBudget(selectedProvider, params, attemptsRemaining, attempt) {

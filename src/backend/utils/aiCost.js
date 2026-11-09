@@ -17,6 +17,7 @@ const PRICES = {
   "claude-sonnet-5-5": { in: 2, out: 10 },
   "claude-sonnet-4-6": { in: 3, out: 15 },
   "gpt-6-luna": { in: 0.1, out: 0.5 },
+  "gpt-6.1-terra": { in: 1, out: 5 }, // developers.openai.com/api/docs/models, 2026-11-08
 };
 
 export function normalizeModelId(model) {
