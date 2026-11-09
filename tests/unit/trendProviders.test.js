@@ -99,6 +99,7 @@ test("HikerAPI sends its key in the x-access-key header and follows the page cur
   const pages = [[[HIKER_ITEM, { ...HIKER_ITEM, code: "B" }], "cur2"], [[{ ...HIKER_ITEM, code: "C" }, { ...HIKER_ITEM, code: "D" }], null]];
   const provider = createHikerApiProvider({
     accessKey: "k-123",
+    now: () => NOW, // without a fixed clock the fixtures fall outside the 7-day window a week after they were written
     fetchFn: async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => pages[calls.length - 1] }; },
   });
   const posts = await provider.fetchLocationPosts({ locationId: "213131048", limit: 3 });

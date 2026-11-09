@@ -661,7 +661,7 @@ export function scheduleItinerary(tripPlan, enrichedMap = {}, startDate = null, 
     let dateStr = null;
     if (startDate) {
       const d = new Date(startDate + "T12:00:00Z");
-      d.setDate(d.getDate() + i);
+      d.setUTCDate(d.getUTCDate() + i);
       dateStr = d.toISOString().split("T")[0];
     }
     return scheduleDay(day, suggestedActivities, enrichedMap, dateStr, usedActivityIds, options);

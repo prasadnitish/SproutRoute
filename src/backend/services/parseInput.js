@@ -168,9 +168,9 @@ function normalizeCountryTour(value) {
 
 function defaultDates() {
   const start = new Date();
-  start.setDate(start.getDate() + 14);
+  start.setUTCDate(start.getUTCDate() + 14);
   const end = new Date(start);
-  end.setDate(end.getDate() + 4);
+  end.setUTCDate(end.getUTCDate() + 4);
   return { startDate: fmt(start), endDate: fmt(end) };
 }
 
@@ -224,8 +224,9 @@ function normalizeEndDateForRequestedDays(text, startDate, endDate) {
   const currentInclusiveDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
   if (currentInclusiveDays === requestedDayCount) return endDate;
 
+  // Calendar arithmetic in UTC: local-time days shift by one when the server's clocks change inside the trip.
   const normalizedEnd = new Date(start);
-  normalizedEnd.setDate(normalizedEnd.getDate() + requestedDayCount - 1);
+  normalizedEnd.setUTCDate(normalizedEnd.getUTCDate() + requestedDayCount - 1);
   return fmt(normalizedEnd);
 }
 
@@ -434,7 +435,7 @@ export async function parseInput(text, deps = {}) {
     const start = new Date(startDate);
     const currentDays = Math.round((new Date(endDate).getTime() - start.getTime()) / 86400000) + 1;
     if (Number.isFinite(currentDays) && requestedDays <= 21 && currentDays < requestedDays) {
-      start.setDate(start.getDate() + requestedDays - 1);
+      start.setUTCDate(start.getUTCDate() + requestedDays - 1);
       endDate = fmt(start);
     }
   }
