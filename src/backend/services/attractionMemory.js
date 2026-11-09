@@ -39,13 +39,17 @@ function firstNonEmpty(...values) {
   return "";
 }
 
-function deriveCityIdentity(destination, coords = {}) {
-  const displayName = sanitizeDestination(coords.displayName || destination || "");
-  const parts = displayName.split(",").map((part) => part.trim()).filter(Boolean);
-  const cityName = sanitizeDestination(parts[0] || destination || "").slice(0, 80);
+// The city is named after what the traveler asked for. The geocoder's label is used only when its first part is
+// the same place: a geocoder hit on a building ("Government Hospital, Diu, ...") must not name a city.
+export function deriveCityIdentity(destination, coords = {}) {
+  const split = (text) => sanitizeDestination(text || "").split(",").map((part) => part.trim()).filter(Boolean);
+  const requested = split(destination);
+  const geocoded = split(coords.displayName);
+  const cityName = (requested[0] || geocoded[0] || "").slice(0, 80);
+  const geocoderAgrees = geocoded.length > 0 && normalizeName(geocoded[0]) === normalizeName(cityName);
   return {
     cityName,
-    displayName: displayName || cityName,
+    displayName: (geocoderAgrees ? geocoded : requested).join(", ") || cityName,
   };
 }
 
