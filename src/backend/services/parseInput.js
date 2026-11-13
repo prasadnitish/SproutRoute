@@ -230,6 +230,40 @@ function normalizeEndDateForRequestedDays(text, startDate, endDate) {
   return fmt(normalizedEnd);
 }
 
+const AGE_WORDS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17 };
+const AGE_NUM = `(?:\\d{1,2}|${Object.keys(AGE_WORDS).join("|")})`;
+const ageValue = (token) => (/^\d/.test(token) ? Number(token) : AGE_WORDS[token]);
+
+/**
+ * Whether every age the model returned was given by the parent. The parse prompt tells the model to
+ * default to one child aged 5 when "kids" come with no ages, so a returned age can be a guess. A guessed
+ * age must not drive car seat guidance. An age counts as given when the text says it with a unit
+ * ("7 year old", "eight-year-old", "5 months"), after "age"/"ages"/"aged", or in a list right after a
+ * word for children ("two kids, 4 and 8"). A bare number ("5 days", "December 5") does not count.
+ */
+export function childrenAgesAreStated(text, ages) {
+  if (!Array.isArray(ages) || ages.length === 0) return true;
+  const t = String(text || "").toLowerCase();
+  const stated = new Set();
+  const add = (token) => { const n = ageValue(token); if (Number.isFinite(n)) stated.add(n); };
+  for (const m of t.matchAll(new RegExp(`\\b(${AGE_NUM})[ -]?(?:years?|yrs?|y\\.?o\\.?|yo)(?:[ -]?olds?)?\\b`, "g"))) add(m[1]);
+  for (const m of t.matchAll(new RegExp(`\\b(${AGE_NUM})[ -]?(?:months?|mos?)\\b`, "g"))) {
+    // The model rounds months to a whole age, so accept either neighbour.
+    const years = ageValue(m[1]) / 12;
+    stated.add(Math.floor(years));
+    stated.add(Math.ceil(years));
+  }
+  const list = `((?:${AGE_NUM})(?:\\s*(?:,|and|&)\\s*(?:${AGE_NUM}))*)`;
+  for (const m of t.matchAll(new RegExp(`\\bages?d?\\s*(?:of\\s*)?:?\\s*${list}`, "g"))) {
+    for (const token of m[1].match(new RegExp(AGE_NUM, "g")) || []) add(token);
+  }
+  const notACount = "(?!\\s*(?:days?|nights?|hours?|adults?|people|persons?|kids?|child|children|stops?|cit(?:y|ies)|weeks?))";
+  for (const m of t.matchAll(new RegExp(`\\b(?:kids?|children|child|boys?|girls?|sons?|daughters?|twins)\\s*[,:(]\\s*(\\d{1,2}(?:\\s*(?:,|and|&)\\s*\\d{1,2})*)${notACount}`, "g"))) {
+    for (const token of m[1].match(/\d{1,2}/g) || []) add(token);
+  }
+  return ages.every((age) => stated.has(age));
+}
+
 const PARSE_PROMPT = (userText, region, clientDate = null) => `You are a trip planner assistant. Parse this trip request into structured JSON.
 
 User input: "${userText}"
@@ -358,6 +392,7 @@ export async function parseInput(text, deps = {}) {
       ...defaults,
       adults: 2,
       childrenAges: [],
+      childrenAgesAssumed: false,
       pets: [],
       vibe: "general",
       tripGoals: [],
@@ -447,13 +482,17 @@ export async function parseInput(text, deps = {}) {
     destination = countryTour.country;
   }
 
+  const childrenAges = Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [];
+
   return {
     destination,
     suggestedDestinations: destination || tripShape === "country_tour" ? [] : suggestedDestinations,
     startDate,
     endDate,
     adults: parsed.adults || 2,
-    childrenAges: Array.isArray(parsed.childrenAges) ? parsed.childrenAges : [],
+    childrenAges,
+    // True when an age was filled in by the parse prompt's defaults, not given by the parent. Clients ask for the ages.
+    childrenAgesAssumed: !childrenAgesAreStated(text, childrenAges),
     pets: Array.isArray(parsed.pets) ? parsed.pets : [],
     vibe: parsed.vibe || "general",
     tripGoals: normalizeStringArray(parsed.tripGoals, 6),
