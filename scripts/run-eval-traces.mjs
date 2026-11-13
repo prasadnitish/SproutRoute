@@ -17,6 +17,7 @@ import { randomBytes } from "node:crypto";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { CASES, stepsFor } from "./eval-cases.mjs";
 import { postScores, completionScore } from "./lib/langfuseScore.mjs";
+import { iosPayload, followUpBody, tripFromStream } from "./lib/evalIos.mjs";
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((arg) => {
@@ -58,9 +59,15 @@ let failures = 0;
 let warnedNoScores = false;
 for (const [index, testCase] of selected.entries()) {
   const journey = journeyId();
+  // The ios run sends what the app sends: the full stream body, and follow-up calls built from the stream's destination event.
+  // Golden cases are structured, so rawInput is a plain sentence from their fields (the app sends the parent's own words).
+  const rawInput = (b) => `Family trip to ${b.destination}, ${b.startDate} to ${b.endDate}.`;
+  const iosBody = client === "ios" && testCase.kind === "trip" ? iosPayload({ ...testCase.body, rawInput: rawInput(testCase.body) }) : null;
+  let trip = null;
   for (const { step, path, body } of stepsFor(testCase, client)) {
     if (stepFilter && !stepFilter.has(step)) continue;
     const started = performance.now();
+    const sendBody = !iosBody ? body : step === "stream" ? iosBody : followUpBody(step, iosBody, trip);
     try {
       const res = await fetch(`${base}${path}`, {
         method: "POST",
@@ -74,9 +81,10 @@ for (const [index, testCase] of selected.entries()) {
           "x-eval-step": step,
           "x-journey-id": journey,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(sendBody),
       });
       const text = await res.text();
+      if (step === "stream") trip = tripFromStream(text);
       const streamError = /^event: error$/m.test(text);
       const failed = !res.ok || streamError;
       if (failed) failures++;
