@@ -927,7 +927,7 @@ export function buildTripPlanPrompt(
 4. Keep tips to max 4 items.`
     : `**Output Rules:**
 1. Suggest 4-6 activities per day (NOT including meals). Activities should include sightseeing, tours, outdoor, cultural, and entertainment.
-2. For short city trips (2-3 days), MUST include a half-day walking/city tour as one activity that covers 4-5 landmarks in one go (e.g., "Downtown Walking Tour covering Times Square, Rockefeller Center, Grand Central, Bryant Park, and the Public Library"). This is how real families explore cities.
+2. ${hasShortlist ? "Plan only from the shortlist. Do not add walking tours or any other activity that is not on it." : `For short city trips (2-3 days), MUST include a half-day walking/city tour as one activity that covers 4-5 landmarks in one go (e.g., "Downtown Walking Tour covering Times Square, Rockefeller Center, Grand Central, Bryant Park, and the Public Library"). This is how real families explore cities.`}
 3. Keep dailyItinerary to max 7 day objects.
 4. Activity descriptions: 1-2 sentences.${hasShortlist ? " For shortlisted attractions, keep descriptions brief." : ""}
 5. Meals: SPECIFIC real restaurant as {name, cuisine, note}.
@@ -1004,10 +1004,10 @@ ${daySpecificShortlist}
 ` : ""}
 
 CRITICAL RULES FOR ATTRACTIONS:
-- Every suggestedActivities entry must be a place from this list. Never invent a venue. Google Maps confirms each one exists and is open.
+- Every suggestedActivities entry must be a place from this list. Never invent a venue. Each place on this list has been checked to exist.
 - If you need more variety, pick from different categories above. Do not add places that are not listed.
 - Keep each attraction name EXACTLY as shown above (do not rename, abbreviate, or paraphrase).
-- Do not schedule a place on a day it is closed (see "hours"), and keep to its opening hours.
+- This list has no opening hours. Do not state or imply when a place opens or closes, and do not call a place open or closed.
 - Plan each stop for 45 minutes to 3 hours. Use the duration shown when there is one.
 - Places marked "trending" are popular with visitors right now. Include one or two when they suit this family.
 - No formal fine dining when any child is under 8, unless the traveler asked for it.

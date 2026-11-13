@@ -38,7 +38,8 @@ test("the prompt forbids invented venues and sets the duration, dining and timin
   assert.match(text, /45 minutes to 3 hours/i);
   assert.match(text, /fine dining[^\n]*under 8/i);
   assert.match(text, /timing tip[^\n]*must agree with the time you scheduled/i);
-  assert.match(text, /not schedule a place on a day it is closed/i);
+  // The shortlist no longer carries opening hours, so the prompt says so instead of asking the model to follow them.
+  assert.match(text, /has no opening hours/i);
 });
 
 test("without a shortlist the prompt keeps its old behaviour", () => {

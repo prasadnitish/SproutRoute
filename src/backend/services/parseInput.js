@@ -317,6 +317,7 @@ Location-aware destination rules:
 - For "beach near me" from Chicago → suggest Indiana Dunes, Saugatuck, Lake Geneva.
 - ALWAYS provide 3 suggestedDestinations with emojis, descriptions, and season notes when destination is vague or relative.
 - The suggestedDestinations MUST be real places reachable within the user's stated travel time from their location.
+- If the user names an origin and a travel time ("2 hours from Seattle", "a 3 hour drive from Portland"), set destination to null and suggest 3 real places within that travel time of the NAMED origin. Never return the origin itself, or the origin plus a radius, as the destination.
 
 If "kids" or "children" mentioned without specific ages, default to childrenAges: [5] (one child, age 5).
 If "toddler" mentioned without age, use age 2. If "baby" or "infant", use age 1. If "teenager" or "teen", use age 14.
