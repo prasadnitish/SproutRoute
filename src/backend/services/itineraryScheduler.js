@@ -37,9 +37,10 @@ function formatTime(minutes) {
 function isMajorThemeParkActivity(activity) {
   const name = String(activity?.name || activity?.title || "").toLowerCase();
   const category = String(activity?.category || "").toLowerCase().replace(/\s+/g, "_");
+  // The category alone is not enough: a two-hour indoor attraction filed under theme_park is not a full day.
+  const saysFullDay = /full day/i.test(String(activity?.duration || ""));
   return (
-    category === "theme_park" ||
-    category === "theme_parks" ||
+    ((category === "theme_park" || category === "theme_parks") && saysFullDay) ||
     /\b(disneyland|disneysea|disney world|universal studios|universal orlando|legoland|six flags|theme park|amusement park)\b/.test(name)
   );
 }
@@ -113,6 +114,8 @@ function parseAmPm(timeStr) {
 }
 
 function toFiniteNumber(value) {
+  // Number(null) and Number("") are 0, which would place an unmapped stop at 0°N 0°E.
+  if (value === null || value === undefined || value === "") return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 }
@@ -379,6 +382,21 @@ function countNonMealActivities(scheduled) {
   return (scheduled || []).filter((item) => !item?.isMeal && item?.status !== "closed").length;
 }
 
+const TIP_CLOCK_TIME = /\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m\b/gi;
+
+/**
+ * The model writes each timing tip before the scheduler picks the slot. A tip that names a clock time
+ * outside the slot ("Ideal at 5:30 PM" on a 9:00 AM stop) contradicts the plan, so it is dropped.
+ */
+function timingTipForSlot(tip, startTime, endTime) {
+  const text = String(tip || "");
+  for (const match of text.matchAll(TIP_CLOCK_TIME)) {
+    const minutes = (Number(match[1]) % 12 + (match[3].toLowerCase() === "p" ? 12 : 0)) * 60 + Number(match[2] || 0);
+    if (minutes < startTime - 30 || minutes > endTime) return "";
+  }
+  return text;
+}
+
 function buildScheduledActivity(activity, {
   name,
   enriched,
@@ -392,6 +410,7 @@ function buildScheduledActivity(activity, {
 }) {
   return {
     ...activity,
+    ...(activity && "timingTip" in activity ? { timingTip: timingTipForSlot(activity.timingTip, startTime, endTime) } : {}),
     name,
     scheduledStart: formatTime(startTime),
     scheduledEnd: formatTime(endTime),

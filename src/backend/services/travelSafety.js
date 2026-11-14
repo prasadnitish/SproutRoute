@@ -20,9 +20,10 @@ Return ONLY valid JSON with these fields:
   "familyTips": ["tip1", "tip2"],
   "localCustoms": ["custom1", "custom2"],
   "waterSafety": "Safe to drink tap water" | "Drink bottled water only" | "Varies by area",
-  "vaccinations": "None required" | "description of recommended vaccines",
-  "carSeatLaw": "Brief car seat law summary for this location, especially for the children's ages"
+  "vaccinations": "None required" | "description of recommended vaccines"
 }
+
+Do not state or summarise any law or legal requirement (for example child restraint rules). Legal guidance comes from a separate checked source.
 
 Focus on PRACTICAL, FAMILY-SPECIFIC safety tips. Be concise (1 sentence each).
 For US domestic destinations, focus on local hazards (wildlife, weather, altitude) rather than generic tips.
@@ -52,7 +53,8 @@ export async function getTravelSafety(destination, childrenAges, countryCode, de
       localCustoms: parsed.localCustoms || [],
       waterSafety: parsed.waterSafety || null,
       vaccinations: parsed.vaccinations || null,
-      carSeatLaw: parsed.carSeatLaw || null,
+      // Never model-written. The curated car seat card is the only source of restraint rules.
+      carSeatLaw: null,
       source: "ai-generated",
     };
   } catch {

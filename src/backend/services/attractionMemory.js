@@ -525,6 +525,20 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
   return inserted?.[0] || null;
 }
 
+/** How far a supplemental city may be from the destination and still be offered as part of its shortlist. */
+export const DAY_TRIP_RADIUS_MILES = 100;
+
+/** Keeps the rows within a day trip of the destination. A row with no coordinates is dropped: its distance is unknown. */
+export function withinDayTripRadius(rows, coords = {}, maxMiles = DAY_TRIP_RADIUS_MILES) {
+  const lat = Number(coords?.lat);
+  const lon = Number(coords?.lon);
+  if (coords?.lat == null || coords?.lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return [];
+  return toArray(rows).filter((row) => {
+    if (row?.lat == null || row?.lon == null) return false;
+    return distanceScoreMiles(lat, lon, Number(row.lat), Number(row.lon)) <= maxMiles;
+  });
+}
+
 async function resolveRegionalCityPool(admin, coords = {}, countryCode = "US", limit = 12) {
   const regionCode = firstNonEmpty(coords.regionCode);
   if (!regionCode) return [];
@@ -942,14 +956,16 @@ export function createAttractionMemoryService({
           if ((data || []).length < minimumAttractionPool) {
             const supplementalCityIds = new Set();
 
-            const regionalCities = await resolveRegionalCityPool(admin, coords, countryCode, 12);
+            // A named city is topped up only from places within a day trip. Without the cap, a small city's
+            // list was filled from the 18 nearest cities at any distance (Myrtle Beach got Williamsburg and Daytona).
+            const regionalCities = withinDayTripRadius(await resolveRegionalCityPool(admin, coords, countryCode, 12), coords);
             regionalCities.forEach((row) => {
               cityDisplayNames.set(row.id, row.display_name || row.city_name || "");
               if (row.id && row.id !== city.id) supplementalCityIds.add(row.id);
             });
 
             if (supplementalCityIds.size === 0 || (data || []).length < minimumAttractionPool) {
-              const nearbyCities = await resolveNearbyCityPool(admin, coords, countryCode, 18);
+              const nearbyCities = withinDayTripRadius(await resolveNearbyCityPool(admin, coords, countryCode, 18), coords);
               nearbyCities.forEach((row) => {
                 cityDisplayNames.set(row.id, row.display_name || row.city_name || "");
                 if (row.id && row.id !== city.id) supplementalCityIds.add(row.id);

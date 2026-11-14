@@ -839,6 +839,16 @@ export async function generateTripPlanChunked(tripData, weather, onChunk, deps =
       const prevDays = chunkResults.flatMap(r => r.dailyItinerary || []);
       const prevActivities = chunkResults.flatMap(r => (r.suggestedActivities || []).map(a => a.name));
       const chunkDays = inclusiveDayCount(chunk.startDate, chunk.endDate);
+      // Take places already used out of this chunk's shortlist. The cache backfill and the model both drew
+      // from the full list, which is how a stop came back on a later day.
+      if (Array.isArray(tripData.cachedAttractions)) {
+        const used = prevActivities.map(normalizeActivityKey).filter(Boolean);
+        const wasUsed = (name) => used.some((u) => u === name || u.startsWith(`${name} `) || name.startsWith(`${u} `));
+        chunkData.cachedAttractions = tripData.cachedAttractions.filter((attraction) => {
+          const name = normalizeActivityKey(attraction?.canonical_name || attraction?.canonicalName || attraction?.name);
+          return !name || !wasUsed(name);
+        });
+      }
       chunkData._continuationContext = `This is days ${chunk.dayOffset + 1}-${chunk.dayOffset + chunkDays} of a ${inclusiveDayCount(tripData.startDate, tripData.endDate)}-day trip. Previous days already planned: ${prevDays.map(d => d.day).join(", ")}. Activities already suggested: ${prevActivities.join(", ")}. Avoid repeating the same activities. Continue with new experiences.`;
     }
 
@@ -1063,8 +1073,8 @@ ${attractionMemoryContext}
 2. ${isAdultsOnly ? "This is an adults-only trip — recommend activities suited for adults, including dining, nightlife, cultural experiences, and local attractions" : "Consider children's ages when recommending activities"}
 3. Prioritise activities that match their stated interests.
 4. Include weather-appropriate suggestions (rainy day alternatives, sun protection needs).
-5. Be specific to the destination — only suggest REAL places that actually exist and are currently open.
-6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, walking/city tours, parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
+5. Be specific to the destination — only suggest REAL places that actually exist.
+6. EVERY DAY must have 4-6 activities (NOT counting meals). Activities should include: major attractions, ${hasShortlist ? "" : "walking/city tours, "}parks, museums, neighborhoods to explore, viewpoints, shopping areas, etc.
 7. **ABSOLUTE RULE — DAY COUNT**: The number of day objects in dailyItinerary MUST EXACTLY EQUAL the number of days in the trip. Dates ${startDate} to ${endDate} = you must return exactly that many day objects.
 8. ${hasShortlist ? "For city trips of 1-3 days: group nearby shortlisted places into one walkable cluster per day." : `For city trips of 1-3 days: include at least one "City Walking Tour" or "Hop-On Hop-Off Bus Tour" that covers 4-5 landmarks as a single activity.`}
 9. **ABSOLUTE RULE — NO REPEATS**: NEVER use the same activity on multiple days. Each activity ID must appear in ONLY ONE day's activities array. Before returning JSON, CHECK every day — if any activity name appears in more than one day, REPLACE the duplicate with a different attraction. Going to the same beach/park/museum twice across the trip is INVALID.
@@ -1072,7 +1082,7 @@ ${attractionMemoryContext}
 11. **VARIETY**: Each day MUST have a DIFFERENT theme/area. Day 1: downtown/waterfront. Day 2: theme park/zoo. Day 3: beaches/nature. Day 4: museums/culture. Cover the FULL breadth — not the same neighborhood repeated.
 12. For every activity, include a short "whatItIs" and "whyRecommended".
 13. **DINNER ONLY**: Suggest ONLY dinner (no breakfast or lunch). The dinner must be a highly-rated, locally famous restaurant — NOT a chain like Olive Garden, Denny's, IHOP, or California Pizza Kitchen. Match the user's dietary preferences. One dinner per day as {"name": "Famous Local Restaurant", "cuisine": "Type", "note": "Why it's a must-visit"}.
-14. Only suggest currently operating places and restaurants.
+14. Do not suggest places you know have closed for good.
 ${foodPreferences ? `8. FOOD PREFERENCES (must respect):
    - Dietary: ${foodPreferences.dietary?.length ? foodPreferences.dietary.join(", ") : "none specified"}
    - Preferred cuisines: ${foodPreferences.cuisines?.length ? foodPreferences.cuisines.join(", ") : "open to all"}
