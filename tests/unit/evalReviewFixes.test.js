@@ -237,3 +237,26 @@ test("a 37% rain chance packs a rain item even with a toddler's gear in the list
   const names = await packingNames([{ high: 44, low: 35, precipitation: 37 }], [{ age: 2 }]);
   assert.match(names, /rain|umbrella/i);
 });
+
+// ── "A week" is 7 days (owner decision, Nov 14, 2026) ──
+const weekReply = (startDate, endDate) => JSON.stringify({ destination: "Chicago, IL, USA", startDate, endDate, adults: 2, childrenAges: [9] });
+
+test("a week is planned as 7 days, not 8", async () => {
+  const result = await parseInput("A week in Chicago starting July 10, 2027. 2 adults and a 9 year old.", { callAI: async () => weekReply("2027-07-10", "2027-07-17") });
+  assert.equal(result.startDate, "2027-07-10");
+  assert.equal(result.endDate, "2027-07-16");
+});
+
+test("two weeks is 14 days, and one week is 7", async () => {
+  const two = await parseInput("Two weeks in Chicago starting July 10, 2027 with a 9 year old", { callAI: async () => weekReply("2027-07-10", "2027-07-24") });
+  assert.equal(two.endDate, "2027-07-23");
+  const one = await parseInput("One week in Chicago from July 10, 2027 with a 9 year old", { callAI: async () => weekReply("2027-07-10", "2027-07-18") });
+  assert.equal(one.endDate, "2027-07-16");
+});
+
+test("explicit dates win over the word week", async () => {
+  const result = await parseInput("A week in Chicago, July 10 to July 19, 2027, with a 9 year old", { callAI: async () => weekReply("2027-07-10", "2027-07-19") });
+  assert.equal(result.endDate, "2027-07-19");
+  const beach = await parseInput("Beach week in Myrtle Beach, March 13 to 19, 2027. 2 adults and a 3 year old.", { callAI: async () => JSON.stringify({ destination: "Myrtle Beach", startDate: "2027-03-13", endDate: "2027-03-19", childrenAges: [3] }) });
+  assert.equal(beach.endDate, "2027-03-19");
+});
