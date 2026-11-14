@@ -260,3 +260,26 @@ test("explicit dates win over the word week", async () => {
   const beach = await parseInput("Beach week in Myrtle Beach, March 13 to 19, 2027. 2 adults and a 3 year old.", { callAI: async () => JSON.stringify({ destination: "Myrtle Beach", startDate: "2027-03-13", endDate: "2027-03-19", childrenAges: [3] }) });
   assert.equal(beach.endDate, "2027-03-19");
 });
+
+test("weeks that describe an age or a departure offset are not the trip length", async () => {
+  const weekend = (text) => parseInput(text, { callAI: async () => weekReply("2027-07-10", "2027-07-11") });
+  assert.equal((await weekend("A weekend in Chicago starting July 10, 2027 with a two week old baby")).endDate, "2027-07-11");
+  assert.equal((await weekend("A weekend in Chicago in two weeks")).endDate, "2027-07-11");
+  assert.equal((await weekend("Weekend in Chicago for our two-week-old")).endDate, "2027-07-11");
+  assert.equal((await weekend("Chicago this weekend, we fly home a week later")).endDate, "2027-07-11");
+});
+
+test("weeks that do state the trip length still count", async () => {
+  const eight = (text) => parseInput(text, { callAI: async () => weekReply("2027-07-10", "2027-07-17") });
+  assert.equal((await eight("We want to spend a week in Chicago from July 10, 2027")).endDate, "2027-07-16");
+  assert.equal((await eight("Chicago for a week, starting July 10, 2027")).endDate, "2027-07-16");
+  assert.equal((await eight("A one week trip to Chicago starting July 10, 2027")).endDate, "2027-07-16");
+  assert.equal((await eight("A week-long vacation in Chicago starting July 10, 2027")).endDate, "2027-07-16");
+});
+
+test("an explicit range in numeric dates wins over the word week", async () => {
+  const nineteenth = (text) => parseInput(text, { callAI: async () => weekReply("2027-07-10", "2027-07-19") });
+  assert.equal((await nineteenth("A week in Chicago from 07/10/2027 to 07/19/2027")).endDate, "2027-07-19");
+  assert.equal((await nineteenth("A week in Chicago, 2027-07-10 to 2027-07-19")).endDate, "2027-07-19");
+  assert.equal((await nineteenth("A week in Chicago 7/10 - 7/19")).endDate, "2027-07-19");
+});
