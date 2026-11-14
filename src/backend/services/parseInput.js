@@ -208,6 +208,15 @@ function extractRequestedDayCount(text) {
     if (count && count >= 1 && count <= 21) return count;
   }
 
+  // "A week" is 7 days and "two weeks" is 14 (owner decision, Nov 14, 2026). The model tended to return 8.
+  // An explicit date range ("July 10 to July 19") says how long the trip is, so the word week is ignored then.
+  const hasDateRange = /\b\d{1,2}(?:st|nd|rd|th)?\s*(?:,?\s*\d{4})?\s*(?:to|through|thru|until|till|-|–|—)\s*(?:the\s+)?(?:[a-z]+\.?\s+)?\d{1,2}\b/.test(input);
+  if (!hasDateRange) {
+    const weeks = input.match(new RegExp(`(?:^|\\b)(a|${numberPattern})[-\\s]+weeks?\\b`, "i"));
+    const count = weeks ? (weeks[1] === "a" ? 1 : parseDayCountToken(weeks[1])) : null;
+    if (count && count * 7 <= 21) return count * 7;
+  }
+
   return null;
 }
 
