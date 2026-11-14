@@ -209,12 +209,26 @@ function extractRequestedDayCount(text) {
   }
 
   // "A week" is 7 days and "two weeks" is 14 (owner decision, Nov 14, 2026). The model tended to return 8.
-  // An explicit date range ("July 10 to July 19") says how long the trip is, so the word week is ignored then.
-  const hasDateRange = /\b\d{1,2}(?:st|nd|rd|th)?\s*(?:,?\s*\d{4})?\s*(?:to|through|thru|until|till|-|–|—)\s*(?:the\s+)?(?:[a-z]+\.?\s+)?\d{1,2}\b/.test(input);
+  // An explicit date range ("July 10 to July 19", "07/10/2027 to 07/19/2027") says how long the trip is,
+  // so the word week is ignored then.
+  const numericDates = input.match(/\b(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.]\d{1,2}(?:[/.]\d{2,4})?)\b/g) || [];
+  const hasDateRange = numericDates.length >= 2
+    || /\b\d{1,2}(?:st|nd|rd|th)?\s*(?:,?\s*\d{4})?\s*(?:to|through|thru|until|till|-|–|—)\s*(?:the\s+)?(?:[a-z]+\.?\s+)?\d{1,2}\b/.test(input);
   if (!hasDateRange) {
-    const weeks = input.match(new RegExp(`(?:^|\\b)(a|${numberPattern})[-\\s]+weeks?\\b`, "i"));
-    const count = weeks ? (weeks[1] === "a" ? 1 : parseDayCountToken(weeks[1])) : null;
-    if (count && count * 7 <= 21) return count * 7;
+    // Only a week that states the trip's length counts: "a week in Chicago", "for two weeks", "a one week trip".
+    // "A two week old baby", "in two weeks" and "a week later" say something else.
+    const weekCount = `(a|${numberPattern})`;
+    const notAnAge = "(?![-\\s]*olds?\\b)";
+    const weekPatterns = [
+      new RegExp(`(?:^|\\b)${weekCount}[-\\s]+weeks?${notAnAge}\\s+(?:in|at|around|through)\\b`, "i"),
+      new RegExp(`\\b(?:for|over|spend|spending|take|taking|plan|planning)\\s+(?:a\\s+)?${weekCount}[-\\s]+weeks?${notAnAge}\\b`, "i"),
+      new RegExp(`(?:^|\\b)(?:a\\s+)?${weekCount}[-\\s]*weeks?[-\\s]*(?:long\\s+)?(?:trip|vacation|visit|getaway|holiday)\\b`, "i"),
+    ];
+    for (const pattern of weekPatterns) {
+      const weeks = input.match(pattern);
+      const count = weeks ? (weeks[1] === "a" ? 1 : parseDayCountToken(weeks[1])) : null;
+      if (count && count * 7 <= 21) return count * 7;
+    }
   }
 
   return null;
