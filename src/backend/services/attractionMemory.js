@@ -525,8 +525,12 @@ async function resolveCityRecord(admin, destination, coords = {}, countryCode = 
   return inserted?.[0] || null;
 }
 
-/** How far a supplemental city may be from the destination and still be offered as part of its shortlist. */
-export const DAY_TRIP_RADIUS_MILES = 100;
+/**
+ * How far a supplemental city may be from the destination and still be offered as part of its shortlist.
+ * Straight-line miles. 100 was too loose: Leavenworth, WA (about 85 miles from Seattle, over two hours by road)
+ * was filled with Seattle attractions. 40 keeps suburbs and close neighbours and drops another city's sights.
+ */
+export const DAY_TRIP_RADIUS_MILES = 40;
 
 /** Keeps the rows within a day trip of the destination. A row with no coordinates is dropped: its distance is unknown. */
 export function withinDayTripRadius(rows, coords = {}, maxMiles = DAY_TRIP_RADIUS_MILES) {

@@ -204,7 +204,16 @@ test("supplemental cities beyond a day-trip radius are dropped", () => {
     { id: "daytona", lat: 29.2108, lon: -81.0228 },
     { id: "no-coords", lat: null, lon: null },
   ];
-  assert.deepEqual(withinDayTripRadius(rows, myrtleBeach).map((r) => r.id), ["conway", "charleston"]);
+  assert.deepEqual(withinDayTripRadius(rows, myrtleBeach).map((r) => r.id), ["conway"]);
+});
+
+test("a town two hours from a big city is not filled with the big city's attractions", () => {
+  const leavenworth = { lat: 47.5962, lon: -120.6615 };
+  const rows = [
+    { id: "seattle", lat: 47.6038, lon: -122.3301 },
+    { id: "wenatchee", lat: 47.4235, lon: -120.3103 },
+  ];
+  assert.deepEqual(withinDayTripRadius(rows, leavenworth).map((r) => r.id), ["wenatchee"]);
 });
 
 // ── Packing follows the forecast ──
