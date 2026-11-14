@@ -57,11 +57,13 @@ function addItem(store, categoryName, item) {
     quantity: item.quantity || "1",
     reason: item.reason || "",
     searchQuery: categoryName === "Documents" || item.name === "Daily medications" ? null : item.searchQuery || makeSearchQuery(item.name),
+    // Items the forecast calls for are kept when a category is cut to its limit.
+    ...(item.weather ? { weather: true } : {}),
   });
   store.set(categoryName, items);
 }
 
-function addTemplateExtras(store, climateZone, tripType, { hasToddler, isRainy }) {
+function addTemplateExtras(store, climateZone, tripType, { hasToddler, isRainy, needsWarmLayer }) {
   const template = getPackingBaseTemplate(climateZone, tripType);
   const extras = template
     .split("\n")
@@ -87,10 +89,10 @@ function addTemplateExtras(store, climateZone, tripType, { hasToddler, isRainy }
       });
     } else if (lower.includes("hat")) {
       addItem(store, "Clothing", {
-        name: hasToddler ? "Sun hat" : "Weather-ready hat",
-        quantity: "1",
-        reason: "Easy sun and wind protection for long outdoor stretches",
-        searchQuery: makeSearchQuery(hasToddler ? "kids sun hat" : "travel hat"),
+        name: needsWarmLayer ? "Warm hat" : hasToddler ? "Sun hat" : "Weather-ready hat",
+        quantity: needsWarmLayer ? "1 per traveler" : "1",
+        reason: needsWarmLayer ? "Keeps heads and ears warm on cold mornings and evenings" : "Easy sun and wind protection for long outdoor stretches",
+        searchQuery: makeSearchQuery(needsWarmLayer ? "kids warm beanie" : hasToddler ? "kids sun hat" : "travel hat"),
       });
     } else if (lower.includes("water bottle")) {
       addItem(store, "Gear", {
@@ -107,7 +109,10 @@ function finalizeCategories(store) {
   return CATEGORY_ORDER
     .map((name) => ({
       name,
-      items: (store.get(name) || []).slice(0, 6),
+      items: [...(store.get(name) || [])]
+        .sort((a, b) => Number(Boolean(b.weather)) - Number(Boolean(a.weather)))
+        .slice(0, 6)
+        .map(({ weather, ...item }) => item),
     }))
     .filter((category) => category.items.length > 0);
 }
@@ -134,6 +139,9 @@ export async function generatePackingList(tripData, weatherForecast) {
   const hasToddler = children.some((child) => child.age < 4);
   const hasYoungKids = children.some((child) => child.age < 7);
   const isRainy = (weatherForecast?.forecast || []).some((day) => (day.precipitation || 0) >= 45);
+  // A one-in-five chance on any day is enough to carry a rain layer. At 45% and up the list adds a jacket and umbrella.
+  const mayRain = (weatherForecast?.forecast || []).some((day) => (day.precipitation || 0) >= 20);
+  const isFreezing = (weatherForecast?.forecast || []).some((day) => Number.isFinite(day.low) && day.low <= 32);
   const dietaryQualifier = foodPreferences?.dietary?.[0] ? [foodPreferences.dietary[0]] : [];
 
   const store = makeCategoryStore();
@@ -170,15 +178,49 @@ export async function generatePackingList(tripData, weatherForecast) {
       searchQuery: makeSearchQuery(hasToddler ? "toddler swimwear" : "travel swimwear"),
     });
   }
+  if (isFreezing) {
+    addItem(store, "Clothing", {
+      name: "Gloves and warm hat",
+      quantity: "1 set per traveler",
+      reason: "Lows at or below freezing are forecast",
+      searchQuery: makeSearchQuery("winter gloves hat set", ["family"]),
+      weather: true,
+    });
+    addItem(store, "Clothing", {
+      name: "Thermal base layers",
+      quantity: "2 sets per traveler",
+      reason: "A warm layer under clothes for freezing days outdoors",
+      searchQuery: makeSearchQuery("thermal base layer", ["family"]),
+      weather: true,
+    });
+    addItem(store, "Clothing", {
+      name: "Insulated waterproof boots",
+      quantity: "1 pair per traveler",
+      reason: "Keeps feet warm and dry on snow, ice and frozen ground",
+      searchQuery: makeSearchQuery("insulated winter boots", ["family"]),
+      weather: true,
+    });
+  }
+  if (mayRain && !isRainy) {
+    addItem(store, "Gear", {
+      name: "Packable rain layer",
+      quantity: "1 per traveler",
+      reason: "The forecast has a chance of rain on at least one day",
+      searchQuery: makeSearchQuery("packable rain jacket", ["family"]),
+      weather: true,
+    });
+  }
   if (isRainy) {
     addItem(store, "Gear", {
       name: "Rain jacket",
+      weather: true,
       quantity: "1 per traveler",
       reason: "Keeps the trip moving even if afternoon showers roll in",
       searchQuery: makeSearchQuery("packable rain jacket", ["family"]),
     });
     addItem(store, "Gear", {
       name: "Compact umbrella",
+      weather: true,
       quantity: "1-2",
       reason: "Helpful for stroller walks or city days with light rain",
       searchQuery: makeSearchQuery("compact umbrella", ["travel"]),
@@ -417,7 +459,7 @@ export async function generatePackingList(tripData, weatherForecast) {
     });
   }
 
-  addTemplateExtras(store, climateZone, inferredTripType, { hasToddler, isRainy });
+  addTemplateExtras(store, climateZone, inferredTripType, { hasToddler, isRainy, needsWarmLayer });
 
   return {
     categories: finalizeCategories(store),

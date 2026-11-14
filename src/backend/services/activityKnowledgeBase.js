@@ -13,7 +13,6 @@ function matchesRule(rule, activity) {
 const ACTIVITY_RULES = [
   {
     name: THEME_PARK_RE,
-    category: /^theme_parks?$/,
     durationMinutes: 480,
     durationClass: "full_day",
     earliestStart: "09:00",

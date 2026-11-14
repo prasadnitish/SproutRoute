@@ -1015,6 +1015,7 @@ export function createApp(deps = {}) {
         2,
       ).toUpperCase();
       const tripDate = sanitizeString(req.body?.tripDate || "", 20);
+      const countryCode = sanitizeString(req.body?.countryCode || "", 2).toUpperCase();
       const children = sanitizeChildren(req.body?.children, 10);
 
       if (children.length === 0) {
@@ -1030,6 +1031,8 @@ export function createApp(deps = {}) {
           jurisdictionCode,
           tripDate,
           children,
+          // Without the country, UK, Canada and Australia trips fall through to "no US jurisdiction".
+          ...(/^[A-Z]{2}$/.test(countryCode) ? { countryCode } : {}),
         }),
       );
 
@@ -2307,7 +2310,7 @@ export function createApp(deps = {}) {
       }
 
       const guidance = await Promise.resolve(
-        getCarSeatGuidanceFn({ destination, jurisdictionCode, tripDate, children }),
+        getCarSeatGuidanceFn({ destination, jurisdictionCode, tripDate, children, ...(/^[A-Z]{2}$/.test(countryCode) ? { countryCode } : {}) }),
       );
 
       // Ensure guidanceMode is always present in v1 responses

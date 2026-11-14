@@ -18,9 +18,9 @@ test("ages after age, ages or aged, or listed right after kids, are stated", () 
   assert.equal(stated("kids (5, 7, 11)", [5, 7, 11]), true);
 });
 
-test("months count, and the rounded age the model returns is accepted", () => {
-  assert.equal(stated("Weekend away with a 5 month old", [1]), true);
+test("months count rounded down, so a baby is never treated as an older child without asking", () => {
   assert.equal(stated("Weekend away with a 5 month old", [0]), true);
+  assert.equal(stated("Weekend away with a 5 month old", [1]), false);
 });
 
 test("kids with no ages means the age was assumed", () => {
