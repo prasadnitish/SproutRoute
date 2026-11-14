@@ -371,8 +371,8 @@ test("POST /api/trip-plan has rate limiter middleware", async () => {
   assert.ok(routeLayer, "/api/trip-plan route must exist");
   assert.strictEqual(
     routeLayer.route.stack.length,
-    2,
-    "/api/trip-plan should have rate limiter + handler",
+    3,
+    "/api/trip-plan should have rate limiter + cost meter + handler",
   );
 });
 
@@ -699,12 +699,16 @@ test("POST /api/v1/trip/stream emits route before stop-level weather and itinera
   });
 
   const events = parseSseEvents(result.body);
-  assert.deepEqual(events.slice(0, 4).map((entry) => entry.event), [
-    "route",
-    "stop-weather",
-    "stop-itinerary",
-    "stop-weather",
-  ]);
+  // Stops are planned two at a time, so the order between one stop's events and another's is not fixed.
+  // What a client relies on: the route comes first, and each stop's weather comes before its itinerary.
+  assert.equal(events[0].event, "route");
+  for (const stopId of ["amsterdam", "berlin"]) {
+    const own = events.map((entry, index) => ({ ...entry, index })).filter((entry) => entry.data?.stop?.id === stopId);
+    const weather = own.find((entry) => entry.event === "stop-weather");
+    const itinerary = own.find((entry) => entry.event === "stop-itinerary");
+    assert.ok(weather && itinerary, `${stopId} should send weather and an itinerary`);
+    assert.ok(weather.index < itinerary.index, `${stopId} weather should arrive before its itinerary`);
+  }
   assert.equal(events[0].data.routePlan.stops.length, 2);
   assert.equal(events[0].data.routePlan.stops[0].name, "Amsterdam");
   assert.equal(events.find((entry) => entry.event === "done").data.routePlan.stops[1].name, "Berlin");
@@ -736,8 +740,8 @@ test("POST /api/v1/trip/stream accepts prefetched multi-stop attraction payloads
     }));
     const payload = {
       destination: "Japan",
-      startDate: "2026-11-01",
-      endDate: "2026-11-08",
+      startDate: daysFromNow(90),
+      endDate: daysFromNow(97),
       activities: ["international"],
       adults: 2,
       childrenAges: [],

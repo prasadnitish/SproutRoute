@@ -54,8 +54,9 @@ const pick = ({ count, cost }) => ({ count, cost });
 function withTimeout(promise, ms) {
   let timer;
   const timeout = new Promise((_, reject) => {
+    // Not unref'd: this timer is the only thing that ends a hung store call, so on an otherwise idle event loop an
+    // unref'd one would let the process exit with the call still pending. It is cleared as soon as the race settles.
     timer = setTimeout(() => reject(new Error(`usage store timed out after ${ms}ms`)), ms);
-    timer.unref?.();
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
