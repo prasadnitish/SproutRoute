@@ -123,3 +123,33 @@ test("an eval trace id that is not a 32 character hex id is not recorded", async
   assert.equal((await traceOneRequest("user@example.com")).meta.eval_trace_id, undefined);
   assert.equal((await traceOneRequest(undefined)).meta.eval_trace_id, undefined);
 });
+
+test("each request trace says which client made it, from an explicit header or the user agent", async () => {
+  const { clientOf } = await import("../../src/backend/services/tracing.js");
+  const req = (headers) => ({ get: (name) => headers[name.toLowerCase()] });
+  assert.equal(clientOf(req({ "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1" })), "web");
+  assert.equal(clientOf(req({ "user-agent": "SproutRoute/18 CFNetwork/3826.500.111 Darwin/27.2.0" })), "ios");
+  assert.equal(clientOf(req({ "user-agent": "node" })), "other");
+  assert.equal(clientOf(req({})), "other");
+  assert.equal(clientOf(req({ "user-agent": "node", "x-eval-client": "web" })), "web");
+  assert.equal(clientOf(req({ "user-agent": "Mozilla/5.0", "x-sprout-client": "android" })), "android");
+  assert.equal(clientOf(req({ "user-agent": "Mozilla/5.0", "x-sprout-client": "<script>" })), "web", "an unknown label is ignored");
+
+  const tracer = createTracer();
+  await tracer.run("request", { journey_id: "d".repeat(32), client: "ios" }, () => {});
+  await tracer.run("request", { client: "someone@example.com" }, () => {});
+  const [labelled, unlabelled] = tracer.snapshot();
+  assert.equal(labelled.meta.client, "ios");
+  assert.equal(unlabelled.meta.client, "other");
+});
+
+test("browser milestones are labelled web and can include the wait on the ages question", () => {
+  const tracer = createTracer();
+  tracer.recordClient({
+    journey_id: "e".repeat(32),
+    events: [{ name: "submitted", ms: 0 }, { name: "parsed", ms: 3000 }, { name: "ages_asked", ms: 3001 }, { name: "ages_answered", ms: 20000 }, { name: "stream_done", ms: 60000 }],
+  });
+  const [trace] = tracer.snapshot();
+  assert.equal(trace.meta.client, "web");
+  assert.deepEqual(trace.spans.map((s) => s.label), ["browser.submitted", "browser.parsed", "browser.ages_asked", "browser.ages_answered", "browser.stream_done"]);
+});
