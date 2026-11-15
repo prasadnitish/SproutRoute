@@ -1,4 +1,5 @@
 import { Icon } from "../Icon.jsx";
+import { showsChildAges } from "../../utils/childAges.js";
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
@@ -42,7 +43,9 @@ export default function HeroTile({ tripData, parsedInput, onEdit, hideTravelers 
   const peopleLine =
     `${adults} adult${adults !== 1 ? "s" : ""}` +
     (childrenAges.length > 0
-      ? ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}, age${childrenAges.length !== 1 ? "s" : ""} ${childrenAges.join(" & ")}`
+      ? ` \u00B7 ${childrenAges.length} kid${childrenAges.length !== 1 ? "s" : ""}${
+          showsChildAges(tripData?.parsed || parsedInput) ? `, age${childrenAges.length !== 1 ? "s" : ""} ${childrenAges.join(" & ")}` : ""
+        }`
       : "");
 
   return (

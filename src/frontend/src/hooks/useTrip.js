@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { STORAGE_KEYS, loadJSON, saveJSON } from "../utils/storage.js";
 import { addRecentTrip } from "../utils/recentTrips.js";
 import { analytics } from "../utils/analytics.js";
+import { needsAgeConfirmation, withConfirmedAges, withSkippedAges, shouldFetchCarSeat } from "../utils/childAges.js";
 import {
   parseInput,
   prefetchRouteAttractions,
@@ -195,29 +196,50 @@ export function useTrip() {
       markJourney(journeySignal,'parsed');
       markStep("resolve", "done");
 
-      // If no destination, show destination picker or error
-      if (!parsedWithContext.destination) {
-        if (parsedWithContext.suggestedDestinations?.length > 0) {
-          return; // Show destination picker
-        }
-        // No destination and no suggestions — show helpful error
-        setError("We couldn't determine a destination from your input. Try being more specific, like 'beach trip to San Diego' or 'weekend in Boca Raton'.");
-        return;
-      }
+      // The server guessed the children's ages: ask before planning, so car seat
+      // guidance is never built from a guess. GeneratingScreen shows the question.
+      if (needsAgeConfirmation(parsedWithContext)) return;
 
-      if (["multi_stop", "country_tour"].includes(parsedWithContext.tripShape)) {
-        markStep("weather", "idle");
-        startRouteAttractionPrefetch(parsedWithContext, abortRef.current.signal);
-        return;
-      }
-
-      await generateTrip(parsedWithContext);
+      await continueAfterAges(parsedWithContext);
     } catch (err) {
       if (err.name === "AbortError") return;
       analytics.tripError(err.name || "trip_generation_failed");
       setError(err.message || "Something went wrong");
     }
   }, [setScreenWithHistory, startRouteAttractionPrefetch]);
+
+  // Everything after the parse that can pause for the traveler: choosing a
+  // destination, reviewing a route, then planning.
+  async function continueAfterAges(parsed) {
+    if (!parsed.destination) {
+      if (parsed.suggestedDestinations?.length > 0) return; // Show destination picker
+      setError("We couldn't determine a destination from your input. Try being more specific, like 'beach trip to San Diego' or 'weekend in Boca Raton'.");
+      return;
+    }
+
+    if (["multi_stop", "country_tour"].includes(parsed.tripShape)) {
+      markStep("weather", "idle");
+      startRouteAttractionPrefetch(parsed, abortRef.current?.signal);
+      return;
+    }
+
+    await generateTrip(parsed);
+  }
+
+  // `ages` are the ages the traveler chose. null means they skipped the question:
+  // planning goes ahead with the guess, and car seat guidance is left out.
+  const confirmAges = useCallback(async (ages) => {
+    if (!parsedInput || !needsAgeConfirmation(parsedInput) || parsedInput.carSeatSuppressed) return;
+    const updated = Array.isArray(ages) ? withConfirmedAges(parsedInput, ages) : withSkippedAges(parsedInput);
+    setParsedInput(updated);
+    try {
+      await continueAfterAges(updated);
+    } catch (err) {
+      if (err.name === "AbortError") return;
+      analytics.tripError(err.name || "trip_generation_failed");
+      setError(err.message || "Something went wrong");
+    }
+  }, [parsedInput, startRouteAttractionPrefetch]);
 
   const selectDestination = useCallback(async (destinationName) => {
     if (!parsedInput) return;
@@ -412,6 +434,8 @@ export function useTrip() {
             stopItineraries: result.stopItineraries || {},
             scheduledByStop: result.scheduledByStop || {},
             parsed,
+            // The stream is finished: nothing will replace the itinerary now, so it can be edited.
+            _complete: true,
           };
           setTripData(fullData);
           saveJSON(STORAGE_KEYS.trip, fullData);
@@ -443,9 +467,8 @@ export function useTrip() {
         fetchPetSafetyInBackground(pets, parsed, streamResult, signal);
       }
 
-      const childAges = parsed.childrenAges || [];
-      if (childAges.length > 0) {
-        fetchCarSeatInBackground(childAges, streamResult, signal);
+      if (shouldFetchCarSeat(parsed)) {
+        fetchCarSeatInBackground(parsed.childrenAges, streamResult, signal);
       }
 
     }
@@ -556,6 +579,36 @@ export function useTrip() {
     await fetchPackingInBackground(formData, abortRef.current?.signal);
   }, [tripData]);
 
+  // Edits to the finished itinerary (move, remove, add a block). `edit` takes the
+  // scheduled days and returns new ones. The plan as generated is kept so the
+  // traveler can undo one step or go back to it.
+  const editPlan = useCallback((edit) => {
+    setTripData((prev) => {
+      const days = prev?.scheduledItinerary;
+      if (!Array.isArray(days)) return prev;
+      const next = edit(days);
+      if (next === days) return prev;
+      return {
+        ...prev,
+        scheduledItinerary: next,
+        _generatedItinerary: prev._generatedItinerary || days,
+        _previousItinerary: days,
+      };
+    });
+  }, []);
+
+  const undoPlanEdit = useCallback(() => {
+    setTripData((prev) => (prev?._previousItinerary
+      ? { ...prev, scheduledItinerary: prev._previousItinerary, _previousItinerary: null }
+      : prev));
+  }, []);
+
+  const resetPlanEdits = useCallback(() => {
+    setTripData((prev) => (prev?._generatedItinerary
+      ? { ...prev, scheduledItinerary: prev._generatedItinerary, _generatedItinerary: null, _previousItinerary: null }
+      : prev));
+  }, []);
+
   const goBack = useCallback(() => {
     // Abort background fetches before going back
     if (abortRef.current) abortRef.current.abort();
@@ -570,6 +623,7 @@ export function useTrip() {
   return {
     screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData, routePrefetch,
     progress, error, STEPS,
-    submitTrip, selectDestination, confirmRouteTrip, goBack, retryPacking,
+    submitTrip, confirmAges, selectDestination, confirmRouteTrip, goBack, retryPacking,
+    editPlan, undoPlanEdit, resetPlanEdits,
   };
 }

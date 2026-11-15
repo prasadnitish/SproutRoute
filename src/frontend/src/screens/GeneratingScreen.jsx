@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import DestinationPicker from "../components/DestinationPicker";
 import { Icon } from "../components/Icon.jsx";
 import RouteReviewPanel from "../components/RouteReviewPanel.jsx";
+import ChildAgesCard from "../components/ChildAgesCard.jsx";
+import { needsAgeConfirmation, showsChildAges } from "../utils/childAges.js";
 
 const STEP_LABELS = {
   resolve: "Understanding your trip",
@@ -72,11 +74,26 @@ export default function GeneratingScreen({
   steps,
   error,
   routePrefetch,
+  onConfirmAges,
   onPickDestination,
   onConfirmRoute,
   onGoBack,
 }) {
   const factIndex = useMemo(() => Math.floor(Math.random() * WAIT_FACTS.length), []);
+
+  // The ages question comes first: the server guessed, and the traveler has not answered or skipped.
+  if (needsAgeConfirmation(parsedInput) && !parsedInput.carSeatSuppressed && !error) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-12">
+        <ChildAgesCard
+          parsedInput={parsedInput}
+          onContinue={(ages) => onConfirmAges(ages)}
+          onSkip={() => onConfirmAges(null)}
+          onBack={onGoBack}
+        />
+      </div>
+    );
+  }
 
   // Destination picker takes over
   if (!parsedInput?.destination && parsedInput?.suggestedDestinations?.length > 0) {
@@ -93,7 +110,9 @@ export default function GeneratingScreen({
   const peopleLine = parsedInput
     ? `${parsedInput.adults || 2} adult${(parsedInput.adults || 2) !== 1 ? "s" : ""}${
         parsedInput.childrenAges?.length
-          ? ` · ${parsedInput.childrenAges.length} kid${parsedInput.childrenAges.length !== 1 ? "s" : ""} (age${parsedInput.childrenAges.length !== 1 ? "s" : ""} ${parsedInput.childrenAges.join(" & ")})`
+          ? ` · ${parsedInput.childrenAges.length} kid${parsedInput.childrenAges.length !== 1 ? "s" : ""}${
+              showsChildAges(parsedInput) ? ` (age${parsedInput.childrenAges.length !== 1 ? "s" : ""} ${parsedInput.childrenAges.join(" & ")})` : ""
+            }`
           : ""
       }${parsedInput.pets?.length ? ` · ${parsedInput.pets.length} pet${parsedInput.pets.length !== 1 ? "s" : ""}` : ""}`
     : null;

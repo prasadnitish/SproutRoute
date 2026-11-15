@@ -10,6 +10,8 @@ import ActivityDetailPanel from "../components/ActivityDetailPanel";
 import PackingChecklist from "../components/PackingChecklist";
 import { Icon } from "../components/Icon.jsx";
 import { pointsFromActivities, pointsFromStops, toMapPoint } from "../utils/mapGeometry.js";
+import { calendarEventCount, downloadIcs } from "../utils/calendarExport.js";
+import { buildReportMailto } from "../utils/reportProblem.js";
 
 function resolveItinerary(rawDays, suggestedActivities) {
   if (!rawDays || rawDays.length === 0) return [];
@@ -199,6 +201,9 @@ export default function ResultsScreen({
   enrich,
   onGoBack,
   onRetryPacking,
+  onEditPlan,
+  onUndoPlanEdit,
+  onResetPlanEdits,
   progress,
   steps,
   readOnly = false,
@@ -315,6 +320,30 @@ export default function ResultsScreen({
           />
           {belowHeader}
 
+          {!readOnly && (
+            <div className="mt-2 flex items-center gap-x-4 gap-y-1 flex-wrap px-1">
+              {tripData?._complete && calendarEventCount(scheduledItinerary) > 0 && (
+                <button
+                  type="button"
+                  onClick={() => downloadIcs({ days: scheduledItinerary, destination })}
+                  className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-meadow-700 hover:text-meadow-800"
+                >
+                  <Icon name="calendar" size={13} /> Add to calendar
+                </button>
+              )}
+              <a
+                href={buildReportMailto({
+                  destination,
+                  startDate: tripData?.parsed?.startDate,
+                  endDate: tripData?.parsed?.endDate,
+                })}
+                className="inline-flex items-center gap-1.5 text-[13px] text-gray-500 hover:text-gray-800 underline underline-offset-2"
+              >
+                Report a problem with this plan
+              </a>
+            </div>
+          )}
+
           {!readOnly && <section className="mt-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4" aria-label="Safety for your trip" aria-live="polite">
             <div className="flex items-center justify-between gap-3">
               <h3 className="font-semibold text-meadow-900">Safety for {destination || "your trip"}</h3>
@@ -364,6 +393,11 @@ export default function ResultsScreen({
               childCount={childCount}
               onOpenSafety={() => setActiveTab("safety")}
               isItineraryComplete={progress?.itinerary === "done"}
+              onEditPlan={readOnly || !tripData?._complete ? undefined : onEditPlan}
+              onUndoPlanEdit={onUndoPlanEdit}
+              onResetPlanEdits={onResetPlanEdits}
+              canUndo={!!tripData?._previousItinerary}
+              isEdited={!!tripData?._generatedItinerary}
             />
             <PremiumRouteMap
               eyebrow="Day map"
@@ -423,7 +457,11 @@ export default function ResultsScreen({
       {/* Safety tab — F4: own tab, not a bottom tile on Plan */}
       {activeTab === "safety" && (
         <div className="p-3 sm:p-4 space-y-3">
-          <SafetyTile safetyData={safetyData} carSeatData={carSeatData} />
+          <SafetyTile
+            safetyData={safetyData}
+            carSeatData={carSeatData}
+            carSeatSkipped={!!(tripData?.parsed?.carSeatSuppressed || parsedInput?.carSeatSuppressed)}
+          />
           {petSafetyData && <PetSafetyTile petSafetyData={petSafetyData} />}
           {!safetyData && !carSeatData && !petSafetyData && (
             <div className="p-8 text-center text-gray-500">

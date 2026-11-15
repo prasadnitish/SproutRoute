@@ -2,6 +2,99 @@ import { useState, useEffect } from "react";
 import DayTabs from "../DayTabs";
 import LoadingEngagement from "../LoadingEngagement";
 import { Icon, weatherIconName, categoryIconName } from "../Icon.jsx";
+import { canMoveItem, moveItem, moveItemToDay, removeItem, addBlockAfter } from "../../utils/planEdits.js";
+
+const BLOCK_LENGTHS = [30, 60, 90, 120];
+
+// The edit menu for one stop: move it, move it to another day, add your own block after it, or remove it.
+function StopEditMenu({ name, dayTabs, activeDay, canEarlier, canLater, onAction, onClose }) {
+  const [pickingDay, setPickingDay] = useState(false);
+  const itemClass =
+    "w-full text-left px-3 py-2 text-[13px] text-gray-800 hover:bg-meadow-50 disabled:text-gray-300 disabled:hover:bg-transparent inline-flex items-center gap-2";
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onClose} aria-hidden="true" />
+      <div
+        role="menu"
+        aria-label={`Edit ${name}`}
+        className="absolute right-0 top-9 z-40 w-52 rounded-xl border border-gray-200 bg-white shadow-lg py-1"
+      >
+        {pickingDay ? (
+          <>
+            <p className="px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider text-gray-400">Move to</p>
+            {dayTabs.map((day, index) => index !== activeDay && (
+              <button key={index} type="button" role="menuitem" className={itemClass} onClick={() => onAction("day", index)}>
+                Day {index + 1} &middot; {day.label}
+              </button>
+            ))}
+          </>
+        ) : (
+          <>
+            <button type="button" role="menuitem" className={itemClass} disabled={!canEarlier} onClick={() => onAction("earlier")}>
+              <Icon name="arrowUp" size={12} /> Move earlier
+            </button>
+            <button type="button" role="menuitem" className={itemClass} disabled={!canLater} onClick={() => onAction("later")}>
+              <Icon name="arrowUp" size={12} className="rotate-180" /> Move later
+            </button>
+            {dayTabs.length > 1 && (
+              <button type="button" role="menuitem" className={itemClass} onClick={() => setPickingDay(true)}>
+                <Icon name="calendar" size={12} /> Move to another day
+              </button>
+            )}
+            <button type="button" role="menuitem" className={itemClass} onClick={() => onAction("block")}>
+              <Icon name="plus" size={12} /> Add block after
+            </button>
+            <button type="button" role="menuitem" className={`${itemClass} text-red-700 hover:bg-red-50`} onClick={() => onAction("remove")}>
+              <Icon name="x" size={12} /> Remove from plan
+            </button>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+function AddBlockForm({ afterName, onAdd, onCancel }) {
+  const [title, setTitle] = useState("");
+  const [minutes, setMinutes] = useState(60);
+  return (
+    <form
+      className="ml-[68px] my-1 rounded-xl border border-meadow-200 bg-meadow-50/60 p-3 flex flex-col gap-2"
+      onSubmit={(e) => { e.preventDefault(); if (title.trim()) onAdd({ title, durationMinutes: minutes }); }}
+    >
+      <label htmlFor="add-block-title" className="text-[12px] font-semibold text-meadow-900">
+        Add your own block after {afterName}
+      </label>
+      <input
+        id="add-block-title"
+        autoFocus
+        value={title}
+        maxLength={80}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Nap, pool time, a call"
+        className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-[14px] text-gray-900 outline-none focus:border-meadow-500"
+      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <label htmlFor="add-block-length" className="text-[12px] text-gray-600">Length</label>
+        <select
+          id="add-block-length"
+          value={minutes}
+          onChange={(e) => setMinutes(Number(e.target.value))}
+          className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-[13px] text-gray-900"
+        >
+          {BLOCK_LENGTHS.map((length) => (
+            <option key={length} value={length}>{length < 60 ? `${length} min` : `${length / 60} hr`}</option>
+          ))}
+        </select>
+        <span className="flex-1" />
+        <button type="button" onClick={onCancel} className="text-[13px] text-gray-600 hover:text-gray-900 px-2 py-1">Cancel</button>
+        <button type="submit" disabled={!title.trim()} className="rounded-lg bg-meadow-600 text-white text-[13px] font-semibold px-3 py-1.5 hover:bg-meadow-700 disabled:opacity-40">
+          Add block
+        </button>
+      </div>
+    </form>
+  );
+}
 
 function Stars({ rating }) {
   if (!rating) return null;
@@ -231,11 +324,24 @@ export default function ItineraryTile({
   childCount = 0,
   onOpenSafety,
   isItineraryComplete = false,
+  onEditPlan,
+  onUndoPlanEdit,
+  onResetPlanEdits,
+  canUndo = false,
+  isEdited = false,
 }) {
   const [activeDay, setActiveDay] = useState(0);
+  const [menuFor, setMenuFor] = useState(null);
+  const [blockAfter, setBlockAfter] = useState(null);
+  const [editStatus, setEditStatus] = useState("");
+  const [editRefused, setEditRefused] = useState("");
+  const TOO_LATE = "That change would push a stop past midnight, so the plan was left as it is.";
 
   const handleDayChange = (dayIndex) => {
     setActiveDay(dayIndex);
+    setMenuFor(null);
+    setBlockAfter(null);
+    setEditRefused("");
     const days = scheduledItinerary || dailyItinerary;
     if (days && onDayChange) {
       const day = days[dayIndex];
@@ -246,10 +352,12 @@ export default function ItineraryTile({
 
   const days = scheduledItinerary || dailyItinerary;
 
+  // Keep the day map in step when the plan arrives or is edited, without leaving the day being viewed.
   useEffect(() => {
     if (days?.length > 0 && onDayChange) {
-      const day = days[0];
-      onDayChange(day?.scheduled || day?.activities || day?.items || [], day, 0);
+      const index = Math.min(activeDay, days.length - 1);
+      const day = days[index];
+      onDayChange(day?.scheduled || day?.activities || day?.items || [], day, index);
     }
   }, [days]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -275,6 +383,25 @@ export default function ItineraryTile({
   }
 
   const isScheduled = !!scheduledItinerary;
+  // The parent passes onEditPlan only once the plan is final: stream updates would overwrite an earlier edit.
+  const canEdit = !!onEditPlan && isScheduled;
+
+  const applyEdit = (action, itemIndex, value) => {
+    const name = activities[itemIndex]?.name || activities[itemIndex]?.title || "Stop";
+    setMenuFor(null);
+    if (action === "block") return setBlockAfter(itemIndex);
+    const edits = {
+      earlier: [(d) => moveItem(d, activeDay, itemIndex, -1), `${name} moved earlier.`],
+      later: [(d) => moveItem(d, activeDay, itemIndex, 1), `${name} moved later.`],
+      day: [(d) => moveItemToDay(d, activeDay, itemIndex, value), `${name} moved to day ${value + 1}.`],
+      remove: [(d) => removeItem(d, activeDay, itemIndex), `${name} removed from the plan.`],
+    };
+    const [edit, message] = edits[action];
+    if (edit(days) === days) return setEditRefused(TOO_LATE);
+    setEditRefused("");
+    onEditPlan(edit);
+    setEditStatus(message);
+  };
 
   const formatDayLabel = (dateStr, index) => {
     if (!dateStr) return `Day ${index + 1}`;
@@ -374,21 +501,87 @@ export default function ItineraryTile({
         </div>
       )}
 
+      {canEdit && isEdited && (
+        <div className="mb-2 flex items-center gap-3 flex-wrap rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+          <p className="flex-1 text-[13px] text-gray-700" role="status" aria-live="polite">
+            {editStatus || "You changed this plan."}
+          </p>
+          {canUndo && (
+            <button type="button" onClick={() => { onUndoPlanEdit(); setEditStatus("Last change undone."); }} className="text-[13px] font-semibold text-meadow-700 hover:text-meadow-800">
+              Undo
+            </button>
+          )}
+          <button type="button" onClick={() => { onResetPlanEdits(); setBlockAfter(null); setEditStatus(""); }} className="text-[13px] font-semibold text-gray-600 hover:text-gray-900">
+            Back to original plan
+          </button>
+        </div>
+      )}
+
+      {canEdit && editRefused && (
+        <p role="alert" className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+          {editRefused}
+        </p>
+      )}
+
       <div className="space-y-1">
-        {activities.map((activity, i) => (
-          <ActivityCard
-            key={i}
-            activity={activity}
-            onTap={onActivityTap}
-            hasPets={hasPets}
-            onOpenSafety={onOpenSafety}
-          />
-        ))}
+        {activities.map((activity, i) => {
+          const stopName = activity.name || activity.title || "Stop";
+          return (
+            <div key={i}>
+              <div className="relative flex items-start gap-1">
+                <div className="flex-1 min-w-0">
+                  <ActivityCard
+                    activity={activity}
+                    onTap={activity.isCustom ? undefined : onActivityTap}
+                    hasPets={hasPets}
+                    onOpenSafety={onOpenSafety}
+                  />
+                </div>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setMenuFor(menuFor === i ? null : i)}
+                    aria-haspopup="menu"
+                    aria-expanded={menuFor === i}
+                    aria-label={`Edit ${stopName}`}
+                    className="mt-2 w-8 h-8 flex-shrink-0 inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-meadow-700 hover:bg-meadow-50 transition"
+                  >
+                    <Icon name="pencil" size={14} />
+                  </button>
+                )}
+                {canEdit && menuFor === i && (
+                  <StopEditMenu
+                    name={stopName}
+                    dayTabs={dayTabs}
+                    activeDay={activeDay}
+                    canEarlier={canMoveItem(days, activeDay, i, -1)}
+                    canLater={canMoveItem(days, activeDay, i, 1)}
+                    onAction={(action, value) => applyEdit(action, i, value)}
+                    onClose={() => setMenuFor(null)}
+                  />
+                )}
+              </div>
+              {canEdit && blockAfter === i && (
+                <AddBlockForm
+                  afterName={stopName}
+                  onCancel={() => setBlockAfter(null)}
+                  onAdd={(block) => {
+                    setBlockAfter(null);
+                    if (addBlockAfter(days, activeDay, i, block) === days) return setEditRefused(TOO_LATE);
+                    setEditRefused("");
+                    onEditPlan((d) => addBlockAfter(d, activeDay, i, block));
+                    setEditStatus(`${block.title.trim()} added after ${stopName}.`);
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {activities.length > 0 && !activities.every((a) => a.isMeal) && (
         <p className="text-[12px] text-gray-400 text-center mt-3">
-          &uarr; Tap any activity for details
+          &uarr; Tap any activity for details{canEdit ? ". Use the pencil to move or remove a stop." : ""}
         </p>
       )}
     </section>
