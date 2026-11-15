@@ -1,3 +1,5 @@
+import { parseSse } from "./evalIos.mjs";
+
 // Builds the requests the website sends, so eval runs can look like real web sessions.
 // Mirrors src/frontend/src/hooks/useTrip.js (generateTrip and the background fetchers).
 // The differences from the iOS flow that matter for evals: packing goes to /api/generate,
@@ -45,7 +47,29 @@ export function webSteps(parsed, payload) {
   return steps;
 }
 
-/** `trip` is the stream's destination event. */
+/**
+ * The trip the website keeps from the stream: the destination event, or on multi-stop and
+ * country-tour trips the route event's trip (services/api.js). The country falls back to the
+ * first stop's, as it does for the website's travel tips call.
+ */
+export function webTripFromStream(text, payload) {
+  const events = parseSse(text);
+  const destination = events.find((e) => e.event === "destination")?.data;
+  if (destination) return destination;
+  const route = events.find((e) => e.event === "route")?.data;
+  if (!route) return null;
+  const routePlan = route.routePlan || route;
+  const trip = route.trip || {
+    destination: routePlan?.title || payload.destination,
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    duration: routePlan?.totalDays,
+  };
+  const firstStopCountry = routePlan?.stops?.[0]?.countryCode;
+  return trip.countryCode || !firstStopCountry ? trip : { ...trip, countryCode: firstStopCountry };
+}
+
+/** `trip` is what webTripFromStream returned. */
 export function webFollowUpBody(step, parsed, payload, trip) {
   const country = trip?.countryCode || "";
   if (step === "packing") return payload;

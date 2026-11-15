@@ -13,7 +13,7 @@
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { iosPayload, followUpBody, tripFromStream } from "./lib/evalIos.mjs";
-import { webPayload, webSteps, webFollowUpBody } from "./lib/evalWeb.mjs";
+import { webPayload, webSteps, webFollowUpBody, webTripFromStream } from "./lib/evalWeb.mjs";
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => {
   const [key, ...rest] = a.replace(/^--/, "").split("=");
@@ -81,7 +81,7 @@ for (const [index, row] of rows.entries()) {
     if (client === "web" && parsed.childrenAgesAssumed) log({ case: row.id, app: "asks for the children's ages; the runner skips the question, so no car seat call" });
     const stream = await call(row, journey, "stream", "/api/v1/trip/stream", payload);
     if (!stream.ok) continue;
-    const trip = dryRun ? { destination: payload.destination, countryCode: "US", startDate: payload.startDate } : tripFromStream(stream.text);
+    const trip = dryRun ? { destination: payload.destination, countryCode: "US", startDate: payload.startDate } : client === "web" ? webTripFromStream(stream.text, payload) : tripFromStream(stream.text);
     let steps;
     if (client === "web") {
       steps = webSteps(parsed, payload);

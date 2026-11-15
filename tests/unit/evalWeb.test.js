@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { webPayload, webFollowUpBody, webSteps } from "../../scripts/lib/evalWeb.mjs";
+import { webPayload, webFollowUpBody, webSteps, webTripFromStream } from "../../scripts/lib/evalWeb.mjs";
 
 const parsed = {
   destination: "San Diego, CA", startDate: "2026-12-18", endDate: "2026-12-22", adults: 2, childrenAges: [3, 7],
@@ -46,4 +46,28 @@ test("guessed ages: the runner cannot answer the question, so it skips it and ma
   assert.deepEqual(webSteps(guessed, webPayload(guessed)), [["packing", "/api/generate"], ["travel-tips", "/api/safety/travel-tips"]]);
   const none = { ...parsed, pets: [], childrenAges: [] };
   assert.deepEqual(webSteps(none, webPayload(none)).map(([step]) => step), ["packing", "travel-tips"]);
+});
+
+const sse = (events) => events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n`).join("\n");
+
+test("the trip comes from the destination event, or from the route event on multi-stop trips", () => {
+  const payload = webPayload({ ...parsed, tripShape: "multi_stop" });
+  const single = sse([["destination", { destination: "San Diego, California, USA", countryCode: "US", jurisdictionCode: "CA", startDate: "2026-12-18" }], ["done", {}]]);
+  assert.equal(webTripFromStream(single, payload).jurisdictionCode, "CA");
+
+  const routeTrip = { destination: "Portland to Seattle", countryCode: "US", jurisdictionCode: "OR", startDate: "2026-12-18" };
+  const multi = sse([["route", { routePlan: { title: "Portland to Seattle", stops: [{ id: "s1", countryCode: "US" }] }, trip: routeTrip }], ["done", {}]]);
+  const trip = webTripFromStream(multi, payload);
+  assert.deepEqual(trip, routeTrip);
+  assert.deepEqual(webFollowUpBody("car-seat", parsed, payload, trip),
+    { destination: "Portland to Seattle", jurisdictionCode: "OR", tripDate: "2026-12-18", children: [{ age: 3 }, { age: 7 }] });
+
+  // A route event without a trip: the website builds one from the route title and the request, and
+  // takes the country for travel tips from the first stop.
+  const bare = sse([["route", { routePlan: { title: "Tokyo and Kyoto", totalDays: 6, stops: [{ id: "s1", countryCode: "JP" }] } }]]);
+  const built = webTripFromStream(bare, payload);
+  assert.equal(built.destination, "Tokyo and Kyoto");
+  assert.equal(built.startDate, "2026-12-18");
+  assert.equal(built.countryCode, "JP");
+  assert.equal(webTripFromStream(sse([["done", {}]]), payload), null);
 });
