@@ -36,7 +36,7 @@ function InfoChip({ label, value }) {
   );
 }
 
-export default function SafetyTile({ safetyData, carSeatData }) {
+export default function SafetyTile({ safetyData, carSeatData, carSeatSkipped = false }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
       <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600 mb-3">
@@ -119,6 +119,16 @@ export default function SafetyTile({ safetyData, carSeatData }) {
 
             {/* Car seat + customs */}
             <div className="space-y-2">
+              {carSeatSkipped && !carSeatData && (
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">
+                    Car Seat
+                  </p>
+                  <p className="text-xs text-gray-600 leading-snug">
+                    No car seat guidance, because the children&rsquo;s ages weren&rsquo;t given. Edit the trip and add them to see it.
+                  </p>
+                </div>
+              )}
               {(carSeatData || safetyData?.carSeatLaw) && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">

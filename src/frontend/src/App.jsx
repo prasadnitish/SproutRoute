@@ -10,6 +10,8 @@ import ShareTripDialog from "./components/ShareTripDialog.jsx";
 import SharedTripScreen from "./screens/SharedTripScreen.jsx";
 import { Icon } from "./components/Icon.jsx";
 import AnalyticsConsent from "./components/AnalyticsConsent.jsx";
+import AiConsentSheet from "./components/AiConsentSheet.jsx";
+import { hasAiConsent, grantAiConsent, withdrawAiConsent } from "./utils/aiConsent.js";
 
 function loadSavedProfile() {
   try {
@@ -32,6 +34,25 @@ function PlannerApp() {
   const [showImport, setShowImport] = useState(false);
   const [savedProfile, setSavedProfile] = useState(loadSavedProfile);
   const [showShare, setShowShare] = useState(false);
+  // AI data consent: nothing is sent for planning until the visitor agrees.
+  const [aiConsent, setAiConsent] = useState(() => hasAiConsent());
+  const [showAiConsent, setShowAiConsent] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(null);
+
+  const submitTrip = (arg) => {
+    const text = typeof arg === "string" ? arg : arg?.text;
+    const profileOverride = typeof arg === "object" ? arg?.savedProfile : null;
+    trip.submitTrip(text, geolocation, profileOverride || savedProfile);
+  };
+  const requestTrip = (arg) => {
+    if (aiConsent) return submitTrip(arg);
+    setPendingSubmit(() => () => submitTrip(arg));
+    setShowAiConsent(true);
+  };
+  const closeAiConsent = () => {
+    setShowAiConsent(false);
+    setPendingSubmit(null);
+  };
 
   const goHome = () => {
     if (trip.screen !== "input") trip.goBack();
@@ -107,12 +128,15 @@ function PlannerApp() {
           <InputScreen
             savedProfile={savedProfile}
             geo={geo}
-            onSubmit={(arg) => {
-              const text = typeof arg === "string" ? arg : arg?.text;
-              const profileOverride = typeof arg === "object" ? arg?.savedProfile : null;
-              trip.submitTrip(text, geolocation, profileOverride || savedProfile);
-            }}
+            onSubmit={requestTrip}
           />
+        )}
+        {trip.screen === "input" && (
+          <p className="pb-8 text-center text-[12px] text-gray-500">
+            <button type="button" onClick={() => setShowAiConsent(true)} className="underline underline-offset-2 hover:text-gray-800">
+              AI data choices
+            </button>
+          </p>
         )}
 
         {trip.screen === "generating" && (
@@ -122,6 +146,7 @@ function PlannerApp() {
             steps={trip.STEPS}
             error={trip.error}
             routePrefetch={trip.routePrefetch}
+            onConfirmAges={trip.confirmAges}
             onPickDestination={trip.selectDestination}
             onConfirmRoute={trip.confirmRouteTrip}
             onGoBack={trip.goBack}
@@ -143,6 +168,9 @@ function PlannerApp() {
             enrich={enrich}
             onGoBack={trip.goBack}
             onRetryPacking={trip.retryPacking}
+            onEditPlan={trip.editPlan}
+            onUndoPlanEdit={trip.undoPlanEdit}
+            onResetPlanEdits={trip.resetPlanEdits}
             progress={trip.progress}
             steps={trip.STEPS}
           />
@@ -155,6 +183,23 @@ function PlannerApp() {
         onSaved={(profile) => setSavedProfile(profile)}
       />
       {trip.screen === "results" && <ShareTripDialog isOpen={showShare} onClose={() => setShowShare(false)} tripData={trip.tripData} packingList={trip.packingList} canCreateLink={trip.progress?.itinerary === 'done' && !trip.error} />}
+      <AiConsentSheet
+        isOpen={showAiConsent}
+        alreadyAgreed={aiConsent}
+        onAgree={() => {
+          grantAiConsent();
+          setAiConsent(true);
+          setShowAiConsent(false);
+          pendingSubmit?.();
+          setPendingSubmit(null);
+        }}
+        onDecline={closeAiConsent}
+        onWithdraw={() => {
+          withdrawAiConsent();
+          setAiConsent(false);
+          closeAiConsent();
+        }}
+      />
       <AnalyticsConsent />
     </div>
   );

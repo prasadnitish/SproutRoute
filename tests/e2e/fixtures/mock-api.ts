@@ -50,7 +50,14 @@ export function buildSSEBody(overrides?: {
   return events.join("\n");
 }
 
-export async function mockAllApis(page: Page): Promise<void> {
+export async function mockAllApis(page: Page, opts: { aiConsent?: boolean } = {}): Promise<void> {
+  // The AI data consent sheet is answered already, unless a test wants to see it.
+  if (opts.aiConsent !== false) {
+    await page.addInitScript(() => {
+      try { localStorage.setItem("sproutroute.aiConsent.acceptedVersion", "1"); } catch { /* storage blocked */ }
+    });
+  }
+
   // ── SSE stream endpoint (primary trip generation path) ──────────────────
   await page.route("**/api/v1/trip/stream", (r) =>
     r.fulfill({
