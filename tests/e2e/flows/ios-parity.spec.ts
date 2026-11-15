@@ -24,6 +24,8 @@ test.describe("AI data consent", () => {
     await expect(sheet).toBeVisible();
     await expect(sheet.getByText("Your children's ages")).toBeVisible();
     await expect(sheet.getByRole("link", { name: /Anthropic/ })).toBeVisible();
+    await expect(sheet.getByText(/coordinates go to our server and to OpenStreetMap/)).toBeVisible();
+    await expect(sheet.getByText("Your device location")).toHaveCount(0);
     expect(parseCalls).toBe(0);
 
     await sheet.getByRole("button", { name: "Not now" }).click();

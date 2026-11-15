@@ -334,11 +334,14 @@ export default function ItineraryTile({
   const [menuFor, setMenuFor] = useState(null);
   const [blockAfter, setBlockAfter] = useState(null);
   const [editStatus, setEditStatus] = useState("");
+  const [editRefused, setEditRefused] = useState("");
+  const TOO_LATE = "That change would push a stop past midnight, so the plan was left as it is.";
 
   const handleDayChange = (dayIndex) => {
     setActiveDay(dayIndex);
     setMenuFor(null);
     setBlockAfter(null);
+    setEditRefused("");
     const days = scheduledItinerary || dailyItinerary;
     if (days && onDayChange) {
       const day = days[dayIndex];
@@ -394,6 +397,8 @@ export default function ItineraryTile({
       remove: [(d) => removeItem(d, activeDay, itemIndex), `${name} removed from the plan.`],
     };
     const [edit, message] = edits[action];
+    if (edit(days) === days) return setEditRefused(TOO_LATE);
+    setEditRefused("");
     onEditPlan(edit);
     setEditStatus(message);
   };
@@ -512,6 +517,12 @@ export default function ItineraryTile({
         </div>
       )}
 
+      {canEdit && editRefused && (
+        <p role="alert" className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+          {editRefused}
+        </p>
+      )}
+
       <div className="space-y-1">
         {activities.map((activity, i) => {
           const stopName = activity.name || activity.title || "Stop";
@@ -555,9 +566,11 @@ export default function ItineraryTile({
                   afterName={stopName}
                   onCancel={() => setBlockAfter(null)}
                   onAdd={(block) => {
+                    setBlockAfter(null);
+                    if (addBlockAfter(days, activeDay, i, block) === days) return setEditRefused(TOO_LATE);
+                    setEditRefused("");
                     onEditPlan((d) => addBlockAfter(d, activeDay, i, block));
                     setEditStatus(`${block.title.trim()} added after ${stopName}.`);
-                    setBlockAfter(null);
                   }}
                 />
               )}

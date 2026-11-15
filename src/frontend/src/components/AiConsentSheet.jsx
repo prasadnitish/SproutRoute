@@ -50,6 +50,7 @@ export default function AiConsentSheet({ isOpen, alreadyAgreed = false, onAgree,
           <p className="text-[14px] text-gray-800 leading-snug">{AI_DISCLOSURE.summary}</p>
           <Group title="What we send" items={AI_DISCLOSURE.sentItems} />
           <Group title="What we don't send" items={AI_DISCLOSURE.notSentItems} />
+          <p className="text-[13px] text-gray-600 leading-snug">{AI_DISCLOSURE.locationNote}</p>
           <div>
             <h3 className="text-[14px] font-semibold text-gray-900">Who receives it</h3>
             <ul className="mt-1.5 space-y-1">

@@ -1,5 +1,5 @@
 // What the visitor is told before trip details go to AI services, and their answer.
-// Same text and version as the iOS app's AIDisclosure.
+// Based on the iOS app's AIDisclosure; the location lines differ because the website can send location.
 
 export const AI_CONSENT_VERSION = 1;
 export const AI_CONSENT_KEY = "sproutroute.aiConsent.acceptedVersion";
@@ -13,8 +13,12 @@ export const AI_DISCLOSURE = {
     "Your children's ages",
     "Pets and their type",
     "Preferences and notes, including any imported profile",
+    "Your city and state, only if you turn on \"Use my location\"",
   ],
-  notSentItems: ["Your device location", "Your calendar, contacts or photos"],
+  // Unlike the iOS app, the website can use location when the visitor turns it on.
+  notSentItems: ["Your exact coordinates", "Your calendar, contacts or photos"],
+  locationNote:
+    "If you turn on \"Use my location\", your coordinates go to our server and to OpenStreetMap, which finds your city. AI services receive the city and state, not the coordinates.",
   providers: [
     { name: "OpenAI", privacyUrl: "https://openai.com/policies/privacy-policy" },
     { name: "Google (Gemini)", privacyUrl: "https://policies.google.com/privacy" },

@@ -24,6 +24,14 @@ function fold(line) {
   return out.map((part, i) => (i === 0 ? part : ` ${part}`));
 }
 
+// Short, stable fingerprint so the same stop always gets the same id, and stops
+// from a different plan on the same dates get different ones.
+function fingerprint(text) {
+  let hash = 5381;
+  for (const char of text) hash = ((hash * 33) ^ char.codePointAt(0)) >>> 0;
+  return hash.toString(36);
+}
+
 function stamp(date, minutes) {
   const [y, m, d] = date.split("-").map(Number);
   const local = new Date(Date.UTC(y, m - 1, d, 0, minutes));
@@ -57,7 +65,7 @@ export function buildIcs({ days, destination = "", now = new Date() }) {
     const location = item.enriched?.address || destination;
     lines.push(
       "BEGIN:VEVENT",
-      `UID:${day.date}-${dayIndex}-${itemIndex}@sproutroute.app`,
+      `UID:${day.date}-${dayIndex}-${itemIndex}-${fingerprint(`${destination}|${item.name || item.title || ""}|${start}`)}@sproutroute.app`,
       `DTSTAMP:${dtstamp}`,
       `DTSTART:${stamp(day.date, start)}`,
       `DTEND:${stamp(day.date, end)}`,

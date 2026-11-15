@@ -50,3 +50,13 @@ test("the disclosure names what is sent, what is not, and every provider with a 
   assert.deepEqual(AI_DISCLOSURE.providers.map((p) => p.name), ["OpenAI", "Google (Gemini)", "Anthropic"]);
   for (const p of AI_DISCLOSURE.providers) assert.match(p.privacyUrl, /^https:\/\//);
 });
+
+test("the disclosure is honest about location: the website can send it when the visitor turns it on", () => {
+  const all = [...AI_DISCLOSURE.sentItems, ...AI_DISCLOSURE.notSentItems].join(" | ");
+  assert.ok(!AI_DISCLOSURE.notSentItems.includes("Your device location"));
+  assert.match(AI_DISCLOSURE.sentItems.join(" | "), /city and state.*Use my location/);
+  assert.match(AI_DISCLOSURE.notSentItems.join(" | "), /exact coordinates/);
+  assert.match(AI_DISCLOSURE.locationNote, /OpenStreetMap/);
+  assert.match(AI_DISCLOSURE.locationNote, /not the coordinates/);
+  assert.ok(all.length > 0);
+});

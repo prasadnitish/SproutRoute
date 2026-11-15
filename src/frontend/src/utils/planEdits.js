@@ -1,12 +1,14 @@
 // Edits a traveler makes to a scheduled itinerary. Every function returns a new
-// days array and leaves its input alone; when an edit is not possible it returns
-// the same array, so callers can compare by identity.
+// days array and leaves its input alone; when an edit is not possible (out of
+// range, or it would push a stop past midnight) it returns the same array, so
+// callers can compare by identity.
 //
 // A day is { date, scheduled: [item] }. Times are the scheduler's strings ("9:00 AM").
 
 const DEFAULT_MINUTES = 60;
 const MAX_BLOCK_MINUTES = 12 * 60;
 const GAP_AFTER_MOVE = 15;
+const MINUTES_PER_DAY = 1440;
 
 export function parseClock(value) {
   const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(value ?? "").trim());
@@ -53,17 +55,25 @@ function rhythmOf(items) {
 }
 
 // Lays timed stops out again in their new order, each keeping its own length.
-function retime(items, { start, gaps }, gapAt = (i) => gaps[i] ?? 0) {
+// Returns null when a stop would start after midnight: a day's stops carry only
+// that day's date, so a stop pushed into the next day would be shown and
+// exported on the wrong date.
+function retime(items, { start, gaps }) {
   if (start === null) return items;
   let clock = start;
   let position = 0;
-  return items.map((item) => {
-    if (!isTimed(item)) return item;
-    const placed = withTimes(item, clock);
-    clock += lengthOf(item) + gapAt(position);
+  const placed = [];
+  for (const item of items) {
+    if (!isTimed(item)) {
+      placed.push(item);
+      continue;
+    }
+    if (clock >= MINUTES_PER_DAY) return null;
+    placed.push(withTimes(item, clock));
+    clock += lengthOf(item) + (gaps[position] ?? 0);
     position += 1;
-    return placed;
-  });
+  }
+  return placed;
 }
 
 const replaceDay = (days, dayIndex, scheduled) =>
@@ -81,7 +91,8 @@ export function moveItem(days, dayIndex, itemIndex, delta) {
   const reordered = [...items];
   const [moved] = reordered.splice(itemIndex, 1);
   reordered.splice(itemIndex + delta, 0, moved);
-  return replaceDay(days, dayIndex, retime(reordered, rhythmOf(items)));
+  const retimed = retime(reordered, rhythmOf(items));
+  return retimed ? replaceDay(days, dayIndex, retimed) : days;
 }
 
 export function moveItemToDay(days, fromDay, itemIndex, toDay) {
@@ -90,7 +101,9 @@ export function moveItemToDay(days, fromDay, itemIndex, toDay) {
   const moved = source[itemIndex];
   const target = itemsOf(days[toDay]);
   const lastEnd = Math.max(-1, ...target.map((item) => endOf(item) ?? -1));
-  const placed = isTimed(moved) && lastEnd >= 0 ? withTimes(moved, lastEnd + GAP_AFTER_MOVE) : moved;
+  const appended = isTimed(moved) && lastEnd >= 0;
+  if (appended && lastEnd + GAP_AFTER_MOVE >= MINUTES_PER_DAY) return days;
+  const placed = appended ? withTimes(moved, lastEnd + GAP_AFTER_MOVE) : moved;
   return days.map((day, i) => {
     if (i === fromDay) return { ...day, scheduled: source.filter((_, index) => index !== itemIndex) };
     if (i === toDay) return { ...day, scheduled: [...target, placed] };
@@ -131,5 +144,6 @@ export function addBlockAfter(days, dayIndex, itemIndex, { title, durationMinute
   const rhythm = rhythmOf(items);
   const anchorPosition = items.slice(0, itemIndex + 1).filter(isTimed).length - 1;
   const gaps = [...rhythm.gaps.slice(0, anchorPosition), 0, ...rhythm.gaps.slice(anchorPosition)];
-  return replaceDay(days, dayIndex, retime(inserted, { start: rhythm.start, gaps }));
+  const retimed = retime(inserted, { start: rhythm.start, gaps });
+  return retimed ? replaceDay(days, dayIndex, retimed) : days;
 }

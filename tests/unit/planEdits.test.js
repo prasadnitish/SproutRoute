@@ -88,6 +88,26 @@ test("a block needs a title and a sensible length", () => {
   assert.equal(addBlockAfter(days, 0, 0, { title: "Nap", durationMinutes: 5000 }), days);
 });
 
+test("an edit that would push a stop past midnight is refused", () => {
+  const late = () => [
+    { date: "2026-12-18", scheduled: [item("Dinner", "7:00 PM", "9:00 PM"), item("Walk", "10:30 PM", "11:15 PM")] },
+    { date: "2026-12-19", scheduled: [item("Show", "9:00 PM", "11:50 PM")] },
+  ];
+  const days = late();
+  assert.equal(addBlockAfter(days, 0, 0, { title: "Movie", durationMinutes: 120 }), days, "Walk would start at 12:30 AM");
+  assert.notEqual(addBlockAfter(days, 0, 0, { title: "Coffee", durationMinutes: 30 }), days);
+  assert.equal(moveItemToDay(days, 0, 0, 1), days, "Dinner would start after midnight on day 2");
+  const swapped = moveItem(days, 0, 0, 1);
+  assert.deepEqual(swapped[0].scheduled.map((a) => a.scheduledStart), ["7:00 PM", "9:15 PM"]);
+});
+
+test("a stop may still end after midnight, as generated plans sometimes do", () => {
+  const days = [{ date: "2026-12-18", scheduled: [item("Dinner", "9:00 PM", "10:00 PM"), item("Party", "10:30 PM", "12:30 AM")] }];
+  const next = addBlockAfter(days, 0, 0, { title: "Walk", durationMinutes: 30 });
+  assert.deepEqual(next[0].scheduled.map((a) => `${a.scheduledStart}-${a.scheduledEnd}`),
+    ["9:00 PM-10:00 PM", "10:00 PM-10:30 PM", "11:00 PM-1:00 AM"]);
+});
+
 test("stops without times are moved but not given invented times", () => {
   const days = [{ date: "2026-12-18", scheduled: [item("A", "9:00 AM", "10:00 AM"), item("B", null, null), item("C", "11:00 AM", "12:00 PM")] }];
   const next = moveItem(days, 0, 0, 1);

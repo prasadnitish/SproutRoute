@@ -50,6 +50,16 @@ test("every event has a unique id and no line is longer than 75 bytes", () => {
   for (const line of ics.split("\r\n")) assert.ok(Buffer.byteLength(line) <= 75, line);
 });
 
+test("two different plans on the same dates do not share event ids", () => {
+  const plan = (name) => [{ date: "2026-12-18", scheduled: [{ name, scheduledStart: "9:00 AM", scheduledEnd: "10:00 AM" }] }];
+  const uid = (ics) => ics.match(/UID:(.+)\r\n/)[1];
+  const beach = uid(buildIcs({ days: plan("Beach"), destination: "San Diego", now }));
+  assert.notEqual(beach, uid(buildIcs({ days: plan("Zoo"), destination: "San Diego", now })));
+  assert.notEqual(beach, uid(buildIcs({ days: plan("Beach"), destination: "Maui", now })));
+  assert.equal(beach, uid(buildIcs({ days: plan("Beach"), destination: "San Diego", now })), "the same plan exports the same ids");
+  assert.match(beach, /^[A-Za-z0-9-]+@sproutroute\.app$/);
+});
+
 test("file name comes from the destination", () => {
   assert.equal(icsFilename("San Diego, California"), "sproutroute-san-diego-california.ics");
   assert.equal(icsFilename(""), "sproutroute-trip.ics");
