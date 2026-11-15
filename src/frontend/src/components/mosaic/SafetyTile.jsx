@@ -36,7 +36,7 @@ function InfoChip({ label, value }) {
   );
 }
 
-export default function SafetyTile({ safetyData, carSeatData, carSeatSkipped = false }) {
+export default function SafetyTile({ safetyData }) {
   return (
     <div className="bg-white border border-gray-200 rounded-2xl p-4">
       <p className="text-xs uppercase tracking-wide font-semibold text-meadow-600 mb-3">
@@ -117,45 +117,8 @@ export default function SafetyTile({ safetyData, carSeatData, carSeatSkipped = f
               </div>
             )}
 
-            {/* Car seat + customs */}
+            {/* Customs */}
             <div className="space-y-2">
-              {carSeatSkipped && !carSeatData && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">
-                    Car Seat
-                  </p>
-                  <p className="text-xs text-gray-600 leading-snug">
-                    No car seat guidance, because the children&rsquo;s ages weren&rsquo;t given. Edit the trip and add them to see it.
-                  </p>
-                </div>
-              )}
-              {(carSeatData || safetyData?.carSeatLaw) && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">
-                    Car Seat
-                  </p>
-                  {carSeatData?.children ? (
-                    <ul className="space-y-1">
-                      {carSeatData.children.map((child, i) => (
-                        <li key={i} className="text-xs text-gray-600 leading-snug">
-                          <span className="font-semibold">Age {child.age}:</span>{" "}
-                          {safeText(child.recommendation || child.guidance || "Check local laws")}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-gray-600 leading-snug">
-                      {safeText(safetyData.carSeatLaw)}
-                    </p>
-                  )}
-                  {carSeatData?.sourceAuthority && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      Source: {safeText(carSeatData.sourceAuthority)}
-                      {carSeatData.lastReviewed && ` (reviewed ${carSeatData.lastReviewed})`}
-                    </p>
-                  )}
-                </div>
-              )}
               {safetyData.localCustoms?.length > 0 && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-1">
