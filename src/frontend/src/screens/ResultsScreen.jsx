@@ -3,6 +3,7 @@ import HeroTile from "../components/mosaic/HeroTile";
 import WeatherTile from "../components/mosaic/WeatherTile";
 import ItineraryTile from "../components/mosaic/ItineraryTile";
 import SafetyTile from "../components/mosaic/SafetyTile";
+import CarSeatCard from "../components/mosaic/CarSeatCard.jsx";
 import PetSafetyTile from "../components/mosaic/PetSafetyTile";
 import RouteTimelineTile from "../components/mosaic/RouteTimelineTile";
 import PremiumRouteMap from "../components/maps/PremiumRouteMap.jsx";
@@ -12,6 +13,7 @@ import { Icon } from "../components/Icon.jsx";
 import { pointsFromActivities, pointsFromStops, toMapPoint } from "../utils/mapGeometry.js";
 import { calendarEventCount, downloadIcs } from "../utils/calendarExport.js";
 import { buildReportMailto } from "../utils/reportProblem.js";
+import { carSeatCard, carSeatRowCount } from "../utils/carSeatPresentation.js";
 
 function resolveItinerary(rawDays, suggestedActivities) {
   if (!rawDays || rawDays.length === 0) return [];
@@ -238,6 +240,7 @@ export default function ResultsScreen({
   const destination =
     tripData?.parsed?.destination || tripData?.trip?.destination;
   const hasPets = (tripData?.trip?.pets?.length || parsedInput?.pets?.length || 0) > 0;
+  const carSeatSkipped = !!(tripData?.parsed?.carSeatSuppressed || parsedInput?.carSeatSuppressed);
   const childCount = tripData?.parsed?.childrenAges?.length || parsedInput?.childrenAges?.length || 0;
   const routeMapPoints = useMemo(() => pointsFromStops(routePlan?.stops || []), [routePlan]);
   const activeDayPoints = useMemo(
@@ -271,7 +274,7 @@ export default function ResultsScreen({
       n += (safetyData.healthTips?.length || 0) + (safetyData.familyTips?.length || 0) + (safetyData.localCustoms?.length || 0);
       if (safetyData.advisoryLevel && safetyData.advisoryLevel !== "low") n += 1;
     }
-    if (carSeatData?.children?.length) n += carSeatData.children.length;
+    n += carSeatRowCount(carSeatData);
     if (petSafetyData) n += 1;
     return n;
   }, [safetyData, carSeatData, petSafetyData]);
@@ -457,13 +460,10 @@ export default function ResultsScreen({
       {/* Safety tab — F4: own tab, not a bottom tile on Plan */}
       {activeTab === "safety" && (
         <div className="p-3 sm:p-4 space-y-3">
-          <SafetyTile
-            safetyData={safetyData}
-            carSeatData={carSeatData}
-            carSeatSkipped={!!(tripData?.parsed?.carSeatSuppressed || parsedInput?.carSeatSuppressed)}
-          />
+          <SafetyTile safetyData={safetyData} />
+          <CarSeatCard carSeatData={carSeatData} destination={destination} skipped={carSeatSkipped} />
           {petSafetyData && <PetSafetyTile petSafetyData={petSafetyData} />}
-          {!safetyData && !carSeatData && !petSafetyData && (
+          {!safetyData && !carSeatCard(carSeatData, destination) && !carSeatSkipped && !petSafetyData && (
             <div className="p-8 text-center text-gray-500">
               <div className="mx-auto w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 mb-3">
                 <Icon name="shield" size={18} />
