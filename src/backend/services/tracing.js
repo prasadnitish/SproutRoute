@@ -27,6 +27,25 @@ function safeDetail(value) {
   );
 }
 
+const CLIENTS = new Set(["web", "ios", "android"]);
+
+/**
+ * Which client made a request: web, ios, android or other. An explicit label wins
+ * (the eval runner sends x-eval-client); otherwise the user agent decides. Only the
+ * label is kept, never the user agent itself.
+ */
+export function clientOf(req) {
+  for (const header of ["x-sprout-client", "x-eval-client"]) {
+    const value = req.get?.(header);
+    if (CLIENTS.has(value)) return value;
+  }
+  const agent = String(req.get?.("user-agent") || "");
+  if (/CFNetwork|Darwin/.test(agent)) return "ios";
+  if (/okhttp/i.test(agent)) return "android";
+  if (/^Mozilla\//.test(agent)) return "web";
+  return "other";
+}
+
 /** Bounded, process-local traces. No payloads, headers or exception messages are recorded. */
 export function createTracer({
   limit = 100,
@@ -130,6 +149,7 @@ export function createTracer({
         schema_version: 1,
         run_id: runId,
         journey_id: journey,
+        client: CLIENTS.has(metadata?.client) ? metadata.client : "other",
         tenant_id: "local",
         service,
         environment:
@@ -166,7 +186,7 @@ export function createTracer({
     // Route templates only. Dynamic URLs can include profile/invite identifiers.
     run(
       `${req.method} API`,
-      { journey_id: req.get("x-journey-id") },
+      { journey_id: req.get("x-journey-id"), client: clientOf(req) },
       (runId) =>
         new Promise((resolve) => {
           res.setHeader("X-Trace-Id", runId);
@@ -200,6 +220,8 @@ export function createTracer({
     const allowed = new Set([
       "submitted",
       "parsed",
+      "ages_asked",
+      "ages_answered",
       "stream_destination",
       "stream_weather",
       "stream_itinerary-chunk",
@@ -238,6 +260,8 @@ export function createTracer({
         schema_version: 1,
         run_id: runId,
         journey_id: body.journey_id,
+        // Only the website reports milestones.
+        client: "web",
         tenant_id: "local",
         service: "sproutroute-browser",
         environment: process.env.TRACE_ENVIRONMENT || process.env.NODE_ENV || "development",

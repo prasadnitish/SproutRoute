@@ -1,15 +1,19 @@
 #!/usr/bin/env node
-// Paid, synthetic run of free-text inputs through the iOS flow: parse, pick a destination if asked, stream,
-// then the background calls. Each input is one journey, captured and tagged like scripts/run-eval-traces.mjs.
+// Paid, synthetic run of free-text inputs through the iOS flow (default) or the website's flow (--client=web):
+// parse, pick a destination if asked, stream, then the background calls. Each input is one journey, captured and tagged like scripts/run-eval-traces.mjs.
 //
 //   EVAL_CAPTURE_TOKEN=... node scripts/run-eval-inputs.mjs --base=https://<backend> \
-//     --inputs=<path>/inputs.jsonl --confirm-spend [--run=<label>] [--only=C01,C02] [--delay-ms=3000] [--dry-run]
+//     --inputs=<path>/inputs.jsonl --confirm-spend [--client=ios|web] [--run=<label>] [--only=C01,C02] [--delay-ms=3000] [--dry-run]
+//
+// --client=web sends what the website sends: its planner payload, packing on /api/generate, and no car seat
+// call when the server guessed the children's ages (the website asks; the runner takes "Skip").
 //
 // inputs.jsonl has one {id, prompt, setup, origin} per line (SproutRoute iOS repo, evals/dataset/inputs.jsonl).
 // Rows that need a special setup are skipped: faults (C18), consent (C19), limits (C20), and any prompt with a TODO.
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { iosPayload, followUpBody, tripFromStream, parseSse } from "./lib/evalIos.mjs";
+import { iosPayload, followUpBody, tripFromStream } from "./lib/evalIos.mjs";
+import { webPayload, webSteps, webFollowUpBody } from "./lib/evalWeb.mjs";
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => {
   const [key, ...rest] = a.replace(/^--/, "").split("=");
@@ -17,7 +21,8 @@ const args = Object.fromEntries(process.argv.slice(2).map((a) => {
 }));
 const token = process.env.EVAL_CAPTURE_TOKEN;
 const base = String(args.base || "").replace(/\/$/, "");
-const runId = args.run || `ios-inputs-${new Date().toISOString().slice(0, 16).replace(/[^0-9]/g, "")}`;
+const client = args.client === "web" ? "web" : "ios";
+const runId = args.run || `${client}-inputs-${new Date().toISOString().slice(0, 16).replace(/[^0-9]/g, "")}`;
 const delayMs = Number(args["delay-ms"] ?? 3000);
 const dryRun = Boolean(args["dry-run"]);
 const today = new Date().toISOString().slice(0, 10);
@@ -45,7 +50,7 @@ async function call(row, journey, step, path, body) {
   const res = await fetch(`${base}${path}`, {
     method: "POST",
     headers: {
-      "content-type": "application/json", "x-eval-capture": token, "x-eval-client": "ios", "x-eval-case": row.id,
+      "content-type": "application/json", "x-eval-capture": token, "x-eval-client": client, "x-eval-case": row.id,
       "x-eval-run": runId, "x-eval-step": step, "x-journey-id": journey,
     },
     body: JSON.stringify(body),
@@ -72,14 +77,22 @@ for (const [index, row] of rows.entries()) {
       parsed.suggestedDestinations = [];
     }
     if (!parsed.destination || !parsed.startDate || !parsed.endDate) { log({ case: row.id, app: "cannot find a destination and dates" }); continue; }
-    const payload = iosPayload(parsed);
+    const payload = client === "web" ? webPayload(parsed) : iosPayload(parsed);
+    if (client === "web" && parsed.childrenAgesAssumed) log({ case: row.id, app: "asks for the children's ages; the runner skips the question, so no car seat call" });
     const stream = await call(row, journey, "stream", "/api/v1/trip/stream", payload);
     if (!stream.ok) continue;
     const trip = dryRun ? { destination: payload.destination, countryCode: "US", startDate: payload.startDate } : tripFromStream(stream.text);
-    const steps = [["packing", "/api/v1/trip/packing"], ["travel-tips", "/api/safety/travel-tips"]];
-    if (payload.children.length) steps.push(["car-seat", "/api/safety/car-seat-check"]);
-    if (payload.pets.length) steps.push(["pet", "/api/v1/safety/pet-travel-check"]);
-    for (const [step, path] of steps) await call(row, journey, step, path, followUpBody(step, payload, trip));
+    let steps;
+    if (client === "web") {
+      steps = webSteps(parsed, payload);
+    } else {
+      steps = [["packing", "/api/v1/trip/packing"], ["travel-tips", "/api/safety/travel-tips"]];
+      if (payload.children.length) steps.push(["car-seat", "/api/safety/car-seat-check"]);
+      if (payload.pets.length) steps.push(["pet", "/api/v1/safety/pet-travel-check"]);
+    }
+    for (const [step, path] of steps) {
+      await call(row, journey, step, path, client === "web" ? webFollowUpBody(step, parsed, payload, trip) : followUpBody(step, payload, trip));
+    }
   } catch (error) {
     failures++;
     log({ case: row.id, journey, error: error.message });

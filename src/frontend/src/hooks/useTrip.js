@@ -198,7 +198,11 @@ export function useTrip() {
 
       // The server guessed the children's ages: ask before planning, so car seat
       // guidance is never built from a guess. GeneratingScreen shows the question.
-      if (needsAgeConfirmation(parsedWithContext)) return;
+      if (needsAgeConfirmation(parsedWithContext)) {
+        // Time spent on the question is the traveler's, not the planner's; the trace marks both ends.
+        markJourney(journeySignal, 'ages_asked');
+        return;
+      }
 
       await continueAfterAges(parsedWithContext);
     } catch (err) {
@@ -231,6 +235,7 @@ export function useTrip() {
   const confirmAges = useCallback(async (ages) => {
     if (!parsedInput || !needsAgeConfirmation(parsedInput) || parsedInput.carSeatSuppressed) return;
     const updated = Array.isArray(ages) ? withConfirmedAges(parsedInput, ages) : withSkippedAges(parsedInput);
+    markJourney(abortRef.current?.signal, 'ages_answered');
     setParsedInput(updated);
     try {
       await continueAfterAges(updated);
