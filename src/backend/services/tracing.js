@@ -1,4 +1,5 @@
 import { createTraceArchive } from "./traceArchive.js";
+import { createTraceStore } from "./traceStore.js";
 import { evalCapture } from "./evalCapture.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomBytes } from "node:crypto";
@@ -283,10 +284,18 @@ export function createTracer({
       onComplete(structuredClone(history.at(-1)));
     } catch {}
   }
+  /** Puts traces from durable storage ahead of the ones recorded since boot. */
+  function restore(stored) {
+    const have = new Set(history.map((t) => t.meta.run_id));
+    const older = stored.filter((t) => !have.has(t.meta.run_id));
+    history.unshift(...older);
+    if (history.length > limit) history.splice(0, history.length - limit);
+  }
   return {
     span,
     run,
     snapshot,
+    restore,
     middleware,
     recordClient,
     wrap:
@@ -296,10 +305,26 @@ export function createTracer({
   };
 }
 export const traceArchive = createTraceArchive(process.env.TRACE_ARCHIVE_PATH);
+const traceEnvironment = process.env.TRACE_ENVIRONMENT || process.env.NODE_ENV || "development";
+// Production only, so local runs and tests never write to the shared table.
+export const traceStore = createTraceStore({
+  enabled: traceEnvironment === "production" && process.env.TRACE_STORE !== "off",
+  environment: traceEnvironment,
+});
 export const tracing = createTracer({
   initialTraces: traceArchive.load(),
-  onComplete: traceArchive.append,
+  onComplete: (trace) => {
+    traceArchive.append(trace);
+    traceStore.append(trace);
+  },
 });
+
+/** Called once at server start: reload the latest stored traces, then prune daily. */
+export function startTraceStore() {
+  traceStore.recent(100).then(tracing.restore);
+  traceStore.prune();
+  setInterval(() => traceStore.prune(), 86_400_000).unref();
+}
 
 export const tracedFetch = (...args) =>
   tracing.span("http.dependency", {}, () => fetch(...args));

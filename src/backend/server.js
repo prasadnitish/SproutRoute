@@ -1,4 +1,4 @@
-import { tracing, traceArchive, tracedFetch } from './services/tracing.js';
+import { tracing, traceArchive, traceStore, startTraceStore, tracedFetch } from './services/tracing.js';
 import { evalCapture } from './services/evalCapture.js';
 // Backend entry point: Express server that orchestrates location, weather, and AI calls.
 import express from "express";
@@ -725,7 +725,7 @@ export function createApp(deps = {}) {
     catch {res.status(400).json({error:'Invalid milestone evidence'});}
   });
 
-  app.get("/api/v1/ops/traces", opsAttemptLimiter, opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health() }));
+  app.get("/api/v1/ops/traces", opsAttemptLimiter, opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health(), store: traceStore.health() }));
 
   app.get("/api/v1/ops/metrics", opsAttemptLimiter, opsGuard, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -3006,8 +3006,9 @@ export function startServer(port, deps = {}) {
       console.warn("⚠️  AMAZON_AFFILIATE_TAG not set — affiliate links will work but won't earn commission");
     }
   });
-  installShutdownHandler({ server, flush: () => evalCapture.shutdown() });
+  installShutdownHandler({ server, flush: () => Promise.all([evalCapture.shutdown(), traceStore.flush()]) });
   if (process.env.GOOGLE_RETENTION_DISABLED !== "true") scheduleGoogleRetention(() => { try { return getSupabaseAdmin(); } catch { return null; } });
+  startTraceStore();
   return { app, server };
 }
 
