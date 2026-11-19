@@ -55,7 +55,10 @@ export function createTripShareStore({ repository = databaseRepository(), now = 
       if (!TOKEN_PATTERN.test(token || '')) throw unavailable();
       const row = await repository.find(digest(token));
       if (!row || row.revoked_at || !Number.isFinite(Date.parse(row.expires_at)) || now() >= Date.parse(row.expires_at)) throw unavailable();
-      return { snapshot: row.snapshot, createdAt: row.created_at, expiresAt: row.expires_at };
+      // Re-apply the allowlist on read so links created before a field was removed
+      // (for example generated prose that named children's ages) stop showing it.
+      const snapshot = buildSharedTripSnapshot(row.snapshot?.tripData);
+      return { snapshot, createdAt: row.created_at, expiresAt: row.expires_at };
     },
     async revoke(token, ownerToken) {
       if (!TOKEN_PATTERN.test(token || '') || !TOKEN_PATTERN.test(ownerToken || '')) throw unavailable();
