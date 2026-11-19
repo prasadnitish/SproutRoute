@@ -1,4 +1,4 @@
-import { count, ensureOk, finishPost, toIso } from "./common.js";
+import { captionText, count, ensureOk, finishPost, toIso } from "./common.js";
 
 // Pricing: from $0.0006 per request, prepaid, 100 free requests (checked 2026-10-27).
 // The Swagger reference could not be read, so the paths come from the HikerAPI MCP tool names
@@ -30,6 +30,7 @@ function mapItem(item) {
     author: item.user?.username || null,
     location_id: (item.location?.pk ?? item.location?.id) != null ? String(item.location.pk ?? item.location.id) : null,
     location_name: item.location?.name || null,
+    caption: captionText(item.caption_text ?? item.caption),
   });
 }
 
