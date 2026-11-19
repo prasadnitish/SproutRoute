@@ -40,10 +40,10 @@ test('public snapshot preserves itinerary, schedule and map points but excludes 
   assert.equal(snapshot.tripData.parsed.childrenAges, undefined);
 });
 
-test('sharing preserves the attraction explanation shown in the itinerary', () => {
+test('sharing leaves out generated explanations, which can mention the children', () => {
   const data = structuredClone(sampleTrip);
   data.scheduledItinerary[0].scheduled[0].whyRecommended = 'A good first stop';
-  assert.equal(buildSharedTripSnapshot(data).tripData.scheduledItinerary[0].scheduled[0].whyRecommended, 'A good first stop');
+  assert.equal(buildSharedTripSnapshot(data).tripData.scheduledItinerary[0].scheduled[0].whyRecommended, undefined);
 });
 
 test('nested objects injected into text fields cannot carry profile data', () => {
@@ -70,7 +70,7 @@ test('multi-city snapshots retain route-day labels, stop weather and coordinates
 test('empty or oversized snapshots are rejected', () => {
   assert.throws(() => buildSharedTripSnapshot({}), /completed itinerary/i);
   const data = structuredClone(sampleTrip);
-  data.tripPlan.tips = Array(60).fill('x'.repeat(4000));
+  data.scheduledItinerary = Array(60).fill(0).map((_, i) => ({ date: `2026-12-${i}`, scheduled: [{ id: `a${i}`, name: 'x'.repeat(4000) }] }));
   assert.throws(() => buildSharedTripSnapshot(data), /too large/i);
 });
 
