@@ -121,6 +121,8 @@ async function extractGroundedPlaces(text, model) {
   return { candidates: results, factCount };
 }
 
+export const groundedFactCount = Symbol("groundedFactCount");
+
 export async function prepareImport(
   input,
   { fetchFn = fetch, model = callModel } = {},
@@ -166,7 +168,7 @@ async function prepareCandidates(parsed, fetchFn, model) {
   }
   const { candidates, factCount } = text ? await extractGroundedPlaces(text, model) : { candidates: [], factCount: 0 };
   return {
-    result: { status: candidates.length ? "review" : "needs_evidence", origin, candidates },
+    result: { status: candidates.length ? "review" : "needs_evidence", origin, candidates, [groundedFactCount]: factCount },
     candidateCount: candidates.length,
     factCount,
   };

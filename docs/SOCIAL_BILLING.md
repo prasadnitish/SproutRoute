@@ -4,7 +4,7 @@ AI extraction requires a registered account. The account-wide allowance covers w
 
 ## Staging setup
 
-Apply migrations through 041 to an isolated staging database. Enable `V3_SOCIAL_BILLING_ENABLED=true` on the Railway environment named `staging`. Local development also supports this flag outside production. Without it, AI extraction returns 503 and ordinary queueing works. An offline developer can explicitly set `V3_LOCAL_EXTRACTION_PREVIEW=true` for an unmetered local extractor. Keep production on the existing release until prices, provider accounts and Sandbox verification are approved.
+Apply migrations through 042 to an isolated staging database. Enable `V3_SOCIAL_BILLING_ENABLED=true` on the Railway environment named `staging`. Local development also supports this flag outside production. Without it, AI extraction returns 503 and ordinary queueing works. An offline developer can explicitly set `V3_LOCAL_EXTRACTION_PREVIEW=true` for an unmetered local extractor. Keep production on the existing release until prices, provider accounts and Sandbox verification are approved.
 
 Provisional defaults are three successful AI imports per UTC calendar month for Free and 30 for Premium. Set `V3_FREE_EXTRACTIONS` and `V3_PREMIUM_EXTRACTIONS` in staging to test different allowances. Family members with independently verified Family Sharing entitlements each receive their account allowance. Upgrading within a month increases the limit and retains usage. Downgrading preserves saved data and clamps remaining work to zero if the account has already used its free allowance. Clients render localized prices and offer eligibility from the store.
 
@@ -24,3 +24,10 @@ Configure a daily staging cron running `node scripts/reconcile-social-billing.mj
 Run `npm test` and the disposable two-or-more-connection PostgreSQL check, `node scripts/verify-billing-postgres.mjs /absolute/path/to/embedded-postgres/dist/index.js`. Install embedded-postgres in a temporary directory for that check. Use a sandbox family, restore, trial, cancellation, refund and transfer before enabling a paid offering.
 
 Provider references: [RevenueCat webhooks](https://www.revenuecat.com/docs/integrations/webhooks), [subscriber model](https://www.revenuecat.com/docs/api-v1/customer-info-model).
+
+
+## Daily reporting
+
+Migration 042 starts transactional counts of newly saved account trips, accounts saving a trip, confirmed place inserts, and successful charged extractions. A marker records the installation day in UTC. Earlier days have unknown coverage. Edits and replayed requests do not add units. Deleting and later creating a new save counts a new operation. Guest and local-only saves remain outside these figures. Only a registered account’s latest save date is retained for deduplication. Account deletion removes this state. The historical counts contain no account identifiers or trip content.
+
+An extraction receipt carries the grounder’s count of distinct supported claims per candidate. A confirmed candidate, its quoted tip, and its quoted family detail can contribute up to three claims. Identical claims within the candidate count once. The daily total stays unknown when an older server finalized a successful extraction without that count. The first UTC day has partial coverage from migration time. Staging and production have independent coverage and totals.

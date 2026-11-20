@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
-import { importFields } from "./socialSave.js";
+import { groundedFactCount, importFields } from "./socialSave.js";
 
 export class BillingError extends Error {
   constructor(status, code, message, retryable = false) {
@@ -71,8 +71,10 @@ export function createSocialBilling(options = {}) {
         fingerprint: digest(JSON.stringify(input)).toString("hex"),
       });
       switch (reserved.state) {
-        case "cached":
-          return reserved.result;
+        case "cached": {
+          const { groundedFactCount: _privateCount, ...result } = reserved.result;
+          return result;
+        }
         case "pending":
           throw new BillingError(
             409,
@@ -113,7 +115,8 @@ export function createSocialBilling(options = {}) {
       }
       // An ambiguous commit may already have persisted the result. Retrying the
       // same request ID recovers it without refunding a successful execution.
-      if (!(await finish(output, output.candidates.length > 0)))
+      const receipt = { ...output, groundedFactCount: output[groundedFactCount] };
+      if (!(await finish(receipt, output.candidates.length > 0)))
         throw new Error("Extraction reservation expired");
       return output;
     },

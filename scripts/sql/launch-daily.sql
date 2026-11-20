@@ -7,7 +7,15 @@ WITH metrics AS (
          count(*) FILTER (WHERE event_type = 'ai_call') AS calls,
          count(timing_json->>'costUsd') FILTER (WHERE event_type = 'ai_call') AS priced,
          sum((timing_json->>'costUsd')::numeric) FILTER (WHERE event_type = 'ai_call') AS usd,
-         count(*) FILTER (WHERE event_type = 'error') AS errors
+         count(*) FILTER (WHERE event_type = 'error') AS errors,
+         bool_or(event_type = 'launch_save_coverage_start') AS save_coverage_start,
+         count(*) FILTER (WHERE event_type = 'account_trip_saved') AS saved_trips,
+         count(*) FILTER (WHERE event_type = 'account_trip_saved'
+                           AND timing_json @> '{"firstAccountSaveToday":true}') AS saving_accounts,
+         count(*) FILTER (WHERE event_type = 'social_place_saved') AS saved_places,
+         count(*) FILTER (WHERE event_type = 'social_extraction_finished') AS extractions,
+         count(timing_json->>'facts') FILTER (WHERE event_type = 'social_extraction_finished') AS imports_with_facts,
+         sum((timing_json->>'facts')::int) FILTER (WHERE event_type = 'social_extraction_finished') AS facts
   FROM public.trip_metrics GROUP BY 1
 ), shares AS (
   SELECT (created_at AT TIME ZONE 'UTC')::date AS day, count(*) AS n
@@ -35,7 +43,8 @@ WITH metrics AS (
          sum(request_count) FILTER (WHERE kind IN ('device', 'ip') AND category = 'plan') AS plans
   FROM counters GROUP BY day
 ), coverage AS (
-  SELECT min(day) AS first_day FROM counters
+  SELECT (SELECT min(day) FROM counters) AS first_day,
+         (SELECT min(day) FROM metrics WHERE save_coverage_start) AS saves_from
 ), days AS (
   SELECT generate_series(min(day)::timestamp,
          (now() AT TIME ZONE 'UTC')::date::timestamp, interval '1 day')::date AS day
@@ -52,6 +61,12 @@ SELECT d.day AS day_utc, coalesce(m.trips, 0) AS trip_events,
        CASE WHEN d.day >= c.first_day THEN coalesce(q.device_plans, 0) END AS attested_plan_requests,
        CASE WHEN d.day >= c.first_day + 7 THEN coalesce(r.n, 0) END AS returning_attested_keys,
        CASE WHEN d.day >= c.first_day THEN coalesce(q.plans, 0) END AS total_plan_requests,
+       CASE WHEN d.day >= c.saves_from THEN coalesce(m.saving_accounts, 0) END AS accounts_saving_trips,
+       CASE WHEN d.day >= c.saves_from THEN coalesce(m.saved_trips, 0) END AS saved_trips_created,
+       CASE WHEN d.day >= c.saves_from THEN coalesce(m.saved_places, 0) END AS saved_places_created,
+       CASE WHEN d.day >= c.saves_from THEN coalesce(m.extractions, 0) END AS successful_social_extractions,
+       CASE WHEN d.day >= c.saves_from AND coalesce(m.imports_with_facts,0) = coalesce(m.extractions,0)
+            THEN coalesce(m.facts,0) END AS extracted_grounded_facts,
        to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS observed_as_of_utc
 FROM days d CROSS JOIN coverage c LEFT JOIN metrics m USING (day)
 LEFT JOIN shares s USING (day) LEFT JOIN groups g USING (day)

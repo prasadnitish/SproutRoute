@@ -25,6 +25,14 @@ test("daily report distinguishes missing identity, observed zero, and unpriced s
   assert.throws(() => renderDailyReport([]));
 });
 
+test("daily report includes account saves and extraction coverage, including unknown historical fields", () => {
+  const html = renderDailyReport([{...row, accounts_saving_trips: 1, saved_trips_created: 2,
+    saved_places_created: 0, successful_social_extractions: null, extracted_grounded_facts: 7}]);
+  for (const label of ["Accounts saving trips", "Saved trips", "Saved places", "Successful extractions", "Grounded facts"])
+    assert.ok(html.includes('<th scope="col">' + label + '</th>'), label);
+  assert.match(html, /<td>1<\/td><td>2<\/td><td>0<\/td><td>Unknown<\/td><td>7<\/td>/);
+});
+
 test("owner can create a private, portable daily report from a saved aggregate", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "launch-report-"));
   try {

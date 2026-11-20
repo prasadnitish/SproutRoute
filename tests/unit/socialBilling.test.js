@@ -117,3 +117,22 @@ test("daily reconciliation visits all known customers and reports retryable fail
   assert.deepEqual(checked, ["a", "b", "c"]);
   assert.deepEqual(summary, { processed: 3, failed: 1 });
 });
+
+test("settlement counts grounded facts and cached and fresh API output remain identical", async () => {
+  const { prepareImport } = await import("../../src/backend/services/socialSave.js");
+  const row = { name: "Park", evidence: "Park has shade.", tip: "shade", family: "shade" };
+  const input = { source: "https://example.org", text: row.evidence };
+  const run = () => prepareImport(input, { model: async () => ({ responseText: JSON.stringify({ candidates: [row] }) }) });
+  let receipt;
+  const billing = createSocialBilling({ enabled: true, rpc: async (name, args) => {
+    if (name === "billing_reserve") return receipt ? { state: "cached", result: receipt } : { state: "reserved", token: randomUUID() };
+    receipt = JSON.parse(JSON.stringify(args.output));
+    return true;
+  }});
+  const owner = randomUUID(), request = randomUUID();
+  const first = await billing.extract(owner, input, request, run);
+  const retry = await billing.extract(owner, input, request, assert.fail);
+  assert.equal(receipt.groundedFactCount, 2);
+  assert.equal(JSON.stringify(first), JSON.stringify(retry));
+  assert.ok(!JSON.stringify(first).includes("groundedFactCount"));
+});
