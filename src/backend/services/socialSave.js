@@ -1,5 +1,6 @@
 import { extractJsonCandidates } from "../utils/aiHelpers.js";
 import { callModel } from "../utils/aiClient.js";
+import { tracing } from "./tracing.js";
 import { z } from "zod";
 
 export function safeSource(value) {
@@ -48,6 +49,10 @@ export const placeFields = z.object({
 });
 
 export async function extractCandidates(text, model = callModel) {
+  return (await extractGroundedPlaces(text, model)).candidates;
+}
+
+async function extractGroundedPlaces(text, model) {
   const { responseText } = await model({
     provider: "openai",
     caller: "socialSave",
@@ -72,6 +77,7 @@ export async function extractCandidates(text, model = callModel) {
   if (!rows) throw new Error("Unrecognized model output");
   const results = [];
   const seen = new Set();
+  let factCount = 0;
   const quote = (value) =>
     typeof value === "string" && value.length <= 500 && text.includes(value)
       ? value
@@ -98,18 +104,21 @@ export async function extractCandidates(text, model = callModel) {
       [...beforeQuote.matchAll(/^\[(Audio|Screenshot|Frame \d+s)\]/gm)].at(
         -1,
       )?.[1] ?? "Caption";
+    const supportedTip = quote(row.tip) && evidence.includes(row.tip) ? row.tip.trim() : "";
+    const supportedFamily = quote(row.family) && evidence.includes(row.family) ? row.family.trim() : "";
+    factCount += new Set([row.name.trim(), supportedTip, supportedFamily]
+      .filter(Boolean).map(value => value.toLowerCase())).size;
     results.push({
       name: row.name,
       destination,
       channel: section,
       category: category.safeParse(row.category).data ?? "other",
       evidence,
-      tip: quote(row.tip) && evidence.includes(row.tip) ? evidence : "",
-      family:
-        quote(row.family) && evidence.includes(row.family) ? evidence : "",
+      tip: supportedTip ? evidence : "",
+      family: supportedFamily ? evidence : "",
     });
   }
-  return results;
+  return { candidates: results, factCount };
 }
 
 export async function prepareImport(
@@ -117,6 +126,11 @@ export async function prepareImport(
   { fetchFn = fetch, model = callModel } = {},
 ) {
   const parsed = z.object(importFields).parse(input);
+  const { result } = await tracing.span("social.extract", {}, () => prepareCandidates(parsed, fetchFn, model));
+  return result;
+}
+
+async function prepareCandidates(parsed, fetchFn, model) {
   let text = parsed.text;
   let origin = "supplied";
   if (!text) {
@@ -150,10 +164,10 @@ export async function prepareImport(
     }
     origin = "title";
   }
-  const candidates = text ? await extractCandidates(text, model) : [];
+  const { candidates, factCount } = text ? await extractGroundedPlaces(text, model) : { candidates: [], factCount: 0 };
   return {
-    status: candidates.length ? "review" : "needs_evidence",
-    origin,
-    candidates,
+    result: { status: candidates.length ? "review" : "needs_evidence", origin, candidates },
+    candidateCount: candidates.length,
+    factCount,
   };
 }

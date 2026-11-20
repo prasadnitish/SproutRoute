@@ -1,3 +1,4 @@
+import { tracing } from "../services/tracing.js";
 import { randomBytes } from "node:crypto";
 import { buildSharedTripSnapshot } from "../../shared/shareSnapshot.js";
 import { isPlacesCandidate, parseDayHours } from "../services/groundedAttractions.js";
@@ -66,7 +67,7 @@ export function createPlanningJobs({ run, details = liveDetails, now = Date.now,
     const controller = new AbortController();
     const fail = () => { job.plan = { ...job.plan, status: "failed", message: "Could not complete a Places-verified itinerary. Try a shorter trip or another destination." }; };
     const deadline = setTimeout(() => { controller.abort(); fail(); }, timeoutMs);
-    const generation = Promise.resolve().then(() => run(input, { signal: controller.signal, timeoutMs, requireVerifiedPool: true, reserveModelAttempt })).then(result => {
+    const generate = () => Promise.resolve().then(() => run(input, { signal: controller.signal, timeoutMs, requireVerifiedPool: true, reserveModelAttempt })).then(result => {
       if (controller.signal.aborted) return;
       for (const row of result.candidates || []) if (isPlacesCandidate(row)) job.pool.set(row.google_place_id, safePlace(row));
       const itinerary = (result.scheduledItinerary || []).map((day, index) => ({
@@ -77,7 +78,9 @@ export function createPlanningJobs({ run, details = liveDetails, now = Date.now,
       if (itinerary.length !== days || itinerary.some(day => !day.stops.length)) { fail(); return; }
       job.plan = { ...job.plan, status: "ready", runId: result.runId, days: itinerary, packingList: result.packingList,
         safety: result.safety?.status === "unavailable" ? { status: "unavailable" } : result.safety, open_url: websiteOrigin + "/s#mcp=" + job.token };
-    }).catch(fail).finally(() => { clearTimeout(deadline); active--; });
+    }).catch(fail).finally(() => { clearTimeout(deadline); active--; })
+      .then(() => ({status: job.plan.status === "ready" ? 200 : 503}));
+    const generation = process.env.TRACING_ENABLED === "false" ? generate() : tracing.run("mcp.plan_trip", {}, generate);
     let timer;
     try { await Promise.race([generation, new Promise(resolve => { timer = setTimeout(resolve, waitMs); })]); }
     finally { clearTimeout(timer); }

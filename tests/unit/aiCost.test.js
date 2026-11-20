@@ -56,6 +56,15 @@ test("classifyProviderFailure ignores ordinary failures", () => {
 
 test("the Claude 5.5 models used for attraction work are priced", () => {
   // claude-haiku-5-5 $0.10 / $0.50 and claude-sonnet-5-5 $2 / $10 per 1M tokens (first-party, prompts up to 100K)
-  assert.equal(estimateCostUsd("claude-haiku-5-5", { inputTokens: 1_000_000, outputTokens: 1_000_000 }), 0.6);
+  assert.equal(estimateCostUsd("claude-haiku-5-5", { inputTokens: 100_000, outputTokens: 100_000 }), 0.06);
+  assert.equal(estimateCostUsd("claude-haiku-5-5", { inputTokens: 1_000_000, outputTokens: 1_000_000 }), 3);
   assert.equal(estimateCostUsd("claude-sonnet-5-5", { inputTokens: 1_000_000, outputTokens: 1_000_000 }), 12);
+});
+
+test("cache reads and short-lived writes use distinct prices, and unavailable rates remain unknown", () => {
+  const usage = {inputTokens:1000, outputTokens:200, cacheReadTokens:2000, cacheWriteTokens:1000};
+  assert.equal(estimateCostUsd("claude-haiku-4-5", usage), 0.00345);
+  assert.equal(estimateCostUsd("gpt-6.1-terra", usage), 0.00335);
+  assert.equal(estimateCostUsd("gemini-2.5-flash", usage), null);
+  assert.equal(estimateCostUsd("gpt-6.1-terra", {...usage, inputTokens:-1}), null);
 });

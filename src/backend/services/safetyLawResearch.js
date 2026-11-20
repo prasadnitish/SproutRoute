@@ -1,3 +1,5 @@
+import { tracing } from "./tracing.js";
+import { estimateCostUsd } from "../utils/aiCost.js";
 import Anthropic from "@anthropic-ai/sdk";
 
 const FETCH_TIMEOUT_MS = 12000;
@@ -79,28 +81,13 @@ function parseJsonFromResponse(responseText) {
 }
 
 async function fetchSourceText(sourceUrl, fetchFn = fetch) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetchFn(sourceUrl, {
-      method: "GET",
-      headers: {
-        "User-Agent": "SproutRoute/1.0",
-      },
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Source fetch failed: ${response.status}`);
-    }
-
-    const html = await response.text();
-    const text = stripHtml(html);
-    return text.slice(0, MAX_TEXT_CHARS);
-  } finally {
-    clearTimeout(timeout);
-  }
+  const response = await fetchFn(sourceUrl, {
+    method: "GET",
+    headers: { "User-Agent": "SproutRoute/1.0" },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) throw new Error(`Source fetch failed: ${response.status}`);
+  return stripHtml(await response.text()).slice(0, MAX_TEXT_CHARS);
 }
 
 function buildPrompt({ jurisdictionCode, jurisdictionName, sourceUrl, sourceText }) {
@@ -181,7 +168,7 @@ export async function researchCarSeatRulesFromOfficialSource(
     sourceText,
   });
 
-  const callModel = async (promptText) => {
+  const callModel = (promptText) => tracing.span("ai.attempt", {provider: "anthropic", model_id: MODEL_ID}, async () => {
     const message = await anthropic.messages.create({
       model: MODEL_ID,
       temperature: 0,
@@ -189,11 +176,14 @@ export async function researchCarSeatRulesFromOfficialSource(
       messages: [{ role: "user", content: promptText }],
     });
 
+    const inputTokens = message.usage?.input_tokens;
+    const outputTokens = message.usage?.output_tokens;
     return {
+      aiUsage: { inputTokens, outputTokens, costUsd: estimateCostUsd(MODEL_ID, { inputTokens, outputTokens }) },
       text: getTextContent(message),
       stopReason: message.stop_reason || null,
     };
-  };
+  });
 
   const firstAttempt = await callModel(prompt);
   let parsed = parseJsonFromResponse(firstAttempt.text);

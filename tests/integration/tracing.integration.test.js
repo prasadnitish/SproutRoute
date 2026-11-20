@@ -35,7 +35,10 @@ test("ops trace endpoint requires secret and validation errors are retained", as
     });
     assert.equal(admin.status, 200);
     assert.equal(admin.headers.get("cache-control"), "no-store");
-    const raw = JSON.stringify(await admin.json());
+    const payload = await admin.json();
+    assert.equal(payload.unitCosts.trip.units, 0);
+    assert.equal(payload.unitCosts.trip.usdPerUnit, null);
+    const raw = JSON.stringify(payload);
     assert.ok(!raw.includes("integration-only-secret"));
     assert.ok(!raw.includes("Seattle"));
   } finally {

@@ -1,9 +1,11 @@
+import { tracing } from "../services/tracing.js";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { mountLibraryOAuth } from "../mcp/libraryOAuth.js";
 import { requireAuth } from "../middleware/auth.js";
+import { BillingError, createSocialBilling, mountRevenueCat } from "../services/socialBilling.js";
 import { mountAccountLifecycle } from "./accountLifecycle.js";
 import { getSupabaseAdmin, supabaseForUser } from "../utils/supabaseClient.js";
 import {
@@ -24,6 +26,14 @@ function privateRoute(handler) {
     try {
       res.json(await handler(req));
     } catch (error) {
+      if (error instanceof BillingError) {
+        return res.status(error.status).json({
+          code: error.code,
+          message: error.message,
+          retryable: error.retryable,
+          requestId: req.reqId ?? randomUUID(),
+        });
+      }
       const invalid = error instanceof z.ZodError;
       res.status(invalid ? 422 : 503).json({
         code: invalid ? "INVALID_SOCIAL_SAVE" : "LIBRARY_UNAVAILABLE",
@@ -51,9 +61,12 @@ export function mountSocialSave(
     database = supabaseForUser,
     extract = prepareImport,
     accountLifecycle,
+    billing,
   },
 ) {
   const root = "/api/v1/social-save";
+  const allowances = createSocialBilling(billing);
+  if (allowances.enabled) mountRevenueCat(app, billing, limiter);
   const authorizeConnector = mountLibraryOAuth(app, oauthConfig, oauthKey);
   const table = (req, name) => {
     const client = req.libraryConnector
@@ -109,11 +122,24 @@ export function mountSocialSave(
       next();
     },
   );
+  app.use(root + "/billing", (_req, res, next) => {
+    if (!allowances.enabled) return res.sendStatus(404);
+    next();
+  });
+  app.get(root + "/billing", privateRoute(req => allowances.status(req.user.id)));
+  app.post(
+    root + "/billing/refresh",
+    aiLimiter,
+    privateRoute(async req => {
+      await allowances.sync(req.user.id);
+      return allowances.status(req.user.id);
+    }),
+  );
   app.post(
     root + "/extract",
     aiLimiter,
     meter("parse"),
-    privateRoute((req) => extract(req.body)),
+    privateRoute(req => allowances.extract(req.user.id, req.body, req.body?.requestId, extract)),
   );
   mountAccountLifecycle(app, root + "/account", accountLifecycle);
   app.get(
@@ -234,14 +260,22 @@ export function mountSocialSave(
           },
         },
         async ({ source, text, requestId, extractNow }) => {
+          if (allowances.enabled && extractNow && !requestId)
+            return {
+              isError: true,
+              ...content({code: "REQUEST_ID_REQUIRED", message: "Supply a stable requestId for AI extraction."}),
+            };
           const id = requestId ?? randomUUID();
-          await result(
-            inbox(req).upsert(
-              { user_id: req.user.id, id, source, text },
-              { onConflict: "user_id,id", ignoreDuplicates: true },
-            ),
+          const enqueue = inbox(req).upsert(
+            { user_id: req.user.id, id, source, text },
+            { onConflict: "user_id,id", ignoreDuplicates: true },
           );
-          if (!extractNow) return content({ id, status: "queued_for_review" });
+          if (!extractNow) {
+            const inserted = await result(enqueue.select("id"));
+            if (inserted.length) tracing.span("social.linkQueued", {}, () => {});
+            return content({ id, status: "queued_for_review" });
+          }
+          await result(enqueue);
           const pending = await result(
             inbox(req)
               .select("source,text,extraction")
@@ -251,8 +285,18 @@ export function mountSocialSave(
           );
           if (pending.source !== source || pending.text !== text)
             throw new Error("Use a new request ID for different input.");
-          const extraction =
-            pending.extraction ?? (await extract({ source, text }));
+          let extraction = pending.extraction;
+          if (!extraction) {
+            try {
+              extraction = await allowances.extract(req.user.id, { source, text }, id, extract);
+            } catch (error) {
+              if (!(error instanceof BillingError)) throw error;
+              return {
+                isError: true,
+                ...content({ id, code: error.code, message: error.message, retryable: error.retryable }),
+              };
+            }
+          }
           if (!pending.extraction) {
             await result(
               inbox(req)

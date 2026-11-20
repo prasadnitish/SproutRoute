@@ -104,3 +104,9 @@ This is a working web application with active mobile and product-expansion work.
 `InputScreen -> useTrip.submitTrip() -> /api/v1/trip/parse-input -> optional RouteReviewPanel -> /api/v1/trip/stream -> ResultsScreen`
 
 Packing and safety data continue loading in the background after the first results render.
+
+## Daily launch dashboard
+
+From the repository root, run `npm run ops:daily` with your existing Supabase CLI login or a `SUPABASE_ACCESS_TOKEN` with database read access. Open the HTML path printed by the command. Each run refreshes the report atomically from the SproutRoute production project's read-only SQL endpoint. The file is owner-readable and works offline. Its UTC timestamp identifies the age of the data.
+
+The default location is `~/Documents/SproutRoute Launch/analytics/launch-daily.html`. To serve a generated file through the existing owner session, set `OPS_DAILY_REPORT_FILE` to its absolute path on the same server and open `/ops/daily`. A local file must be refreshed on the machine serving it. An exported JSON array from `scripts/sql/launch-daily.sql` can also be rendered with `npm run ops:daily -- --snapshot rows.json --output report.html`.

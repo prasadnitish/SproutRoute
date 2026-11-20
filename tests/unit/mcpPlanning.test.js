@@ -98,3 +98,20 @@ test("a lock applied during live candidate verification wins over an in-flight s
   await assert.rejects(swapping, /changed/);
   assert.equal(jobs.status(job_id).days[0].stops[0].locked, true);
 });
+
+test("async MCP planning counts the verified job once, including failed work and excluding polls", async () => {
+  const {tracing} = await import("../../src/backend/services/tracing.js");
+  const {summarizeUnitCosts} = await import("../../src/backend/services/unitCosts.js");
+  const before = tracing.snapshot().length;
+  const make = (valid) => createPlanningJobs({ run: async () => {
+    await tracing.span("ai.attempt", {}, () => ({ aiUsage: {costUsd:0.03} }));
+    return valid ? output : {};
+  }});
+  const jobs = make(true);
+  const ready = await jobs.start(input);
+  jobs.status(ready.job_id);
+  await make(false).start(input);
+  const {trip} = summarizeUnitCosts(tracing.snapshot().slice(before));
+  assert.equal(trip.units, 1);
+  assert.equal(trip.usdPerUnit, 0.06);
+});

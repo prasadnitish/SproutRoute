@@ -10,6 +10,8 @@ const SAFE = new Set([
   "provider",
   "model_id",
   "input_tokens",
+  "cache_read_tokens",
+  "cache_write_tokens",
   "output_tokens",
   "usage_source",
   "error_code",
@@ -106,6 +108,19 @@ export function createTracer({
         if (result.status >= 400) s.status = "error";
       }
       if (result?.usage) Object.assign(s.detail, safeDetail(result.usage));
+      if (label === "ai.attempt") {
+        const spent = result?.aiUsage ?? error?.aiUsage;
+        if (Number.isFinite(spent?.costUsd) && spent.costUsd >= 0)
+          s.cost_usd = spent.costUsd;
+        if (spent) Object.assign(s.detail, safeDetail({
+          input_tokens: spent.inputTokens, output_tokens: spent.outputTokens,
+          cache_read_tokens: spent.cacheReadTokens, cache_write_tokens: spent.cacheWriteTokens,
+        }));
+      }
+      if (label === "social.extract" && Number.isInteger(result?.candidateCount)) {
+        s.detail.candidate_count = result.candidateCount;
+        s.detail.fact_count = result.factCount;
+      }
       trace.meta.pending_spans--;
       trace.meta.complete =
         trace.meta.pending_spans === 0 && trace.meta.dropped_spans === 0;
@@ -148,6 +163,7 @@ export function createTracer({
     const trace = {
       meta: {
         schema_version: 1,
+        cost_attribution_version: 1,
         run_id: runId,
         journey_id: journey,
         client: CLIENTS.has(metadata?.client) ? metadata.client : "other",

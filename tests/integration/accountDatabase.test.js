@@ -100,7 +100,11 @@ test("V3 account migrations enforce owner isolation, anonymous limits and erasur
   assert.deepEqual((await db.query("select user_id from trip_requests where id=$1",[requestId])).rows,[{user_id:third}]);
   assert.equal((await db.query("select * from social_inbox")).rows.length,0);
   await db.exec("set role service_role");
+  const consumed = randomUUID();
+  const claim = await db.query("select billing_reserve($1,$2,'hash',3,30) r",[third,consumed]);
+  await db.query("select billing_finish($1,$2,$3,'{}',true)",[third,consumed,claim.rows[0].r.token]);
   await db.query(verifiedMerge, [third, second]);
+  assert.equal((await db.query("select billing_status($1,3,30) r",[second])).rows[0].r.used,1);
   await db.exec("reset role");
   assert.equal((await db.query("select id from auth.users where id=$1",[third])).rows.length, 0);
   assert.equal((await db.query("select id from account_trips where user_id=$1",[second])).rows.length, 2);
@@ -126,7 +130,7 @@ test("V3 account migrations enforce owner isolation, anonymous limits and erasur
   await db.query(merge,[second,null]);
   await db.exec("reset role");
   for (const table of ["account_trips","social_places","social_inbox","profiles","profile_revisions",
-    "profile_imports","trip_requests","trip_feedback","users"]) {
+    "profile_imports","trip_requests","trip_feedback","users","billing_entitlements","billing_extractions"]) {
     assert.deepEqual((await db.query("select * from public."+table)).rows,[],table);
   }
   assert.deepEqual((await db.query("select id from group_trip_documents")).rows,[{id:"guest-hub"}]);

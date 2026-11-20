@@ -167,7 +167,17 @@ async function callAnthropic(client, { system, user, maxTokens, temperature, eff
     }
   }
 
-  return { responseText, stopReason: message.stop_reason || null, usage: {input_tokens:message.usage?.input_tokens, output_tokens:message.usage?.output_tokens, usage_source:'provider'} };
+  return {
+    responseText, stopReason: message.stop_reason || null,
+    usage: {
+      cache_read_tokens: message.usage?.cache_read_input_tokens,
+      cache_write_tokens: message.usage?.cache_creation_input_tokens,
+      exclusive_input: true,
+      input_tokens: message.usage?.input_tokens,
+      output_tokens: message.usage?.output_tokens,
+      usage_source: 'provider',
+    },
+  };
 }
 
 // Google bills "thinking" tokens as output, and they are reported separately from candidates.
@@ -198,7 +208,16 @@ async function callGemini(model, { system, user, maxTokens, temperature, modelId
   const responseText = response.text();
   const stopReason = response.candidates?.[0]?.finishReason || null;
 
-  return { responseText, stopReason, usage: {input_tokens:response.usageMetadata?.promptTokenCount, output_tokens:geminiOutputTokens(response.usageMetadata), reasoning_tokens:response.usageMetadata?.thoughtsTokenCount, usage_source:'provider'} };
+  return {
+    responseText, stopReason,
+    usage: {
+      cache_read_tokens: response.usageMetadata?.cachedContentTokenCount,
+      input_tokens: response.usageMetadata?.promptTokenCount,
+      output_tokens: geminiOutputTokens(response.usageMetadata),
+      reasoning_tokens: response.usageMetadata?.thoughtsTokenCount,
+      usage_source: 'provider',
+    },
+  };
 }
 
 /**
@@ -230,7 +249,17 @@ async function callOpenAI(client, { system, user, maxTokens, temperature, modelI
   const responseText = choice?.message?.content ?? "";
   const stopReason = choice?.finish_reason ?? null;
 
-  return { responseText, stopReason, usage: {input_tokens:completion.usage?.prompt_tokens, output_tokens:completion.usage?.completion_tokens, reasoning_tokens:completion.usage?.completion_tokens_details?.reasoning_tokens, usage_source:'provider'} };
+  return {
+    responseText, stopReason,
+    usage: {
+      cache_read_tokens: completion.usage?.prompt_tokens_details?.cached_tokens ?? completion.usage?.prompt_cache_hit_tokens,
+      cache_write_tokens: completion.usage?.prompt_tokens_details?.cache_write_tokens,
+      input_tokens: completion.usage?.prompt_tokens,
+      output_tokens: completion.usage?.completion_tokens,
+      reasoning_tokens: completion.usage?.completion_tokens_details?.reasoning_tokens,
+      usage_source: 'provider',
+    },
+  };
 }
 
 /**
@@ -252,7 +281,16 @@ async function callDeepSeek(client, { system, user, maxTokens, temperature, sign
   const responseText = choice?.message?.content ?? "";
   const stopReason = choice?.finish_reason ?? null;
 
-  return { responseText, stopReason, usage: {input_tokens:completion.usage?.prompt_tokens, output_tokens:completion.usage?.completion_tokens, usage_source:'provider'} };
+  return {
+    responseText, stopReason,
+    usage: {
+      cache_read_tokens: completion.usage?.prompt_tokens_details?.cached_tokens ?? completion.usage?.prompt_cache_hit_tokens,
+      cache_write_tokens: completion.usage?.prompt_tokens_details?.cache_write_tokens,
+      input_tokens: completion.usage?.prompt_tokens,
+      output_tokens: completion.usage?.completion_tokens,
+      usage_source: 'provider',
+    },
+  };
 }
 
 // ── Client factory helpers ────────────────────────────────────────────────────
@@ -330,7 +368,11 @@ function usageOf(modelId, response) {
   const inputTokens = response?.usage?.input_tokens;
   const outputTokens = response?.usage?.output_tokens;
   const reasoningTokens = response?.usage?.reasoning_tokens;
-  return { inputTokens, outputTokens, reasoningTokens, costUsd: estimateCostUsd(modelId, { inputTokens, outputTokens }) };
+  const cacheReadTokens = response?.usage?.cache_read_tokens ?? 0;
+  const cacheWriteTokens = response?.usage?.cache_write_tokens ?? 0;
+  const uncached = response?.usage?.exclusive_input ? inputTokens : inputTokens - cacheReadTokens - cacheWriteTokens;
+  const costUsd = estimateCostUsd(modelId, { inputTokens: uncached, outputTokens, cacheReadTokens, cacheWriteTokens });
+  return { inputTokens, outputTokens, reasoningTokens, cacheReadTokens, cacheWriteTokens, costUsd };
 }
 
 async function alertOnProviderFailure(alerts, provider, error) {

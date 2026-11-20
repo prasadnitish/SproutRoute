@@ -12,12 +12,12 @@ const PRICES = {
   "gemini-3.8-flash": { in: 0.75, out: 3.75 },
   "gemini-3.6-flash": { in: 0.75, out: 3.75 },
   "gemini-2.5-flash": { in: 0.3, out: 2.5 },
-  "claude-haiku-4-5": { in: 1, out: 5 },
-  "claude-haiku-5-5": { in: 0.1, out: 0.5 }, // prompts up to 100K tokens
-  "claude-sonnet-5-5": { in: 2, out: 10 },
-  "claude-sonnet-4-6": { in: 3, out: 15 },
+  "claude-haiku-4-5": { in: 1, out: 5, read: 0.1, write: 1.25 },
+  "claude-haiku-5-5": { in: 0.1, out: 0.5, read: 0.01, write: 0.125 }, // prompts up to 100K tokens
+  "claude-sonnet-5-5": { in: 2, out: 10, read: 0.1, write: 2.5 },
+  "claude-sonnet-4-6": { in: 3, out: 15, read: 0.3, write: 3.75 },
   "gpt-6-luna": { in: 0.1, out: 0.5 },
-  "gpt-6.1-terra": { in: 1, out: 5 }, // developers.openai.com/api/docs/models, 2026-11-08
+  "gpt-6.1-terra": { in: 1, out: 5, read: 0.05, write: 1.25 }, // developers.openai.com/api/docs/models, 2026-11-08
 };
 
 export function normalizeModelId(model) {
@@ -36,17 +36,25 @@ function overrides(env) {
   }
 }
 
-function priceFor(model, env) {
+/** Counts are disjoint: inputTokens here is the uncached, non-write portion. */
+export function estimateCostUsd(model, { inputTokens, outputTokens, cacheReadTokens = 0, cacheWriteTokens = 0 } = {}, env = process.env) {
   const id = normalizeModelId(model);
-  return overrides(env)[id] || PRICES[id] || null;
-}
-
-/** Estimated dollars for one call, or null when the model is unpriced or the provider sent no token counts. */
-export function estimateCostUsd(model, { inputTokens, outputTokens } = {}, env = process.env) {
-  const price = priceFor(model, env);
-  if (!price || !Number.isFinite(inputTokens) || !Number.isFinite(outputTokens)) return null;
-  const cost = (inputTokens * price.in + outputTokens * price.out) / 1e6;
-  return Math.round(cost * 1e6) / 1e6;
+  const override = overrides(env)[id];
+  const price = override || PRICES[id];
+  if (!price || ![inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens].every(n => Number.isSafeInteger(n) && n >= 0)) return null;
+  const inputTotal = inputTokens + cacheReadTokens + cacheWriteTokens;
+  let inputFactor = 1, outputFactor = 1;
+  if (!override && id === "gpt-6.1-terra" && inputTotal > 272000) {
+    inputFactor = 2;
+    outputFactor = 1.5;
+  } else if (!override && id === "claude-haiku-5-5" && inputTotal > 100000) {
+    inputFactor = outputFactor = 5;
+  }
+  const rateValid = n => Number.isFinite(n) && n >= 0;
+  if (!rateValid(price.in) || !rateValid(price.out) ||
+      (cacheReadTokens && !rateValid(price.read)) || (cacheWriteTokens && !rateValid(price.write))) return null;
+  const inputCost = inputTokens * price.in + cacheReadTokens * (price.read ?? 0) + cacheWriteTokens * (price.write ?? 0);
+  return Math.round(inputCost * inputFactor + outputTokens * price.out * outputFactor) / 1e6;
 }
 
 const CREDITS = /credits? (?:are |is )?(?:depleted|exhausted)|prepayment|insufficient[_ ]quota|credit balance is too low|exceeded your current quota|billing/i;
