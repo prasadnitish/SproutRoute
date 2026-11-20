@@ -28,6 +28,7 @@ import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMe
 import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
 import { createAttractionMemoryService } from "./services/attractionMemory.js";
 import { createGroupTripStore } from "./services/groupTripStore.js";
+import { mountSocialSave } from "./routes/socialSave.js";
 import { mountMcpRoutes } from "./mcp/mount.js";
 import { allocateRoute } from "./services/routeAllocator.js";
 import { planRouteStops } from "./services/multiStopPlanner.js";
@@ -621,6 +622,7 @@ export function createApp(deps = {}) {
   costControl.mountDeviceRoutes(app, { limiter: deviceLimiter });
   // Persistent per-device / per-IP quotas and the daily spend cap, after the burst limiters.
   const meter = costControl.meter;
+  mountSocialSave(app, {limiter: apiLimiter, aiLimiter, meter, ...deps.socialSave});
   app.use('/s', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');

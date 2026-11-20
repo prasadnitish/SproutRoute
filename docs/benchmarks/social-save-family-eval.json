@@ -1,0 +1,141 @@
+{
+  "id": "social-family-lisbon",
+  "synthetic": true,
+  "text": "Our family list for Lisbon. Oceanário de Lisboa was our indoor stop. Pavilhão do Conhecimento was the children's favorite. Jardim da Estrela had shade. Castelo de São Jorge was our next stop. We also saved Museu Nacional do Azulejo and MAAT. Jardim Botânico da Ajuda is on our list. We saw Torre de Belém, Mosteiro dos Jerónimos and Padrão dos Descobrimentos.\n[Frame 12s] Pastéis de Belém\n[Audio] My last pick is Lisbon Zoo. The market looked nice too.",
+  "expected": [
+    "Oceanário de Lisboa",
+    "Pavilhão do Conhecimento",
+    "Jardim da Estrela",
+    "Castelo de São Jorge",
+    "Museu Nacional do Azulejo",
+    "MAAT",
+    "Jardim Botânico da Ajuda",
+    "Torre de Belém",
+    "Mosteiro dos Jerónimos",
+    "Padrão dos Descobrimentos",
+    "Pastéis de Belém",
+    "Lisbon Zoo"
+  ],
+  "candidates": [
+    {
+      "name": "Oceanário de Lisboa",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "Oceanário de Lisboa was our indoor stop.",
+      "tip": "Oceanário de Lisboa was our indoor stop.",
+      "family": ""
+    },
+    {
+      "name": "Pavilhão do Conhecimento",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "Pavilhão do Conhecimento was the children's favorite.",
+      "tip": "",
+      "family": "Pavilhão do Conhecimento was the children's favorite."
+    },
+    {
+      "name": "Jardim da Estrela",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "Jardim da Estrela had shade.",
+      "tip": "Jardim da Estrela had shade.",
+      "family": ""
+    },
+    {
+      "name": "Castelo de São Jorge",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "Castelo de São Jorge was our next stop.",
+      "tip": "",
+      "family": ""
+    },
+    {
+      "name": "Museu Nacional do Azulejo",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "We also saved Museu Nacional do Azulejo and MAAT.",
+      "tip": "We also saved Museu Nacional do Azulejo and MAAT.",
+      "family": ""
+    },
+    {
+      "name": "MAAT",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "We also saved Museu Nacional do Azulejo and MAAT.",
+      "tip": "We also saved Museu Nacional do Azulejo and MAAT.",
+      "family": ""
+    },
+    {
+      "name": "Jardim Botânico da Ajuda",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "Jardim Botânico da Ajuda is on our list.",
+      "tip": "Jardim Botânico da Ajuda is on our list.",
+      "family": ""
+    },
+    {
+      "name": "Torre de Belém",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "We saw Torre de Belém, Mosteiro dos Jerónimos and Padrão dos Descobrimentos.",
+      "tip": "",
+      "family": ""
+    },
+    {
+      "name": "Mosteiro dos Jerónimos",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "We saw Torre de Belém, Mosteiro dos Jerónimos and Padrão dos Descobrimentos.",
+      "tip": "",
+      "family": ""
+    },
+    {
+      "name": "Padrão dos Descobrimentos",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "attraction",
+      "evidence": "We saw Torre de Belém, Mosteiro dos Jerónimos and Padrão dos Descobrimentos.",
+      "tip": "",
+      "family": ""
+    },
+    {
+      "name": "Pastéis de Belém",
+      "destination": "Lisbon",
+      "channel": "Caption",
+      "category": "eat",
+      "evidence": "[Frame 12s] Pastéis de Belém",
+      "tip": "",
+      "family": ""
+    },
+    {
+      "name": "Lisbon Zoo",
+      "destination": "Lisbon",
+      "channel": "Audio",
+      "category": "attraction",
+      "evidence": "My last pick is Lisbon Zoo.",
+      "tip": "My last pick is Lisbon Zoo.",
+      "family": ""
+    }
+  ],
+  "score": {
+    "expected": 12,
+    "extracted": 12,
+    "correct": 12,
+    "missing": [],
+    "unexpected": []
+  },
+  "humanReview": {
+    "attribution": null,
+    "accessibilityNegation": null,
+    "correctMapIdentity": null
+  }
+}

@@ -33,7 +33,7 @@ async function resolveUser(req) {
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error || !user) return null;
 
-    return { id: user.id, email: user.email };
+    return { id: user.id, email: user.email, isAnonymous: user.is_anonymous === true };
   } catch (err) {
     log.warn("auth:resolve-failed", { error: err.message });
     return null;
