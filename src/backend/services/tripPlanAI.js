@@ -636,6 +636,7 @@ export async function generateTripPlan(tripData, weatherForecast, deps = {}) {
     children = [], tripType = null, countryCode = "US", foodPreferences = null,
     pets = [], plannerSummary = "", cachedAttractions = [], routeStop = null, routePlan = null, _continuationContext = "",
   } = tripData;
+  if (deps.requireVerifiedPool && !cachedAttractions.length) throw new Error("Verified places unavailable for this trip segment");
   const expectedDays = inclusiveDayCount(startDate, endDate);
   const maxActivities = Math.max(expectedDays * 6, 10);
   const destination = sanitizeDestination(rawDestination);

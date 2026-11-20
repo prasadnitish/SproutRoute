@@ -174,8 +174,8 @@ export const createTripShare = tripData => fetchWithRetry(
   { maxRetries: 0, timeoutMs: 10000 },
 );
 
-export const getTripShare = (token, { signal } = {}) => fetchWithRetry(
-  `${API_BASE_URL}/api/v1/trip/shares/view`,
+export const getTripShare = (token, { signal, mcp = false } = {}) => fetchWithRetry(
+  `${API_BASE_URL}${mcp ? "/api/v1/mcp/itinerary/view" : "/api/v1/trip/shares/view"}`,
   { headers: { 'x-trip-share-token': token }, cache: 'no-store', signal },
   { maxRetries: 0, timeoutMs: 10000 },
 );

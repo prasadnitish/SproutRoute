@@ -109,3 +109,11 @@ test("index.html has the Smart App Banner and absolute link-preview tags", () =>
   assert.equal(png.readUInt32BE(16), 1200);
   assert.equal(png.readUInt32BE(20), 630);
 });
+
+test("V3 account disclosures explain sign-in, account saves, and connector access", () => {
+  const policy = publicPage("privacy.html");
+  assert.match(policy, /relay email/i);
+  assert.match(policy, /MCP connector/i);
+  assert.match(policy, /saved trips and places/i);
+  assert.match(publicPage("privacy-choices.html"), /Apple.*authoriz/i);
+});

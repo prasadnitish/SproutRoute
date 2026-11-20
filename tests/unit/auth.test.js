@@ -114,3 +114,29 @@ test("auth middleware functions can be imported", async () => {
   assert.equal(typeof mod.requireAuth, "function", "requireAuth should be a function");
   assert.equal(typeof mod.optionalAuth, "function", "optionalAuth should be a function");
 });
+
+test("native session verification accepts the first-party audience and excludes delegated library credentials", async t => {
+  const { createServer } = await import("node:http");
+  const { token, owner } = await import("../helpers/libraryOAuth.js");
+  let verifications = 0;
+  const provider = createServer((_req, res) => {
+    verifications++;
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ id: owner, is_anonymous: false }));
+  }).listen(0, "127.0.0.1");
+  await new Promise(resolve => provider.once("listening", resolve));
+  t.after(() => { provider.closeAllConnections(); provider.close(); });
+  process.env.SUPABASE_URL = "http://127.0.0.1:" + provider.address().port;
+  process.env.SUPABASE_ANON_KEY = "test-public-key";
+  const { requireAuth } = await loadAuth();
+  async function verify(claims) {
+    const req = { headers: { authorization: "Bearer " + token(claims) } };
+    return new Promise(resolve => {
+      requireAuth(req, { status() { return this; }, json() { resolve(null); } }, () => resolve(req.user));
+    });
+  }
+  assert.equal((await verify({ client_id: undefined, aud: "authenticated", role: "authenticated" })).id, owner);
+  assert.equal(await verify({}), null);
+  assert.equal(await verify({ aud: "authenticated" }), null);
+  assert.equal(verifications, 1);
+});

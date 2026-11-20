@@ -1,3 +1,4 @@
+import WebMcpExperiment from "../webmcp/Experiment.jsx";
 import { useState, useMemo } from "react";
 import HeroTile from "../components/mosaic/HeroTile";
 import WeatherTile from "../components/mosaic/WeatherTile";
@@ -293,6 +294,7 @@ export default function ResultsScreen({
 
   return (
     <div className="w-full max-w-7xl mx-auto">
+      {!readOnly && !error && <WebMcpExperiment activities={suggestedActivities} />}
       {!error && <LoadingBanner progress={progress} steps={steps} />}
 
       {error && <div role="alert" className="m-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">

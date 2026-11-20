@@ -1,3 +1,4 @@
+import { stagingModelsDisabled } from "../utils/stagingModels.js";
 /**
  * Family-fit judgment from a decision model instead of a text model.
  *
@@ -200,6 +201,7 @@ export function needsEscalation(answers) {
  * @returns {Promise<{ok: true, engine, model, answers, fit, escalate, ms, inputTokens, costUsd} | {ok: false, engine, error, ms}>}
  */
 export async function decideFamilyFit(place, { engine = "jev", fetchFn = fetch, apiKey, timeoutMs = 8000 } = {}) {
+  if (stagingModelsDisabled()) return { ok: false, engine, error: "AI model calls are disabled in staging.", ms: 0 };
   const config = ENGINES[engine];
   if (!config) return { ok: false, engine, error: `unknown engine ${engine}`, ms: 0 };
   const key = apiKey ?? process.env[config.keyEnv];

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useTrip } from "./hooks/useTrip.js";
 import { useGeolocation } from "./hooks/useGeolocation.js";
 import { usePlacesEnrich } from "./hooks/usePlacesEnrich.js";
@@ -13,6 +13,9 @@ import AnalyticsConsent from "./components/AnalyticsConsent.jsx";
 import AiConsentSheet from "./components/AiConsentSheet.jsx";
 import { hasAiConsent, grantAiConsent, withdrawAiConsent } from "./utils/aiConsent.js";
 
+const AccountPanel = lazy(() => import('./components/AccountPanel.jsx'));
+const OAuthConsent = lazy(() => import('./screens/OAuthConsent.jsx'));
+
 function loadSavedProfile() {
   try {
     const p = localStorage.getItem("sprout:profile");
@@ -23,6 +26,7 @@ function loadSavedProfile() {
 }
 
 export default function App() {
+  if (window.location.pathname === '/oauth/consent') return <Suspense fallback={<p role="status">Loading consent…</p>}><OAuthConsent /></Suspense>;
   return window.location.pathname === '/s' || window.location.pathname === '/s/' ? <SharedTripScreen /> : <PlannerApp />;
 }
 
@@ -75,6 +79,15 @@ function PlannerApp() {
           </button>
 
           <div className="flex items-center gap-2">
+            <Suspense fallback={null}>
+              <AccountPanel tripData={trip.screen === 'results' && trip.tripData?._complete
+                ? {...trip.tripData,packingList:trip.packingList} : null}
+                tripId={trip.tripData?._accountTripId}
+                initiallyOpen={window.location.pathname === '/account'}
+                onOpenTrip={trip.restoreSavedTrip}
+                profile={savedProfile}
+                onProfile={setSavedProfile} />
+            </Suspense>
             {/* Explicit back arrow when past the input screen (F9) */}
             {trip.screen === "results" && (
               <button

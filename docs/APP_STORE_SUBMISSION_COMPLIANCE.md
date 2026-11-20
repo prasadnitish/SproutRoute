@@ -1,6 +1,6 @@
 # SproutRoute App Store Submission Compliance Notes
 
-Last updated: May 6, 2026
+Last updated: November 20, 2026
 
 This document is a product and submission-readiness checklist, not legal advice. Have counsel review the public pages and App Store Connect answers before external launch.
 
@@ -31,7 +31,7 @@ Avoid positioning that implies SproutRoute is:
 
 Suggested reviewer note:
 
-> SproutRoute is account-free in this build. To test the primary flow, open the app, enter "Two days in San Diego with a toddler and a dog", and tap Plan Trip. The app streams planning results from the live SproutRoute backend, then shows Weather, Itinerary, Packing, and Safety tabs. Saved trips, profile import, packing progress, notifications, widgets, Spotlight, and Live Activity data are local-first. The app includes links to Privacy Policy, Privacy Choices, Terms, and Support in Settings. Safety, car-seat, pet travel, weather, and itinerary output is informational and includes human-review expectations; users are told to verify legal and safety-sensitive information with official sources.
+> Trip planning works without signing in. The optional Places library uses email verification. For the release containing Social Save, provide App Review with a working test-account flow. To test the primary flow, open the app, enter "Two days in San Diego with a toddler and a dog", and tap Plan Trip. The app streams planning results from the live SproutRoute backend, then shows Weather, Itinerary, Packing, and Safety tabs. Saved trips, profile import, packing progress, notifications, widgets, Spotlight, and Live Activity data are local-first. The app includes links to Privacy Policy, Privacy Choices, Terms, and Support in Settings. Safety, car-seat, pet travel, weather, and itinerary output is informational and includes human-review expectations; users are told to verify legal and safety-sensitive information with official sources.
 
 ## App privacy label guidance
 
@@ -39,9 +39,9 @@ Final App Store Connect answers must match the shipped build and live backend co
 
 - User Content: trip prompt, generated saved trip content, profile import text, packing state, support messages.
 - Location: typed destination and origin; precise device location only if a feature requests it and the user grants permission.
-- Identifiers: the optional iOS product analytics identifier, plus device or diagnostic identifiers if collected by Apple services or operational logging. The iOS analytics identifier is not used for tracking and is reset when the user turns product analytics off.
+- Identifiers: the Places account identifier, the optional iOS product analytics identifier, plus device or diagnostic identifiers if collected by Apple services or operational logging. The iOS analytics identifier is not used for tracking and is reset when the user turns product analytics off.
 - Usage Data and Diagnostics: optional iOS product analytics events, app events, crash/error data, performance, and reliability logs. iOS product analytics must remain aggregate-only: no raw prompts, profile JSON, child names, pet names, pet breeds, special-needs notes, precise GPS, attraction text, or custom packing item text.
-- Contact Info: only if the user contacts support or uses an account-backed web feature.
+- Contact Info: Places uses the account email for sign-in and verification. Support and authenticated web features may also use email.
 - Sensitive Info: avoid collecting it. If users voluntarily enter medical, accessibility, or special-needs notes, disclose according to App Store Connect guidance.
 
 For the iOS app, on-device-only data that is never sent to a server is not treated as collected for App Store privacy answers, but any derived data sent off device should be considered separately.

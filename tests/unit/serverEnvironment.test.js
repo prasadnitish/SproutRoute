@@ -5,6 +5,8 @@ import { validateEnvironmentVariables } from "../../src/backend/server.js";
 
 const TRACKED_ENV = [
   "AI_PROVIDER",
+  "RAILWAY_ENVIRONMENT_NAME",
+  "V3_DISABLE_MODEL_CALLS",
   "ANTHROPIC_API_KEY",
   "GOOGLE_GEMINI_API_KEY",
   "OPENAI_API_KEY",
@@ -81,4 +83,19 @@ test("validateEnvironmentVariables rejects unsupported AI providers", () => {
     () => validateEnvironmentVariables({ exitOnFailure: false }),
     /AI_PROVIDER/,
   );
+});
+
+test("explicit isolated staging can boot and rejects extraction before reserving quota", async () => {
+  clearTrackedEnv();
+  process.env.RAILWAY_ENVIRONMENT_NAME = "staging";
+  process.env.V3_DISABLE_MODEL_CALLS = "true";
+  assert.equal(validateEnvironmentVariables({exitOnFailure:false}).aiProvider, "disabled");
+  const {createSocialBilling} = await import("../../src/backend/services/socialBilling.js");
+  const billing = createSocialBilling({enabled:true,rpc:assert.fail});
+  await assert.rejects(billing.extract("owner",{source:"https://example.com/post"},undefined,assert.fail),
+    {status:503, code:"EXTRACTION_UNAVAILABLE"});
+  const {callModel} = await import("../../src/backend/utils/aiClient.js");
+  await assert.rejects(callModel({user:"fixture"}), /disabled in staging/);
+  process.env.RAILWAY_ENVIRONMENT_NAME = "production";
+  assert.throws(() => validateEnvironmentVariables({exitOnFailure:false}), /ANTHROPIC_API_KEY/);
 });

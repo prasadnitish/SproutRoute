@@ -60,6 +60,7 @@ tr:hover td{background:#fafffe}
 <div class="header">
   <div>
     <h1>SproutRoute Mission Control</h1>
+    <a href="/ops/daily" style="color:white">Daily launch dashboard</a> ·
     <a href="/ops/traces" style="color:#70db9b">Inspect request traces</a>
     <div class="meta" id="hdr-meta">Loading...</div>
   </div>
@@ -87,7 +88,7 @@ async function load() {
     const app = document.getElementById("app");
     app.style.display = "block";
     // Clear and rebuild
-    while (app.firstChild) app.removeChild(app.firstChild);
+    app.replaceChildren();
     render(app, d);
   } catch (e) {
     document.getElementById("loading").style.display = "block";

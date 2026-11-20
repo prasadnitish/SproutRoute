@@ -1,3 +1,5 @@
+import { stagingModelsDisabled } from "./utils/stagingModels.js";
+import { summarizeUnitCosts } from './services/unitCosts.js';
 import { tracing, traceArchive, traceStore, startTraceStore, tracedFetch } from './services/tracing.js';
 import { evalCapture } from './services/evalCapture.js';
 // Backend entry point: Express server that orchestrates location, weather, and AI calls.
@@ -28,6 +30,7 @@ import { mergeProfileAndIntent, buildPlannerSummary } from "./services/profileMe
 import { sanitizeProfileForPlanning, sanitizeTripIntentFields } from "./services/profileContext.js";
 import { createAttractionMemoryService } from "./services/attractionMemory.js";
 import { createGroupTripStore } from "./services/groupTripStore.js";
+import { mountSocialSave } from "./routes/socialSave.js";
 import { mountMcpRoutes } from "./mcp/mount.js";
 import { allocateRoute } from "./services/routeAllocator.js";
 import { planRouteStops } from "./services/multiStopPlanner.js";
@@ -176,6 +179,7 @@ function failEnvironmentValidation(message, exitOnFailure) {
 
 // Validate required environment variables at startup
 export function validateEnvironmentVariables({ exitOnFailure = true } = {}) {
+  if (stagingModelsDisabled()) return { aiProvider: "disabled", requiredEnvVar: null };
   const provider = String(process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
   const requiredKey = AI_PROVIDER_ENV[provider];
 
@@ -495,14 +499,19 @@ export function createApp(deps = {}) {
   // Opt-in eval traces for synthetic golden-set runs (needs the parsed body).
   app.use(evalCapture.middleware);
 
-  mountMcpRoutes(app, deps);
+  mountMcpRoutes(app, { ...deps, meterMcp: costControl.meter });
 
+  let accountOrigin = '';
+  try {
+    const endpoint = new URL(process.env.SUPABASE_URL);
+    if (endpoint.protocol === 'https:') accountOrigin = endpoint.origin;
+  } catch { /* Account features are optional for anonymous planning. */ }
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline' https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self'; frame-src https://www.google.com https://maps.google.com; frame-ancestors 'none';",
+      `default-src 'self'; script-src 'self' 'unsafe-inline' https://appleid.cdn-apple.com https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' ${accountOrigin} https://appleid.apple.com https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self'; frame-src https://appleid.apple.com https://www.google.com https://maps.google.com; frame-ancestors 'none';`,
     );
     if (process.env.NODE_ENV === "production") {
       res.setHeader(
@@ -621,6 +630,7 @@ export function createApp(deps = {}) {
   costControl.mountDeviceRoutes(app, { limiter: deviceLimiter });
   // Persistent per-device / per-IP quotas and the daily spend cap, after the burst limiters.
   const meter = costControl.meter;
+  mountSocialSave(app, {limiter: apiLimiter, aiLimiter, meter, ...deps.socialSave});
   app.use('/s', (req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -725,7 +735,12 @@ export function createApp(deps = {}) {
     catch {res.status(400).json({error:'Invalid milestone evidence'});}
   });
 
-  app.get("/api/v1/ops/traces", opsAttemptLimiter, opsGuard, (req, res) => res.set("Cache-Control", "no-store").json({ traces: tracing.snapshot(), archive:traceArchive.health(), store: traceStore.health() }));
+  app.get("/api/v1/ops/traces", opsAttemptLimiter, opsGuard, (req, res) => {
+    const traces = tracing.snapshot();
+    res.set("Cache-Control", "no-store").json({
+      traces, unitCosts: summarizeUnitCosts(traces), archive: traceArchive.health(), store: traceStore.health(),
+    });
+  });
 
   app.get("/api/v1/ops/metrics", opsAttemptLimiter, opsGuard, async (req, res) => {
     res.setHeader("Cache-Control", "no-store");
@@ -761,6 +776,14 @@ export function createApp(deps = {}) {
     next();
   };
   app.get("/dashboard", (req, res) => res.redirect(302, "/ops"));
+  app.get("/ops/daily", opsPageGuard, (req, res) => {
+    const report = process.env.OPS_DAILY_REPORT_FILE;
+    if (!report || !path.isAbsolute(report)) return res.status(503).type("text").send("Daily aggregate file unavailable. Generate the owner report with npm run ops:daily.");
+    res.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+    res.type("html").sendFile(report, { cacheControl: false, dotfiles: "allow" }, error => {
+      if (error && !res.headersSent) res.status(503).type("text").send("Daily aggregate file unavailable.");
+    });
+  });
   app.get("/ops/traces", opsPageGuard, (req, res) => res.set("Cache-Control", "no-store").sendFile(path.join(__dashboardDir, "trace-dashboard.html")));
   app.get("/ops", opsPageGuard, (req, res) => {
     res.setHeader("Content-Type", "text/html");

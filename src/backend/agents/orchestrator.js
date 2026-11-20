@@ -120,6 +120,7 @@ export async function runOrchestrator(input, deps = {}) {
   // leaks timers under load in production.
   let timeoutId;
   const timeout = new Promise((_, reject) => {
+    if (deps.signal) return; // Caller enforces the deadline and holds capacity until the graph settles.
     timeoutId = setTimeout(() => reject(new Error(`plan_trip timed out after ${timeoutMs}ms`)), timeoutMs);
   });
 
@@ -130,6 +131,7 @@ export async function runOrchestrator(input, deps = {}) {
       runId,
       destination: input.destination,
       trip: finalState.itineraryResult?.tripPlan ?? null,
+      ...(deps.requireVerifiedPool ? { candidates: finalState.retrievalResult?.cachedAttractions || [] } : {}),
       scheduledItinerary: finalState.itineraryResult?.scheduledItinerary ?? null,
       packingList: finalState.packingResult?.packingList ?? null,
       safety: finalState.safetyResult ?? null,

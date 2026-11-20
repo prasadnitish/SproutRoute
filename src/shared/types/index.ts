@@ -146,4 +146,7 @@ export type {
   AttractionPrecomputeRun,
   AttractionVerificationCache,
 } from "./attraction.js";
-export type { PublicTripMeta, SharedTripSnapshot, TripShareCreateRequest, TripShareCreateResponse, TripShareViewResponse, TripShareRevokeHeaders } from './sharing.js';
+export type { AccountTripRow, PublicTripMeta, SharedTripSnapshot, TripShareCreateRequest, TripShareCreateResponse, TripShareViewResponse, TripShareRevokeHeaders } from './sharing.js';
+export type { MeteredSocialImport, SocialBillingStatus, SocialImport, SocialCandidate, SocialExtraction, SavedSocialPlace } from "./socialSave.js";
+export type { AccountRemovalProof, AccountMergeRequest, AccountLifecycleResponse } from "./socialSave.js";
+export type { McpPlace, McpTripPlan } from "./mcpPlanning.js";

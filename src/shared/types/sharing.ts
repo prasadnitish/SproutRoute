@@ -47,3 +47,15 @@ export interface TripShareRevokeHeaders {
   'x-trip-share-token': string;
   'x-trip-share-owner-token': string;
 }
+
+/** Owner-scoped PostgREST row in public.account_trips. Both IDs form the primary key. */
+export interface AccountTripRow {
+  user_id: string;
+  id: string;
+  destination: string;
+  snapshot: {
+    schemaVersion: 1;
+    tripData: SharedTripSnapshot['tripData'] & { packingList?: Record<string, unknown> };
+  };
+  updated_at: string;
+}

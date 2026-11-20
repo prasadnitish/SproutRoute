@@ -441,6 +441,7 @@ export function useTrip() {
             parsed,
             // The stream is finished: nothing will replace the itinerary now, so it can be edited.
             _complete: true,
+            _accountTripId: crypto.randomUUID(),
           };
           setTripData(fullData);
           saveJSON(STORAGE_KEYS.trip, fullData);
@@ -614,6 +615,21 @@ export function useTrip() {
       : prev));
   }, []);
 
+  const restoreSavedTrip = useCallback(({id,snapshot}) => {
+    abortRef.current?.abort();
+    const data = snapshot.tripData;
+    setTripData({...data,_complete:true,_accountTripId:id});
+    setParsedInput(data.parsed || data.trip);
+    setPackingList(data.packingList || null);
+    setPackingError(null);
+    setError(null);
+    setSafetyData(null);
+    setPetSafetyData(null);
+    setCarSeatData(null);
+    setProgress({itinerary:'done',weather:'done',packing:'done'});
+    setScreenWithHistory('results');
+  },[setScreenWithHistory]);
+
   const goBack = useCallback(() => {
     // Abort background fetches before going back
     if (abortRef.current) abortRef.current.abort();
@@ -629,6 +645,6 @@ export function useTrip() {
     screen, tripInput, parsedInput, tripData, packingList, packingError, safetyData, petSafetyData, carSeatData, routePrefetch,
     progress, error, STEPS,
     submitTrip, confirmAges, selectDestination, confirmRouteTrip, goBack, retryPacking,
-    editPlan, undoPlanEdit, resetPlanEdits,
+    editPlan, undoPlanEdit, resetPlanEdits, restoreSavedTrip,
   };
 }

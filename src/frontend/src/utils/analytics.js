@@ -10,14 +10,13 @@
  */
 
 import posthog from "posthog-js";
-import { posthogOptions } from "./analyticsConfig.js";
+import { isPlannerAnalyticsUrl, posthogOptions } from "./analyticsConfig.js";
 import { loadCloudflareBeacon } from "./cloudflareBeacon.js";
 import { readConsent, writeConsent, shouldLoadAnalytics, shouldAskConsent } from "./analyticsConsent.js";
 import { buildTripErrorProperties, buildTripSearchProperties } from "./analyticsPayloads.js";
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
-// Shared URLs contain an access token in the fragment. Never send them to analytics.
-const IS_PROD = import.meta.env.PROD && !/^\/s\/?$/.test(window.location.pathname);
+const IS_PROD = import.meta.env.PROD && isPlannerAnalyticsUrl(new URL(window.location.href));
 
 // Initialize PostHog only in production, with a key, and after the visitor has agreed.
 let initialized = false;

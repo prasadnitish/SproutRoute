@@ -10,3 +10,10 @@ export const posthogOptions = {
   disable_session_recording: true,
   persistence: "localStorage",
 };
+
+// Account callbacks and handoffs can carry credentials. Keep both analytics
+// providers off those pages, including when consent was granted previously.
+export function isPlannerAnalyticsUrl(url) {
+  return url.pathname === "/" && !url.hash &&
+    [...url.searchParams.keys()].every(key => /^utm_(source|medium|campaign|term|content)$/.test(key));
+}
