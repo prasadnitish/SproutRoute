@@ -24,7 +24,7 @@
     <p class="eyebrow">Privacy Policy</p>
     <h1>Built for parents. Careful with family data.</h1>
     <p class="lede">SproutRoute helps parents and guardians plan family trips. We collect only the information needed to generate and save trip guidance, operate the service, prevent abuse, and respond to support requests.</p>
-    <p class="updated">Last updated: November 7, 2026</p>
+    <p class="updated">Last updated: November 20, 2026</p>
   </div>
 
   <section class="callout">
@@ -33,14 +33,19 @@
   </section>
 
   <section>
+    <h2>Your account and saved trips</h2>
+    <p>You can plan without signing in. To keep saved trips and places across devices, sign in with an email code, Google, or Apple. Supabase stores your account identifier and sign-in identities. Apple or Google may share a provider identifier, email address, and name with your permission. Apple lets you use a relay email address. Accounts are for parents and other adults.</p>
     <h2>Your Places library</h2>
     <p>When you sign in to Places, Supabase stores your account email and identifier. The library stores confirmed place identifiers, names, destinations, source links, evidence, family notes and must-see choices. Links submitted by a connected agent wait in your private review inbox. Places you keep are available to that account on other devices.</p>
     <p>When you choose to extract places, SproutRoute receives the link and sends the supplied text or available post title to its AI providers. Selected screenshots and videos are processed on your device. Apple Maps receives the searches you make to confirm a place. Relevant saved place names and destinations are sent with your trip when you agree to planning.</p>
-    <p>In Places you can export your library, delete individual places, sign out or delete your account after verifying your email. Signing out removes the local library cache and pending device shares. Account deletion removes the cloud library and its review inbox.</p>
+    <p>In Places you can export your library, delete individual places, sign out or delete your account after confirming your identity. Signing out removes the local library cache and pending device shares. Account deletion removes account-owned trips, profiles, places, and the private review inbox.</p>
+    <h2>Using a planning assistant</h2>
+    <p>When you plan through an assistant, its host receives your request and the resulting itinerary. The itinerary widget uses no analytics or advertising trackers. Opening a shared itinerary on the website gives you the option to save it to your account. Shared links can be viewed by anyone who has the link.</p>
+    <p>If you connect your account to an assistant through the private MCP connector, the consent screen explains what the client can access. Information returned to the assistant is also handled under that service’s privacy policy.</p>
     <h2>Information we collect</h2>
     <ul>
       <li><strong>Trip planning content:</strong> destination, origin if provided, travel dates, trip length, family composition, child ages or age ranges, pet type and travel details, pace, interests, accessibility notes, food preferences, and other free-text planning details you choose to provide.</li>
-      <li><strong>Profile import content:</strong> travel preferences pasted from ChatGPT, Claude, Gemini, or another assistant if you choose to import a reusable profile. The iOS app stores this locally unless you separately use an authenticated web feature.</li>
+      <li><strong>Profile import content:</strong> travel preferences pasted from ChatGPT, Claude, Gemini, or another assistant if you choose to import a reusable profile. An imported profile stays on your device until you choose to save it to your account. Saving uploads the travel preferences and family details in that profile.</li>
       <li><strong>Saved trip data:</strong> generated itinerary, weather summary, packing list, safety guidance, saved packing progress, reminders, and local widget snapshots.</li>
       <li><strong>Shared trip links:</strong> if you share a plan by link, we store a copy of the trip's destination, dates, itinerary, route, saved weather and packing list (item names and quantities). The copy never includes your original prompt, imported profile, children's ages or pet details, though generated activity and packing text can reflect the preferences that shaped the plan. Anyone who has the link can view the copy, so send it only to people you want to see the trip. The link stops working 7 days after the trip ends (at least 7 days and at most 400 days after you create it). You can stop it sooner with <strong>Stop sharing</strong> in the SproutRoute app, or in the browser where you created it on the web.</li>
       <li><strong>Calendar:</strong> if you add a trip to your calendar, the events are written to your device calendar. SproutRoute asks for write-only access and does not read your calendar. If you export a file instead, it stays on your device until you share it.</li>
@@ -82,7 +87,7 @@
 
   <section>
     <h2>Local-first iOS storage</h2>
-    <p>You can plan trips on iOS without an account. The optional Places library requires an email sign-in. Saved trips, imported profiles, packing progress, cached weather snapshots, local notification plans, widget snapshots, Spotlight records, and Live Activity payloads are stored on your device or in the app's App Group container. You can delete this local data inside the app from Settings.</p>
+    <p>You can plan trips on iOS without an account. When you choose to save to your account, Supabase stores a copy of the itinerary, profile, or confirmed place you selected. Saved trips, imported profiles, packing progress, cached weather snapshots, local notification plans, widget snapshots, Spotlight records, and Live Activity payloads are stored on your device or in the app's App Group container. You can delete this local data inside the app from Settings.</p>
   </section>
 
   <section>

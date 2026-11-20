@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   isGroundedRow,
+  isPlacesCandidate,
   excludeForTravelers,
   summarizeHours,
   isTrending,
@@ -214,4 +215,15 @@ test("a venue already in the plan under different capitalization is not used aga
   assert.equal(tripPlan.suggestedActivities.length, 2);
   assert.ok(!tripPlan.suggestedActivities.some((a) => a.name === "Seattle Aquarium"), "no second visit to the aquarium");
   assert.equal(changes[0].kind, "closed_no_replacement");
+});
+
+test("an empty shortlist cannot authenticate IDs or grounding claims supplied by a model", () => {
+  const {tripPlan} = attachGroundingToPlan({suggestedActivities:[{name:"Invented",grounded:true,placeId:"made-up"}]}, []);
+  assert.equal(tripPlan.suggestedActivities[0].grounded, false);
+  assert.equal(tripPlan.suggestedActivities[0].placeId, null);
+});
+
+test("planning connector requires explicit Places verification for legacy rows with IDs", () => {
+  assert.equal(isPlacesCandidate(row({google_place_id:"legacy", verification_status:"pending"})), false);
+  assert.equal(isPlacesCandidate(row({google_place_id:"ok", verification_status:"verified"})), true);
 });

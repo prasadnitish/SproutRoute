@@ -3,7 +3,7 @@
 // Structured fields only: generated prose (overviews, tips, notes, descriptions,
 // "why this fits") can mention children's ages and pets, so it is never shared.
 const META = ['destination', 'startDate', 'endDate', 'duration', 'lat', 'lon', 'countryCode'];
-const ACTIVITY = ['id', 'name', 'title', 'category', 'duration', 'kidFriendly', 'petFriendly', 'weatherDependent', 'indoors', 'timeOfDay', 'openingHours', 'address', 'lat', 'lon', 'latitude', 'longitude', 'scheduledStart', 'scheduledEnd', 'status', 'isMeal', 'mealType', 'cuisine'];
+const ACTIVITY = ['id', 'name', 'title', 'category', 'duration', 'kidFriendly', 'petFriendly', 'weatherDependent', 'indoors', 'timeOfDay', 'openingHours', 'address', 'lat', 'lon', 'latitude', 'longitude', 'scheduledStart', 'scheduledEnd', 'locked', 'status', 'isMeal', 'mealType', 'cuisine'];
 const DAY = ['day', 'date', 'routeDate', 'routeDay', 'stopId', 'stopName'];
 const STOP = ['id', 'name', 'displayName', 'countryCode', 'regionCode', 'lat', 'lon', 'arrivalDate', 'departureDate', 'nights', 'dayStart', 'dayEnd', 'role'];
 const WEATHER = ['date', 'name', 'high', 'low', 'temp', 'condition', 'precipitation', 'precipitationChance', 'icon', 'unit'];
@@ -32,10 +32,10 @@ function activity(value) {
   return out;
 }
 
-function day(value) {
+function day(value, projectActivity = activity) {
   const out = pick(value, DAY);
-  if (Array.isArray(value?.activities)) out.activities = list(value.activities, activity);
-  if (Array.isArray(value?.scheduled)) out.scheduled = list(value.scheduled, activity);
+  if (Array.isArray(value?.activities)) out.activities = list(value.activities, projectActivity);
+  if (Array.isArray(value?.scheduled)) out.scheduled = list(value.scheduled, projectActivity);
   if (value?.meals && typeof value.meals === 'object') {
     out.meals = {};
     for (const type of ['breakfast', 'lunch', 'dinner', 'snack']) {
@@ -86,17 +86,17 @@ function packingList(value, names = []) {
   return categories.length ? { categories } : null;
 }
 
-export function buildSharedTripSnapshot(data) {
+export function buildSharedTripSnapshot(data, { projectActivity = activity } = {}) {
   const plan = data?.tripPlan || {};
-  const scheduled = list(data?.scheduledItinerary, day);
-  const daily = list(plan.dailyItinerary, day);
+  const scheduled = list(data?.scheduledItinerary, value => day(value, projectActivity));
+  const daily = list(plan.dailyItinerary, value => day(value, projectActivity));
   if (!scheduled.length && !daily.length) throw Object.assign(new Error('Wait for a completed itinerary before creating a link.'), { code: 'SHARE_INVALID' });
   const trip = { ...pick(data?.parsed, META), ...pick(data?.trip, META) };
   if (!trip.destination) throw Object.assign(new Error('The trip destination is missing.'), { code: 'SHARE_INVALID' });
   const tripData = {
     trip,
     parsed: pick(trip, ['destination', 'startDate', 'endDate']),
-    tripPlan: { suggestedActivities: list(plan.suggestedActivities, activity), dailyItinerary: daily, tips: [] },
+    tripPlan: { suggestedActivities: list(plan.suggestedActivities, projectActivity), dailyItinerary: daily, tips: [] },
     scheduledItinerary: scheduled,
     weather: weather(data?.weather),
   };

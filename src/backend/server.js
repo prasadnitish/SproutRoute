@@ -496,14 +496,19 @@ export function createApp(deps = {}) {
   // Opt-in eval traces for synthetic golden-set runs (needs the parsed body).
   app.use(evalCapture.middleware);
 
-  mountMcpRoutes(app, deps);
+  mountMcpRoutes(app, { ...deps, meterMcp: costControl.meter });
 
+  let accountOrigin = '';
+  try {
+    const endpoint = new URL(process.env.SUPABASE_URL);
+    if (endpoint.protocol === 'https:') accountOrigin = endpoint.origin;
+  } catch { /* Account features are optional for anonymous planning. */ }
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader(
       "Content-Security-Policy",
-      "default-src 'self'; script-src 'self' 'unsafe-inline' https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self'; frame-src https://www.google.com https://maps.google.com; frame-ancestors 'none';",
+      `default-src 'self'; script-src 'self' 'unsafe-inline' https://appleid.cdn-apple.com https://us-assets.i.posthog.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleapis.com https://*.googleusercontent.com https://*.gstatic.com; connect-src 'self' ${accountOrigin} https://appleid.apple.com https://us.i.posthog.com https://us-assets.i.posthog.com https://cloudflareinsights.com; font-src 'self'; frame-src https://appleid.apple.com https://www.google.com https://maps.google.com; frame-ancestors 'none';`,
     );
     if (process.env.NODE_ENV === "production") {
       res.setHeader(

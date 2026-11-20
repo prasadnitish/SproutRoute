@@ -405,6 +405,7 @@ export async function callModel(prompt, deps = {}) {
     if (remainingMs <= 0) throw new Error("AI provider deadline exceeded");
     // Reserve an equal share for every remaining provider; a hung primary must
     // never consume the entire request deadline. Fast failures release their time.
+    deps.reserveModelAttempt?.(params);
     const attemptMs = Math.max(1, Math.floor(remainingMs / attemptsRemaining));
     const deadline = createAttemptDeadline(prompt.signal, attemptMs);
     // Eval runs only: records the full prompt and answer for rubric scoring.

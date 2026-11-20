@@ -94,3 +94,15 @@ test("runSafetyAgent always fetches travel advisory and neighborhood safety in p
   assert.equal(result.travelAdvisory.level, 1);
   assert.equal(result.neighborhoodSafety.overallScore, 80);
 });
+
+test("budgeted connector trips use the reviewed car seat rule set", async () => {
+  let options;
+  await runSafetyAgent({ destination: "Portland", children: [{age: 3}] }, {
+    coords: {stateCode:"OR"}, countryCode:"US",
+  }, {
+    requireVerifiedPool: true,
+    getCarSeatGuidanceFn: async (_input, deps) => { options = deps; return {}; },
+    getTravelAdvisoryFn: async () => null, getNeighborhoodSafetyFn: async () => null,
+  });
+  assert.deepEqual(options.sourceRegistry, {});
+});

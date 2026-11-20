@@ -21,6 +21,10 @@ export function isGroundedRow(row) {
   return true;
 }
 
+export function isPlacesCandidate(row) {
+  return isGroundedRow(row) && Boolean(row.google_place_id) && row.verification_status === "verified" && row.business_status !== "CLOSED_TEMPORARILY";
+}
+
 /** Drop venues that do not suit the travelers: formal fine dining when a child is under 8, unless asked for. */
 export function excludeForTravelers(rows, { childrenAges = [], mustHaves = [], requestedActivities = [] } = {}) {
   const ages = childrenAges.filter(Number.isFinite);
@@ -112,7 +116,11 @@ const coordinate = (value) => (value == null || value === "" || !Number.isFinite
 
 export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() } = {}) {
   const activities = tripPlan?.suggestedActivities;
-  if (!Array.isArray(activities) || !activities.length || !candidates?.length) return { tripPlan, stats: null };
+  if (!Array.isArray(activities) || !activities.length) return { tripPlan, stats: null };
+  if (!candidates?.length) {
+    if (!activities.some(activity => activity?.grounded || activity?.placeId)) return { tripPlan, stats: null };
+    return { tripPlan: { ...tripPlan, suggestedActivities: activities.map(activity => ({ ...activity, grounded: false, trending: false, placeId: null })) }, stats: null };
+  }
 
   const unmatched = [];
   const grounded = activities.map((activity) => {
@@ -120,7 +128,7 @@ export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() }
     const match = matchCandidate(name, candidates);
     if (!match) {
       unmatched.push(name);
-      return { ...activity, grounded: false, trending: false };
+      return { ...activity, grounded: false, trending: false, placeId: null };
     }
     // Places content must not be shown on a non-Google map (Service Specific Terms 14.2), and the apps use Apple
     // Maps and Leaflet, so only Wikidata coordinates go out. Google-only places reach the apps without coordinates.
@@ -128,7 +136,7 @@ export function attachGroundingToPlan(tripPlan, candidates, { now = Date.now() }
     return {
       ...activity,
       grounded: true,
-      placeId: match.google_place_id ?? null,
+      placeId: isPlacesCandidate(match) ? match.google_place_id : null,
       lat: shareable ? coordinate(match.lat) : null,
       lon: shareable ? coordinate(match.lon) : null,
       trending: isTrending(match, now),

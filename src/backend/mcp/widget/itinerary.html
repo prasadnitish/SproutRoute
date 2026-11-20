@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en" data-website-origin="https://sproutroute.app">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>SproutRoute itinerary</title>
+  <style>
+    :root { color-scheme: light dark; --ink: light-dark(#182c24,#eef4ee); --muted: light-dark(#4d6356,#b9cabf); --accent: light-dark(#20583d,#ade8c4); --wash: light-dark(#e8f2e8,#23382b); --rule: light-dark(#c6d5ca,#485e50); }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: light-dark(#fffcf6,#18221d); font: 1rem/1.5 system-ui,sans-serif; overflow-wrap: anywhere; }
+    main { max-width: 52rem; margin: auto; padding: clamp(.875rem,4vw,2rem); }
+    h1 { margin: 0; font: 600 clamp(1.6rem,5vw,2.4rem)/1.15 Georgia,serif; }
+    h2 { margin: 0 0 .65rem; font-size: 1rem; }
+    h3 { margin: 0; font-size: 1.08rem; }
+    p { margin: .25rem 0; }
+    #status, .meta, .timing { color: var(--muted); font-size: .9rem; }
+    [role=tablist], .actions { display: flex; flex-wrap: wrap; gap: .4rem; }
+    [role=tablist] { margin: 1rem 0; }
+    button { font: inherit; color: var(--accent); background: transparent; border: 1px solid var(--rule); border-radius: .65rem; cursor: pointer; min-height: 2.75rem; padding: .45rem .8rem; }
+    button[aria-selected=true], #open { background: var(--accent); color: light-dark(white,#14271b); border-color: transparent; }
+    button[aria-pressed=true] { background: var(--wash); border-color: var(--accent); font-weight: 650; }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    button:disabled { opacity: .6; cursor: wait; }
+    ol { list-style: none; padding: 0; margin: 0; }
+    li { border-inline-start: 3px solid var(--rule); margin-inline-start: .3rem; padding: 0 0 1rem 1rem; }
+    li:last-child { padding-bottom: .4rem; }
+    .actions { margin-top: .4rem; }
+    .actions button { font-size: .875rem; }
+    #open { margin: 1rem 0 .4rem; }
+    #status:empty { margin: 0; }
+  </style>
+</head>
+<body>
+<main>
+  <h1 id="title">SproutRoute itinerary</h1>
+  <div id="trip"></div>
+  <button id="open" type="button" hidden>Open in SproutRoute</button>
+  <p id="status" role="status" aria-live="polite">Waiting for the itinerary…</p>
+  <noscript>Read the itinerary in the tool’s text response.</noscript>
+</main>
+<script type="module">
+const trip = document.querySelector("#trip");
+const title = document.querySelector("#title");
+const status = document.querySelector("#status");
+const open = document.querySelector("#open");
+const pending = new Map();
+let nextId = 0;
+let plan;
+let dayIndex = 0;
+let revision = 0;
+let pollTimer;
+let host = {};
+let connected = false;
+let active = true;
+let hostOrigin = "*";
+const website = document.documentElement.dataset.websiteOrigin;
+
+function validHandoff(value) {
+  const prefix = website + "/s#mcp=";
+  return typeof value === "string" && value.startsWith(prefix) && /^[A-Za-z0-9_-]{43}$/.test(value.slice(prefix.length));
+}
+
+function send(message) {
+  window.parent.postMessage({ jsonrpc: "2.0", ...message }, hostOrigin);
+}
+
+function request(method, params) {
+  return new Promise((resolve, reject) => {
+    const id = ++nextId;
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error("The host did not respond in time."));
+    }, 30000);
+    pending.set(id, { resolve, reject, timeout });
+    send({ id, method, params });
+  });
+}
+
+function callTool(name, args) {
+  return request("tools/call", { name, arguments: args });
+}
+
+function toolText(result) {
+  return Array.isArray(result?.content) ? result.content.find(item => item?.type === "text" && typeof item.text === "string")?.text : undefined;
+}
+
+function theme(context) {
+  if (["dark", "light"].includes(context?.theme)) document.documentElement.style.colorScheme = context.theme;
+}
+
+function element(tag, text, className) {
+  const el = document.createElement(tag);
+  if (text != null) el.textContent = text;
+  if (className) el.className = className;
+  return el;
+}
+
+function button(text, click) {
+  const el = element("button", text);
+  el.type = "button";
+  el.addEventListener("click", click);
+  return el;
+}
+
+async function openLink(url) {
+  try {
+    const result = await request("ui/open-link", { url });
+    if (result?.isError) throw new Error();
+  } catch {
+    status.textContent = "Your chat host could not open this link.";
+  }
+}
+
+function showDay(index, focusTab = false) {
+  dayIndex = index;
+  render();
+  if (focusTab) document.querySelector('[aria-selected="true"]')?.focus();
+}
+
+function tabs(days) {
+  const group = element("div");
+  group.setAttribute("role", "tablist");
+  group.setAttribute("aria-label", "Itinerary days");
+  days.forEach((day, index) => {
+    const tab = button("Day " + day.day, () => showDay(index, true));
+    tab.id = "day-" + index;
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-selected", String(index === dayIndex));
+    tab.setAttribute("aria-controls", "schedule");
+    tab.tabIndex = index === dayIndex ? 0 : -1;
+    tab.addEventListener("keydown", event => {
+      const next = { ArrowRight: (index + 1) % days.length, ArrowLeft: (index + days.length - 1) % days.length, Home: 0, End: days.length - 1 }[event.key];
+      if (next === undefined) return;
+      event.preventDefault();
+      showDay(next, true);
+    });
+    group.append(tab);
+  });
+  return group;
+}
+
+function venueFacts(stop) {
+  const hours = Array.isArray(stop.hours) ? stop.hours.join(" · ") : stop.hours;
+  const facts = [stop.rating != null && stop.rating + "/5", hours].filter(Boolean);
+  return facts.length ? ["Google Maps", ...facts].join(" · ") : "";
+}
+
+function stopRow(stop, day, index) {
+  const row = element("li");
+  row.append(element("p", [stop.start_time, stop.duration_minutes != null && stop.duration_minutes + " min"].filter(Boolean).join(" · "), "timing"));
+  row.append(element("h3", stop.name));
+  const facts = element("p", venueFacts(stop), "meta");
+  row.append(facts);
+  const actions = element("div", null, "actions");
+  if (host.serverTools && stop.place_id) {
+    const details = button("Rating and hours", async () => {
+      details.disabled = true;
+      try {
+        const result = await callTool("get_attraction", { job_id: plan.job_id, place_id: stop.place_id });
+        if (result.isError) throw new Error();
+        facts.textContent = venueFacts(result.structuredContent || {}) || "Rating and opening hours unavailable.";
+        details.hidden = true;
+      } catch {
+        facts.textContent = "Could not load place details.";
+        details.disabled = false;
+      }
+    });
+    if (!venueFacts(stop)) actions.append(details);
+    const slot = { job_id: plan.job_id, day: day.day, place_id: stop.place_id };
+    const locked = stop.locked === true;
+    const swap = button("Swap this stop", () => changeStop("suggest_alternative", slot, index));
+    swap.disabled = locked;
+    const lock = button("Lock this stop", () => changeStop("set_stop_lock", { ...slot, locked: !locked }, index));
+    lock.setAttribute("aria-pressed", String(locked));
+    lock.title = locked ? "Unlock this stop to allow swaps" : "Keep this stop when swapping activities";
+    if (locked) {
+      const check = element("span", "✓ ");
+      check.setAttribute("aria-hidden", "true");
+      lock.prepend(check);
+    }
+    actions.append(swap, lock);
+  }
+  if (host.openLinks && stop.place_id) {
+    const map = new URL("https://www.google.com/maps/search/");
+    map.search = new URLSearchParams({ api: "1", query: stop.name, query_place_id: stop.place_id });
+    actions.append(button("View map", () => openLink(map.href)));
+  }
+  row.append(actions);
+  return row;
+}
+
+function render() {
+  trip.replaceChildren();
+  open.hidden = !(host.openLinks && validHandoff(plan?.open_url));
+  title.textContent = plan?.destination || "SproutRoute itinerary";
+  const days = plan?.days;
+  if (!Array.isArray(days) || !days.length) return;
+  dayIndex = Math.min(dayIndex, days.length - 1);
+  const day = days[dayIndex];
+  const panel = element("section");
+  panel.id = "schedule";
+  panel.setAttribute("role", "tabpanel");
+  panel.setAttribute("aria-labelledby", "day-" + dayIndex);
+  panel.tabIndex = 0;
+  panel.append(element("h2", day.date || "Day " + day.day));
+  const list = element("ol");
+  day.stops.forEach((stop, index) => list.append(stopRow(stop, day, index)));
+  panel.append(list.children.length ? list : element("p", "No scheduled stops for this day."));
+  trip.append(tabs(days), panel);
+}
+
+async function shareContext(updated) {
+  try {
+    const result = await request("ui/update-model-context", { structuredContent: updated });
+    if (result?.isError) throw new Error();
+  } catch {
+    if (plan === updated) status.textContent = "The itinerary changed, but your chat host could not sync the update.";
+  }
+}
+
+let changing = false;
+async function changeStop(tool, args, index) {
+  if (changing) return;
+  changing = true;
+  const isLock = tool === "set_stop_lock";
+  const current = revision;
+  status.textContent = isLock ? "Updating stop lock…" : "Checking for another stop…";
+  try {
+    const result = await callTool(tool, args);
+    if (!active || revision !== current) return;
+    if (result.isError || result.structuredContent?.status !== "ready") {
+      status.textContent = toolText(result) || "The stop could not be updated.";
+      return;
+    }
+    accept(result);
+    if (!plan) return;
+    status.textContent = isLock ? (args.locked ? "Stop locked." : "Stop unlocked.") : "Itinerary updated.";
+    if (isLock && plan.days[dayIndex]?.day === args.day) {
+      trip.querySelectorAll("button[aria-pressed]")[index]?.focus();
+    } else {
+      document.querySelector('[aria-selected="true"]')?.focus();
+    }
+    void shareContext(plan);
+  } catch {
+    if (revision === current) status.textContent = "Could not confirm the change. Check the trip status in chat.";
+  } finally {
+    changing = false;
+  }
+}
+
+function accept(result) {
+  ++revision;
+  clearTimeout(pollTimer);
+  const next = result?.structuredContent;
+  const valid = next?.schema_version === 1 && typeof next.job_id === "string"
+    && ["pending", "ready", "failed"].includes(next.status)
+    && Array.isArray(next.days) && next.days.every(day => day && Array.isArray(day.stops)
+      && day.stops.every(stop => stop && typeof stop.name === "string"));
+  if (result?.isError || !valid) {
+    plan = undefined;
+    render();
+    status.textContent = toolText(result) || "Read the itinerary in the tool response.";
+    return;
+  }
+  if (next.job_id !== plan?.job_id) dayIndex = 0;
+  plan = next;
+  render();
+  if (next.status === "pending") {
+    status.textContent = host.serverTools ? "Preparing your itinerary…" : "Check trip status in chat to see the itinerary.";
+    if (host.serverTools) pollTimer = setTimeout(() => poll(revision), 3000);
+  } else if (next.status === "failed") {
+    status.textContent = toolText(result) || "The itinerary could not be prepared.";
+  } else {
+    status.textContent = next.days?.length ? "" : "No itinerary days were returned.";
+  }
+}
+
+async function poll(current) {
+  if (!active || current !== revision) return;
+  try {
+    const result = await callTool("get_trip_status", { job_id: plan.job_id });
+    if (!active || current !== revision) return;
+    accept(result);
+    if (plan?.status === "ready") await shareContext(plan);
+  } catch {
+    if (active && current === revision) status.textContent = "Could not retrieve the itinerary. Check the trip status in chat.";
+  }
+}
+
+const size = new ResizeObserver(() => {
+  if (connected && active) send({ method: "ui/notifications/size-changed", params: { height: Math.ceil(document.body.getBoundingClientRect().height), width: document.documentElement.clientWidth } });
+});
+
+window.addEventListener("message", event => {
+  const msg = event.data;
+  if (!active || event.source !== window.parent || !msg || msg.jsonrpc !== "2.0") return;
+  if (hostOrigin !== "*" && event.origin !== hostOrigin) return;
+  if (!msg.method && pending.has(msg.id)) {
+    const call = pending.get(msg.id);
+    pending.delete(msg.id);
+    clearTimeout(call.timeout);
+    if (msg.error) call.reject(new Error("Host declined the request."));
+    else {
+      if (!connected && msg.result?.protocolVersion && /^https?:\/\//.test(event.origin)) hostOrigin = event.origin;
+      call.resolve(msg.result);
+    }
+    return;
+  }
+  if (!connected) return;
+  if (msg.method === "ui/notifications/tool-result") accept(msg.params);
+  if (msg.method === "ui/notifications/host-context-changed") theme(msg.params);
+  if (msg.method === "ui/notifications/tool-cancelled") {
+    accept({ isError: true, content: [{ type: "text", text: "Trip planning was cancelled." }] });
+  }
+  if (msg.method === "ui/resource-teardown") {
+    active = false;
+    clearTimeout(pollTimer);
+    size.disconnect();
+    for (const call of pending.values()) {
+      clearTimeout(call.timeout);
+      call.reject(new Error("View closed."));
+    }
+    pending.clear();
+    send({ id: msg.id, result: {} });
+  }
+});
+open.addEventListener("click", () => {
+  if (validHandoff(plan?.open_url)) openLink(plan.open_url);
+});
+
+try {
+  if (window.parent === window) throw new Error();
+  const init = await request("ui/initialize", { appInfo: { name: "SproutRoute", version: "1.0.0" }, appCapabilities: { availableDisplayModes: ["inline"] }, protocolVersion: "2026-01-26" });
+  if (init?.protocolVersion !== "2026-01-26") throw new Error();
+  host = init.hostCapabilities || {};
+  theme(init.hostContext);
+  connected = true;
+  send({ method: "ui/notifications/initialized", params: {} });
+  size.observe(document.body);
+} catch {
+  status.textContent = "Read the itinerary in the tool’s text response.";
+}
+</script>
+</body>
+</html>

@@ -26,8 +26,9 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^8.2.1",
+    "jose": "^6.2.18",
     "openai": "^6.33.0",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

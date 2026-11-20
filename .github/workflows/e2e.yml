@@ -35,6 +35,11 @@ jobs:
       - name: Run mocked E2E tests
         run: npx playwright test --project=mocked
 
+      - name: Check the opt-in WebMCP build
+        run: npx playwright test --project=mocked tests/e2e/flows/webmcp.spec.ts
+        env:
+          VITE_WEBMCP_ENABLED: "true"
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4

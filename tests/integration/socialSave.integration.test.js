@@ -1,4 +1,5 @@
 import test from "node:test";
+import { oauthDeps, owner, token } from "../helpers/libraryOAuth.js";
 import assert from "node:assert/strict";
 import { createApp } from "../../src/backend/server.js";
 
@@ -63,15 +64,12 @@ test("signed-in MCP advertises only personal tools and accepts idempotent inbox 
   let analyses = 0;
   let storedExtraction = null;
   const url = await start(t, {
-    authenticate: (req, _res, next) => {
-      req.user = { id: "owner" };
-      next();
-    },
+    ...oauthDeps,
     extract: async () => {
       analyses += 1;
       return { status: "review", origin: "supplied", candidates: [] };
     },
-    database: () => ({
+    connectorDatabase: () => ({
       from(name) {
         assert.equal(name, "social_inbox");
         return {
@@ -114,6 +112,7 @@ test("signed-in MCP advertises only personal tools and accepts idempotent inbox 
       headers: {
         "content-type": "application/json",
         accept: "application/json, text/event-stream",
+        authorization: "Bearer " + token({}),
       },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     });
@@ -128,7 +127,7 @@ test("signed-in MCP advertises only personal tools and accepts idempotent inbox 
   }
   assert.deepEqual(
     (await rpc("tools/list", {})).tools.map((x) => x.name).sort(),
-    ["list_saved_places", "save_place_from_url"],
+    ["list_saved_places", "list_saved_trips", "save_place_from_url"],
   );
   const requestId = "ab14e692-41d4-475b-b386-af1c8874cc52";
   await rpc("tools/call", {
@@ -137,7 +136,7 @@ test("signed-in MCP advertises only personal tools and accepts idempotent inbox 
   });
   assert.deepEqual(saved, [
     {
-      user_id: "owner",
+      user_id: owner,
       id: requestId,
       source: "https://example.org/post",
       text: "",

@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import ResultsScreen from './ResultsScreen.jsx';
 import { getTripShare, revokeTripShare } from '../services/api.js';
 import { loadJSON } from '../utils/storage.js';
 import { SHARE_PRIVACY_NOTICE, shareOwnerKey, forgetShareOwner, formatShareExpiry, APP_STORE_URL, planYourOwnHref } from '../utils/tripShare.js';
+
+import { shareHandoff } from '../utils/accountTrip.js';
+const AccountPanel = lazy(() => import('../components/AccountPanel.jsx'));
 
 function GetTheApp() {
   return <section aria-label="Get SproutRoute" className="mt-3 flex flex-col gap-3 rounded-2xl border border-meadow-200 bg-meadow-50 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -15,18 +18,18 @@ export default function SharedTripScreen() {
   const [shared, setShared] = useState(null);
   const [error, setError] = useState('');
   const [stopping, setStopping] = useState(false);
-  const token = window.location.hash.slice(1);
-  const ownerToken = loadJSON(shareOwnerKey(token))?.ownerToken;
+  const {token,mcp} = shareHandoff(window.location.hash) || {};
+  const ownerToken = !mcp && loadJSON(shareOwnerKey(token))?.ownerToken;
 
   useEffect(() => {
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) { setError('This trip link is invalid or unavailable.'); return; }
     const controller = new AbortController();
-    getTripShare(token, { signal: controller.signal }).then(data => {
+    getTripShare(token, { mcp, signal: controller.signal }).then(data => {
       if (data.snapshot?.schemaVersion !== 1 || !data.snapshot?.tripData || !Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) throw new Error('This trip link has expired or is unavailable.');
       setShared(data);
     }).catch(err => { if (!controller.signal.aborted) setError(err.message || 'This trip link is unavailable.'); });
     return () => controller.abort();
-  }, [token]);
+  }, [token,mcp]);
 
   useEffect(() => {
     if (!shared) return;
@@ -52,7 +55,8 @@ export default function SharedTripScreen() {
     </div></nav>
     <main className="mx-auto max-w-5xl">
       <section className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        <p className="font-semibold">{SHARE_PRIVACY_NOTICE}</p>
+        <p className="font-semibold">{mcp ? "Itinerary from your conversation" : SHARE_PRIVACY_NOTICE}</p>
+        {shared && <Suspense fallback={null}><AccountPanel tripData={shared.snapshot.tripData} /></Suspense>}
         {shared && <><p className="mt-2">Saved itinerary · Expires {formatShareExpiry(shared.expiresAt)}</p><p className="mt-1 text-xs">Weather was saved with this trip. Check current conditions before travel.</p></>}
         {ownerToken && shared && <button type="button" onClick={stopSharing} disabled={stopping} className="mt-2 font-semibold underline">Stop sharing</button>}
       </section>

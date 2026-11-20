@@ -25,17 +25,24 @@ async function resolveUser(req) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
 
   try {
+    // Delegated tokens belong exclusively to the private MCP resource. This
+    // precheck only rejects credentials. Supabase verifies every accepted JWT.
+    const claims = JSON.parse(Buffer.from(token.split(".")[1], "base64url").toString());
+    const nativeAudience = claims.aud === "authenticated" || (
+      Array.isArray(claims.aud) && claims.aud.length === 1 && claims.aud[0] === "authenticated"
+    );
+    if (claims.client_id || !nativeAudience) return null;
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: `Bearer ${token}` } },
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: { user }, error } = await supabase.auth.getUser();
+    const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return null;
 
     return { id: user.id, email: user.email, isAnonymous: user.is_anonymous === true };
-  } catch (err) {
-    log.warn("auth:resolve-failed", { error: err.message });
+  } catch {
+    log.warn("auth:resolve-failed");
     return null;
   }
 }

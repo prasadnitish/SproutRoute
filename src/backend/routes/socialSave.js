@@ -2,7 +2,9 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { mountLibraryOAuth } from "../mcp/libraryOAuth.js";
 import { requireAuth } from "../middleware/auth.js";
+import { mountAccountLifecycle } from "./accountLifecycle.js";
 import { getSupabaseAdmin, supabaseForUser } from "../utils/supabaseClient.js";
 import {
   importFields,
@@ -43,13 +45,22 @@ export function mountSocialSave(
     aiLimiter,
     meter,
     authenticate = requireAuth,
+    oauthConfig,
+    oauthKey,
+    connectorDatabase = getSupabaseAdmin,
     database = supabaseForUser,
     extract = prepareImport,
-    deleteUser = (id) => getSupabaseAdmin().auth.admin.deleteUser(id),
+    accountLifecycle,
   },
 ) {
   const root = "/api/v1/social-save";
-  const table = (req, name) => database(req.headers.authorization).from(name);
+  const authorizeConnector = mountLibraryOAuth(app, oauthConfig, oauthKey);
+  const table = (req, name) => {
+    const client = req.libraryConnector
+      ? connectorDatabase()
+      : database(req.headers.authorization);
+    return client.from(name);
+  };
   const places = (req) => table(req, "social_places");
   const inbox = (req) => table(req, "social_inbox");
   async function list(req, destination, after) {
@@ -88,7 +99,10 @@ export function mountSocialSave(
       res.set("Cache-Control", "private, no-store");
       next();
     },
-    authenticate,
+    (req, res, next) => {
+      const verify = /^\/mcp\/?$/i.test(req.path) ? authorizeConnector : authenticate;
+      return verify(req, res, next);
+    },
     (req, res, next) => {
       if (req.user.isAnonymous)
         return res.status(403).json({ message: "Sign in with an account." });
@@ -101,39 +115,7 @@ export function mountSocialSave(
     meter("parse"),
     privateRoute((req) => extract(req.body)),
   );
-  app.delete(root + "/account", async (req, res) => {
-    // Require recent authentication in this token, not just a recent login on another device.
-    let methods;
-    try {
-      const jwt = req.headers.authorization.split(" ")[1];
-      methods = JSON.parse(
-        Buffer.from(jwt.split(".")[1], "base64url").toString(),
-      ).amr;
-    } catch {
-      /* Opaque or malformed credentials cannot authorize account removal. */
-    }
-    const now = Date.now() / 1000;
-    if (
-      !Array.isArray(methods) ||
-      !methods.some(
-        (m) =>
-          m.method === "otp" && m.timestamp <= now && now - m.timestamp <= 300,
-      )
-    ) {
-      return res.status(403).json({
-        message: "Verify a new email code before deleting your account.",
-      });
-    }
-    try {
-      const { error } = await deleteUser(req.user.id);
-      if (error) throw error;
-      return res.json({ ok: true });
-    } catch {
-      return res
-        .status(503)
-        .json({ message: "Account deletion could not be completed." });
-    }
-  });
+  mountAccountLifecycle(app, root + "/account", accountLifecycle);
   app.get(
     root + "/places",
     privateRoute((req) => list(req, undefined, req.query.after)),
@@ -207,6 +189,21 @@ export function mountSocialSave(
       const content = (value) => ({
         content: [{ type: "text", text: JSON.stringify(value) }],
       });
+      server.registerTool(
+        "list_saved_trips",
+        {
+          description: "List your saved trip names and IDs, starting after an optional cursor.",
+          inputSchema: { after: z.uuid().optional() },
+          annotations: { readOnlyHint: true },
+        },
+        async ({ after }) => {
+          let query = table(req, "account_trips").select("id,destination,updated_at")
+            .eq("user_id", req.user.id).order("id");
+          if (after) query = query.gt("id", after);
+          const trips = await result(query.limit(100));
+          return content({ trips, next: trips.length === 100 ? trips.at(-1).id : null });
+        },
+      );
       server.registerTool(
         "list_saved_places",
         {
@@ -283,4 +280,6 @@ export function mountSocialSave(
       }
     },
   );
+  // This stateless transport has neither a standalone event stream nor sessions.
+  app.all(root + "/mcp", (_req, res) => res.set("Allow", "POST").sendStatus(405));
 }

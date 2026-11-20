@@ -94,3 +94,12 @@ test("runItineraryAgent does not include countryCode in tripPayload sent to AI",
     deps,
   );
 });
+
+test("connector requires Places-grounded candidates before billing generation", async () => {
+  let calls = 0;
+  await assert.rejects(runItineraryAgent({}, retrieval, {
+    requireVerifiedPool: true,
+    generateTripPlanChunkedFn: async () => { calls++; return {}; },
+  }), /verified/i);
+  assert.equal(calls, 0);
+});

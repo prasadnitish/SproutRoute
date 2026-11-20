@@ -29,7 +29,8 @@ export async function runSafetyAgent(input, retrieval, deps = {}) {
       jurisdictionCode: coords.stateCode,
       tripDate: startDate,
       children,
-    });
+      ...(deps.requireVerifiedPool ? { countryCode } : {}),
+    }, deps.requireVerifiedPool ? { sourceRegistry: {} } : undefined);
     edgeSummary.carSeatCheck = "ran";
   } else {
     edgeSummary.carSeatCheck = "skipped";

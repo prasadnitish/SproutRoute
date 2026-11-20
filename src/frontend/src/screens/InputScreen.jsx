@@ -1,3 +1,4 @@
+import WebMcpExperiment from "../webmcp/Experiment.jsx";
 import { useState, useRef, useEffect } from "react";
 import { analytics } from "../utils/analytics.js";
 import { loadRecentTrips } from "../utils/recentTrips.js";
@@ -122,7 +123,7 @@ export default function InputScreen({ onSubmit, savedProfile, geo }) {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    if (!e.nativeEvent.isComposing && e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       submit();
     }
@@ -138,6 +139,13 @@ export default function InputScreen({ onSubmit, savedProfile, geo }) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-10 md:py-14 flex flex-col items-stretch gap-8">
+      <WebMcpExperiment onDraft={draft => {
+        if (textareaRef.current?.value.trim() && textareaRef.current.value !== draft) {
+          throw new Error("The planner already contains a draft. Ask the traveler to clear it before preparing another.");
+        }
+        setText(draft);
+        textareaRef.current?.focus();
+      }} />
       {/* Hero — calmer, shorter */}
       <header className="text-center">
         <h1 className="font-display font-extrabold text-3xl md:text-[40px] leading-[1.08] tracking-tight text-gray-900">
