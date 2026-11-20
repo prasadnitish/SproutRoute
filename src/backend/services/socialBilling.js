@@ -1,3 +1,4 @@
+import { stagingModelsDisabled } from "../utils/stagingModels.js";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { getSupabaseAdmin } from "../utils/supabaseClient.js";
@@ -52,6 +53,9 @@ export function createSocialBilling(options = {}) {
     status: (userId) => rpc("billing_status", { owner_id: userId, ...limits }),
     async extract(userId, raw, requestId, run) {
       const input = z.object(importFields).parse(raw);
+      if (stagingModelsDisabled()) {
+        throw new BillingError(503, "EXTRACTION_UNAVAILABLE", "AI extraction is disabled in staging. Save the link for manual review.");
+      }
       if (!enabled) {
         if (preview) return run(input);
         throw new BillingError(

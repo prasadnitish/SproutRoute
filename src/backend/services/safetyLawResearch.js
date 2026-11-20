@@ -1,3 +1,4 @@
+import { stagingModelsDisabled } from "../utils/stagingModels.js";
 import { tracing } from "./tracing.js";
 import { estimateCostUsd } from "../utils/aiCost.js";
 import Anthropic from "@anthropic-ai/sdk";
@@ -148,7 +149,7 @@ export async function researchCarSeatRulesFromOfficialSource(
     anthropicFactory = (apiKey) => new Anthropic({ apiKey }),
   } = deps;
 
-  if (!sourceUrl) return null;
+  if (!sourceUrl || stagingModelsDisabled()) return null;
 
   if (
     !process.env.ANTHROPIC_API_KEY ||

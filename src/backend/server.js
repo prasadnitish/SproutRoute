@@ -1,3 +1,4 @@
+import { stagingModelsDisabled } from "./utils/stagingModels.js";
 import { summarizeUnitCosts } from './services/unitCosts.js';
 import { tracing, traceArchive, traceStore, startTraceStore, tracedFetch } from './services/tracing.js';
 import { evalCapture } from './services/evalCapture.js';
@@ -178,6 +179,7 @@ function failEnvironmentValidation(message, exitOnFailure) {
 
 // Validate required environment variables at startup
 export function validateEnvironmentVariables({ exitOnFailure = true } = {}) {
+  if (stagingModelsDisabled()) return { aiProvider: "disabled", requiredEnvVar: null };
   const provider = String(process.env.AI_PROVIDER || "anthropic").toLowerCase().trim();
   const requiredKey = AI_PROVIDER_ENV[provider];
 

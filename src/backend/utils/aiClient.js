@@ -1,3 +1,4 @@
+import { stagingModelsDisabled } from "./stagingModels.js";
 import { tracing } from '../services/tracing.js';
 import { evalCapture } from '../services/evalCapture.js';
 /**
@@ -410,6 +411,7 @@ async function safely(work) {
  * @returns {Promise<{ responseText: string, stopReason: string|null }>}
  */
 export async function callModel(prompt, deps = {}) {
+  if (stagingModelsDisabled()) throw new Error("AI model calls are disabled in staging.");
   const {
     system,
     user,
