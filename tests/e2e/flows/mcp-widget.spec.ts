@@ -70,6 +70,10 @@ test("host negotiates theme, polls, handles a swap and opens only declared desti
   await expect(frame.getByText("Replacement garden", { exact: true })).toBeVisible();
   await frame.getByRole("button", { name: "View map" }).click();
   await frame.getByRole("button", { name: "Open in SproutRoute" }).click();
+  // postMessage is delivered asynchronously after the click handler returns.
+  await expect.poll(() => page.evaluate(() =>
+    (window as any).messages.filter((event: any) => event.method === "ui/open-link").length
+  )).toBe(2);
   const events = await page.evaluate(() => (window as any).messages);
   expect(events.filter((e: any) => e.params?.name === "set_stop_lock").map((e: any) => e.params.arguments)).toEqual(
     [true, false].map(locked => ({ job_id: "aaa", day: 2, place_id: "place-1", locked }))
